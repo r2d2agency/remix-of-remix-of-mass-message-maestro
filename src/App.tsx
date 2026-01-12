@@ -3,7 +3,11 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AuthProvider } from "@/contexts/AuthContext";
+import ProtectedRoute from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
+import Login from "./pages/Login";
+import Cadastro from "./pages/Cadastro";
 import Conexao from "./pages/Conexao";
 import Contatos from "./pages/Contatos";
 import Mensagens from "./pages/Mensagens";
@@ -19,15 +23,19 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/conexao" element={<Conexao />} />
-          <Route path="/contatos" element={<Contatos />} />
-          <Route path="/mensagens" element={<Mensagens />} />
-          <Route path="/campanhas" element={<Campanhas />} />
-          <Route path="/configuracoes" element={<Configuracoes />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <AuthProvider>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/cadastro" element={<Cadastro />} />
+            <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+            <Route path="/conexao" element={<ProtectedRoute><Conexao /></ProtectedRoute>} />
+            <Route path="/contatos" element={<ProtectedRoute><Contatos /></ProtectedRoute>} />
+            <Route path="/mensagens" element={<ProtectedRoute><Mensagens /></ProtectedRoute>} />
+            <Route path="/campanhas" element={<ProtectedRoute><Campanhas /></ProtectedRoute>} />
+            <Route path="/configuracoes" element={<ProtectedRoute><Configuracoes /></ProtectedRoute>} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
