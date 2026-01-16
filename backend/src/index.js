@@ -6,6 +6,8 @@ import connectionsRoutes from './routes/connections.js';
 import messagesRoutes from './routes/messages.js';
 import contactsRoutes from './routes/contacts.js';
 import campaignsRoutes from './routes/campaigns.js';
+import organizationsRoutes from './routes/organizations.js';
+import asaasRoutes from './routes/asaas.js';
 
 dotenv.config();
 
@@ -32,6 +34,8 @@ app.use('/api/connections', connectionsRoutes);
 app.use('/api/messages', messagesRoutes);
 app.use('/api/contacts', contactsRoutes);
 app.use('/api/campaigns', campaignsRoutes);
+app.use('/api/organizations', organizationsRoutes);
+app.use('/api/asaas', asaasRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
