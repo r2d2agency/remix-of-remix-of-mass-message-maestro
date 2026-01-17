@@ -336,10 +336,29 @@ const Chat = () => {
   };
 
   const handleNewConversationCreated = async (conversation: Conversation) => {
-    // Add to list and select it
-    setConversations(prev => [conversation, ...prev]);
-    setSelectedConversation(conversation);
-    setMessages([]);
+    // Add to list
+    setConversations(prev => {
+      // Remove if already exists (in case of duplicate)
+      const filtered = prev.filter(c => c.id !== conversation.id);
+      return [conversation, ...filtered];
+    });
+    
+    // Load full conversation data and select it properly
+    try {
+      const fullConversation = await getConversation(conversation.id);
+      if (fullConversation) {
+        await handleSelectConversation(fullConversation);
+      } else {
+        // Fallback to provided conversation
+        await handleSelectConversation(conversation);
+      }
+    } catch (error) {
+      console.error('Error loading new conversation:', error);
+      // Still select the conversation even if there's an error
+      setSelectedConversation(conversation);
+      setMessages([]);
+    }
+    
     loadConversations();
   };
 

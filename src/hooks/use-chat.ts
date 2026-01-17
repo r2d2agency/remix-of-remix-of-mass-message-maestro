@@ -410,11 +410,15 @@ export const useChat = () => {
 
   // Typing status
   const getTypingStatus = useCallback(async (conversationId: string): Promise<boolean> => {
+    if (!conversationId) return false;
     try {
       const response = await api<{ isTyping: boolean }>(`/api/evolution/typing/${conversationId}`);
       return response.isTyping || false;
     } catch (err: any) {
-      console.error('Error getting typing status:', err);
+      // Silently handle 404 errors (conversation doesn't exist yet)
+      if (!err.message?.includes('não encontrada')) {
+        console.error('Error getting typing status:', err);
+      }
       return false;
     }
   }, []);

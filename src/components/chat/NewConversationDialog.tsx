@@ -89,6 +89,13 @@ export function NewConversationDialog({
       return;
     }
 
+    // Validate connection is active
+    const selectedConnection = connections.find(c => c.id === connectionId);
+    if (!selectedConnection || selectedConnection.status !== 'connected') {
+      toast({ title: "Conexão não está ativa", description: "Selecione uma conexão conectada", variant: "destructive" });
+      return;
+    }
+
     // Validate phone - at least 10 digits (DDD + number)
     const cleanPhone = contactPhone.trim().replace(/\D/g, '');
     if (cleanPhone.length < 10 || cleanPhone.length > 15) {
@@ -116,6 +123,7 @@ export function NewConversationDialog({
       onConversationCreated(conversation);
       onOpenChange(false);
     } catch (error: any) {
+      console.error('Error creating conversation:', error);
       toast({
         title: "Erro ao criar conversa",
         description: error.message || "Não foi possível criar a conversa",
