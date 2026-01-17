@@ -62,13 +62,17 @@ router.post('/', async (req, res) => {
       name, 
       connection_id, 
       list_id, 
-      message_id, 
+      message_id,
+      message_ids, // Support both single and array
       scheduled_at,
       min_delay,
       max_delay 
     } = req.body;
 
-    if (!name || !connection_id || !list_id || !message_id) {
+    // Accept message_id or message_ids (take first if array)
+    const finalMessageId = message_id || (Array.isArray(message_ids) ? message_ids[0] : null);
+
+    if (!name || !connection_id || !list_id || !finalMessageId) {
       return res.status(400).json({ 
         error: 'Nome, conexão, lista e mensagem são obrigatórios' 
       });
@@ -99,7 +103,7 @@ router.post('/', async (req, res) => {
           user_id = $2 OR 
           user_id IN (SELECT user_id FROM organization_members WHERE organization_id = $3)
         )`,
-        [message_id, req.userId, org.organization_id]
+        [finalMessageId, req.userId, org.organization_id]
       );
     } else {
       connectionCheck = await query(
@@ -112,7 +116,7 @@ router.post('/', async (req, res) => {
       );
       messageCheck = await query(
         'SELECT id FROM message_templates WHERE id = $1 AND user_id = $2',
-        [message_id, req.userId]
+        [finalMessageId, req.userId]
       );
     }
 
@@ -136,7 +140,7 @@ router.post('/', async (req, res) => {
         name, 
         connection_id, 
         list_id, 
-        message_id, 
+        finalMessageId, 
         scheduled_at || null,
         min_delay || 5,
         max_delay || 15
