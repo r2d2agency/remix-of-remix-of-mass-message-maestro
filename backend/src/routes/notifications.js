@@ -157,10 +157,31 @@ router.post('/execute', async (req, res) => {
         const paymentsResult = await query(paymentsQuery, paymentsParams);
         console.log(`    Rule "${rule.name}": ${paymentsResult.rows.length} payments to notify`);
 
+        // Get delay settings from rule (with defaults)
+        const minDelay = rule.min_delay || 120; // seconds
+        const maxDelay = rule.max_delay || 300; // seconds
+        const pauseAfterMessages = rule.pause_after_messages || 20;
+        const pauseDuration = rule.pause_duration || 600; // seconds
+        
+        let messageCount = 0;
+
         for (const payment of paymentsResult.rows) {
           stats.processed++;
 
           if (!payment.customer_phone) {
+            stats.skipped++;
+            continue;
+          }
+
+          // Check if payment is still pending/overdue before sending
+          const currentPaymentStatus = await query(
+            `SELECT status FROM asaas_payments WHERE id = $1`,
+            [payment.id]
+          );
+          
+          if (currentPaymentStatus.rows[0]?.status && 
+              ['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH'].includes(currentPaymentStatus.rows[0].status)) {
+            console.log(`      ⏭ Payment ${payment.id} already paid, skipping`);
             stats.skipped++;
             continue;
           }
@@ -207,8 +228,18 @@ router.post('/execute', async (req, res) => {
             console.log(`      ✗ Failed to send to ${payment.customer_phone}`);
           }
 
-          // Small delay between messages
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          messageCount++;
+
+          // Check if we need to pause
+          if (messageCount > 0 && messageCount % pauseAfterMessages === 0) {
+            console.log(`      ⏸ Pausing for ${pauseDuration} seconds after ${messageCount} messages...`);
+            await new Promise(resolve => setTimeout(resolve, pauseDuration * 1000));
+          } else {
+            // Random delay between min and max
+            const delay = Math.floor(Math.random() * (maxDelay - minDelay + 1)) + minDelay;
+            console.log(`      ⏳ Waiting ${delay} seconds before next message...`);
+            await new Promise(resolve => setTimeout(resolve, delay * 1000));
+          }
         }
       }
     }

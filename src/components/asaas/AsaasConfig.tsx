@@ -65,7 +65,11 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
     max_days_overdue: 30,
     message_template: "Olá {{nome}}! Sua fatura de R$ {{valor}} vence em {{vencimento}}. Acesse: {{link}}",
     send_time: "09:00",
-    connection_id: ""
+    connection_id: "",
+    min_delay: 120,
+    max_delay: 300,
+    pause_after_messages: 20,
+    pause_duration: 600
   });
 
   useEffect(() => {
@@ -179,7 +183,11 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
         max_days_overdue: 30,
         message_template: "Olá {{nome}}! Sua fatura de R$ {{valor}} vence em {{vencimento}}. Acesse: {{link}}",
         send_time: "09:00",
-        connection_id: ""
+        connection_id: "",
+        min_delay: 120,
+        max_delay: 300,
+        pause_after_messages: 20,
+        pause_duration: 600
       });
       await loadData();
     } else if (error) {
@@ -488,7 +496,11 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
                         max_days_overdue: 30,
                         message_template: "Olá {{nome}}! Sua fatura de R$ {{valor}} vence em {{vencimento}}. Acesse: {{link}}",
                         send_time: "09:00",
-                        connection_id: ""
+                        connection_id: "",
+                        min_delay: 120,
+                        max_delay: 300,
+                        pause_after_messages: 20,
+                        pause_duration: 600
                       });
                     }}>
                       <Plus className="mr-2 h-4 w-4" />
@@ -582,16 +594,61 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
                           </Select>
                         </div>
                       </div>
+                      {/* Delay Settings */}
+                      <div className="rounded-lg border border-border p-4 space-y-4">
+                        <Label className="text-sm font-medium">Configurações de Envio (Anti-bloqueio)</Label>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label className="text-xs text-muted-foreground">Delay Mínimo (segundos)</Label>
+                            <Input 
+                              type="number"
+                              min={60}
+                              value={ruleForm.min_delay}
+                              onChange={(e) => setRuleForm({...ruleForm, min_delay: parseInt(e.target.value) || 120})}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs text-muted-foreground">Delay Máximo (segundos)</Label>
+                            <Input 
+                              type="number"
+                              min={120}
+                              value={ruleForm.max_delay}
+                              onChange={(e) => setRuleForm({...ruleForm, max_delay: parseInt(e.target.value) || 300})}
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label className="text-xs text-muted-foreground">Pausar após X mensagens</Label>
+                            <Input 
+                              type="number"
+                              min={5}
+                              value={ruleForm.pause_after_messages}
+                              onChange={(e) => setRuleForm({...ruleForm, pause_after_messages: parseInt(e.target.value) || 20})}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs text-muted-foreground">Duração da pausa (segundos)</Label>
+                            <Input 
+                              type="number"
+                              min={60}
+                              value={ruleForm.pause_duration}
+                              onChange={(e) => setRuleForm({...ruleForm, pause_duration: parseInt(e.target.value) || 600})}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
                       <div className="space-y-2">
                         <Label>Mensagem</Label>
                         <Textarea 
                           rows={4}
-                          placeholder="Use variáveis: {{nome}}, {{valor}}, {{vencimento}}, {{link}}"
+                          placeholder="Use variáveis: {{nome}}, {{valor}}, {{vencimento}}, {{link}}, {{boleto}}, {{pix}}"
                           value={ruleForm.message_template}
                           onChange={(e) => setRuleForm({...ruleForm, message_template: e.target.value})}
                         />
                         <p className="text-xs text-muted-foreground">
-                          Variáveis: {"{{nome}}"}, {"{{valor}}"}, {"{{vencimento}}"}, {"{{link}}"}
+                          Variáveis: {"{{nome}}"}, {"{{valor}}"}, {"{{vencimento}}"}, {"{{link}}"}, {"{{boleto}}"}, {"{{pix}}"}, {"{{descricao}}"}
                         </p>
                       </div>
                     </div>

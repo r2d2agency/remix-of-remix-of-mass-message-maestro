@@ -247,10 +247,24 @@ CREATE TABLE IF NOT EXISTS billing_notification_rules (
     max_days_overdue INTEGER,
     message_template TEXT NOT NULL,
     send_time TIME DEFAULT '09:00',
+    min_delay INTEGER DEFAULT 120,
+    max_delay INTEGER DEFAULT 300,
+    pause_after_messages INTEGER DEFAULT 20,
+    pause_duration INTEGER DEFAULT 600,
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Add delay columns if not exists (for existing databases)
+DO $$ BEGIN
+    ALTER TABLE billing_notification_rules ADD COLUMN IF NOT EXISTS min_delay INTEGER DEFAULT 120;
+    ALTER TABLE billing_notification_rules ADD COLUMN IF NOT EXISTS max_delay INTEGER DEFAULT 300;
+    ALTER TABLE billing_notification_rules ADD COLUMN IF NOT EXISTS pause_after_messages INTEGER DEFAULT 20;
+    ALTER TABLE billing_notification_rules ADD COLUMN IF NOT EXISTS pause_duration INTEGER DEFAULT 600;
+EXCEPTION
+    WHEN duplicate_column THEN null;
+END $$;
 
 -- Asaas Customers (cached)
 CREATE TABLE IF NOT EXISTS asaas_customers (

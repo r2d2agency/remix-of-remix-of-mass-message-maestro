@@ -92,6 +92,30 @@ router.post('/webhook/:organizationId', async (req, res) => {
         ]
       );
 
+      // If payment is RECEIVED, CONFIRMED or RECEIVED_IN_CASH, cancel pending notifications
+      const paidStatuses = ['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH'];
+      if (paidStatuses.includes(payment.status)) {
+        // Get the payment ID in our database
+        const paymentResult = await query(
+          `SELECT id FROM asaas_payments WHERE organization_id = $1 AND asaas_id = $2`,
+          [organizationId, payment.id]
+        );
+        
+        if (paymentResult.rows.length > 0) {
+          const paymentDbId = paymentResult.rows[0].id;
+          
+          // Cancel all pending notifications for this payment
+          await query(
+            `UPDATE billing_notifications 
+             SET status = 'cancelled', error_message = 'Pagamento confirmado via webhook'
+             WHERE payment_id = $1 AND status = 'pending'`,
+            [paymentDbId]
+          );
+          
+          console.log(`  ✓ Cancelled pending notifications for paid payment: ${payment.id}`);
+        }
+      }
+
       // Mark webhook as processed
       await query(
         `UPDATE asaas_webhook_events 
@@ -442,7 +466,10 @@ router.get('/rules/:organizationId', async (req, res) => {
 router.post('/rules/:organizationId', async (req, res) => {
   try {
     const { organizationId } = req.params;
-    const { name, trigger_type, days_offset, max_days_overdue, message_template, send_time, connection_id } = req.body;
+    const { 
+      name, trigger_type, days_offset, max_days_overdue, message_template, 
+      send_time, connection_id, min_delay, max_delay, pause_after_messages, pause_duration 
+    } = req.body;
 
     const access = await checkOrgAccess(req.userId, organizationId);
     if (!access || !['owner', 'admin', 'manager'].includes(access.role)) {
@@ -451,10 +478,13 @@ router.post('/rules/:organizationId', async (req, res) => {
 
     const result = await query(
       `INSERT INTO billing_notification_rules 
-       (organization_id, connection_id, name, trigger_type, days_offset, max_days_overdue, message_template, send_time)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       (organization_id, connection_id, name, trigger_type, days_offset, max_days_overdue, 
+        message_template, send_time, min_delay, max_delay, pause_after_messages, pause_duration)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING *`,
-      [organizationId, connection_id, name, trigger_type, days_offset, max_days_overdue, message_template, send_time || '09:00']
+      [organizationId, connection_id, name, trigger_type, days_offset, max_days_overdue, 
+       message_template, send_time || '09:00', min_delay || 120, max_delay || 300, 
+       pause_after_messages || 20, pause_duration || 600]
     );
 
     res.status(201).json(result.rows[0]);
@@ -467,7 +497,11 @@ router.post('/rules/:organizationId', async (req, res) => {
 router.patch('/rules/:organizationId/:ruleId', async (req, res) => {
   try {
     const { organizationId, ruleId } = req.params;
-    const { name, trigger_type, days_offset, max_days_overdue, message_template, send_time, connection_id, is_active } = req.body;
+    const { 
+      name, trigger_type, days_offset, max_days_overdue, message_template, 
+      send_time, connection_id, is_active, min_delay, max_delay, 
+      pause_after_messages, pause_duration 
+    } = req.body;
 
     const access = await checkOrgAccess(req.userId, organizationId);
     if (!access || !['owner', 'admin', 'manager'].includes(access.role)) {
@@ -484,10 +518,16 @@ router.patch('/rules/:organizationId/:ruleId', async (req, res) => {
          send_time = COALESCE($6, send_time),
          connection_id = COALESCE($7, connection_id),
          is_active = COALESCE($8, is_active),
+         min_delay = COALESCE($9, min_delay),
+         max_delay = COALESCE($10, max_delay),
+         pause_after_messages = COALESCE($11, pause_after_messages),
+         pause_duration = COALESCE($12, pause_duration),
          updated_at = NOW()
-       WHERE id = $9 AND organization_id = $10
+       WHERE id = $13 AND organization_id = $14
        RETURNING *`,
-      [name, trigger_type, days_offset, max_days_overdue, message_template, send_time, connection_id, is_active, ruleId, organizationId]
+      [name, trigger_type, days_offset, max_days_overdue, message_template, 
+       send_time, connection_id, is_active, min_delay, max_delay, 
+       pause_after_messages, pause_duration, ruleId, organizationId]
     );
 
     if (result.rows.length === 0) {
