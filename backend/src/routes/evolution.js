@@ -250,9 +250,12 @@ router.get('/limits', authenticate, async (req, res) => {
 async function configureInstanceWebhook(instanceName, webhookUrl) {
   try {
     const webhookConfig = {
+      enabled: true,
       url: webhookUrl,
-      webhook_by_events: false,
-      webhook_base64: true,
+      // Evolution API v2 uses camelCase (webhookByEvents/webhookBase64)
+      // Using these fields ensures events like MESSAGES_UPSERT are actually delivered.
+      webhookByEvents: true,
+      webhookBase64: false,
       events: [
         'APPLICATION_STARTUP',
         'QRCODE_UPDATED',
@@ -378,9 +381,10 @@ router.post('/create', authenticate, async (req, res) => {
     // If webhook URL is available, include it in creation
     if (webhookUrl) {
       createPayload.webhook = {
+        enabled: true,
         url: webhookUrl,
-        webhook_by_events: false,
-        webhook_base64: true,
+        webhookByEvents: true,
+        webhookBase64: false,
         events: [
           'MESSAGES_UPSERT',
           'MESSAGES_UPDATE',
@@ -867,11 +871,17 @@ router.get('/:connectionId/webhook-diagnostic', authenticate, async (req, res) =
     // Get webhook configuration from Evolution API
     try {
       const webhookResult = await evolutionRequest(`/webhook/find/${connection.instance_name}`, 'GET');
+      const rawWebhook = webhookResult?.webhook?.webhook || webhookResult?.webhook || webhookResult;
       diagnostics.evolutionWebhook = {
-        url: webhookResult.webhook?.url || webhookResult.url || null,
-        enabled: webhookResult.webhook?.enabled !== false,
-        events: webhookResult.webhook?.events || webhookResult.events || [],
-        webhookBase64: webhookResult.webhook?.webhook_base64 ?? webhookResult.webhook_base64 ?? null,
+        url: rawWebhook?.url || webhookResult?.url || null,
+        enabled: rawWebhook?.enabled !== false,
+        events: rawWebhook?.events || webhookResult?.events || [],
+        webhookBase64:
+          rawWebhook?.webhookBase64 ??
+          rawWebhook?.webhook_base64 ??
+          webhookResult?.webhookBase64 ??
+          webhookResult?.webhook_base64 ??
+          null,
       };
 
       // Check if URL matches expected - use the actual configured URL or construct from base
@@ -1568,9 +1578,11 @@ router.post('/:connectionId/configure-webhook', authenticate, async (req, res) =
 
     // Configure webhook on Evolution API
     const webhookConfig = {
+      enabled: true,
       url: webhookUrl,
-      webhook_by_events: false,
-      webhook_base64: true, // Receive media as base64
+      webhookByEvents: true,
+      // Keep payloads smaller; media is fetched on-demand by getBase64FromMediaMessage.
+      webhookBase64: false,
       events: [
         'APPLICATION_STARTUP',
         'QRCODE_UPDATED',
