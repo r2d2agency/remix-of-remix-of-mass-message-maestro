@@ -521,6 +521,49 @@ router.post('/conversations/cleanup-duplicates', authenticate, async (req, res) 
   }
 });
 
+// Clean up empty conversations (no messages) - Admin only
+router.post('/conversations/cleanup-empty', authenticate, async (req, res) => {
+  try {
+    // Check if user is admin/owner
+    const memberResult = await query(
+      `SELECT om.role FROM organization_members om WHERE om.user_id = $1 LIMIT 1`,
+      [req.userId]
+    );
+    
+    const userRole = memberResult.rows[0]?.role;
+    if (!userRole || !['owner', 'admin'].includes(userRole)) {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+
+    const connectionIds = await getUserConnections(req.userId);
+    
+    if (connectionIds.length === 0) {
+      return res.json({ deleted: 0, message: 'Nenhuma conexão encontrada' });
+    }
+
+    // Find and delete conversations with no messages
+    const result = await query(`
+      DELETE FROM conversations
+      WHERE connection_id = ANY($1)
+        AND id NOT IN (
+          SELECT DISTINCT conversation_id FROM chat_messages WHERE conversation_id IS NOT NULL
+        )
+      RETURNING id, contact_name, contact_phone
+    `, [connectionIds]);
+
+    console.log(`Cleaned up ${result.rows.length} empty conversations`);
+
+    res.json({
+      deleted: result.rows.length,
+      conversations: result.rows,
+      message: `${result.rows.length} conversa(s) vazia(s) removida(s)`
+    });
+  } catch (error) {
+    console.error('Cleanup empty conversations error:', error);
+    res.status(500).json({ error: 'Erro ao limpar conversas vazias' });
+  }
+});
+
 // ==========================================
 // MESSAGES
 // ==========================================
