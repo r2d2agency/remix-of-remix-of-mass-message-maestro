@@ -1039,4 +1039,370 @@ router.get('/:connectionId/webhook', authenticate, async (req, res) => {
   }
 });
 
+// ==========================================
+// SYNC HISTORY - Import messages from phone
+// ==========================================
+
+// Get all chats from phone
+router.get('/:connectionId/chats', authenticate, async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+
+    const connResult = await query(
+      'SELECT * FROM connections WHERE id = $1 AND user_id = $2',
+      [connectionId, req.userId]
+    );
+
+    if (connResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Conexão não encontrada' });
+    }
+
+    const connection = connResult.rows[0];
+
+    if (connection.status !== 'connected') {
+      return res.status(400).json({ error: 'Conexão não está ativa' });
+    }
+
+    // Fetch all chats from Evolution API
+    const chats = await evolutionRequest(`/chat/findChats/${connection.instance_name}`, 'POST', {});
+
+    res.json(chats || []);
+  } catch (error) {
+    console.error('Get chats error:', error);
+    res.status(500).json({ error: 'Erro ao buscar conversas' });
+  }
+});
+
+// Sync messages from a specific chat
+router.post('/:connectionId/sync-chat', authenticate, async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+    const { remoteJid, days = 7 } = req.body;
+
+    if (!remoteJid) {
+      return res.status(400).json({ error: 'remoteJid é obrigatório' });
+    }
+
+    const connResult = await query(
+      'SELECT * FROM connections WHERE id = $1 AND user_id = $2',
+      [connectionId, req.userId]
+    );
+
+    if (connResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Conexão não encontrada' });
+    }
+
+    const connection = connResult.rows[0];
+
+    if (connection.status !== 'connected') {
+      return res.status(400).json({ error: 'Conexão não está ativa' });
+    }
+
+    // Fetch messages from Evolution API
+    const messages = await evolutionRequest(`/chat/findMessages/${connection.instance_name}`, 'POST', {
+      where: {
+        key: {
+          remoteJid: remoteJid
+        }
+      },
+      limit: 500 // Limit to prevent overload
+    });
+
+    if (!messages || messages.length === 0) {
+      return res.json({ imported: 0, message: 'Nenhuma mensagem encontrada' });
+    }
+
+    // Filter messages by date
+    const daysAgo = new Date();
+    daysAgo.setDate(daysAgo.getDate() - days);
+    const daysAgoTimestamp = Math.floor(daysAgo.getTime() / 1000);
+
+    const filteredMessages = messages.filter(msg => {
+      const msgTimestamp = msg.messageTimestamp || msg.message?.messageTimestamp;
+      return msgTimestamp >= daysAgoTimestamp;
+    });
+
+    console.log(`Sync: Found ${messages.length} messages, ${filteredMessages.length} in last ${days} days`);
+
+    // Find or create conversation
+    const contactPhone = remoteJid.replace('@s.whatsapp.net', '').replace('@c.us', '');
+    
+    let convResult = await query(
+      `SELECT * FROM conversations WHERE connection_id = $1 AND remote_jid = $2`,
+      [connection.id, remoteJid]
+    );
+
+    let conversationId;
+
+    if (convResult.rows.length === 0) {
+      // Create new conversation
+      const newConv = await query(
+        `INSERT INTO conversations (connection_id, remote_jid, contact_name, contact_phone, last_message_at)
+         VALUES ($1, $2, $3, $4, NOW())
+         RETURNING id`,
+        [connection.id, remoteJid, contactPhone, contactPhone]
+      );
+      conversationId = newConv.rows[0].id;
+    } else {
+      conversationId = convResult.rows[0].id;
+    }
+
+    // Import messages
+    let imported = 0;
+    let skipped = 0;
+
+    for (const msg of filteredMessages) {
+      try {
+        const key = msg.key;
+        const messageId = key?.id;
+        
+        if (!messageId) continue;
+
+        // Check if message already exists
+        const existing = await query(
+          `SELECT id FROM chat_messages WHERE message_id = $1`,
+          [messageId]
+        );
+
+        if (existing.rows.length > 0) {
+          skipped++;
+          continue;
+        }
+
+        // Extract message content
+        const msgContent = msg.message || {};
+        let content = '';
+        let messageType = 'text';
+        let mediaUrl = null;
+
+        if (msgContent.conversation) {
+          content = msgContent.conversation;
+        } else if (msgContent.extendedTextMessage) {
+          content = msgContent.extendedTextMessage.text;
+        } else if (msgContent.imageMessage) {
+          messageType = 'image';
+          content = msgContent.imageMessage.caption || '[Imagem]';
+          mediaUrl = msgContent.imageMessage.url;
+        } else if (msgContent.videoMessage) {
+          messageType = 'video';
+          content = msgContent.videoMessage.caption || '[Vídeo]';
+          mediaUrl = msgContent.videoMessage.url;
+        } else if (msgContent.audioMessage) {
+          messageType = 'audio';
+          content = '[Áudio]';
+          mediaUrl = msgContent.audioMessage.url;
+        } else if (msgContent.documentMessage) {
+          messageType = 'document';
+          content = msgContent.documentMessage.fileName || '[Documento]';
+          mediaUrl = msgContent.documentMessage.url;
+        } else if (msgContent.stickerMessage) {
+          messageType = 'sticker';
+          content = '[Figurinha]';
+        } else {
+          content = '[Mensagem não suportada]';
+        }
+
+        const timestamp = msg.messageTimestamp 
+          ? new Date(parseInt(msg.messageTimestamp) * 1000) 
+          : new Date();
+
+        await query(
+          `INSERT INTO chat_messages 
+            (conversation_id, message_id, from_me, content, message_type, media_url, status, timestamp)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [
+            conversationId,
+            messageId,
+            key.fromMe || false,
+            content,
+            messageType,
+            mediaUrl,
+            'received',
+            timestamp
+          ]
+        );
+
+        imported++;
+      } catch (e) {
+        console.error('Error importing message:', e.message);
+      }
+    }
+
+    // Update conversation last_message_at
+    await query(
+      `UPDATE conversations SET last_message_at = (
+        SELECT MAX(timestamp) FROM chat_messages WHERE conversation_id = $1
+      ), updated_at = NOW() WHERE id = $1`,
+      [conversationId]
+    );
+
+    res.json({ 
+      imported, 
+      skipped, 
+      total: filteredMessages.length,
+      message: `Importadas ${imported} mensagens dos últimos ${days} dias`
+    });
+  } catch (error) {
+    console.error('Sync chat error:', error);
+    res.status(500).json({ error: 'Erro ao sincronizar mensagens' });
+  }
+});
+
+// Sync all chats (bulk import)
+router.post('/:connectionId/sync-all', authenticate, async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+    const { days = 7 } = req.body;
+
+    const connResult = await query(
+      'SELECT * FROM connections WHERE id = $1 AND user_id = $2',
+      [connectionId, req.userId]
+    );
+
+    if (connResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Conexão não encontrada' });
+    }
+
+    const connection = connResult.rows[0];
+
+    if (connection.status !== 'connected') {
+      return res.status(400).json({ error: 'Conexão não está ativa' });
+    }
+
+    // Fetch all chats
+    const chats = await evolutionRequest(`/chat/findChats/${connection.instance_name}`, 'POST', {});
+
+    if (!chats || chats.length === 0) {
+      return res.json({ message: 'Nenhuma conversa encontrada', total: 0 });
+    }
+
+    // Filter only individual chats (not groups)
+    const individualChats = chats.filter(chat => 
+      chat.id?.includes('@s.whatsapp.net') || chat.id?.includes('@c.us')
+    );
+
+    console.log(`Sync all: Found ${chats.length} chats, ${individualChats.length} individual`);
+
+    let totalImported = 0;
+    let totalChats = 0;
+
+    // Process each chat (limit to 20 to prevent timeout)
+    const chatsToProcess = individualChats.slice(0, 20);
+
+    for (const chat of chatsToProcess) {
+      try {
+        const remoteJid = chat.id;
+        
+        // Fetch messages for this chat
+        const messages = await evolutionRequest(`/chat/findMessages/${connection.instance_name}`, 'POST', {
+          where: {
+            key: {
+              remoteJid: remoteJid
+            }
+          },
+          limit: 100
+        });
+
+        if (!messages || messages.length === 0) continue;
+
+        // Filter by date
+        const daysAgo = new Date();
+        daysAgo.setDate(daysAgo.getDate() - days);
+        const daysAgoTimestamp = Math.floor(daysAgo.getTime() / 1000);
+
+        const filteredMessages = messages.filter(msg => {
+          const msgTimestamp = msg.messageTimestamp || msg.message?.messageTimestamp;
+          return msgTimestamp >= daysAgoTimestamp;
+        });
+
+        if (filteredMessages.length === 0) continue;
+
+        // Find or create conversation
+        const contactPhone = remoteJid.replace('@s.whatsapp.net', '').replace('@c.us', '');
+        const contactName = chat.name || chat.pushName || contactPhone;
+        
+        let convResult = await query(
+          `SELECT id FROM conversations WHERE connection_id = $1 AND remote_jid = $2`,
+          [connection.id, remoteJid]
+        );
+
+        let conversationId;
+
+        if (convResult.rows.length === 0) {
+          const newConv = await query(
+            `INSERT INTO conversations (connection_id, remote_jid, contact_name, contact_phone, last_message_at)
+             VALUES ($1, $2, $3, $4, NOW())
+             RETURNING id`,
+            [connection.id, remoteJid, contactName, contactPhone]
+          );
+          conversationId = newConv.rows[0].id;
+        } else {
+          conversationId = convResult.rows[0].id;
+        }
+
+        // Import messages
+        for (const msg of filteredMessages) {
+          try {
+            const key = msg.key;
+            const messageId = key?.id;
+            
+            if (!messageId) continue;
+
+            // Check if exists
+            const existing = await query(
+              `SELECT id FROM chat_messages WHERE message_id = $1`,
+              [messageId]
+            );
+
+            if (existing.rows.length > 0) continue;
+
+            // Extract content
+            const msgContent = msg.message || {};
+            let content = msgContent.conversation || 
+                          msgContent.extendedTextMessage?.text || 
+                          msgContent.imageMessage?.caption ||
+                          msgContent.videoMessage?.caption ||
+                          '[Mídia]';
+
+            let messageType = 'text';
+            if (msgContent.imageMessage) messageType = 'image';
+            else if (msgContent.videoMessage) messageType = 'video';
+            else if (msgContent.audioMessage) messageType = 'audio';
+            else if (msgContent.documentMessage) messageType = 'document';
+
+            const timestamp = msg.messageTimestamp 
+              ? new Date(parseInt(msg.messageTimestamp) * 1000) 
+              : new Date();
+
+            await query(
+              `INSERT INTO chat_messages 
+                (conversation_id, message_id, from_me, content, message_type, status, timestamp)
+               VALUES ($1, $2, $3, $4, $5, 'received', $6)`,
+              [conversationId, messageId, key.fromMe || false, content, messageType, timestamp]
+            );
+
+            totalImported++;
+          } catch (e) {
+            // Skip errors
+          }
+        }
+
+        totalChats++;
+      } catch (e) {
+        console.error('Error syncing chat:', e.message);
+      }
+    }
+
+    res.json({ 
+      message: `Sincronização concluída`,
+      chats_processed: totalChats,
+      messages_imported: totalImported,
+      days: days
+    });
+  } catch (error) {
+    console.error('Sync all error:', error);
+    res.status(500).json({ error: 'Erro ao sincronizar conversas' });
+  }
+});
+
 export default router;
