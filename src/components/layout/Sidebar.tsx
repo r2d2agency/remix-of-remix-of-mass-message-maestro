@@ -147,7 +147,7 @@ function SidebarContentComponent({ isExpanded, isSuperadmin, onNavigate }: Sideb
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 space-y-1 px-2 py-4 overflow-y-auto">
+      <nav className="flex-1 space-y-1 px-2 py-4 overflow-y-auto scrollbar-none hover:scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
         {/* Dashboard - always visible */}
         {renderNavItem({ name: "Dashboard", href: "/", icon: LayoutDashboard })}
 
