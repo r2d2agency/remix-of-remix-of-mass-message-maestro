@@ -74,6 +74,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { QuickRepliesPanel } from "./QuickRepliesPanel";
 import { NotesPanel } from "./NotesPanel";
+import { AudioWaveform } from "./AudioWaveform";
 
 interface ChatAreaProps {
   conversation: Conversation | null;
@@ -163,6 +164,7 @@ export function ChatArea({
     isRecording,
     duration,
     audioBlob,
+    audioLevels,
     startRecording,
     stopRecording,
     cancelRecording,
@@ -874,13 +876,13 @@ export function ChatArea({
                 <Trash2 className="h-5 w-5" />
               </Button>
 
-              {/* Recording indicator */}
-              <div className="flex-1 flex items-center gap-3 px-4 py-2 bg-destructive/10 rounded-lg border border-destructive/30">
-                <div className="w-3 h-3 rounded-full bg-destructive animate-pulse" />
-                <span className="text-sm font-medium text-destructive">
-                  Gravando...
-                </span>
-                <span className="text-sm font-mono text-destructive/80">
+              {/* Recording indicator with waveform */}
+              <div className="flex-1 flex items-center gap-3 px-4 py-2 bg-destructive/10 rounded-lg border border-destructive/30 overflow-hidden">
+                <div className="w-3 h-3 rounded-full bg-destructive animate-pulse flex-shrink-0" />
+                <div className="flex-1 flex items-center justify-center">
+                  <AudioWaveform levels={audioLevels} />
+                </div>
+                <span className="text-sm font-mono text-destructive/80 flex-shrink-0">
                   {formatDuration(duration)}
                 </span>
               </div>

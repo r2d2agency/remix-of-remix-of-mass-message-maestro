@@ -1,10 +1,11 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 
 interface AudioRecorderState {
   isRecording: boolean;
   isPaused: boolean;
   duration: number;
   audioBlob: Blob | null;
+  audioLevels: number[];
 }
 
 export function useAudioRecorder() {
@@ -13,12 +14,54 @@ export function useAudioRecorder() {
     isPaused: false,
     duration: 0,
     audioBlob: null,
+    audioLevels: [],
   });
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+
+  const updateAudioLevels = useCallback(() => {
+    if (!analyserRef.current || !state.isRecording) return;
+    
+    const analyser = analyserRef.current;
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+    analyser.getByteFrequencyData(dataArray);
+    
+    // Get average of frequency bands for visualization
+    const bands = 20; // Number of bars in visualization
+    const bandSize = Math.floor(dataArray.length / bands);
+    const levels: number[] = [];
+    
+    for (let i = 0; i < bands; i++) {
+      let sum = 0;
+      for (let j = 0; j < bandSize; j++) {
+        sum += dataArray[i * bandSize + j];
+      }
+      // Normalize to 0-1 range
+      levels.push(sum / (bandSize * 255));
+    }
+    
+    setState(prev => ({ ...prev, audioLevels: levels }));
+    
+    animationFrameRef.current = requestAnimationFrame(updateAudioLevels);
+  }, [state.isRecording]);
+
+  useEffect(() => {
+    if (state.isRecording && analyserRef.current) {
+      animationFrameRef.current = requestAnimationFrame(updateAudioLevels);
+    }
+    
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, [state.isRecording, updateAudioLevels]);
 
   const startRecording = useCallback(async () => {
     try {
@@ -32,6 +75,18 @@ export function useAudioRecorder() {
       
       streamRef.current = stream;
       chunksRef.current = [];
+      
+      // Set up audio context and analyser for visualization
+      const audioContext = new AudioContext();
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.8;
+      
+      const source = audioContext.createMediaStreamSource(stream);
+      source.connect(analyser);
+      
+      audioContextRef.current = audioContext;
+      analyserRef.current = analyser;
       
       // Prefer webm/opus for better compression, fallback to other formats
       const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
@@ -63,6 +118,7 @@ export function useAudioRecorder() {
         isPaused: false,
         duration: 0,
         audioBlob: null,
+        audioLevels: new Array(20).fill(0),
       });
       
       // Start timer
@@ -86,13 +142,26 @@ export function useAudioRecorder() {
         streamRef.current = null;
       }
       
+      // Close audio context
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+        audioContextRef.current = null;
+        analyserRef.current = null;
+      }
+      
+      // Cancel animation frame
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+      
       // Clear timer
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
       }
       
-      setState(prev => ({ ...prev, isRecording: false, isPaused: false }));
+      setState(prev => ({ ...prev, isRecording: false, isPaused: false, audioLevels: [] }));
     }
   }, [state.isRecording]);
 
@@ -104,6 +173,19 @@ export function useAudioRecorder() {
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
         streamRef.current = null;
+      }
+      
+      // Close audio context
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+        audioContextRef.current = null;
+        analyserRef.current = null;
+      }
+      
+      // Cancel animation frame
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
       }
       
       // Clear timer
@@ -119,12 +201,13 @@ export function useAudioRecorder() {
         isPaused: false,
         duration: 0,
         audioBlob: null,
+        audioLevels: [],
       });
     }
   }, []);
 
   const clearAudio = useCallback(() => {
-    setState(prev => ({ ...prev, audioBlob: null, duration: 0 }));
+    setState(prev => ({ ...prev, audioBlob: null, duration: 0, audioLevels: [] }));
     chunksRef.current = [];
   }, []);
 
