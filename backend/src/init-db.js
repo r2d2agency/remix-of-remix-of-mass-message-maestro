@@ -1,10 +1,20 @@
 import { pool } from './db.js';
 
-const schema = `
--- ============================================
--- WHATSALE DATABASE SCHEMA (Auto-migration)
--- ============================================
+// ============================================
+// STEP 1: ENUMS (must be first)
+// ============================================
+const step1Enums = `
+DO $$ BEGIN
+    CREATE TYPE app_role AS ENUM ('owner', 'admin', 'manager', 'agent', 'user');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+`;
 
+// ============================================
+// STEP 2: CORE TABLES (no foreign key dependencies)
+// ============================================
+const step2CoreTables = `
 -- Users table
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -23,16 +33,7 @@ EXCEPTION
     WHEN duplicate_column THEN null;
 END $$;
 
--- Roles enum (use DO block to handle existing type)
-DO $$ BEGIN
-    CREATE TYPE app_role AS ENUM ('owner', 'admin', 'manager', 'agent', 'user');
-EXCEPTION
-    WHEN duplicate_object THEN null;
-END $$;
-
--- ============================================
--- PLANS (SaaS)
--- ============================================
+-- Plans table (SaaS)
 CREATE TABLE IF NOT EXISTS plans (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(255) NOT NULL,
@@ -47,7 +48,12 @@ CREATE TABLE IF NOT EXISTS plans (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+`;
 
+// ============================================
+// STEP 3: ORGANIZATIONS (depends on plans)
+// ============================================
+const step3Organizations = `
 -- Organizations (multi-tenant)
 CREATE TABLE IF NOT EXISTS organizations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -69,7 +75,12 @@ DO $$ BEGIN
 EXCEPTION
     WHEN duplicate_column THEN null;
 END $$;
+`;
 
+// ============================================
+// STEP 4: USER RELATIONS (depends on users, organizations)
+// ============================================
+const step4UserRelations = `
 -- Organization Members
 CREATE TABLE IF NOT EXISTS organization_members (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -87,7 +98,12 @@ CREATE TABLE IF NOT EXISTS user_roles (
     role app_role NOT NULL DEFAULT 'user',
     UNIQUE (user_id, role)
 );
+`;
 
+// ============================================
+// STEP 5: CONNECTIONS (depends on users, organizations)
+// ============================================
+const step5Connections = `
 -- Evolution API Connections
 CREATE TABLE IF NOT EXISTS connections (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -114,7 +130,12 @@ CREATE TABLE IF NOT EXISTS connection_members (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE (connection_id, user_id)
 );
+`;
 
+// ============================================
+// STEP 6: CONTACTS & MESSAGES (depends on users, connections)
+// ============================================
+const step6ContactsMessages = `
 -- Contact Lists
 CREATE TABLE IF NOT EXISTS contact_lists (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -147,7 +168,12 @@ CREATE TABLE IF NOT EXISTS message_templates (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+`;
 
+// ============================================
+// STEP 7: CAMPAIGNS (depends on contacts, messages, connections)
+// ============================================
+const step7Campaigns = `
 -- Campaigns
 CREATE TABLE IF NOT EXISTS campaigns (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -177,11 +203,12 @@ CREATE TABLE IF NOT EXISTS campaign_messages (
     error_message TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+`;
 
--- ============================================
--- ASAAS INTEGRATION
--- ============================================
-
+// ============================================
+// STEP 8: ASAAS INTEGRATION (depends on organizations, connections)
+// ============================================
+const step8Asaas = `
 -- Asaas Integrations
 CREATE TABLE IF NOT EXISTS asaas_integrations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -278,11 +305,12 @@ CREATE TABLE IF NOT EXISTS asaas_webhook_events (
     error_message TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+`;
 
--- ============================================
--- CHAT SYSTEM
--- ============================================
-
+// ============================================
+// STEP 9: CHAT SYSTEM (depends on connections, users, organizations)
+// ============================================
+const step9Chat = `
 -- Conversations
 CREATE TABLE IF NOT EXISTS conversations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -334,11 +362,12 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+`;
 
--- ============================================
--- INDEXES
--- ============================================
-
+// ============================================
+// STEP 10: INDEXES (last step, non-critical)
+// ============================================
+const step10Indexes = `
 CREATE INDEX IF NOT EXISTS idx_connections_user_id ON connections(user_id);
 CREATE INDEX IF NOT EXISTS idx_connections_org ON connections(organization_id);
 CREATE INDEX IF NOT EXISTS idx_contact_lists_user_id ON contact_lists(user_id);
@@ -365,16 +394,64 @@ CREATE INDEX IF NOT EXISTS idx_chat_messages_conv ON chat_messages(conversation_
 CREATE INDEX IF NOT EXISTS idx_chat_messages_timestamp ON chat_messages(timestamp);
 `;
 
+// Migration steps in order of execution
+const migrationSteps = [
+  { name: 'Enums', sql: step1Enums, critical: true },
+  { name: 'Core Tables (users, plans)', sql: step2CoreTables, critical: true },
+  { name: 'Organizations', sql: step3Organizations, critical: true },
+  { name: 'User Relations', sql: step4UserRelations, critical: true },
+  { name: 'Connections', sql: step5Connections, critical: true },
+  { name: 'Contacts & Messages', sql: step6ContactsMessages, critical: false },
+  { name: 'Campaigns', sql: step7Campaigns, critical: false },
+  { name: 'Asaas Integration', sql: step8Asaas, critical: false },
+  { name: 'Chat System', sql: step9Chat, critical: false },
+  { name: 'Indexes', sql: step10Indexes, critical: false },
+];
+
 export async function initDatabase() {
-  console.log('🔄 Initializing database...');
+  console.log('🔄 Initializing database in steps...');
   
-  try {
-    await pool.query(schema);
-    console.log('✅ Database initialized successfully!');
-    return true;
-  } catch (error) {
-    console.error('❌ Database initialization error:', error.message);
-    // Don't throw - allow app to start even if some tables already exist
+  let successCount = 0;
+  let failedSteps = [];
+  let criticalFailure = false;
+
+  for (const step of migrationSteps) {
+    try {
+      console.log(`  → Step: ${step.name}...`);
+      await pool.query(step.sql);
+      console.log(`  ✅ ${step.name} - OK`);
+      successCount++;
+    } catch (error) {
+      console.error(`  ❌ ${step.name} - FAILED: ${error.message}`);
+      failedSteps.push({ name: step.name, error: error.message });
+      
+      if (step.critical) {
+        criticalFailure = true;
+        console.error(`  🛑 Critical step failed, stopping initialization`);
+        break;
+      }
+      // Non-critical steps: continue to next step
+    }
+  }
+
+  console.log('');
+  console.log('📊 Database initialization summary:');
+  console.log(`   - Steps completed: ${successCount}/${migrationSteps.length}`);
+  
+  if (failedSteps.length > 0) {
+    console.log(`   - Failed steps: ${failedSteps.map(s => s.name).join(', ')}`);
+  }
+  
+  if (criticalFailure) {
+    console.error('❌ Database initialization failed (critical step error)');
     return false;
   }
+  
+  if (failedSteps.length === 0) {
+    console.log('✅ Database initialized successfully!');
+  } else {
+    console.log('⚠️ Database initialized with warnings (some non-critical steps failed)');
+  }
+  
+  return true;
 }
