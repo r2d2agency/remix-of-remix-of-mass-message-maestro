@@ -167,7 +167,8 @@ export function ChatArea({
   };
 
   const handleTransfer = () => {
-    onTransfer(transferTo || null, transferNote);
+    const userId = transferTo === "__none__" ? null : (transferTo || null);
+    onTransfer(userId, transferNote);
     setShowTransferDialog(false);
     setTransferTo("");
     setTransferNote("");
@@ -477,8 +478,8 @@ export function ChatArea({
                 <SelectValue placeholder="Selecione um atendente" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Liberar (sem atendente)</SelectItem>
-                {team.map(member => (
+                <SelectItem value="__none__">Liberar (sem atendente)</SelectItem>
+                {team.filter(member => member.id).map(member => (
                   <SelectItem key={member.id} value={member.id}>
                     {member.name}
                   </SelectItem>
