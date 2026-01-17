@@ -358,33 +358,77 @@ export function ChatArea({
               >
                 {/* Media content */}
                 {msg.message_type === 'image' && msg.media_url && (
-                  <img
-                    src={msg.media_url}
-                    alt="Imagem"
-                    className="rounded max-w-full max-h-[300px] mb-2"
-                  />
+                  <a href={msg.media_url} target="_blank" rel="noopener noreferrer">
+                    <img
+                      src={msg.media_url}
+                      alt="Imagem"
+                      className="rounded max-w-full max-h-[300px] mb-2 cursor-pointer hover:opacity-90"
+                      crossOrigin="anonymous"
+                    />
+                  </a>
                 )}
                 {msg.message_type === 'video' && msg.media_url && (
-                  <video
-                    src={msg.media_url}
-                    controls
-                    className="rounded max-w-full max-h-[300px] mb-2"
-                  />
+                  <div className="mb-2">
+                    <video
+                      controls
+                      controlsList="nodownload"
+                      playsInline
+                      preload="metadata"
+                      className="rounded max-w-full max-h-[300px]"
+                      crossOrigin="anonymous"
+                    >
+                      <source src={msg.media_url} type="video/mp4" />
+                      <source src={msg.media_url} type="video/webm" />
+                      Seu navegador não suporta vídeo.
+                    </video>
+                    <a 
+                      href={msg.media_url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-xs underline opacity-70 hover:opacity-100"
+                    >
+                      Abrir vídeo
+                    </a>
+                  </div>
                 )}
                 {msg.message_type === 'audio' && (
                   msg.media_url ? (
-                    <audio 
-                      src={msg.media_url} 
-                      controls 
-                      className="mb-2 w-full max-w-[250px]"
-                      preload="metadata"
-                    />
+                    <div className="mb-2">
+                      <audio 
+                        controls 
+                        controlsList="nodownload"
+                        preload="auto"
+                        className="w-full max-w-[280px]"
+                        crossOrigin="anonymous"
+                      >
+                        <source src={msg.media_url} type="audio/ogg" />
+                        <source src={msg.media_url} type="audio/mpeg" />
+                        <source src={msg.media_url} type="audio/mp4" />
+                        Seu navegador não suporta áudio.
+                      </audio>
+                      <a 
+                        href={msg.media_url} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-xs underline opacity-70 hover:opacity-100"
+                      >
+                        Baixar áudio
+                      </a>
+                    </div>
                   ) : (
                     <div className="flex items-center gap-2 text-sm opacity-70 mb-2">
                       <Mic className="h-4 w-4" />
                       <span>Áudio (mídia não disponível)</span>
                     </div>
                   )
+                )}
+                {msg.message_type === 'sticker' && msg.media_url && (
+                  <img
+                    src={msg.media_url}
+                    alt="Sticker"
+                    className="max-w-[150px] max-h-[150px] mb-2"
+                    crossOrigin="anonymous"
+                  />
                 )}
                 {msg.message_type === 'document' && msg.media_url && (
                   <a

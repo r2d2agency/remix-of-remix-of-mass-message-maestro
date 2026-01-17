@@ -38,9 +38,32 @@ app.use(cors({
 
 app.use(express.json());
 
-// Serve uploaded files statically
+// Serve uploaded files statically with CORS headers
 const uploadsDir = path.join(process.cwd(), 'uploads');
-app.use('/uploads', express.static(uploadsDir));
+app.use('/uploads', (req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Range, Content-Type');
+  res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Range');
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  next();
+}, express.static(uploadsDir, {
+  setHeaders: (res, filePath) => {
+    // Set correct MIME types for audio/video
+    const ext = path.extname(filePath).toLowerCase();
+    if (ext === '.ogg') {
+      res.setHeader('Content-Type', 'audio/ogg');
+    } else if (ext === '.mp3') {
+      res.setHeader('Content-Type', 'audio/mpeg');
+    } else if (ext === '.m4a') {
+      res.setHeader('Content-Type', 'audio/mp4');
+    } else if (ext === '.mp4') {
+      res.setHeader('Content-Type', 'video/mp4');
+    } else if (ext === '.webm') {
+      res.setHeader('Content-Type', 'video/webm');
+    }
+  }
+}));
 
 // Routes
 app.use('/api/auth', authRoutes);
