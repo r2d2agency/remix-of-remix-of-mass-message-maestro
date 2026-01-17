@@ -1525,4 +1525,110 @@ router.post('/alerts/read-all', authenticate, async (req, res) => {
   }
 });
 
+// ==========================================
+// CREATE NEW CONVERSATION
+// ==========================================
+
+// Create a new conversation (start chat with a contact)
+router.post('/conversations', authenticate, async (req, res) => {
+  try {
+    const { contact_phone, contact_name, connection_id } = req.body;
+
+    if (!contact_phone || !connection_id) {
+      return res.status(400).json({ error: 'Telefone e conexão são obrigatórios' });
+    }
+
+    const connectionIds = await getUserConnections(req.userId);
+
+    // Verify user has access to this connection
+    if (!connectionIds.includes(connection_id)) {
+      return res.status(403).json({ error: 'Sem acesso a esta conexão' });
+    }
+
+    // Check if connection exists and is active
+    const connResult = await query(
+      `SELECT id, status, instance_name FROM connections WHERE id = $1`,
+      [connection_id]
+    );
+
+    if (connResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Conexão não encontrada' });
+    }
+
+    if (connResult.rows[0].status !== 'connected') {
+      return res.status(400).json({ error: 'Conexão não está ativa' });
+    }
+
+    // Normalize phone number
+    let phone = contact_phone.replace(/\D/g, '');
+    if (!phone.startsWith('55')) {
+      phone = '55' + phone;
+    }
+
+    // Generate remote JID
+    const remoteJid = `${phone}@s.whatsapp.net`;
+
+    // Check if conversation already exists
+    const existingConv = await query(
+      `SELECT id FROM conversations 
+       WHERE connection_id = $1 AND (remote_jid = $2 OR contact_phone = $3)
+       LIMIT 1`,
+      [connection_id, remoteJid, phone]
+    );
+
+    if (existingConv.rows.length > 0) {
+      // Return existing conversation
+      const fullConv = await query(
+        `SELECT 
+          conv.*,
+          conn.name as connection_name,
+          u.name as assigned_name,
+          COALESCE(
+            (SELECT json_agg(json_build_object('id', t.id, 'name', t.name, 'color', t.color))
+             FROM conversation_tag_links ctl
+             JOIN conversation_tags t ON t.id = ctl.tag_id
+             WHERE ctl.conversation_id = conv.id
+            ), '[]'::json
+          ) as tags
+        FROM conversations conv
+        JOIN connections conn ON conn.id = conv.connection_id
+        LEFT JOIN users u ON u.id = conv.assigned_to
+        WHERE conv.id = $1`,
+        [existingConv.rows[0].id]
+      );
+      return res.json(fullConv.rows[0]);
+    }
+
+    // Create new conversation
+    const result = await query(
+      `INSERT INTO conversations 
+        (connection_id, remote_jid, contact_phone, contact_name, assigned_to, is_archived, unread_count, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, false, 0, NOW(), NOW())
+       RETURNING *`,
+      [connection_id, remoteJid, phone, contact_name || phone, req.userId]
+    );
+
+    const conversation = result.rows[0];
+
+    // Return full conversation with connection info
+    const fullConv = await query(
+      `SELECT 
+        conv.*,
+        conn.name as connection_name,
+        u.name as assigned_name,
+        '[]'::json as tags
+      FROM conversations conv
+      JOIN connections conn ON conn.id = conv.connection_id
+      LEFT JOIN users u ON u.id = conv.assigned_to
+      WHERE conv.id = $1`,
+      [conversation.id]
+    );
+
+    res.status(201).json(fullConv.rows[0]);
+  } catch (error) {
+    console.error('Create conversation error:', error);
+    res.status(500).json({ error: 'Erro ao criar conversa' });
+  }
+});
+
 export default router;

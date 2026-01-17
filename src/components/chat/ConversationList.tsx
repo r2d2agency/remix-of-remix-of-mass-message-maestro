@@ -42,8 +42,8 @@ import {
   MoreVertical,
   Trash2,
   Sparkles,
-  Pin,
-  PinOff,
+  Plus,
+  MessageSquarePlus,
   Phone,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
@@ -78,6 +78,7 @@ interface ConversationListProps {
   isAdmin?: boolean;
   connections?: Connection[];
   onPinConversation?: (id: string, pinned: boolean) => void;
+  onNewConversation?: () => void;
 }
 
 const getMessageTypeIcon = (type: string | null) => {
@@ -117,6 +118,7 @@ export function ConversationList({
   filters,
   onFiltersChange,
   isAdmin = false,
+  onNewConversation,
 }: ConversationListProps) {
   const [localSearch, setLocalSearch] = useState(filters.search);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -221,6 +223,19 @@ export function ConversationList({
             Conversas
           </h2>
           <div className="flex items-center gap-1">
+            {/* New Conversation Button */}
+            {onNewConversation && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onNewConversation}
+                title="Nova conversa"
+                className="text-primary hover:text-primary"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            )}
+            
             {isAdmin && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>

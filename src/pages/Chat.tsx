@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { ConversationList } from "@/components/chat/ConversationList";
 import { ChatArea } from "@/components/chat/ChatArea";
+import { NewConversationDialog } from "@/components/chat/NewConversationDialog";
 import { useChat, Conversation, ChatMessage, ConversationTag, TeamMember } from "@/hooks/use-chat";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
@@ -46,7 +47,7 @@ const Chat = () => {
   const [sendingMessage, setSendingMessage] = useState(false);
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
   const [syncingHistory, setSyncingHistory] = useState(false);
-
+  const [newConversationOpen, setNewConversationOpen] = useState(false);
   const [filters, setFilters] = useState({
     search: '',
     tag: 'all',
@@ -334,6 +335,14 @@ const Chat = () => {
     }
   };
 
+  const handleNewConversationCreated = async (conversation: Conversation) => {
+    // Add to list and select it
+    setConversations(prev => [conversation, ...prev]);
+    setSelectedConversation(conversation);
+    setMessages([]);
+    loadConversations();
+  };
+
   return (
     <MainLayout>
       <div className="h-[calc(100vh-120px)] flex rounded-lg border overflow-hidden bg-background shadow-lg">
@@ -350,6 +359,8 @@ const Chat = () => {
             filters={filters}
             onFiltersChange={setFilters}
             isAdmin={isAdmin}
+            connections={connections}
+            onNewConversation={() => setNewConversationOpen(true)}
           />
         </div>
 
@@ -387,6 +398,14 @@ const Chat = () => {
           }}
         />
       </div>
+
+      {/* New Conversation Dialog */}
+      <NewConversationDialog
+        open={newConversationOpen}
+        onOpenChange={setNewConversationOpen}
+        connections={connections}
+        onConversationCreated={handleNewConversationCreated}
+      />
     </MainLayout>
   );
 };
