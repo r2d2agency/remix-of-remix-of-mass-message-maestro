@@ -107,11 +107,11 @@ export function NewConversationDialog({
     try {
       const conversation = await api<Conversation & { existed?: boolean }>('/api/chat/conversations', {
         method: 'POST',
-        body: JSON.stringify({
+        body: {
           contact_phone: cleanPhone,
           contact_name: contactName.trim() || undefined,
           connection_id: connectionId,
-        }),
+        },
       });
 
       if (conversation.existed) {
