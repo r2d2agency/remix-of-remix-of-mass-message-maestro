@@ -42,11 +42,14 @@ import {
   MoreVertical,
   Trash2,
   Sparkles,
+  Pin,
+  PinOff,
+  Phone,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import { Conversation, ConversationTag, TeamMember } from "@/hooks/use-chat";
+import { Conversation, ConversationTag, TeamMember, Connection } from "@/hooks/use-chat";
 import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
@@ -63,14 +66,18 @@ interface ConversationListProps {
     tag: string;
     assigned: string;
     archived: boolean;
+    connection: string;
   };
   onFiltersChange: (filters: {
     search: string;
     tag: string;
     assigned: string;
     archived: boolean;
+    connection: string;
   }) => void;
   isAdmin?: boolean;
+  connections?: Connection[];
+  onPinConversation?: (id: string, pinned: boolean) => void;
 }
 
 const getMessageTypeIcon = (type: string | null) => {

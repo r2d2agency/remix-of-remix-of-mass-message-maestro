@@ -434,11 +434,19 @@ CREATE TABLE IF NOT EXISTS conversations (
     last_message_at TIMESTAMP WITH TIME ZONE,
     unread_count INTEGER DEFAULT 0,
     is_archived BOOLEAN DEFAULT false,
+    is_pinned BOOLEAN DEFAULT false,
     assigned_to UUID REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE (connection_id, remote_jid)
 );
+
+-- Add is_pinned column if not exists (for existing databases)
+DO $$ BEGIN
+    ALTER TABLE conversations ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN DEFAULT false;
+EXCEPTION
+    WHEN duplicate_column THEN null;
+END $$;
 
 -- Conversation Tags
 CREATE TABLE IF NOT EXISTS conversation_tags (

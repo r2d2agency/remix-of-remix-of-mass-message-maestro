@@ -18,6 +18,8 @@ const Chat = () => {
     updateConversation,
     markAsRead,
     transferConversation,
+    pinConversation,
+    getConnections,
     getMessages,
     sendMessage,
     getTags,
@@ -35,6 +37,7 @@ const Chat = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [tags, setTags] = useState<ConversationTag[]>([]);
   const [team, setTeam] = useState<TeamMember[]>([]);
+  const [connections, setConnections] = useState<{ id: string; name: string; phone_number: string | null; status: string }[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
   
   const [loadingMessages, setLoadingMessages] = useState(false);
@@ -47,6 +50,7 @@ const Chat = () => {
     tag: 'all',
     assigned: 'all',
     archived: false,
+    connection: 'all',
   });
 
   // Load initial data and start alerts polling
@@ -54,6 +58,7 @@ const Chat = () => {
     loadConversations();
     loadTags();
     loadTeam();
+    loadConnections();
     checkUserRole();
     startAlertsPolling();
 
@@ -103,12 +108,22 @@ const Chat = () => {
     return () => clearInterval(interval);
   }, [selectedConversation?.id, getMessages]);
 
+  const loadConnections = async () => {
+    try {
+      const data = await getConnections();
+      setConnections(data);
+    } catch (error) {
+      console.error('Error loading connections:', error);
+    }
+  };
+
   const loadConversations = useCallback(async () => {
     try {
       const filterParams: any = {};
       if (filters.search) filterParams.search = filters.search;
       if (filters.tag !== 'all') filterParams.tag = filters.tag;
       if (filters.assigned !== 'all') filterParams.assigned = filters.assigned;
+      if (filters.connection !== 'all') filterParams.connection = filters.connection;
       filterParams.archived = filters.archived;
 
       const data = await getConversations(filterParams);

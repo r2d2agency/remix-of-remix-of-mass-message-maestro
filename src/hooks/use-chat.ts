@@ -17,6 +17,7 @@ export interface Conversation {
   last_message_at: string | null;
   unread_count: number;
   is_archived: boolean;
+  is_pinned: boolean;
   assigned_to: string | null;
   assigned_name: string | null;
   connection_name: string;
@@ -25,6 +26,23 @@ export interface Conversation {
   last_message: string | null;
   last_message_type: string | null;
   created_at: string;
+}
+
+export interface Connection {
+  id: string;
+  name: string;
+  phone_number: string | null;
+  status: string;
+}
+
+export interface ChatStats {
+  total_conversations: number;
+  unread_conversations: number;
+  messages_today: number;
+  messages_week: number;
+  avg_response_time_minutes: number | null;
+  conversations_by_connection: { connection_name: string; count: number }[];
+  conversations_by_status: { status: string; count: number }[];
 }
 
 export interface ChatMessage {
@@ -173,6 +191,7 @@ export const useChat = () => {
     tag?: string;
     assigned?: string;
     archived?: boolean;
+    connection?: string;
   }): Promise<Conversation[]> => {
     setLoading(true);
     setError(null);
@@ -182,6 +201,7 @@ export const useChat = () => {
       if (filters?.tag) params.append('tag', filters.tag);
       if (filters?.assigned) params.append('assigned', filters.assigned);
       if (filters?.archived !== undefined) params.append('archived', String(filters.archived));
+      if (filters?.connection) params.append('connection', filters.connection);
       
       const url = `/api/chat/conversations${params.toString() ? `?${params}` : ''}`;
       const data = await api<Conversation[]>(url);
@@ -193,6 +213,31 @@ export const useChat = () => {
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  // Get connections for filter
+  const getConnections = useCallback(async (): Promise<Connection[]> => {
+    try {
+      const data = await api<Connection[]>('/api/connections');
+      return data;
+    } catch (err) {
+      console.error('Error fetching connections:', err);
+      return [];
+    }
+  }, []);
+
+  // Get chat statistics
+  const getChatStats = useCallback(async (): Promise<ChatStats> => {
+    const data = await api<ChatStats>('/api/chat/stats');
+    return data;
+  }, []);
+
+  // Pin/unpin conversation
+  const pinConversation = useCallback(async (id: string, pinned: boolean): Promise<void> => {
+    await api(`/api/chat/conversations/${id}/pin`, {
+      method: 'POST',
+      body: { pinned },
+    });
   }, []);
 
   const getConversation = useCallback(async (id: string): Promise<Conversation & {
@@ -412,6 +457,11 @@ export const useChat = () => {
     updateConversation,
     markAsRead,
     transferConversation,
+    pinConversation,
+    // Connections
+    getConnections,
+    // Stats
+    getChatStats,
     // Messages
     getMessages,
     sendMessage,

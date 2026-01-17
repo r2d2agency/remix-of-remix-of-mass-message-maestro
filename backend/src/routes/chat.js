@@ -75,7 +75,7 @@ router.get('/conversations', authenticate, async (req, res) => {
       return res.json([]);
     }
 
-    const { search, tag, assigned, archived } = req.query;
+    const { search, tag, assigned, archived, connection } = req.query;
     
     let sql = `
       SELECT 
@@ -108,6 +108,13 @@ router.get('/conversations', authenticate, async (req, res) => {
       sql += ` AND conv.is_archived = false`;
     }
 
+    // Filter by connection
+    if (connection && connection !== 'all') {
+      sql += ` AND conv.connection_id = $${paramIndex}`;
+      params.push(connection);
+      paramIndex++;
+    }
+
     // Filter by search
     if (search) {
       sql += ` AND (conv.contact_name ILIKE $${paramIndex} OR conv.contact_phone ILIKE $${paramIndex})`;
@@ -138,13 +145,102 @@ router.get('/conversations', authenticate, async (req, res) => {
       paramIndex++;
     }
 
-    sql += ` ORDER BY conv.last_message_at DESC NULLS LAST, conv.created_at DESC`;
+    // Order by pinned first, then by last_message_at
+    sql += ` ORDER BY COALESCE(conv.is_pinned, false) DESC, conv.last_message_at DESC NULLS LAST, conv.created_at DESC`;
 
     const result = await query(sql, params);
     res.json(result.rows);
   } catch (error) {
     console.error('Get conversations error:', error);
     res.status(500).json({ error: 'Erro ao buscar conversas' });
+  }
+});
+
+// Get chat statistics
+router.get('/stats', authenticate, async (req, res) => {
+  try {
+    const connectionIds = await getUserConnections(req.userId);
+    
+    if (connectionIds.length === 0) {
+      return res.json({
+        total_conversations: 0,
+        unread_conversations: 0,
+        messages_today: 0,
+        messages_week: 0,
+        avg_response_time_minutes: null,
+        conversations_by_connection: [],
+        conversations_by_status: []
+      });
+    }
+
+    // Total conversations
+    const totalResult = await query(
+      `SELECT COUNT(*) as count FROM conversations WHERE connection_id = ANY($1) AND is_archived = false`,
+      [connectionIds]
+    );
+
+    // Unread conversations
+    const unreadResult = await query(
+      `SELECT COUNT(*) as count FROM conversations WHERE connection_id = ANY($1) AND unread_count > 0 AND is_archived = false`,
+      [connectionIds]
+    );
+
+    // Messages today
+    const todayResult = await query(
+      `SELECT COUNT(*) as count FROM chat_messages m
+       JOIN conversations c ON c.id = m.conversation_id
+       WHERE c.connection_id = ANY($1) AND m.timestamp >= CURRENT_DATE`,
+      [connectionIds]
+    );
+
+    // Messages this week
+    const weekResult = await query(
+      `SELECT COUNT(*) as count FROM chat_messages m
+       JOIN conversations c ON c.id = m.conversation_id
+       WHERE c.connection_id = ANY($1) AND m.timestamp >= CURRENT_DATE - INTERVAL '7 days'`,
+      [connectionIds]
+    );
+
+    // Conversations by connection
+    const byConnectionResult = await query(
+      `SELECT conn.name as connection_name, COUNT(*) as count
+       FROM conversations conv
+       JOIN connections conn ON conn.id = conv.connection_id
+       WHERE conv.connection_id = ANY($1) AND conv.is_archived = false
+       GROUP BY conn.name
+       ORDER BY count DESC`,
+      [connectionIds]
+    );
+
+    // Conversations by status (assigned vs unassigned)
+    const byStatusResult = await query(
+      `SELECT 
+         CASE WHEN assigned_to IS NOT NULL THEN 'assigned' ELSE 'unassigned' END as status,
+         COUNT(*) as count
+       FROM conversations
+       WHERE connection_id = ANY($1) AND is_archived = false
+       GROUP BY CASE WHEN assigned_to IS NOT NULL THEN 'assigned' ELSE 'unassigned' END`,
+      [connectionIds]
+    );
+
+    res.json({
+      total_conversations: parseInt(totalResult.rows[0]?.count || 0),
+      unread_conversations: parseInt(unreadResult.rows[0]?.count || 0),
+      messages_today: parseInt(todayResult.rows[0]?.count || 0),
+      messages_week: parseInt(weekResult.rows[0]?.count || 0),
+      avg_response_time_minutes: null, // TODO: Calculate this
+      conversations_by_connection: byConnectionResult.rows.map(r => ({
+        connection_name: r.connection_name,
+        count: parseInt(r.count)
+      })),
+      conversations_by_status: byStatusResult.rows.map(r => ({
+        status: r.status,
+        count: parseInt(r.count)
+      }))
+    });
+  } catch (error) {
+    console.error('Get stats error:', error);
+    res.status(500).json({ error: 'Erro ao buscar estatísticas' });
   }
 });
 
@@ -254,6 +350,35 @@ router.post('/conversations/:id/read', authenticate, async (req, res) => {
   } catch (error) {
     console.error('Mark read error:', error);
     res.status(500).json({ error: 'Erro ao marcar como lida' });
+  }
+});
+
+// Pin/Unpin conversation
+router.post('/conversations/:id/pin', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { pinned } = req.body;
+    const connectionIds = await getUserConnections(req.userId);
+
+    // Check if conversation belongs to user
+    const check = await query(
+      `SELECT id FROM conversations WHERE id = $1 AND connection_id = ANY($2)`,
+      [id, connectionIds]
+    );
+
+    if (check.rows.length === 0) {
+      return res.status(404).json({ error: 'Conversa não encontrada' });
+    }
+
+    await query(
+      `UPDATE conversations SET is_pinned = $1, updated_at = NOW() WHERE id = $2`,
+      [pinned, id]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Pin conversation error:', error);
+    res.status(500).json({ error: 'Erro ao fixar conversa' });
   }
 });
 
