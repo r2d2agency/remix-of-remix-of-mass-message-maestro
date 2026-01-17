@@ -33,7 +33,9 @@ import {
   Edit,
   Loader2,
   GripVertical,
+  Users,
 } from "lucide-react";
+import { ContactsManager } from "@/components/mensagens/ContactsManager";
 import { MessageItem, MessageItemType } from "@/components/mensagens/MessageItemEditor";
 import { SortableMessageItem } from "@/components/mensagens/SortableMessageItem";
 import { AddMessageButton } from "@/components/mensagens/AddMessageButton";
@@ -204,6 +206,10 @@ const Mensagens = () => {
           <TabsList>
             <TabsTrigger value="list">Mensagens Salvas</TabsTrigger>
             <TabsTrigger value="create">{editingId ? "Editar" : "Criar"} Mensagem</TabsTrigger>
+            <TabsTrigger value="contacts" className="flex items-center gap-1">
+              <Users className="h-4 w-4" />
+              Contatos
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="list" className="space-y-4 mt-6">
@@ -411,6 +417,10 @@ const Mensagens = () => {
                 </CardContent>
               </Card>
             </div>
+          </TabsContent>
+
+          <TabsContent value="contacts" className="mt-6">
+            <ContactsManager />
           </TabsContent>
         </Tabs>
       </div>
