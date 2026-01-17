@@ -9,6 +9,7 @@ import {
   Receipt,
   Settings,
   Zap,
+  Building2,
 } from "lucide-react";
 
 const navigation = [
@@ -18,6 +19,7 @@ const navigation = [
   { name: "Mensagens", href: "/mensagens", icon: MessageSquare },
   { name: "Campanhas", href: "/campanhas", icon: Send },
   { name: "Cobrança", href: "/cobranca", icon: Receipt },
+  { name: "Organizações", href: "/organizacoes", icon: Building2 },
   { name: "Configurações", href: "/configuracoes", icon: Settings },
 ];
 
