@@ -1109,16 +1109,22 @@ router.post('/:connectionId/reconfigure-webhook', authenticate, async (req, res)
 });
 
 // Normalize remoteJid to avoid duplicates (handles @lid, @s.whatsapp.net, @c.us)
+// IMPORTANT: group JIDs (@g.us) and broadcast must be preserved as-is.
 function normalizeRemoteJid(remoteJid) {
   if (!remoteJid) return null;
-  
+
+  // Keep group/broadcast identifiers untouched
+  if (remoteJid === 'status@broadcast' || String(remoteJid).includes('@g.us')) {
+    return remoteJid;
+  }
+
   // Extract the phone number part
-  let phone = remoteJid
+  const phone = String(remoteJid)
     .replace('@s.whatsapp.net', '')
     .replace('@c.us', '')
     .replace('@lid', '')
     .replace(/[^0-9]/g, ''); // Remove any non-numeric characters
-  
+
   // Return normalized JID with standard suffix
   return phone ? `${phone}@s.whatsapp.net` : remoteJid;
 }
@@ -1126,7 +1132,13 @@ function normalizeRemoteJid(remoteJid) {
 // Extract phone from any JID format
 function extractPhoneFromJid(remoteJid) {
   if (!remoteJid) return '';
-  return remoteJid
+
+  // For groups/broadcast we don't treat it as a phone
+  if (remoteJid === 'status@broadcast' || String(remoteJid).includes('@g.us')) {
+    return '';
+  }
+
+  return String(remoteJid)
     .replace('@s.whatsapp.net', '')
     .replace('@c.us', '')
     .replace('@lid', '')
@@ -1170,11 +1182,14 @@ async function handleMessageUpsert(connection, data) {
     const fromMe = key.fromMe || false;
     const pushName = message.pushName || data.pushName;
 
-    // Skip status messages and group messages for now
-    if (rawRemoteJid === 'status@broadcast' || rawRemoteJid.includes('@g.us')) {
-      console.log('Webhook: Skipping broadcast/group message');
+    // Skip status messages (broadcast)
+    if (rawRemoteJid === 'status@broadcast') {
+      console.log('Webhook: Skipping broadcast message');
       return;
     }
+
+    const isGroup = typeof rawRemoteJid === 'string' && rawRemoteJid.includes('@g.us');
+
 
     // === EARLY CHECK: Skip messages that have no real content BEFORE creating conversation ===
     const msgContent = message.message || message;

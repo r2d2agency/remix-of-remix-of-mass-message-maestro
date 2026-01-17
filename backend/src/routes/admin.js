@@ -4,6 +4,28 @@ import { authenticate } from '../middleware/auth.js';
 import bcrypt from 'bcryptjs';
 
 const router = Router();
+
+// Public endpoint to get branding settings (no auth required)
+// NOTE: Must be defined before router.use(authenticate)
+router.get('/branding', async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT key, value FROM system_settings 
+       WHERE key IN ('logo_login', 'logo_sidebar', 'favicon')`
+    );
+
+    const branding = {};
+    for (const row of result.rows) {
+      branding[row.key] = row.value;
+    }
+
+    res.json(branding);
+  } catch (error) {
+    console.error('Get branding error:', error);
+    res.status(500).json({ error: 'Erro ao buscar branding' });
+  }
+});
+
 router.use(authenticate);
 
 // Middleware to check superadmin
@@ -653,24 +675,5 @@ router.patch('/settings/:key', requireSuperadmin, async (req, res) => {
   }
 });
 
-// Public endpoint to get branding settings (no auth required)
-router.get('/branding', async (req, res) => {
-  try {
-    const result = await query(
-      `SELECT key, value FROM system_settings 
-       WHERE key IN ('logo_login', 'logo_sidebar', 'favicon')`
-    );
-    
-    const branding = {};
-    for (const row of result.rows) {
-      branding[row.key] = row.value;
-    }
-    
-    res.json(branding);
-  } catch (error) {
-    console.error('Get branding error:', error);
-    res.status(500).json({ error: 'Erro ao buscar branding' });
-  }
-});
 
 export default router;
