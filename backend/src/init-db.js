@@ -580,9 +580,21 @@ CREATE TABLE IF NOT EXISTS chat_contacts (
     profile_picture_url TEXT,
     push_name VARCHAR(255),
     created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    is_deleted BOOLEAN DEFAULT false,
+    deleted_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE (connection_id, phone)
+);
+
+-- Backward-compatible column adds for chat_contacts
+DO $$ BEGIN
+    ALTER TABLE chat_contacts ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false;
+    ALTER TABLE chat_contacts ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;
+EXCEPTION
+    WHEN duplicate_column THEN null;
+    WHEN others THEN null;
+END $$;
 );
 `;
 

@@ -412,6 +412,11 @@ const ContatosChat = () => {
 
   // Start conversation with a contact from agenda
   const handleStartConversation = async (contact: ChatContact) => {
+    if (!contact.phone) {
+      toast.error("Contato sem telefone");
+      return;
+    }
+
     try {
       const result = await api<{ id: string; existed: boolean }>(
         "/api/chat/conversations",
@@ -420,11 +425,11 @@ const ContatosChat = () => {
           body: {
             connection_id: contact.connection_id,
             contact_phone: contact.phone,
-            contact_name: contact.name,
+            contact_name: contact.name || undefined,
           },
         }
       );
-      
+
       navigate(`/chat?conversation=${result.id}`);
     } catch (err: any) {
       toast.error(err.message || "Erro ao iniciar conversa");
@@ -472,12 +477,19 @@ const ContatosChat = () => {
 
     setDeletingBulk(true);
     try {
-      await api("/api/chat/contacts/bulk-delete", {
+      const result = await api<{ success: boolean; deleted: number }>("/api/chat/contacts/bulk-delete", {
         method: "POST",
         body: { contact_ids: Array.from(selectedContactIds) },
       });
-      
-      toast.success(`${selectedContactIds.size} contato(s) excluído(s) da agenda`);
+
+      if ((result.deleted || 0) === 0) {
+        toast.error("Nenhum contato foi excluído", {
+          description: "Esses itens não estavam na agenda ou você não tem permissão.",
+        });
+      } else {
+        toast.success(`${result.deleted} contato(s) excluído(s) da agenda`);
+      }
+
       setSelectedContactIds(new Set());
       setShowBulkDeleteDialog(false);
       loadData();
@@ -502,9 +514,11 @@ const ContatosChat = () => {
   };
 
   const filteredChatContacts = chatContacts.filter(contact => {
-    const matchesSearch = !search || 
-      contact.name?.toLowerCase().includes(search.toLowerCase()) ||
-      contact.phone.includes(search);
+    const q = search.toLowerCase();
+    const name = (contact.name || "").toLowerCase();
+    const phone = contact.phone || "";
+
+    const matchesSearch = !search || name.includes(q) || phone.includes(search);
     const matchesConnection = connectionFilter === "all" || contact.connection_id === connectionFilter;
     return matchesSearch && matchesConnection;
   });
