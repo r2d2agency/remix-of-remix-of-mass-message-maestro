@@ -371,8 +371,20 @@ export function ChatArea({
                     className="rounded max-w-full max-h-[300px] mb-2"
                   />
                 )}
-                {msg.message_type === 'audio' && msg.media_url && (
-                  <audio src={msg.media_url} controls className="mb-2" />
+                {msg.message_type === 'audio' && (
+                  msg.media_url ? (
+                    <audio 
+                      src={msg.media_url} 
+                      controls 
+                      className="mb-2 w-full max-w-[250px]"
+                      preload="metadata"
+                    />
+                  ) : (
+                    <div className="flex items-center gap-2 text-sm opacity-70 mb-2">
+                      <Mic className="h-4 w-4" />
+                      <span>Áudio (mídia não disponível)</span>
+                    </div>
+                  )
                 )}
                 {msg.message_type === 'document' && msg.media_url && (
                   <a
