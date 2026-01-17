@@ -365,8 +365,8 @@ export function ExcelImportDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col overflow-hidden">
-        <DialogHeader>
+      <DialogContent className="max-w-4xl w-[95vw] h-[90vh] flex flex-col overflow-hidden">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <FileSpreadsheet className="h-5 w-5 text-primary" />
             Importar Contatos do Excel
@@ -379,7 +379,7 @@ export function ExcelImportDialog({
         </DialogHeader>
 
         {/* Step Indicator */}
-        <div className="flex items-center gap-2 py-2">
+        <div className="flex items-center gap-2 py-2 flex-shrink-0">
           <div className={cn("flex items-center gap-1", step === "upload" ? "text-primary" : "text-muted-foreground")}>
             <div className={cn("w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium", step === "upload" ? "bg-primary text-primary-foreground" : "bg-muted")}>1</div>
             <span className="text-sm">Upload</span>
@@ -396,7 +396,7 @@ export function ExcelImportDialog({
           </div>
         </div>
 
-        <div className="flex-1 overflow-hidden">
+        <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
           {/* Upload Step */}
           {step === "upload" && (
             <div
@@ -537,7 +537,7 @@ export function ExcelImportDialog({
               )}
 
               {/* Table */}
-              <ScrollArea className="flex-1 min-h-0 border rounded-lg max-h-[45vh]">
+              <ScrollArea className="flex-1 min-h-0 border rounded-lg">
                 <Table>
                   <TableHeader>
                     <TableRow>
