@@ -698,14 +698,18 @@ router.post('/conversations/:id/messages', authenticate, async (req, res) => {
 
     // ============================================================
     // OPTIMISTIC: Save message to DB first with status='pending'
+    // Generate a temporary UUID to help webhook de-duplicate
     // ============================================================
+    const tempMessageId = `temp_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+
     const messageResult = await query(
       `INSERT INTO chat_messages 
         (conversation_id, message_id, from_me, sender_id, content, message_type, media_url, media_mimetype, quoted_message_id, status, timestamp)
-       VALUES ($1, NULL, true, $2, $3, $4, $5, $6, $7, 'pending', NOW())
+       VALUES ($1, $2, true, $3, $4, $5, $6, $7, $8, 'pending', NOW())
        RETURNING *`,
       [
         id,
+        tempMessageId,
         req.userId,
         content,
         message_type,

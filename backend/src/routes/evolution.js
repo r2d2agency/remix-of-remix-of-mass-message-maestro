@@ -987,13 +987,41 @@ async function handleMessageUpsert(connection, data) {
 
     const mediaTypes = ['image', 'audio', 'video', 'document', 'sticker'];
 
-    // Check if message already exists (if it exists but media is not local, we can reprocess)
+    // Check if message already exists by its Evolution message_id
     const existingMsg = await query(
-      `SELECT id, media_url, message_type, media_mimetype FROM chat_messages WHERE message_id = $1`,
+      `SELECT id, media_url, message_type, media_mimetype, status FROM chat_messages WHERE message_id = $1`,
       [messageId]
     );
 
-    const existingRow = existingMsg.rows[0] || null;
+    let existingRow = existingMsg.rows[0] || null;
+
+    // For fromMe messages: also check if there's a pending optimistic message waiting for this confirmation
+    // Match by conversation, from_me, same type, and recent timestamp (within 60 seconds)
+    if (!existingRow && fromMe) {
+      const pendingMsg = await query(
+        `SELECT id, media_url, message_type, media_mimetype, status, message_id
+         FROM chat_messages 
+         WHERE conversation_id = $1 
+           AND from_me = true 
+           AND status = 'pending'
+           AND message_id LIKE 'temp_%'
+           AND timestamp > NOW() - INTERVAL '60 seconds'
+         ORDER BY timestamp DESC
+         LIMIT 1`,
+        [conversationId]
+      );
+
+      if (pendingMsg.rows.length > 0) {
+        // Update the pending message with the real Evolution message_id and mark as sent
+        await query(
+          `UPDATE chat_messages SET message_id = $1, status = 'sent' WHERE id = $2`,
+          [messageId, pendingMsg.rows[0].id]
+        );
+        console.log('Webhook: Linked pending optimistic message to Evolution ID:', messageId);
+
+        existingRow = { ...pendingMsg.rows[0], message_id: messageId, status: 'sent' };
+      }
+    }
 
     if (existingRow) {
       const existingIsMedia = mediaTypes.includes(existingRow.message_type);
