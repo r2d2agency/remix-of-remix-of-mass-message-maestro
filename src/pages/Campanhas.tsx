@@ -44,6 +44,7 @@ import { useContacts, ContactList } from "@/hooks/use-contacts";
 import { useMessages, MessageTemplate } from "@/hooks/use-messages";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { CampaignDetailModal } from "@/components/campanhas/CampaignDetailModal";
 
 interface Connection {
   id: string;
@@ -70,7 +71,8 @@ const Campanhas = () => {
   const [connections, setConnections] = useState<Connection[]>([]);
 
   const [activeTab, setActiveTab] = useState("list");
-  const [selectedCampaign, setSelectedCampaign] = useState<string | null>(null);
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
   
   // Form state - Basic
   const [campaignName, setCampaignName] = useState("");
@@ -286,8 +288,12 @@ const Campanhas = () => {
                 return (
                   <Card
                     key={campaign.id}
-                    className="transition-all duration-200 hover:shadow-elevated animate-fade-in"
+                    className="transition-all duration-200 hover:shadow-elevated animate-fade-in cursor-pointer"
                     style={{ animationDelay: `${index * 100}ms` }}
+                    onClick={() => {
+                      setSelectedCampaignId(campaign.id);
+                      setShowDetailModal(true);
+                    }}
                   >
                     <CardContent className="p-6">
                       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -347,7 +353,7 @@ const Campanhas = () => {
                             </p>
                             <p className="text-sm text-muted-foreground">mensagens enviadas</p>
                           </div>
-                          <div className="flex gap-2">
+                          <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                             {campaign.status === "pending" && (
                               <Button
                                 variant="outline"
@@ -721,6 +727,16 @@ const Campanhas = () => {
             </div>
           </TabsContent>
         </Tabs>
+
+        {/* Campaign Detail Modal */}
+        <CampaignDetailModal
+          campaignId={selectedCampaignId}
+          open={showDetailModal}
+          onClose={() => {
+            setShowDetailModal(false);
+            setSelectedCampaignId(null);
+          }}
+        />
       </div>
     </MainLayout>
   );

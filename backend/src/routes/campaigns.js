@@ -242,6 +242,109 @@ router.get('/:id/stats', async (req, res) => {
   }
 });
 
+// Get campaign details with all messages
+router.get('/:id/details', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const org = await getUserOrganization(req.userId);
+
+    let whereClause = 'c.id = $1 AND c.user_id = $2';
+    let params = [id, req.userId];
+
+    if (org) {
+      whereClause = `c.id = $1 AND (c.user_id = $2 OR c.connection_id IN (
+        SELECT id FROM connections WHERE organization_id = $3
+      ))`;
+      params = [id, req.userId, org.organization_id];
+    }
+
+    // Get campaign with related info
+    const campaignResult = await query(
+      `SELECT c.*, 
+              cl.name as list_name,
+              mt.name as message_name,
+              conn.name as connection_name,
+              (SELECT COUNT(*) FROM contacts WHERE list_id = c.list_id) as total_contacts
+       FROM campaigns c
+       LEFT JOIN contact_lists cl ON c.list_id = cl.id
+       LEFT JOIN message_templates mt ON c.message_id = mt.id
+       LEFT JOIN connections conn ON c.connection_id = conn.id
+       WHERE ${whereClause}`,
+      params
+    );
+
+    if (campaignResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Campanha não encontrada' });
+    }
+
+    const campaign = campaignResult.rows[0];
+
+    // Get all campaign messages with contact info
+    const messagesResult = await query(
+      `SELECT cm.*, 
+              co.name as contact_name
+       FROM campaign_messages cm
+       LEFT JOIN contacts co ON cm.contact_id = co.id
+       WHERE cm.campaign_id = $1
+       ORDER BY cm.created_at ASC`,
+      [id]
+    );
+
+    // Calculate stats
+    const messages = messagesResult.rows;
+    const stats = {
+      total: messages.length,
+      sent: messages.filter(m => m.status === 'sent').length,
+      failed: messages.filter(m => m.status === 'failed').length,
+      pending: messages.filter(m => m.status === 'pending').length,
+    };
+
+    // Calculate estimated completion time
+    let estimatedCompletion = null;
+    if (campaign.status === 'running' && stats.pending > 0) {
+      const avgDelay = (campaign.min_delay + campaign.max_delay) / 2;
+      const pauseMessages = campaign.pause_after_messages || 20;
+      const pauseDuration = (campaign.pause_duration || 10) * 60; // Convert to seconds
+      
+      // Calculate time including pauses
+      const remainingMessages = stats.pending;
+      const pausesNeeded = Math.floor(remainingMessages / pauseMessages);
+      const totalSeconds = (remainingMessages * avgDelay) + (pausesNeeded * pauseDuration);
+      
+      estimatedCompletion = new Date(Date.now() + totalSeconds * 1000).toISOString();
+    }
+
+    // Calculate scheduled times for pending messages
+    let currentTime = new Date();
+    const avgDelay = (campaign.min_delay + campaign.max_delay) / 2;
+    const pauseMessages = campaign.pause_after_messages || 20;
+    const pauseDuration = (campaign.pause_duration || 10) * 60;
+    
+    let sentCount = stats.sent + stats.failed;
+    const messagesWithSchedule = messages.map((msg, index) => {
+      if (msg.status === 'pending') {
+        const position = index - sentCount;
+        const pausesBeforeThis = Math.floor(position / pauseMessages);
+        const secondsFromNow = (position * avgDelay) + (pausesBeforeThis * pauseDuration);
+        const scheduledTime = new Date(currentTime.getTime() + secondsFromNow * 1000);
+        return { ...msg, scheduled_time: scheduledTime.toISOString() };
+      }
+      return msg;
+    });
+
+    res.json({
+      campaign,
+      messages: messagesWithSchedule,
+      stats,
+      estimatedCompletion,
+    });
+  } catch (error) {
+    console.error('Get campaign details error:', error);
+    res.status(500).json({ error: 'Erro ao buscar detalhes da campanha' });
+  }
+});
+
 // Delete campaign
 router.delete('/:id', async (req, res) => {
   try {
