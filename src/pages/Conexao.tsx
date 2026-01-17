@@ -334,39 +334,44 @@ const Conexao = () => {
                         </Button>
                       </>
                     ) : (
-                      <>
-                        <Button 
-                          variant="default" 
-                          size="sm"
-                          className="flex-1"
-                          onClick={() => handleGetQRCode(connection)}
-                        >
-                          <QrCode className="h-4 w-4 mr-1" />
-                          Conectar
-                        </Button>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Excluir conexão?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Esta ação não pode ser desfeita. A conexão "{connection.name}" será permanentemente excluída.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleDelete(connection)}>
-                                Excluir
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </>
+                      <Button 
+                        variant="default" 
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => handleGetQRCode(connection)}
+                      >
+                        <QrCode className="h-4 w-4 mr-1" />
+                        Conectar
+                      </Button>
                     )}
+                    
+                    {/* Delete button - always visible */}
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="sm">
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Excluir conexão?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Esta ação não pode ser desfeita. A conexão "{connection.name}" será permanentemente excluída.
+                            {connection.status === 'connected' && (
+                              <span className="block mt-2 text-yellow-500">
+                                ⚠️ Esta conexão está ativa e será desconectada.
+                              </span>
+                            )}
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => handleDelete(connection)}>
+                            Excluir
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </CardContent>
               </Card>
