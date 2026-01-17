@@ -488,11 +488,14 @@ const ContatosChat = () => {
     }
   };
 
-  const getInitials = (name: string, phone: string) => {
+  const getInitials = (name: string | null | undefined, phone: string | null | undefined) => {
     if (name) {
       return name.split(" ").slice(0, 2).map(n => n[0]).join("").toUpperCase();
     }
-    return phone.slice(-2);
+    if (phone) {
+      return phone.slice(-2);
+    }
+    return "??";
   };
 
   const filteredChatContacts = chatContacts.filter(contact => {
