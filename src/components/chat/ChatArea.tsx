@@ -56,6 +56,9 @@ import {
   StickyNote,
   Reply,
   CornerDownRight,
+  Search,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -139,10 +142,16 @@ export function ChatArea({
   const [showNotes, setShowNotes] = useState(false);
   const [notesCount, setNotesCount] = useState(0);
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<string[]>([]);
+  const [currentSearchIndex, setCurrentSearchIndex] = useState(0);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const { uploadFile, isUploading } = useUpload();
   const { user } = useAuth();
   const { getNotes } = useChat();
@@ -163,8 +172,83 @@ export function ChatArea({
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (!showSearch) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, showSearch]);
+
+  // Handle search
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      setCurrentSearchIndex(0);
+      return;
+    }
+
+    const query = searchQuery.toLowerCase();
+    const results = messages
+      .filter(msg => msg.content?.toLowerCase().includes(query))
+      .map(msg => msg.id);
+    
+    setSearchResults(results);
+    setCurrentSearchIndex(results.length > 0 ? 0 : -1);
+  }, [searchQuery, messages]);
+
+  // Scroll to current search result
+  useEffect(() => {
+    if (searchResults.length > 0 && currentSearchIndex >= 0) {
+      const messageId = searchResults[currentSearchIndex];
+      const element = messageRefs.current.get(messageId);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, [currentSearchIndex, searchResults]);
+
+  // Focus search input when opened
+  useEffect(() => {
+    if (showSearch) {
+      searchInputRef.current?.focus();
+    }
+  }, [showSearch]);
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (e.shiftKey) {
+        navigateSearch(-1);
+      } else {
+        navigateSearch(1);
+      }
+    } else if (e.key === 'Escape') {
+      setShowSearch(false);
+      setSearchQuery("");
+    }
+  };
+
+  const navigateSearch = (direction: number) => {
+    if (searchResults.length === 0) return;
+    
+    let newIndex = currentSearchIndex + direction;
+    if (newIndex >= searchResults.length) newIndex = 0;
+    if (newIndex < 0) newIndex = searchResults.length - 1;
+    
+    setCurrentSearchIndex(newIndex);
+  };
+
+  const highlightText = (text: string, query: string) => {
+    if (!query.trim()) return text;
+    
+    const parts = text.split(new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'));
+    
+    return parts.map((part, i) => 
+      part.toLowerCase() === query.toLowerCase() ? (
+        <mark key={i} className="bg-yellow-300 dark:bg-yellow-600 px-0.5 rounded">
+          {part}
+        </mark>
+      ) : part
+    );
+  };
 
   const handleSend = async () => {
     if (!messageText.trim() || sending) return;
@@ -284,6 +368,19 @@ export function ChatArea({
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Search */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn("h-8 w-8", showSearch && "bg-muted")}
+            onClick={() => {
+              setShowSearch(!showSearch);
+              if (showSearch) setSearchQuery("");
+            }}
+            title="Buscar mensagens"
+          >
+            <Search className="h-4 w-4" />
+          </Button>
           {/* Sync */}
           {!!onSyncHistory && (
             <Button
@@ -405,6 +502,58 @@ export function ChatArea({
         </div>
       </div>
 
+      {/* Search Bar */}
+      {showSearch && (
+        <div className="flex items-center gap-2 px-4 py-2 border-b bg-muted/50">
+          <Search className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+          <Input
+            ref={searchInputRef}
+            placeholder="Buscar nas mensagens..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={handleSearchKeyDown}
+            className="h-8 text-sm"
+          />
+          {searchResults.length > 0 && (
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <span>{currentSearchIndex + 1}/{searchResults.length}</span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                onClick={() => navigateSearch(-1)}
+                title="Anterior (Shift+Enter)"
+              >
+                <ChevronUp className="h-3 w-3" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                onClick={() => navigateSearch(1)}
+                title="Próximo (Enter)"
+              >
+                <ChevronDown className="h-3 w-3" />
+              </Button>
+            </div>
+          )}
+          {searchQuery && searchResults.length === 0 && (
+            <span className="text-xs text-muted-foreground">Nenhum resultado</span>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 flex-shrink-0"
+            onClick={() => {
+              setShowSearch(false);
+              setSearchQuery("");
+            }}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+
       {/* Messages */}
       <ScrollArea ref={scrollAreaRef} className="flex-1 p-4">
         {hasMore && (
@@ -421,9 +570,16 @@ export function ChatArea({
         )}
 
         <div className="space-y-4">
-          {messages.map((msg) => (
+          {messages.map((msg) => {
+            const isSearchResult = searchResults.includes(msg.id);
+            const isCurrentResult = searchResults[currentSearchIndex] === msg.id;
+            
+            return (
             <div
               key={msg.id}
+              ref={(el) => {
+                if (el) messageRefs.current.set(msg.id, el);
+              }}
               className={cn(
                 "flex group",
                 msg.from_me ? "justify-end" : "justify-start"
@@ -444,11 +600,13 @@ export function ChatArea({
 
               <div
                 className={cn(
-                  "max-w-[70%] rounded-lg p-3",
+                  "max-w-[70%] rounded-lg p-3 transition-all",
                   msg.from_me
                     ? "bg-primary text-primary-foreground"
                     : "bg-muted",
-                  msg.message_type === 'system' && "bg-accent text-accent-foreground text-center max-w-full text-xs italic"
+                  msg.message_type === 'system' && "bg-accent text-accent-foreground text-center max-w-full text-xs italic",
+                  isSearchResult && "ring-2 ring-yellow-400",
+                  isCurrentResult && "ring-2 ring-yellow-500 bg-yellow-50 dark:bg-yellow-900/30"
                 )}
               >
                 {/* Quoted message */}
@@ -564,7 +722,7 @@ export function ChatArea({
                 {/* Text content */}
                 {msg.content && (
                   <p className="text-sm whitespace-pre-wrap break-words">
-                    {msg.content}
+                    {searchQuery ? highlightText(msg.content, searchQuery) : msg.content}
                   </p>
                 )}
 
@@ -593,7 +751,7 @@ export function ChatArea({
                 </Button>
               )}
             </div>
-          ))}
+          )})}
           <div ref={messagesEndRef} />
         </div>
       </ScrollArea>
