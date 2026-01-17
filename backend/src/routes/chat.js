@@ -748,6 +748,80 @@ router.get('/tags', authenticate, async (req, res) => {
   }
 });
 
+// Get all tags with conversation count
+router.get('/tags/with-count', authenticate, async (req, res) => {
+  try {
+    const organizationId = await getUserOrganization(req.userId);
+    
+    if (!organizationId) {
+      return res.json([]);
+    }
+
+    const result = await query(
+      `SELECT t.*, 
+        COALESCE(
+          (SELECT COUNT(*) FROM conversation_tag_links ctl WHERE ctl.tag_id = t.id),
+          0
+        )::int as conversation_count
+       FROM conversation_tags t
+       WHERE t.organization_id = $1 
+       ORDER BY t.name`,
+      [organizationId]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get tags with count error:', error);
+    res.status(500).json({ error: 'Erro ao buscar tags' });
+  }
+});
+
+// Update tag
+router.patch('/tags/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, color } = req.body;
+    const organizationId = await getUserOrganization(req.userId);
+
+    const updates = [];
+    const values = [];
+    let paramIndex = 1;
+
+    if (name) {
+      updates.push(`name = $${paramIndex}`);
+      values.push(name);
+      paramIndex++;
+    }
+    if (color) {
+      updates.push(`color = $${paramIndex}`);
+      values.push(color);
+      paramIndex++;
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'Nenhuma atualização fornecida' });
+    }
+
+    values.push(id, organizationId);
+
+    const result = await query(
+      `UPDATE conversation_tags SET ${updates.join(', ')} 
+       WHERE id = $${paramIndex} AND organization_id = $${paramIndex + 1}
+       RETURNING *`,
+      values
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Tag não encontrada' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update tag error:', error);
+    res.status(500).json({ error: 'Erro ao atualizar tag' });
+  }
+});
+
 // Create tag
 router.post('/tags', authenticate, async (req, res) => {
   try {
@@ -1188,6 +1262,163 @@ router.get('/scheduled/count', authenticate, async (req, res) => {
   } catch (error) {
     console.error('Get scheduled count error:', error);
     res.status(500).json({ error: 'Erro ao buscar contagem' });
+  }
+});
+
+// Get all scheduled messages (for Agendamentos page)
+router.get('/scheduled/all', authenticate, async (req, res) => {
+  try {
+    const connectionIds = await getUserConnections(req.userId);
+    const { status } = req.query;
+
+    if (connectionIds.length === 0) {
+      return res.json([]);
+    }
+
+    let sql = `
+      SELECT sm.*, 
+        u.name as sender_name,
+        c.contact_name,
+        c.contact_phone,
+        conn.name as connection_name
+      FROM scheduled_messages sm
+      LEFT JOIN users u ON u.id = sm.sender_id
+      LEFT JOIN conversations c ON c.id = sm.conversation_id
+      LEFT JOIN connections conn ON conn.id = sm.connection_id
+      WHERE sm.connection_id = ANY($1)
+    `;
+    
+    const params = [connectionIds];
+    
+    if (status && status !== 'all') {
+      sql += ` AND sm.status = $2`;
+      params.push(status);
+    }
+    
+    sql += ` ORDER BY sm.scheduled_at DESC`;
+
+    const result = await query(sql, params);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get all scheduled messages error:', error);
+    res.status(500).json({ error: 'Erro ao buscar agendamentos' });
+  }
+});
+
+// Update scheduled message
+router.patch('/scheduled/:messageId', authenticate, async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const { content, scheduled_at } = req.body;
+    const connectionIds = await getUserConnections(req.userId);
+
+    const updates = [];
+    const values = [];
+    let paramIndex = 1;
+
+    if (content !== undefined) {
+      updates.push(`content = $${paramIndex}`);
+      values.push(content);
+      paramIndex++;
+    }
+
+    if (scheduled_at) {
+      const newDate = new Date(scheduled_at);
+      if (newDate <= new Date()) {
+        return res.status(400).json({ error: 'Data de agendamento deve ser no futuro' });
+      }
+      updates.push(`scheduled_at = $${paramIndex}`);
+      values.push(newDate);
+      paramIndex++;
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'Nenhuma atualização fornecida' });
+    }
+
+    updates.push(`updated_at = NOW()`);
+    values.push(messageId, connectionIds);
+
+    const result = await query(
+      `UPDATE scheduled_messages 
+       SET ${updates.join(', ')}
+       WHERE id = $${paramIndex} 
+         AND connection_id = ANY($${paramIndex + 1})
+         AND status = 'pending'
+       RETURNING *`,
+      values
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Agendamento não encontrado' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update scheduled message error:', error);
+    res.status(500).json({ error: 'Erro ao atualizar agendamento' });
+  }
+});
+
+// ==========================================
+// CHAT CONTACTS
+// ==========================================
+
+// Get all contacts from conversations
+router.get('/contacts', authenticate, async (req, res) => {
+  try {
+    const connectionIds = await getUserConnections(req.userId);
+
+    if (connectionIds.length === 0) {
+      return res.json([]);
+    }
+
+    const result = await query(`
+      SELECT 
+        conv.id,
+        conv.id as conversation_id,
+        conv.contact_name,
+        conv.contact_phone,
+        conv.connection_id,
+        conn.name as connection_name,
+        conv.last_message_at,
+        conv.unread_count
+      FROM conversations conv
+      JOIN connections conn ON conn.id = conv.connection_id
+      WHERE conv.connection_id = ANY($1) AND conv.is_archived = false
+      ORDER BY conv.contact_name NULLS LAST, conv.contact_phone
+    `, [connectionIds]);
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get chat contacts error:', error);
+    res.status(500).json({ error: 'Erro ao buscar contatos' });
+  }
+});
+
+// Update conversation contact name
+router.patch('/conversations/:id/contact', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { contact_name } = req.body;
+    const connectionIds = await getUserConnections(req.userId);
+
+    const result = await query(
+      `UPDATE conversations 
+       SET contact_name = $1, updated_at = NOW()
+       WHERE id = $2 AND connection_id = ANY($3)
+       RETURNING *`,
+      [contact_name, id, connectionIds]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Conversa não encontrada' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update contact error:', error);
+    res.status(500).json({ error: 'Erro ao atualizar contato' });
   }
 });
 

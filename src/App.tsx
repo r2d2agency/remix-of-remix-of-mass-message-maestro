@@ -19,6 +19,9 @@ import Cobranca from "./pages/Cobranca";
 import Organizacoes from "./pages/Organizacoes";
 import Admin from "./pages/Admin";
 import Configuracoes from "./pages/Configuracoes";
+import Agendamentos from "./pages/Agendamentos";
+import Tags from "./pages/Tags";
+import ContatosChat from "./pages/ContatosChat";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -61,6 +64,9 @@ const App = () => (
             <Route path="/mensagens" element={<ProtectedRoute><Mensagens /></ProtectedRoute>} />
             <Route path="/campanhas" element={<ProtectedRoute><Campanhas /></ProtectedRoute>} />
             <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
+            <Route path="/agendamentos" element={<ProtectedRoute><Agendamentos /></ProtectedRoute>} />
+            <Route path="/tags" element={<ProtectedRoute><Tags /></ProtectedRoute>} />
+            <Route path="/contatos-chat" element={<ProtectedRoute><ContatosChat /></ProtectedRoute>} />
             <Route path="/cobranca" element={<ProtectedRoute><Cobranca /></ProtectedRoute>} />
             <Route path="/organizacoes" element={<ProtectedRoute><Organizacoes /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />

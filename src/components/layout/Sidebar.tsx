@@ -45,6 +45,9 @@ const navSections: NavSection[] = [
     icon: MessagesSquare,
     items: [
       { name: "Chat", href: "/chat", icon: MessagesSquare },
+      { name: "Agendamentos", href: "/agendamentos", icon: Bell },
+      { name: "Tags", href: "/tags", icon: Receipt },
+      { name: "Contatos", href: "/contatos-chat", icon: Users },
     ],
   },
   {
