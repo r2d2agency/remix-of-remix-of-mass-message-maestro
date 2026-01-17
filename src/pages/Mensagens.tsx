@@ -7,6 +7,21 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import {
   MessageSquare,
   Plus,
   Image,
@@ -17,8 +32,10 @@ import {
   Trash2,
   Edit,
   Loader2,
+  GripVertical,
 } from "lucide-react";
-import { MessageItemEditor, MessageItem, MessageItemType } from "@/components/mensagens/MessageItemEditor";
+import { MessageItem, MessageItemType } from "@/components/mensagens/MessageItemEditor";
+import { SortableMessageItem } from "@/components/mensagens/SortableMessageItem";
 import { AddMessageButton } from "@/components/mensagens/AddMessageButton";
 import { MessagePreview } from "@/components/mensagens/MessagePreview";
 import { useMessages, MessageTemplate } from "@/hooks/use-messages";
@@ -108,6 +125,7 @@ const Mensagens = () => {
       content: "",
       mediaUrl: type !== "text" ? "" : undefined,
       caption: type !== "text" ? "" : undefined,
+      ptt: type === "audio" ? true : undefined,
     };
     setMessageItems((prev) => [...prev, newItem]);
   };
@@ -144,6 +162,25 @@ const Mensagens = () => {
       {} as Record<string, number>
     );
     return counts;
+  };
+
+  // Drag and drop
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      setMessageItems((items) => {
+        const oldIndex = items.findIndex((item) => item.id === active.id);
+        const newIndex = items.findIndex((item) => item.id === over.id);
+        return arrayMove(items, oldIndex, newIndex);
+      });
+    }
   };
 
   return (
@@ -282,21 +319,38 @@ const Mensagens = () => {
                     />
                   </div>
 
-                  {/* Message Items List */}
+                  {/* Message Items List with Drag and Drop */}
                   <div className="space-y-3">
-                    <Label>Blocos da Mensagem</Label>
-                    <div className="space-y-3">
-                      {messageItems.map((item, index) => (
-                        <MessageItemEditor
-                          key={item.id}
-                          item={item}
-                          index={index}
-                          onUpdate={updateMessageItem}
-                          onDelete={deleteMessageItem}
-                          insertVariable={insertVariable}
-                        />
-                      ))}
+                    <div className="flex items-center justify-between">
+                      <Label>Blocos da Mensagem</Label>
+                      <span className="text-xs text-muted-foreground flex items-center gap-1">
+                        <GripVertical className="h-3 w-3" />
+                        Arraste para reordenar
+                      </span>
                     </div>
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={handleDragEnd}
+                    >
+                      <SortableContext
+                        items={messageItems.map((item) => item.id)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        <div className="space-y-3">
+                          {messageItems.map((item, index) => (
+                            <SortableMessageItem
+                              key={item.id}
+                              item={item}
+                              index={index}
+                              onUpdate={updateMessageItem}
+                              onDelete={deleteMessageItem}
+                              insertVariable={insertVariable}
+                            />
+                          ))}
+                        </div>
+                      </SortableContext>
+                    </DndContext>
 
                     <AddMessageButton onAdd={addMessageItem} />
                   </div>

@@ -10,8 +10,15 @@ export interface Campaign {
   message_id: string | null;
   status: 'pending' | 'running' | 'paused' | 'completed' | 'cancelled';
   scheduled_at: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  start_time: string | null;
+  end_time: string | null;
   min_delay: number;
   max_delay: number;
+  pause_after_messages: number;
+  pause_duration: number;
+  random_order: boolean;
   sent_count: number;
   failed_count: number;
   created_at: string;
@@ -35,8 +42,15 @@ export interface CreateCampaignData {
   list_id: string;
   message_id: string;
   scheduled_at?: string;
+  start_date?: string;
+  end_date?: string;
+  start_time?: string;
+  end_time?: string;
   min_delay?: number;
   max_delay?: number;
+  pause_after_messages?: number;
+  pause_duration?: number;
+  random_order?: boolean;
 }
 
 export const useCampaigns = () => {
