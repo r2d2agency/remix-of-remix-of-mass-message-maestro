@@ -178,6 +178,29 @@ export function ConversationList({
     }
   };
 
+  const handleCleanupEmpty = async () => {
+    setDeleting(true);
+    try {
+      const result = await api<{ deleted: number; message: string }>(
+        '/api/chat/conversations/cleanup-empty',
+        { method: 'POST' }
+      );
+      toast({ 
+        title: "Limpeza concluída", 
+        description: result.message 
+      });
+      onRefresh();
+    } catch (error: any) {
+      toast({ 
+        title: "Erro na limpeza", 
+        description: error.message || "Não foi possível limpar conversas vazias",
+        variant: "destructive" 
+      });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const getInitials = (name: string | null) => {
     if (!name) return '?';
     return name
@@ -199,15 +222,28 @@ export function ConversationList({
           </h2>
           <div className="flex items-center gap-1">
             {isAdmin && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleCleanupDuplicates}
-                disabled={deleting}
-                title="Limpar conversas duplicadas (@lid)"
-              >
-                <Sparkles className="h-4 w-4 text-amber-500" />
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    disabled={deleting}
+                    title="Ferramentas de limpeza"
+                  >
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleCleanupEmpty} disabled={deleting}>
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Limpar conversas vazias
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleCleanupDuplicates} disabled={deleting}>
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Limpar duplicadas (@lid)
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
             <Button
               variant="ghost"
