@@ -5,21 +5,48 @@ import { authenticate } from '../middleware/auth.js';
 const router = Router();
 router.use(authenticate);
 
-// List user campaigns
+// Helper to get user's organization
+async function getUserOrganization(userId) {
+  const result = await query(
+    `SELECT om.organization_id, om.role 
+     FROM organization_members om 
+     WHERE om.user_id = $1 
+     LIMIT 1`,
+    [userId]
+  );
+  return result.rows[0] || null;
+}
+
+// List campaigns (user's own + organization's)
 router.get('/', async (req, res) => {
   try {
+    const org = await getUserOrganization(req.userId);
+
+    let whereClause = 'c.user_id = $1';
+    let params = [req.userId];
+
+    if (org) {
+      // Get campaigns from connections in user's organization
+      whereClause = `(c.user_id = $1 OR c.connection_id IN (
+        SELECT id FROM connections WHERE organization_id = $2
+      ))`;
+      params = [req.userId, org.organization_id];
+    }
+
     const result = await query(
       `SELECT c.*, 
               cl.name as list_name,
               mt.name as message_name,
-              conn.name as connection_name
+              conn.name as connection_name,
+              u.name as created_by_name
        FROM campaigns c
        LEFT JOIN contact_lists cl ON c.list_id = cl.id
        LEFT JOIN message_templates mt ON c.message_id = mt.id
        LEFT JOIN connections conn ON c.connection_id = conn.id
-       WHERE c.user_id = $1
+       LEFT JOIN users u ON c.user_id = u.id
+       WHERE ${whereClause}
        ORDER BY c.created_at DESC`,
-      [req.userId]
+      params
     );
     res.json(result.rows);
   } catch (error) {
@@ -47,15 +74,56 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // Verify ownership of related resources
-    const checks = await Promise.all([
-      query('SELECT id FROM connections WHERE id = $1 AND user_id = $2', [connection_id, req.userId]),
-      query('SELECT id FROM contact_lists WHERE id = $1 AND user_id = $2', [list_id, req.userId]),
-      query('SELECT id FROM message_templates WHERE id = $1 AND user_id = $2', [message_id, req.userId]),
-    ]);
+    const org = await getUserOrganization(req.userId);
 
-    if (checks.some(c => c.rows.length === 0)) {
-      return res.status(400).json({ error: 'Recursos inválidos' });
+    // Verify ownership of related resources (including org-level access)
+    let connectionCheck, listCheck, messageCheck;
+
+    if (org) {
+      // Allow using organization's connections
+      connectionCheck = await query(
+        'SELECT id FROM connections WHERE id = $1 AND (user_id = $2 OR organization_id = $3)',
+        [connection_id, req.userId, org.organization_id]
+      );
+      // Allow using organization's lists
+      listCheck = await query(
+        `SELECT id FROM contact_lists WHERE id = $1 AND (
+          user_id = $2 OR 
+          connection_id IN (SELECT id FROM connections WHERE organization_id = $3)
+        )`,
+        [list_id, req.userId, org.organization_id]
+      );
+      // Allow using organization's messages
+      messageCheck = await query(
+        `SELECT id FROM message_templates WHERE id = $1 AND (
+          user_id = $2 OR 
+          user_id IN (SELECT user_id FROM organization_members WHERE organization_id = $3)
+        )`,
+        [message_id, req.userId, org.organization_id]
+      );
+    } else {
+      connectionCheck = await query(
+        'SELECT id FROM connections WHERE id = $1 AND user_id = $2',
+        [connection_id, req.userId]
+      );
+      listCheck = await query(
+        'SELECT id FROM contact_lists WHERE id = $1 AND user_id = $2',
+        [list_id, req.userId]
+      );
+      messageCheck = await query(
+        'SELECT id FROM message_templates WHERE id = $1 AND user_id = $2',
+        [message_id, req.userId]
+      );
+    }
+
+    if (connectionCheck.rows.length === 0) {
+      return res.status(400).json({ error: 'Conexão não encontrada ou sem permissão' });
+    }
+    if (listCheck.rows.length === 0) {
+      return res.status(400).json({ error: 'Lista não encontrada ou sem permissão' });
+    }
+    if (messageCheck.rows.length === 0) {
+      return res.status(400).json({ error: 'Mensagem não encontrada ou sem permissão' });
     }
 
     const result = await query(
@@ -93,12 +161,24 @@ router.patch('/:id/status', async (req, res) => {
       return res.status(400).json({ error: 'Status inválido' });
     }
 
+    const org = await getUserOrganization(req.userId);
+
+    let whereClause = 'id = $2 AND user_id = $3';
+    let params = [status, id, req.userId];
+
+    if (org) {
+      whereClause = `id = $2 AND (user_id = $3 OR connection_id IN (
+        SELECT id FROM connections WHERE organization_id = $4
+      ))`;
+      params = [status, id, req.userId, org.organization_id];
+    }
+
     const result = await query(
       `UPDATE campaigns 
        SET status = $1, updated_at = NOW()
-       WHERE id = $2 AND user_id = $3
+       WHERE ${whereClause}
        RETURNING *`,
-      [status, id, req.userId]
+      params
     );
 
     if (result.rows.length === 0) {
@@ -117,9 +197,21 @@ router.get('/:id/stats', async (req, res) => {
   try {
     const { id } = req.params;
 
+    const org = await getUserOrganization(req.userId);
+
+    let whereClause = 'id = $1 AND user_id = $2';
+    let params = [id, req.userId];
+
+    if (org) {
+      whereClause = `id = $1 AND (user_id = $2 OR connection_id IN (
+        SELECT id FROM connections WHERE organization_id = $3
+      ))`;
+      params = [id, req.userId, org.organization_id];
+    }
+
     const campaign = await query(
-      'SELECT * FROM campaigns WHERE id = $1 AND user_id = $2',
-      [id, req.userId]
+      `SELECT * FROM campaigns WHERE ${whereClause}`,
+      params
     );
 
     if (campaign.rows.length === 0) {
@@ -151,9 +243,21 @@ router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
+    const org = await getUserOrganization(req.userId);
+
+    let whereClause = 'id = $1 AND user_id = $2';
+    let params = [id, req.userId];
+
+    if (org && ['owner', 'admin', 'manager'].includes(org.role)) {
+      whereClause = `id = $1 AND (user_id = $2 OR connection_id IN (
+        SELECT id FROM connections WHERE organization_id = $3
+      ))`;
+      params = [id, req.userId, org.organization_id];
+    }
+
     const result = await query(
-      'DELETE FROM campaigns WHERE id = $1 AND user_id = $2 RETURNING id',
-      [id, req.userId]
+      `DELETE FROM campaigns WHERE ${whereClause} RETURNING id`,
+      params
     );
 
     if (result.rows.length === 0) {
