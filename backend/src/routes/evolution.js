@@ -1165,12 +1165,18 @@ async function handleMessageUpsert(connection, data) {
       ? new Date(parseInt(message.messageTimestamp) * 1000) 
       : new Date();
 
-    // Insert message
+    // Insert message - use ON CONFLICT to handle duplicates gracefully
     try {
-      await query(
+      const insertResult = await query(
         `INSERT INTO chat_messages 
           (conversation_id, message_id, from_me, content, message_type, media_url, media_mimetype, quoted_message_id, status, timestamp)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         ON CONFLICT (message_id) WHERE message_id IS NOT NULL AND message_id NOT LIKE 'temp_%'
+         DO UPDATE SET 
+           media_url = COALESCE(EXCLUDED.media_url, chat_messages.media_url),
+           media_mimetype = COALESCE(EXCLUDED.media_mimetype, chat_messages.media_mimetype),
+           status = CASE WHEN chat_messages.status = 'pending' THEN 'sent' ELSE chat_messages.status END
+         RETURNING id`,
         [
           conversationId,
           messageId,
@@ -1185,10 +1191,12 @@ async function handleMessageUpsert(connection, data) {
         ]
       );
 
-      console.log('Webhook: Message saved:', messageId, 'Type:', messageType, 'FromMe:', fromMe, 'Content:', content?.substring(0, 50));
+      if (insertResult.rows.length > 0) {
+        console.log('Webhook: Message saved/updated:', messageId, 'Type:', messageType, 'FromMe:', fromMe, 'Content:', content?.substring(0, 50));
+      }
     } catch (insertError) {
+      // Log but don't throw - allow webhook to continue for other messages
       console.error('Webhook: Insert message failed:', insertError.message, 'MessageId:', messageId);
-      throw insertError;
     }
   } catch (error) {
     console.error('Handle message upsert error:', error.message);
