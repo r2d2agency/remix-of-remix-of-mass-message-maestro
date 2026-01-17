@@ -33,6 +33,7 @@ import {
   Send,
   Image,
   Mic,
+  MicOff,
   FileText,
   Video,
   MoreVertical,
@@ -59,6 +60,8 @@ import {
   Search,
   ChevronUp,
   ChevronDown,
+  Trash2,
+  Square,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -66,6 +69,7 @@ import { cn } from "@/lib/utils";
 import { ChatMessage, Conversation, ConversationTag, TeamMember, ConversationNote } from "@/hooks/use-chat";
 import { useChat } from "@/hooks/use-chat";
 import { useUpload } from "@/hooks/use-upload";
+import { useAudioRecorder } from "@/hooks/use-audio-recorder";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { QuickRepliesPanel } from "./QuickRepliesPanel";
@@ -155,6 +159,16 @@ export function ChatArea({
   const { uploadFile, isUploading } = useUpload();
   const { user } = useAuth();
   const { getNotes } = useChat();
+  const {
+    isRecording,
+    duration,
+    audioBlob,
+    startRecording,
+    stopRecording,
+    cancelRecording,
+    clearAudio,
+    formatDuration,
+  } = useAudioRecorder();
 
   // Load notes count when conversation changes
   useEffect(() => {
@@ -299,6 +313,36 @@ export function ChatArea({
 
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
+    }
+  };
+
+  const handleSendAudio = async () => {
+    if (!audioBlob) return;
+    
+    try {
+      // Create a file from the blob
+      const extension = audioBlob.type.includes('webm') ? 'webm' 
+        : audioBlob.type.includes('mp4') ? 'm4a' 
+        : 'wav';
+      const file = new File([audioBlob], `audio.${extension}`, { type: audioBlob.type });
+      
+      const url = await uploadFile(file);
+      if (url) {
+        await onSendMessage('', 'audio', url);
+        toast.success("Áudio enviado!");
+      }
+      clearAudio();
+    } catch (error) {
+      toast.error("Erro ao enviar áudio");
+      console.error('Error sending audio:', error);
+    }
+  };
+
+  const handleStartRecording = async () => {
+    try {
+      await startRecording();
+    } catch (error) {
+      toast.error("Não foi possível acessar o microfone");
     }
   };
 
@@ -816,55 +860,144 @@ export function ChatArea({
             onChange={handleFileSelect}
           />
 
-          {/* Quick Replies button */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-10 w-10 flex-shrink-0"
-            onClick={() => setShowQuickReplies(!showQuickReplies)}
-            title="Respostas rápidas"
-          >
-            <Zap className="h-5 w-5" />
-          </Button>
+          {/* Recording UI */}
+          {isRecording ? (
+            <>
+              {/* Cancel button */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 flex-shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={cancelRecording}
+                title="Cancelar gravação"
+              >
+                <Trash2 className="h-5 w-5" />
+              </Button>
 
-          {/* Attachment button */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-10 w-10 flex-shrink-0"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading || sending}
-          >
-            {isUploading ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : (
-              <Upload className="h-5 w-5" />
-            )}
-          </Button>
+              {/* Recording indicator */}
+              <div className="flex-1 flex items-center gap-3 px-4 py-2 bg-destructive/10 rounded-lg border border-destructive/30">
+                <div className="w-3 h-3 rounded-full bg-destructive animate-pulse" />
+                <span className="text-sm font-medium text-destructive">
+                  Gravando...
+                </span>
+                <span className="text-sm font-mono text-destructive/80">
+                  {formatDuration(duration)}
+                </span>
+              </div>
 
-          {/* Message input */}
-          <Textarea
-            placeholder="Digite uma mensagem..."
-            value={messageText}
-            onChange={(e) => setMessageText(e.target.value)}
-            onKeyDown={handleKeyPress}
-            className="min-h-[40px] max-h-[120px] resize-none"
-            rows={1}
-          />
+              {/* Stop/Send button */}
+              <Button
+                size="icon"
+                className="h-10 w-10 flex-shrink-0 bg-destructive hover:bg-destructive/90"
+                onClick={stopRecording}
+                title="Parar e enviar"
+              >
+                <Square className="h-4 w-4 fill-current" />
+              </Button>
+            </>
+          ) : audioBlob ? (
+            <>
+              {/* Cancel recorded audio */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 flex-shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={clearAudio}
+                title="Descartar áudio"
+              >
+                <Trash2 className="h-5 w-5" />
+              </Button>
 
-          {/* Send button */}
-          <Button
-            size="icon"
-            className="h-10 w-10 flex-shrink-0"
-            onClick={handleSend}
-            disabled={!messageText.trim() || sending}
-          >
-            {sending ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : (
-              <Send className="h-5 w-5" />
-            )}
-          </Button>
+              {/* Audio preview */}
+              <div className="flex-1 flex items-center gap-3 px-4 py-2 bg-primary/10 rounded-lg border border-primary/30">
+                <Mic className="h-5 w-5 text-primary" />
+                <span className="text-sm font-medium">
+                  Áudio gravado
+                </span>
+                <span className="text-sm font-mono text-muted-foreground">
+                  {formatDuration(duration)}
+                </span>
+              </div>
+
+              {/* Send audio button */}
+              <Button
+                size="icon"
+                className="h-10 w-10 flex-shrink-0"
+                onClick={handleSendAudio}
+                disabled={sending || isUploading}
+              >
+                {(sending || isUploading) ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <Send className="h-5 w-5" />
+                )}
+              </Button>
+            </>
+          ) : (
+            <>
+              {/* Quick Replies button */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 flex-shrink-0"
+                onClick={() => setShowQuickReplies(!showQuickReplies)}
+                title="Respostas rápidas"
+              >
+                <Zap className="h-5 w-5" />
+              </Button>
+
+              {/* Attachment button */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 flex-shrink-0"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading || sending}
+              >
+                {isUploading ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <Upload className="h-5 w-5" />
+                )}
+              </Button>
+
+              {/* Message input */}
+              <Textarea
+                placeholder="Digite uma mensagem..."
+                value={messageText}
+                onChange={(e) => setMessageText(e.target.value)}
+                onKeyDown={handleKeyPress}
+                className="min-h-[40px] max-h-[120px] resize-none"
+                rows={1}
+              />
+
+              {/* Mic button (when no text) or Send button (when has text) */}
+              {messageText.trim() ? (
+                <Button
+                  size="icon"
+                  className="h-10 w-10 flex-shrink-0"
+                  onClick={handleSend}
+                  disabled={!messageText.trim() || sending}
+                >
+                  {sending ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <Send className="h-5 w-5" />
+                  )}
+                </Button>
+              ) : (
+                <Button
+                  size="icon"
+                  variant="secondary"
+                  className="h-10 w-10 flex-shrink-0"
+                  onClick={handleStartRecording}
+                  title="Gravar áudio"
+                >
+                  <Mic className="h-5 w-5" />
+                </Button>
+              )}
+            </>
+          )}
         </div>
       </div>
 
