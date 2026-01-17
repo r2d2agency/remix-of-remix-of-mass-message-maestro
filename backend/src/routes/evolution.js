@@ -1237,6 +1237,8 @@ router.post('/:connectionId/sync-chat', authenticate, async (req, res) => {
     const { connectionId } = req.params;
     const { remoteJid, days = 7 } = req.body;
 
+    console.log('Sync chat request:', { connectionId, remoteJid, days });
+
     if (!remoteJid) {
       return res.status(400).json({ error: 'remoteJid é obrigatório' });
     }
@@ -1256,18 +1258,28 @@ router.post('/:connectionId/sync-chat', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'Conexão não está ativa' });
     }
 
-    // Fetch messages from Evolution API
-    const messages = await evolutionRequest(`/chat/findMessages/${connection.instance_name}`, 'POST', {
-      where: {
-        key: {
-          remoteJid: remoteJid
-        }
-      },
-      limit: 500 // Limit to prevent overload
-    });
+    // Fetch messages from Evolution API with better error handling
+    let messages = [];
+    try {
+      messages = await evolutionRequest(`/chat/findMessages/${connection.instance_name}`, 'POST', {
+        where: {
+          key: {
+            remoteJid: remoteJid
+          }
+        },
+        limit: 500 // Limit to prevent overload
+      });
+    } catch (evolutionError) {
+      console.error('Evolution API findMessages error:', evolutionError.message);
+      // Return a more helpful error message
+      return res.status(502).json({ 
+        error: 'Erro ao buscar mensagens da Evolution API',
+        details: evolutionError.message 
+      });
+    }
 
-    if (!messages || messages.length === 0) {
-      return res.json({ imported: 0, message: 'Nenhuma mensagem encontrada' });
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      return res.json({ imported: 0, skipped: 0, total: 0, message: 'Nenhuma mensagem encontrada na Evolution API' });
     }
 
     // Filter messages by date
