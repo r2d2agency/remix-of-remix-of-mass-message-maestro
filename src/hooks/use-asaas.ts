@@ -49,6 +49,63 @@ interface NotificationRule {
   is_active: boolean;
 }
 
+interface DashboardData {
+  general: {
+    pending_count: number;
+    overdue_count: number;
+    paid_count: number;
+    pending_value: number;
+    overdue_value: number;
+    paid_value: number;
+  };
+  paymentsByMonth: Array<{
+    month: string;
+    paid_count: number;
+    overdue_count: number;
+    pending_count: number;
+    paid_value: number;
+    overdue_value: number;
+  }>;
+  notifications: {
+    total: number;
+    sent: number;
+    failed: number;
+    sent_today: number;
+    sent_week: number;
+  };
+  recovery: {
+    notified_payments: number;
+    recovered_payments: number;
+  };
+  topDefaulters: Array<{
+    name: string;
+    phone: string;
+    email: string;
+    overdue_count: number;
+    total_overdue: number;
+  }>;
+  overdueByDays: Array<{
+    range: string;
+    count: number;
+    value: number;
+  }>;
+}
+
+interface ReportItem {
+  cliente: string;
+  telefone: string;
+  email: string;
+  documento: string;
+  valor: number;
+  vencimento: string;
+  status: string;
+  tipo_cobranca: string;
+  descricao: string;
+  dias_atraso: number;
+  link_fatura: string;
+  notificacoes_enviadas: number;
+}
+
 export function useAsaas(organizationId: string | null) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -201,6 +258,38 @@ export function useAsaas(organizationId: string | null) {
     }
   }, [organizationId]);
 
+  const getDashboard = useCallback(async (): Promise<DashboardData | null> => {
+    if (!organizationId) return null;
+    
+    try {
+      return await api<DashboardData>(`/api/asaas/dashboard/${organizationId}`);
+    } catch (err) {
+      console.error('Get dashboard error:', err);
+      return null;
+    }
+  }, [organizationId]);
+
+  const getReport = useCallback(async (filters?: {
+    status?: string;
+    min_days_overdue?: number;
+    max_days_overdue?: number;
+  }): Promise<ReportItem[]> => {
+    if (!organizationId) return [];
+    
+    try {
+      const params = new URLSearchParams();
+      if (filters?.status) params.set('status', filters.status);
+      if (filters?.min_days_overdue) params.set('min_days_overdue', String(filters.min_days_overdue));
+      if (filters?.max_days_overdue) params.set('max_days_overdue', String(filters.max_days_overdue));
+      
+      const queryString = params.toString() ? `?${params.toString()}` : '';
+      return await api<ReportItem[]>(`/api/asaas/report/${organizationId}${queryString}`);
+    } catch (err) {
+      console.error('Get report error:', err);
+      return [];
+    }
+  }, [organizationId]);
+
   return {
     loading,
     error,
@@ -212,6 +301,8 @@ export function useAsaas(organizationId: string | null) {
     getRules,
     createRule,
     updateRule,
-    deleteRule
+    deleteRule,
+    getDashboard,
+    getReport
   };
 }

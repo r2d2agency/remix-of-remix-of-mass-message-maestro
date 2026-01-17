@@ -15,11 +15,14 @@ import { useAsaas } from "@/hooks/use-asaas";
 import { useNotifications } from "@/hooks/use-notifications";
 import { 
   RefreshCw, Settings, Receipt, Users, Bell, Plus, Trash2, 
-  CheckCircle, AlertCircle, Clock, Calendar, DollarSign, Link2,
-  Send, History, RotateCcw, Play
+  CheckCircle, AlertCircle, Clock, Calendar, Link2,
+  History, RotateCcw, Play, BarChart3, Download, TrendingUp,
+  TrendingDown, Percent
 } from "lucide-react";
-import { format, parseISO, differenceInDays } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
+import * as XLSX from "xlsx";
 
 interface AsaasConfigProps {
   organizationId: string;
@@ -31,7 +34,8 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
   const { 
     loading, error, 
     getIntegration, configureIntegration, syncPayments,
-    getPayments, getCustomers, getRules, createRule, updateRule, deleteRule
+    getPayments, getCustomers, getRules, createRule, updateRule, deleteRule,
+    getDashboard, getReport
   } = useAsaas(organizationId);
   
   const { 
@@ -50,9 +54,12 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
   const [rules, setRules] = useState<any[]>([]);
   const [notificationHistory, setNotificationHistory] = useState<any[]>([]);
   const [notificationStats, setNotificationStats] = useState<any>(null);
+  const [dashboard, setDashboard] = useState<any>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [historyStatusFilter, setHistoryStatusFilter] = useState<string>("all");
+  const [reportStatusFilter, setReportStatusFilter] = useState<string>("OVERDUE");
   const [syncing, setSyncing] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [showRuleDialog, setShowRuleDialog] = useState(false);
   const [editingRule, setEditingRule] = useState<any>(null);
   const [triggeringRule, setTriggeringRule] = useState<string | null>(null);
@@ -77,13 +84,14 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
   }, [organizationId]);
 
   const loadData = async () => {
-    const [integ, pays, custs, rls, stats, history] = await Promise.all([
+    const [integ, pays, custs, rls, stats, history, dash] = await Promise.all([
       getIntegration(),
       getPayments(),
       getCustomers(),
       getRules(),
       getNotificationStats(),
-      getNotificationHistory({ limit: 50 })
+      getNotificationHistory({ limit: 50 }),
+      getDashboard()
     ]);
     setIntegration(integ);
     setPayments(pays);
@@ -91,6 +99,32 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
     setRules(rls);
     setNotificationStats(stats);
     setNotificationHistory(history);
+    setDashboard(dash);
+  };
+
+  const handleExportReport = async () => {
+    setExporting(true);
+    try {
+      const data = await getReport({ status: reportStatusFilter !== 'all' ? reportStatusFilter : undefined });
+      
+      if (data.length === 0) {
+        toast({ title: "Nenhum dado para exportar", variant: "destructive" });
+        return;
+      }
+
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Inadimplentes");
+      
+      const fileName = `relatorio_inadimplentes_${format(new Date(), "yyyy-MM-dd")}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+      
+      toast({ title: "Relatório exportado com sucesso!" });
+    } catch (err) {
+      toast({ title: "Erro ao exportar relatório", variant: "destructive" });
+    } finally {
+      setExporting(false);
+    }
   };
 
   const handleTriggerRule = async (ruleId: string) => {
@@ -346,8 +380,12 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
             </Card>
           </div>
 
-          <Tabs defaultValue="payments" className="w-full">
-            <TabsList>
+          <Tabs defaultValue="dashboard" className="w-full">
+            <TabsList className="flex-wrap">
+              <TabsTrigger value="dashboard">
+                <BarChart3 className="mr-2 h-4 w-4" />
+                Dashboard
+              </TabsTrigger>
               <TabsTrigger value="payments">
                 <Receipt className="mr-2 h-4 w-4" />
                 Cobranças
@@ -365,6 +403,195 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
                 Histórico
               </TabsTrigger>
             </TabsList>
+
+            {/* Dashboard Tab */}
+            <TabsContent value="dashboard" className="space-y-6">
+              {dashboard && (
+                <>
+                  {/* Recovery Rate */}
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <Card className="bg-gradient-to-br from-green-500/10 to-green-600/5 border-green-500/20">
+                      <CardContent className="pt-6">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm text-muted-foreground">Taxa de Recuperação</p>
+                            <p className="text-3xl font-bold text-green-500">
+                              {dashboard.recovery.notified_payments > 0 
+                                ? Math.round((dashboard.recovery.recovered_payments / dashboard.recovery.notified_payments) * 100)
+                                : 0}%
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {dashboard.recovery.recovered_payments} de {dashboard.recovery.notified_payments} pagamentos
+                            </p>
+                          </div>
+                          <Percent className="h-10 w-10 text-green-500/30" />
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card className="bg-gradient-to-br from-red-500/10 to-red-600/5 border-red-500/20">
+                      <CardContent className="pt-6">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm text-muted-foreground">Total em Atraso</p>
+                            <p className="text-3xl font-bold text-red-500">
+                              R$ {Number(dashboard.general.overdue_value).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {dashboard.general.overdue_count} cobranças vencidas
+                            </p>
+                          </div>
+                          <TrendingDown className="h-10 w-10 text-red-500/30" />
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
+                      <CardContent className="pt-6">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm text-muted-foreground">Total Recebido</p>
+                            <p className="text-3xl font-bold text-blue-500">
+                              R$ {Number(dashboard.general.paid_value).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {dashboard.general.paid_count} pagamentos confirmados
+                            </p>
+                          </div>
+                          <TrendingUp className="h-10 w-10 text-blue-500/30" />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Charts */}
+                  <div className="grid gap-6 md:grid-cols-2">
+                    {/* Payments by Month */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg">Pagamentos por Mês</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <ResponsiveContainer width="100%" height={250}>
+                          <BarChart data={dashboard.paymentsByMonth}>
+                            <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                            <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                            <YAxis tick={{ fontSize: 12 }} />
+                            <Tooltip 
+                              formatter={(value: number) => `R$ ${value.toLocaleString("pt-BR")}`}
+                              contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+                            />
+                            <Bar dataKey="paid_value" name="Pago" fill="#22c55e" radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="overdue_value" name="Vencido" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </CardContent>
+                    </Card>
+
+                    {/* Overdue by Days */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg">Inadimplência por Período</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <ResponsiveContainer width="100%" height={250}>
+                          <PieChart>
+                            <Pie
+                              data={dashboard.overdueByDays}
+                              dataKey="value"
+                              nameKey="range"
+                              cx="50%"
+                              cy="50%"
+                              outerRadius={80}
+                              label={({ range, percent }) => `${range} (${(percent * 100).toFixed(0)}%)`}
+                            >
+                              {dashboard.overdueByDays.map((entry: any, index: number) => (
+                                <Cell 
+                                  key={`cell-${index}`} 
+                                  fill={['#fbbf24', '#f97316', '#ef4444', '#dc2626', '#991b1b'][index % 5]} 
+                                />
+                              ))}
+                            </Pie>
+                            <Tooltip 
+                              formatter={(value: number) => `R$ ${value.toLocaleString("pt-BR")}`}
+                              contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Top Defaulters + Export */}
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between">
+                      <div>
+                        <CardTitle className="text-lg">Maiores Inadimplentes</CardTitle>
+                        <CardDescription>Top 10 clientes com maior valor em atraso</CardDescription>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Select value={reportStatusFilter} onValueChange={setReportStatusFilter}>
+                          <SelectTrigger className="w-40">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Todos</SelectItem>
+                            <SelectItem value="OVERDUE">Vencidos</SelectItem>
+                            <SelectItem value="PENDING">Pendentes</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Button onClick={handleExportReport} disabled={exporting}>
+                          {exporting ? (
+                            <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <Download className="mr-2 h-4 w-4" />
+                          )}
+                          Exportar Excel
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Cliente</TableHead>
+                            <TableHead>Telefone</TableHead>
+                            <TableHead>Qtd. Vencidos</TableHead>
+                            <TableHead>Total em Atraso</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {dashboard.topDefaulters.map((defaulter: any, index: number) => (
+                            <TableRow key={index}>
+                              <TableCell>
+                                <div>
+                                  <p className="font-medium">{defaulter.name}</p>
+                                  <p className="text-xs text-muted-foreground">{defaulter.email}</p>
+                                </div>
+                              </TableCell>
+                              <TableCell>{defaulter.phone}</TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className="text-red-500 border-red-500">
+                                  {defaulter.overdue_count}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="font-bold text-red-500">
+                                R$ {Number(defaulter.total_overdue).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                          {dashboard.topDefaulters.length === 0 && (
+                            <TableRow>
+                              <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                                Nenhum inadimplente encontrado 🎉
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </CardContent>
+                  </Card>
+                </>
+              )}
+            </TabsContent>
 
             <TabsContent value="payments" className="space-y-4">
               <div className="flex items-center gap-4">

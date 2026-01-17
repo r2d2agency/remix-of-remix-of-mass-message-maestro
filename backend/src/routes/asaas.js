@@ -437,6 +437,204 @@ router.get('/customers/:organizationId', async (req, res) => {
   }
 });
 
+// Dashboard metrics
+router.get('/dashboard/:organizationId', async (req, res) => {
+  try {
+    const { organizationId } = req.params;
+
+    const access = await checkOrgAccess(req.userId, organizationId);
+    if (!access) {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+
+    // General stats
+    const generalStats = await query(`
+      SELECT 
+        COUNT(*) FILTER (WHERE status = 'PENDING') as pending_count,
+        COUNT(*) FILTER (WHERE status = 'OVERDUE') as overdue_count,
+        COUNT(*) FILTER (WHERE status IN ('RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH')) as paid_count,
+        COALESCE(SUM(value) FILTER (WHERE status = 'PENDING'), 0) as pending_value,
+        COALESCE(SUM(value) FILTER (WHERE status = 'OVERDUE'), 0) as overdue_value,
+        COALESCE(SUM(value) FILTER (WHERE status IN ('RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH')), 0) as paid_value
+      FROM asaas_payments
+      WHERE organization_id = $1
+    `, [organizationId]);
+
+    // Payments by month (last 6 months)
+    const paymentsByMonth = await query(`
+      SELECT 
+        TO_CHAR(due_date, 'YYYY-MM') as month,
+        COUNT(*) FILTER (WHERE status IN ('RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH')) as paid_count,
+        COUNT(*) FILTER (WHERE status = 'OVERDUE') as overdue_count,
+        COUNT(*) FILTER (WHERE status = 'PENDING') as pending_count,
+        COALESCE(SUM(value) FILTER (WHERE status IN ('RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH')), 0) as paid_value,
+        COALESCE(SUM(value) FILTER (WHERE status = 'OVERDUE'), 0) as overdue_value
+      FROM asaas_payments
+      WHERE organization_id = $1 
+        AND due_date >= CURRENT_DATE - INTERVAL '6 months'
+      GROUP BY TO_CHAR(due_date, 'YYYY-MM')
+      ORDER BY month DESC
+      LIMIT 6
+    `, [organizationId]);
+
+    // Notification stats
+    const notificationStats = await query(`
+      SELECT 
+        COUNT(*) as total,
+        COUNT(*) FILTER (WHERE status = 'sent') as sent,
+        COUNT(*) FILTER (WHERE status = 'failed') as failed,
+        COUNT(*) FILTER (WHERE sent_at >= CURRENT_DATE) as sent_today,
+        COUNT(*) FILTER (WHERE sent_at >= CURRENT_DATE - INTERVAL '7 days') as sent_week
+      FROM billing_notifications
+      WHERE organization_id = $1
+    `, [organizationId]);
+
+    // Recovery rate (payments that were overdue and got paid after notification)
+    const recoveryStats = await query(`
+      SELECT 
+        COUNT(DISTINCT bn.payment_id) as notified_payments,
+        COUNT(DISTINCT bn.payment_id) FILTER (
+          WHERE EXISTS (
+            SELECT 1 FROM asaas_payments p 
+            WHERE p.id = bn.payment_id 
+            AND p.status IN ('RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH')
+          )
+        ) as recovered_payments
+      FROM billing_notifications bn
+      WHERE bn.organization_id = $1 AND bn.status = 'sent'
+    `, [organizationId]);
+
+    // Top defaulters
+    const topDefaulters = await query(`
+      SELECT 
+        c.name,
+        c.phone,
+        c.email,
+        COUNT(p.id) as overdue_count,
+        COALESCE(SUM(p.value), 0) as total_overdue
+      FROM asaas_customers c
+      JOIN asaas_payments p ON p.customer_id = c.id
+      WHERE c.organization_id = $1 AND p.status = 'OVERDUE'
+      GROUP BY c.id, c.name, c.phone, c.email
+      ORDER BY total_overdue DESC
+      LIMIT 10
+    `, [organizationId]);
+
+    // Overdue by days range
+    const overdueByDays = await query(`
+      SELECT 
+        CASE 
+          WHEN CURRENT_DATE - due_date <= 7 THEN '1-7 dias'
+          WHEN CURRENT_DATE - due_date <= 15 THEN '8-15 dias'
+          WHEN CURRENT_DATE - due_date <= 30 THEN '16-30 dias'
+          WHEN CURRENT_DATE - due_date <= 60 THEN '31-60 dias'
+          ELSE '60+ dias'
+        END as range,
+        COUNT(*) as count,
+        COALESCE(SUM(value), 0) as value
+      FROM asaas_payments
+      WHERE organization_id = $1 AND status = 'OVERDUE'
+      GROUP BY 
+        CASE 
+          WHEN CURRENT_DATE - due_date <= 7 THEN '1-7 dias'
+          WHEN CURRENT_DATE - due_date <= 15 THEN '8-15 dias'
+          WHEN CURRENT_DATE - due_date <= 30 THEN '16-30 dias'
+          WHEN CURRENT_DATE - due_date <= 60 THEN '31-60 dias'
+          ELSE '60+ dias'
+        END
+      ORDER BY 
+        CASE range
+          WHEN '1-7 dias' THEN 1
+          WHEN '8-15 dias' THEN 2
+          WHEN '16-30 dias' THEN 3
+          WHEN '31-60 dias' THEN 4
+          ELSE 5
+        END
+    `, [organizationId]);
+
+    res.json({
+      general: generalStats.rows[0],
+      paymentsByMonth: paymentsByMonth.rows.reverse(),
+      notifications: notificationStats.rows[0],
+      recovery: recoveryStats.rows[0],
+      topDefaulters: topDefaulters.rows,
+      overdueByDays: overdueByDays.rows
+    });
+  } catch (error) {
+    console.error('Dashboard error:', error);
+    res.status(500).json({ error: 'Erro ao buscar métricas' });
+  }
+});
+
+// Export report (returns JSON, frontend converts to Excel)
+router.get('/report/:organizationId', async (req, res) => {
+  try {
+    const { organizationId } = req.params;
+    const { status, min_days_overdue, max_days_overdue } = req.query;
+
+    const access = await checkOrgAccess(req.userId, organizationId);
+    if (!access) {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+
+    let queryText = `
+      SELECT 
+        c.name as cliente,
+        c.phone as telefone,
+        c.email,
+        c.cpf_cnpj as documento,
+        p.value as valor,
+        p.due_date as vencimento,
+        p.status,
+        p.billing_type as tipo_cobranca,
+        p.description as descricao,
+        CURRENT_DATE - p.due_date as dias_atraso,
+        p.invoice_url as link_fatura,
+        (SELECT COUNT(*) FROM billing_notifications bn WHERE bn.payment_id = p.id AND bn.status = 'sent') as notificacoes_enviadas
+      FROM asaas_payments p
+      JOIN asaas_customers c ON c.id = p.customer_id
+      WHERE p.organization_id = $1
+    `;
+    const params = [organizationId];
+    let paramIndex = 2;
+
+    if (status) {
+      queryText += ` AND p.status = $${paramIndex++}`;
+      params.push(status);
+    }
+
+    if (min_days_overdue) {
+      queryText += ` AND p.status = 'OVERDUE' AND CURRENT_DATE - p.due_date >= $${paramIndex++}`;
+      params.push(parseInt(min_days_overdue));
+    }
+
+    if (max_days_overdue) {
+      queryText += ` AND CURRENT_DATE - p.due_date <= $${paramIndex++}`;
+      params.push(parseInt(max_days_overdue));
+    }
+
+    queryText += ` ORDER BY dias_atraso DESC, valor DESC`;
+
+    const result = await query(queryText, params);
+    
+    // Format data for Excel
+    const formattedData = result.rows.map(row => ({
+      ...row,
+      valor: Number(row.valor),
+      dias_atraso: Number(row.dias_atraso) || 0,
+      vencimento: new Date(row.vencimento).toLocaleDateString('pt-BR'),
+      status: row.status === 'OVERDUE' ? 'Vencido' : 
+              row.status === 'PENDING' ? 'Pendente' : 
+              row.status === 'RECEIVED' ? 'Pago' : row.status
+    }));
+
+    res.json(formattedData);
+  } catch (error) {
+    console.error('Report error:', error);
+    res.status(500).json({ error: 'Erro ao gerar relatório' });
+  }
+});
+
 // CRUD for notification rules
 router.get('/rules/:organizationId', async (req, res) => {
   try {
