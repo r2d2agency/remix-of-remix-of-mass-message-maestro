@@ -1630,18 +1630,23 @@ router.post('/contacts/import', authenticate, async (req, res) => {
       const jid = `${normalizedPhone}@s.whatsapp.net`;
 
       try {
-        // Insert or update contact in agenda
+        // Insert or update contact in agenda (restore if was deleted)
         const result = await query(
           `INSERT INTO chat_contacts 
-            (connection_id, name, phone, jid, created_by, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+            (connection_id, name, phone, jid, created_by, created_at, updated_at, is_deleted)
+           VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), false)
            ON CONFLICT (connection_id, phone) 
-           DO UPDATE SET name = EXCLUDED.name, updated_at = NOW()
-           RETURNING id, (xmax = 0) as is_new`,
+           DO UPDATE SET 
+             name = EXCLUDED.name, 
+             updated_at = NOW(),
+             is_deleted = false,
+             deleted_at = NULL
+           RETURNING id, (xmax = 0) as is_new, (is_deleted = false AND xmax <> 0) as was_restored`,
           [connection_id, name || normalizedPhone, normalizedPhone, jid, req.userId]
         );
 
-        if (result.rows[0].is_new) {
+        // Count as imported if new OR was restored from deleted state
+        if (result.rows[0].is_new || result.rows[0].was_restored) {
           imported++;
         } else {
           duplicates++;
