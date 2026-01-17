@@ -73,8 +73,8 @@ router.post('/', authenticate, upload.single('file'), (req, res) => {
       return res.status(400).json({ error: 'Nenhum arquivo enviado' });
     }
 
-    // Build the public URL
-    const baseUrl = process.env.API_BASE_URL || `http://localhost:${process.env.PORT || 3001}`;
+    // Build the public URL - use backend domain, not frontend
+    const baseUrl = process.env.API_BASE_URL || 'https://whastsale-backend.exf0ty.easypanel.host';
     const fileUrl = `${baseUrl}/uploads/${req.file.filename}`;
 
     res.json({
