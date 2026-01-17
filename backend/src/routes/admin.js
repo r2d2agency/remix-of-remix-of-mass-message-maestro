@@ -606,4 +606,71 @@ router.delete('/organizations/:orgId/members/:memberId', requireSuperadmin, asyn
   }
 });
 
+// ============================================
+// SYSTEM SETTINGS (Branding)
+// ============================================
+
+// Get all settings
+router.get('/settings', requireSuperadmin, async (req, res) => {
+  try {
+    const result = await query(`SELECT * FROM system_settings ORDER BY key`);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get settings error:', error);
+    res.status(500).json({ error: 'Erro ao buscar configurações' });
+  }
+});
+
+// Update a setting
+router.patch('/settings/:key', requireSuperadmin, async (req, res) => {
+  try {
+    const { key } = req.params;
+    const { value } = req.body;
+
+    const result = await query(
+      `UPDATE system_settings 
+       SET value = $1, updated_by = $2, updated_at = NOW()
+       WHERE key = $3
+       RETURNING *`,
+      [value, req.userId, key]
+    );
+
+    if (result.rows.length === 0) {
+      // Insert if not exists
+      const insertResult = await query(
+        `INSERT INTO system_settings (key, value, updated_by)
+         VALUES ($1, $2, $3)
+         RETURNING *`,
+        [key, value, req.userId]
+      );
+      return res.json(insertResult.rows[0]);
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update setting error:', error);
+    res.status(500).json({ error: 'Erro ao atualizar configuração' });
+  }
+});
+
+// Public endpoint to get branding settings (no auth required)
+router.get('/branding', async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT key, value FROM system_settings 
+       WHERE key IN ('logo_login', 'logo_sidebar', 'favicon')`
+    );
+    
+    const branding = {};
+    for (const row of result.rows) {
+      branding[row.key] = row.value;
+    }
+    
+    res.json(branding);
+  } catch (error) {
+    console.error('Get branding error:', error);
+    res.status(500).json({ error: 'Erro ao buscar branding' });
+  }
+});
+
 export default router;

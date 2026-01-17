@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { useBranding } from '@/hooks/use-branding';
 import { Loader2, Zap } from 'lucide-react';
 import { z } from 'zod';
 
@@ -22,6 +23,7 @@ const Login = () => {
   const { login } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { branding } = useBranding();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,9 +60,13 @@ const Login = () => {
       <Card className="w-full max-w-md shadow-neon">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <div className="gradient-primary p-3 rounded-full neon-glow">
-              <Zap className="h-8 w-8 text-primary-foreground" />
-            </div>
+            {branding.logo_login ? (
+              <img src={branding.logo_login} alt="Logo" className="h-16 max-w-[200px] object-contain" />
+            ) : (
+              <div className="gradient-primary p-3 rounded-full neon-glow">
+                <Zap className="h-8 w-8 text-primary-foreground" />
+              </div>
+            )}
           </div>
           <CardTitle className="text-2xl neon-text">Entrar no Whatsale</CardTitle>
           <CardDescription>Digite seu email e senha para acessar</CardDescription>

@@ -467,9 +467,32 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 `;
 
 // ============================================
-// STEP 10: INDEXES (last step, non-critical)
+// STEP 10: SYSTEM SETTINGS
 // ============================================
-const step10Indexes = `
+const step10Settings = `
+-- System Settings (for branding, logos, etc)
+CREATE TABLE IF NOT EXISTS system_settings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    key VARCHAR(100) UNIQUE NOT NULL,
+    value TEXT,
+    description TEXT,
+    updated_by UUID REFERENCES users(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Insert default settings if not exists
+INSERT INTO system_settings (key, value, description) VALUES
+    ('logo_login', NULL, 'Logo da tela de login'),
+    ('logo_sidebar', NULL, 'Logo/ícone da sidebar'),
+    ('favicon', NULL, 'Favicon do sistema')
+ON CONFLICT (key) DO NOTHING;
+`;
+
+// ============================================
+// STEP 11: INDEXES (last step, non-critical)
+// ============================================
+const step11Indexes = `
 CREATE INDEX IF NOT EXISTS idx_connections_user_id ON connections(user_id);
 CREATE INDEX IF NOT EXISTS idx_connections_org ON connections(organization_id);
 CREATE INDEX IF NOT EXISTS idx_contact_lists_user_id ON contact_lists(user_id);
@@ -507,7 +530,8 @@ const migrationSteps = [
   { name: 'Campaigns', sql: step7Campaigns, critical: false },
   { name: 'Asaas Integration', sql: step8Asaas, critical: false },
   { name: 'Chat System', sql: step9Chat, critical: false },
-  { name: 'Indexes', sql: step10Indexes, critical: false },
+  { name: 'System Settings', sql: step10Settings, critical: false },
+  { name: 'Indexes', sql: step11Indexes, critical: false },
 ];
 
 export async function initDatabase() {

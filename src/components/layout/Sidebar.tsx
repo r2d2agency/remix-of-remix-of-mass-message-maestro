@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { API_URL, getAuthToken } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { useBranding } from "@/hooks/use-branding";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -69,6 +70,7 @@ function SidebarContentComponent({ isExpanded, isSuperadmin, onNavigate }: Sideb
   const location = useLocation();
   const navigate = useNavigate();
   const { logout, user } = useAuth();
+  const { branding } = useBranding();
   const [openSections, setOpenSections] = useState<string[]>(["Disparos", "Configurações"]);
 
   const handleLogout = () => {
@@ -135,9 +137,17 @@ function SidebarContentComponent({ isExpanded, isSuperadmin, onNavigate }: Sideb
           isExpanded ? "px-6" : "px-3 justify-center"
         )}
       >
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl gradient-primary neon-glow shrink-0">
-          <Zap className="h-5 w-5 text-primary-foreground" />
-        </div>
+        {branding.logo_sidebar ? (
+          <img 
+            src={branding.logo_sidebar} 
+            alt="Logo" 
+            className="h-10 w-10 object-contain shrink-0 rounded-xl"
+          />
+        ) : (
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl gradient-primary neon-glow shrink-0">
+            <Zap className="h-5 w-5 text-primary-foreground" />
+          </div>
+        )}
         {isExpanded && (
           <div className="overflow-hidden">
             <h1 className="text-lg font-bold text-foreground whitespace-nowrap">Whatsale</h1>
