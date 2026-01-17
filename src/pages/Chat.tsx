@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useLocation } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { ConversationList } from "@/components/chat/ConversationList";
 import { ChatArea } from "@/components/chat/ChatArea";
@@ -14,6 +15,8 @@ interface UserProfile {
 }
 
 const Chat = () => {
+  const location = useLocation();
+
   const {
     loading,
     getConversations,
@@ -131,11 +134,19 @@ const Chat = () => {
       filterParams.archived = filters.archived;
 
       const data = await getConversations(filterParams);
-      setConversations(data);
+
+      // Keep the currently selected conversation visible if it's still "empty" (no messages yet).
+      // The backend hides empty conversations by default to keep the list clean.
+      const keepEmptySelected = !!selectedConversation && !selectedConversation.last_message_at;
+      const merged = keepEmptySelected && !data.some(c => c.id === selectedConversation!.id)
+        ? [selectedConversation!, ...data]
+        : data;
+
+      setConversations(merged);
 
       // Update selected conversation if it exists
       if (selectedConversation) {
-        const updated = data.find(c => c.id === selectedConversation.id);
+        const updated = merged.find(c => c.id === selectedConversation.id);
         if (updated) {
           setSelectedConversation(updated);
         }
@@ -163,7 +174,7 @@ const Chat = () => {
     }
   };
 
-  const handleSelectConversation = async (conversation: Conversation) => {
+  const handleSelectConversation = useCallback(async (conversation: Conversation) => {
     setSelectedConversation(conversation);
     setMessages([]);
     setLoadingMessages(true);
@@ -184,7 +195,24 @@ const Chat = () => {
     } finally {
       setLoadingMessages(false);
     }
-  };
+  }, [getMessages, markAsRead, loadConversations]);
+
+  // If we arrive from the Agenda (or any deep link): /chat?conversation=<id>
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const conversationId = params.get('conversation');
+    if (!conversationId) return;
+
+    (async () => {
+      try {
+        const conv = await getConversation(conversationId);
+        await handleSelectConversation(conv);
+      } catch (error) {
+        console.error('Error opening conversation from URL:', error);
+        toast.error('Não foi possível abrir a conversa');
+      }
+    })();
+  }, [location.search, getConversation, handleSelectConversation]);
 
   const handleLoadMoreMessages = async () => {
     if (!selectedConversation || messages.length === 0) return;
