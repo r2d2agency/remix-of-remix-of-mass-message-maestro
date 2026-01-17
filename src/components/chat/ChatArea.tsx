@@ -77,6 +77,7 @@ import { NotesPanel } from "./NotesPanel";
 import { AudioWaveform } from "./AudioWaveform";
 import { TypingIndicator } from "./TypingIndicator";
 import { EmojiPicker } from "./EmojiPicker";
+import { MentionSuggestions, useMentions } from "./MentionSuggestions";
 
 interface ChatAreaProps {
   conversation: Conversation | null;
@@ -159,6 +160,7 @@ export function ChatArea({
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const { uploadFile, isUploading } = useUpload();
   const { user } = useAuth();
@@ -174,6 +176,20 @@ export function ChatArea({
     clearAudio,
     formatDuration,
   } = useAudioRecorder();
+
+  // Mentions hook
+  const {
+    showSuggestions: showMentionSuggestions,
+    mentionQuery,
+    suggestionPosition,
+    handleSelectMember,
+    closeSuggestions,
+  } = useMentions({
+    text: messageText,
+    setText: setMessageText,
+    team,
+    textareaRef,
+  });
 
   // Load notes count when conversation changes
   useEffect(() => {
@@ -1010,15 +1026,35 @@ export function ChatArea({
                 onEmojiSelect={handleEmojiSelect}
               />
 
-              {/* Message input */}
-              <Textarea
-                placeholder="Digite uma mensagem..."
-                value={messageText}
-                onChange={(e) => setMessageText(e.target.value)}
-                onKeyDown={handleKeyPress}
-                className="min-h-[40px] max-h-[120px] resize-none"
-                rows={1}
-              />
+              {/* Message input with mentions */}
+              <div className="relative flex-1">
+                <Textarea
+                  ref={textareaRef}
+                  placeholder="Digite uma mensagem... Use @ para mencionar"
+                  value={messageText}
+                  onChange={(e) => setMessageText(e.target.value)}
+                  onKeyDown={(e) => {
+                    // Don't trigger send if mentions are showing
+                    if (showMentionSuggestions && (e.key === "Enter" || e.key === "Tab" || e.key === "ArrowUp" || e.key === "ArrowDown")) {
+                      return; // Let mention suggestions handle it
+                    }
+                    handleKeyPress(e);
+                  }}
+                  className="min-h-[40px] max-h-[120px] resize-none"
+                  rows={1}
+                />
+                
+                {/* Mention suggestions */}
+                {showMentionSuggestions && (
+                  <MentionSuggestions
+                    query={mentionQuery}
+                    team={team}
+                    onSelect={handleSelectMember}
+                    onClose={closeSuggestions}
+                    position={suggestionPosition}
+                  />
+                )}
+              </div>
 
               {/* Mic button (when no text) or Send button (when has text) */}
               {messageText.trim() ? (
