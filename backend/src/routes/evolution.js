@@ -998,11 +998,12 @@ async function handleMessageUpsert(connection, data) {
     }
 
     // Download and save media locally for media types
-    const mediaTypes = ['image', 'audio', 'video', 'document', 'sticker'];
-    if (mediaTypes.includes(messageType) && !mediaUrl) {
-      console.log('Webhook: Downloading media for message:', messageId);
+    const shouldDownloadMedia = mediaTypes.includes(messageType) && (!mediaUrl || !isLocalUploadsUrl(mediaUrl));
+    
+    if (shouldDownloadMedia) {
+      console.log('Webhook: Downloading media for message:', messageId, 'type:', messageType);
 
-      const localMedia = await downloadAndSaveMedia(connection, message, messageType);
+      const localMedia = await downloadAndSaveMedia(connection, data, messageType);
 
       if (localMedia) {
         mediaUrl = localMedia.url;
@@ -1011,6 +1012,19 @@ async function handleMessageUpsert(connection, data) {
       } else {
         console.log('Webhook: Could not download media');
       }
+    }
+
+    // If message already existed, only update its media fields and exit
+    if (existingRow) {
+      if (mediaTypes.includes(messageType) && mediaUrl && isLocalUploadsUrl(mediaUrl) &&
+          (!existingRow.media_url || !isLocalUploadsUrl(existingRow.media_url))) {
+        await query(
+          `UPDATE chat_messages SET media_url = $1, media_mimetype = COALESCE($2, media_mimetype) WHERE id = $3`,
+          [mediaUrl, mediaMimetype, existingRow.id]
+        );
+        console.log('Webhook: Updated existing message media:', messageId);
+      }
+      return;
     }
 
     // Get message timestamp
