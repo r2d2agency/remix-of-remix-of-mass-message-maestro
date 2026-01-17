@@ -31,6 +31,41 @@ async function getUserConnections(userId) {
 // CONVERSATIONS
 // ==========================================
 
+// Get conversations with unread messages only
+router.get('/conversations/unread', authenticate, async (req, res) => {
+  try {
+    const connectionIds = await getUserConnections(req.userId);
+    
+    if (connectionIds.length === 0) {
+      return res.json([]);
+    }
+
+    const result = await query(`
+      SELECT 
+        conv.id,
+        conv.contact_name,
+        conv.contact_phone,
+        conv.unread_count,
+        conv.last_message_at,
+        conn.name as connection_name,
+        (SELECT content FROM chat_messages WHERE conversation_id = conv.id ORDER BY timestamp DESC LIMIT 1) as last_message,
+        (SELECT message_type FROM chat_messages WHERE conversation_id = conv.id ORDER BY timestamp DESC LIMIT 1) as last_message_type
+      FROM conversations conv
+      JOIN connections conn ON conn.id = conv.connection_id
+      WHERE conv.connection_id = ANY($1)
+        AND conv.unread_count > 0
+        AND conv.is_archived = false
+      ORDER BY conv.last_message_at DESC NULLS LAST
+      LIMIT 20
+    `, [connectionIds]);
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get unread conversations error:', error);
+    res.status(500).json({ error: 'Erro ao buscar conversas não lidas' });
+  }
+});
+
 // Get all conversations for user's connections
 router.get('/conversations', authenticate, async (req, res) => {
   try {
