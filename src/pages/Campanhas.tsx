@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,14 +12,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar } from "@/components/ui/calendar";
@@ -41,98 +33,133 @@ import {
   Users,
   MessageSquare,
   Shuffle,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useCampaigns, Campaign } from "@/hooks/use-campaigns";
+import { useContacts, ContactList } from "@/hooks/use-contacts";
+import { useMessages, MessageTemplate } from "@/hooks/use-messages";
+import { api } from "@/lib/api";
+import { toast } from "sonner";
 
-interface Campaign {
+interface Connection {
   id: string;
   name: string;
-  status: "scheduled" | "running" | "completed" | "paused";
-  listName: string;
-  messageName: string;
-  totalContacts: number;
-  sentMessages: number;
-  startDate: string;
-  endDate: string;
-  startTime: string;
-  endTime: string;
+  status: string;
 }
-
-interface SendLog {
-  id: string;
-  campaignId: string;
-  contactName: string;
-  phone: string;
-  status: "sent" | "failed" | "pending";
-  sentAt: string;
-}
-
-const mockCampaigns: Campaign[] = [
-  {
-    id: "1",
-    name: "Promoção Black Friday",
-    status: "completed",
-    listName: "Clientes VIP",
-    messageName: "Promoção",
-    totalContacts: 250,
-    sentMessages: 250,
-    startDate: "10/01/2026",
-    endDate: "11/01/2026",
-    startTime: "08:00",
-    endTime: "18:00",
-  },
-  {
-    id: "2",
-    name: "Lançamento Novo Produto",
-    status: "running",
-    listName: "Leads Janeiro",
-    messageName: "Boas-vindas",
-    totalContacts: 180,
-    sentMessages: 117,
-    startDate: "12/01/2026",
-    endDate: "13/01/2026",
-    startTime: "08:00",
-    endTime: "18:00",
-  },
-  {
-    id: "3",
-    name: "Reativação de Clientes",
-    status: "scheduled",
-    listName: "Reativação",
-    messageName: "Lembrete",
-    totalContacts: 420,
-    sentMessages: 0,
-    startDate: "15/01/2026",
-    endDate: "16/01/2026",
-    startTime: "09:00",
-    endTime: "17:00",
-  },
-];
-
-const mockLogs: SendLog[] = [
-  { id: "1", campaignId: "2", contactName: "João Silva", phone: "+55 11 99999-1111", status: "sent", sentAt: "12/01 10:23" },
-  { id: "2", campaignId: "2", contactName: "Maria Santos", phone: "+55 11 99999-2222", status: "sent", sentAt: "12/01 10:35" },
-  { id: "3", campaignId: "2", contactName: "Pedro Oliveira", phone: "+55 11 99999-3333", status: "failed", sentAt: "12/01 10:47" },
-  { id: "4", campaignId: "2", contactName: "Ana Costa", phone: "+55 11 99999-4444", status: "sent", sentAt: "12/01 10:59" },
-  { id: "5", campaignId: "2", contactName: "Carlos Lima", phone: "+55 11 99999-5555", status: "pending", sentAt: "-" },
-];
 
 const statusConfig = {
-  scheduled: { icon: CalendarIcon, label: "Agendada", color: "text-muted-foreground", bgColor: "bg-muted" },
+  pending: { icon: CalendarIcon, label: "Agendada", color: "text-muted-foreground", bgColor: "bg-muted" },
   running: { icon: Play, label: "Em Execução", color: "text-warning", bgColor: "bg-warning/10" },
   completed: { icon: CheckCircle2, label: "Concluída", color: "text-success", bgColor: "bg-success/10" },
   paused: { icon: Pause, label: "Pausada", color: "text-destructive", bgColor: "bg-destructive/10" },
+  cancelled: { icon: AlertCircle, label: "Cancelada", color: "text-muted-foreground", bgColor: "bg-muted" },
 };
 
 const Campanhas = () => {
+  const { loading: loadingCampaigns, getCampaigns, createCampaign, updateStatus, deleteCampaign } = useCampaigns();
+  const { getLists } = useContacts();
+  const { getMessages } = useMessages();
+
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [lists, setLists] = useState<ContactList[]>([]);
+  const [messages, setMessages] = useState<MessageTemplate[]>([]);
+  const [connections, setConnections] = useState<Connection[]>([]);
+
   const [activeTab, setActiveTab] = useState("list");
   const [selectedCampaign, setSelectedCampaign] = useState<string | null>(null);
+  
+  // Form state
   const [campaignName, setCampaignName] = useState("");
+  const [selectedConnection, setSelectedConnection] = useState("");
+  const [selectedList, setSelectedList] = useState("");
+  const [selectedMessage, setSelectedMessage] = useState("");
   const [startDate, setStartDate] = useState<Date>();
-  const [endDate, setEndDate] = useState<Date>();
-  const [startTime, setStartTime] = useState("08:00");
-  const [endTime, setEndTime] = useState("18:00");
-  const [pauseInterval, setPauseInterval] = useState("10");
+  const [minDelay, setMinDelay] = useState("5");
+  const [maxDelay, setMaxDelay] = useState("15");
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      const [campaignsData, listsData, messagesData, connectionsData] = await Promise.all([
+        getCampaigns(),
+        getLists(),
+        getMessages(),
+        api<Connection[]>('/api/connections'),
+      ]);
+      setCampaigns(campaignsData);
+      setLists(listsData);
+      setMessages(messagesData);
+      setConnections(connectionsData);
+    } catch (err) {
+      toast.error("Erro ao carregar dados");
+    }
+  };
+
+  const resetForm = () => {
+    setCampaignName("");
+    setSelectedConnection("");
+    setSelectedList("");
+    setSelectedMessage("");
+    setStartDate(undefined);
+    setMinDelay("5");
+    setMaxDelay("15");
+  };
+
+  const handleCreateCampaign = async () => {
+    if (!campaignName || !selectedConnection || !selectedList || !selectedMessage) {
+      toast.error("Preencha todos os campos obrigatórios");
+      return;
+    }
+
+    try {
+      await createCampaign({
+        name: campaignName,
+        connection_id: selectedConnection,
+        list_id: selectedList,
+        message_id: selectedMessage,
+        scheduled_at: startDate?.toISOString(),
+        min_delay: parseInt(minDelay),
+        max_delay: parseInt(maxDelay),
+      });
+      toast.success("Campanha criada com sucesso!");
+      resetForm();
+      setActiveTab("list");
+      loadData();
+    } catch (err) {
+      toast.error("Erro ao criar campanha");
+    }
+  };
+
+  const handleUpdateStatus = async (id: string, status: Campaign['status']) => {
+    try {
+      await updateStatus(id, status);
+      toast.success("Status atualizado!");
+      loadData();
+    } catch (err) {
+      toast.error("Erro ao atualizar status");
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteCampaign(id);
+      toast.success("Campanha deletada!");
+      loadData();
+    } catch (err) {
+      toast.error("Erro ao deletar campanha");
+    }
+  };
+
+  const getProgress = (campaign: Campaign) => {
+    const list = lists.find(l => l.id === campaign.list_id);
+    const total = list?.contact_count || 0;
+    if (total === 0) return 0;
+    return ((campaign.sent_count + campaign.failed_count) / total) * 100;
+  };
 
   return (
     <MainLayout>
@@ -145,7 +172,7 @@ const Campanhas = () => {
               Gerencie e acompanhe seus disparos de mensagens
             </p>
           </div>
-          <Button variant="gradient" onClick={() => setActiveTab("create")}>
+          <Button variant="gradient" onClick={() => { resetForm(); setActiveTab("create"); }}>
             <Plus className="h-4 w-4" />
             Nova Campanha
           </Button>
@@ -155,98 +182,125 @@ const Campanhas = () => {
           <TabsList>
             <TabsTrigger value="list">Campanhas</TabsTrigger>
             <TabsTrigger value="create">Criar Campanha</TabsTrigger>
-            {selectedCampaign && (
-              <TabsTrigger value="monitor">Monitorar Envios</TabsTrigger>
-            )}
           </TabsList>
 
           <TabsContent value="list" className="space-y-4 mt-6">
-            {mockCampaigns.map((campaign, index) => {
-              const config = statusConfig[campaign.status];
-              const StatusIcon = config.icon;
-              const progress = (campaign.sentMessages / campaign.totalContacts) * 100;
+            {loadingCampaigns && campaigns.length === 0 ? (
+              <div className="flex items-center justify-center p-8">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : campaigns.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <Send className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>Nenhuma campanha criada</p>
+                <p className="text-sm">Clique em "Nova Campanha" para começar</p>
+              </div>
+            ) : (
+              campaigns.map((campaign, index) => {
+                const config = statusConfig[campaign.status] || statusConfig.pending;
+                const StatusIcon = config.icon;
+                const progress = getProgress(campaign);
+                const list = lists.find(l => l.id === campaign.list_id);
+                const totalContacts = list?.contact_count || 0;
 
-              return (
-                <Card
-                  key={campaign.id}
-                  className="transition-all duration-200 hover:shadow-elevated animate-fade-in"
-                  style={{ animationDelay: `${index * 100}ms` }}
-                >
-                  <CardContent className="p-6">
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3">
-                          <h3 className="text-lg font-semibold text-foreground">
-                            {campaign.name}
-                          </h3>
-                          <Badge className={cn(config.bgColor, config.color, "border-0")}>
-                            <StatusIcon className="h-3 w-3 mr-1" />
-                            {config.label}
-                          </Badge>
+                return (
+                  <Card
+                    key={campaign.id}
+                    className="transition-all duration-200 hover:shadow-elevated animate-fade-in"
+                    style={{ animationDelay: `${index * 100}ms` }}
+                  >
+                    <CardContent className="p-6">
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3">
+                            <h3 className="text-lg font-semibold text-foreground">
+                              {campaign.name}
+                            </h3>
+                            <Badge className={cn(config.bgColor, config.color, "border-0")}>
+                              <StatusIcon className="h-3 w-3 mr-1" />
+                              {config.label}
+                            </Badge>
+                          </div>
+                          <div className="mt-2 flex flex-wrap gap-4 text-sm text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                              <Users className="h-4 w-4" />
+                              {campaign.list_name || "Lista removida"}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <MessageSquare className="h-4 w-4" />
+                              {campaign.message_name || "Mensagem removida"}
+                            </span>
+                            {campaign.scheduled_at && (
+                              <span className="flex items-center gap-1">
+                                <CalendarIcon className="h-4 w-4" />
+                                {format(new Date(campaign.scheduled_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                              </span>
+                            )}
+                            <span className="flex items-center gap-1">
+                              <Clock className="h-4 w-4" />
+                              {campaign.min_delay}-{campaign.max_delay}s entre envios
+                            </span>
+                          </div>
                         </div>
-                        <div className="mt-2 flex flex-wrap gap-4 text-sm text-muted-foreground">
-                          <span className="flex items-center gap-1">
-                            <Users className="h-4 w-4" />
-                            {campaign.listName}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <MessageSquare className="h-4 w-4" />
-                            {campaign.messageName}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <CalendarIcon className="h-4 w-4" />
-                            {campaign.startDate} - {campaign.endDate}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Clock className="h-4 w-4" />
-                            {campaign.startTime} - {campaign.endTime}
-                          </span>
-                        </div>
-                      </div>
 
-                      <div className="flex items-center gap-4">
-                        <div className="text-right">
-                          <p className="text-2xl font-bold text-foreground">
-                            {campaign.sentMessages}/{campaign.totalContacts}
-                          </p>
-                          <p className="text-sm text-muted-foreground">mensagens enviadas</p>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedCampaign(campaign.id);
-                              setActiveTab("monitor");
-                            }}
-                          >
-                            <Eye className="h-4 w-4" />
-                            Monitorar
-                          </Button>
-                          {campaign.status === "running" && (
-                            <Button variant="outline" size="sm">
-                              <Pause className="h-4 w-4" />
-                              Pausar
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <p className="text-2xl font-bold text-foreground">
+                              {campaign.sent_count}/{totalContacts}
+                            </p>
+                            <p className="text-sm text-muted-foreground">mensagens enviadas</p>
+                          </div>
+                          <div className="flex gap-2">
+                            {campaign.status === "pending" && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleUpdateStatus(campaign.id, "running")}
+                              >
+                                <Play className="h-4 w-4" />
+                                Iniciar
+                              </Button>
+                            )}
+                            {campaign.status === "running" && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleUpdateStatus(campaign.id, "paused")}
+                              >
+                                <Pause className="h-4 w-4" />
+                                Pausar
+                              </Button>
+                            )}
+                            {campaign.status === "paused" && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleUpdateStatus(campaign.id, "running")}
+                              >
+                                <Play className="h-4 w-4" />
+                                Retomar
+                              </Button>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDelete(campaign.id)}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
-                          )}
-                          {campaign.status === "paused" && (
-                            <Button variant="outline" size="sm">
-                              <Play className="h-4 w-4" />
-                              Retomar
-                            </Button>
-                          )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    {campaign.status !== "scheduled" && (
-                      <div className="mt-4">
-                        <Progress value={progress} className="h-2" />
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })}
+                      {campaign.status !== "pending" && (
+                        <div className="mt-4">
+                          <Progress value={progress} className="h-2" />
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })
+            )}
           </TabsContent>
 
           <TabsContent value="create" className="mt-6">
@@ -273,29 +327,49 @@ const Campanhas = () => {
                   </div>
 
                   <div className="space-y-2">
+                    <Label>Conexão WhatsApp</Label>
+                    <Select value={selectedConnection} onValueChange={setSelectedConnection}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione uma conexão" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {connections.map((conn) => (
+                          <SelectItem key={conn.id} value={conn.id}>
+                            {conn.name} ({conn.status})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
                     <Label>Lista de Contatos</Label>
-                    <Select>
+                    <Select value={selectedList} onValueChange={setSelectedList}>
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione uma lista" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="1">Clientes VIP (250)</SelectItem>
-                        <SelectItem value="2">Leads Janeiro (180)</SelectItem>
-                        <SelectItem value="3">Reativação (420)</SelectItem>
+                        {lists.map((list) => (
+                          <SelectItem key={list.id} value={list.id}>
+                            {list.name} ({list.contact_count || 0} contatos)
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div className="space-y-2">
                     <Label>Mensagem</Label>
-                    <Select>
+                    <Select value={selectedMessage} onValueChange={setSelectedMessage}>
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione uma mensagem" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="1">Boas-vindas</SelectItem>
-                        <SelectItem value="2">Promoção</SelectItem>
-                        <SelectItem value="3">Lembrete</SelectItem>
+                        {messages.map((msg) => (
+                          <SelectItem key={msg.id} value={msg.id}>
+                            {msg.name}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -313,94 +387,54 @@ const Campanhas = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Data Início</Label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className={cn(
-                              "w-full justify-start text-left font-normal",
-                              !startDate && "text-muted-foreground"
-                            )}
-                          >
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {startDate ? format(startDate, "dd/MM/yyyy", { locale: ptBR }) : "Selecione"}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0">
-                          <Calendar
-                            mode="single"
-                            selected={startDate}
-                            onSelect={setStartDate}
-                            initialFocus
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Data Fim</Label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className={cn(
-                              "w-full justify-start text-left font-normal",
-                              !endDate && "text-muted-foreground"
-                            )}
-                          >
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {endDate ? format(endDate, "dd/MM/yyyy", { locale: ptBR }) : "Selecione"}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0">
-                          <Calendar
-                            mode="single"
-                            selected={endDate}
-                            onSelect={setEndDate}
-                            initialFocus
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="startTime">Hora Início</Label>
-                      <Input
-                        id="startTime"
-                        type="time"
-                        value={startTime}
-                        onChange={(e) => setStartTime(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="endTime">Hora Fim</Label>
-                      <Input
-                        id="endTime"
-                        type="time"
-                        value={endTime}
-                        onChange={(e) => setEndTime(e.target.value)}
-                      />
-                    </div>
-                  </div>
-
                   <div className="space-y-2">
-                    <Label htmlFor="pauseInterval">Pausa Aleatória (minutos)</Label>
-                    <div className="flex items-center gap-2">
+                    <Label>Data de Início (opcional)</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !startDate && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {startDate ? format(startDate, "dd/MM/yyyy", { locale: ptBR }) : "Iniciar imediatamente"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <Calendar
+                          mode="single"
+                          selected={startDate}
+                          onSelect={setStartDate}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="minDelay">Delay Mínimo (seg)</Label>
                       <Input
-                        id="pauseInterval"
+                        id="minDelay"
                         type="number"
                         min="1"
-                        max="60"
-                        value={pauseInterval}
-                        onChange={(e) => setPauseInterval(e.target.value)}
+                        max="300"
+                        value={minDelay}
+                        onChange={(e) => setMinDelay(e.target.value)}
                       />
-                      <span className="text-sm text-muted-foreground whitespace-nowrap">
-                        min entre mensagens
-                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="maxDelay">Delay Máximo (seg)</Label>
+                      <Input
+                        id="maxDelay"
+                        type="number"
+                        min="1"
+                        max="300"
+                        value={maxDelay}
+                        onChange={(e) => setMaxDelay(e.target.value)}
+                      />
                     </div>
                   </div>
 
@@ -412,91 +446,31 @@ const Campanhas = () => {
                           Envio Aleatório Ativo
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
-                          As mensagens serão enviadas em horários aleatórios entre{" "}
-                          {startTime} e {endTime}, com pausas de até {pauseInterval}{" "}
-                          minutos entre cada envio para proteger sua conta.
+                          As mensagens serão enviadas com pausas aleatórias de {minDelay} a {maxDelay} segundos
+                          entre cada envio para proteger sua conta.
                         </p>
                       </div>
                     </div>
                   </div>
 
-                  <Button variant="gradient" className="w-full">
-                    <Send className="h-4 w-4" />
-                    Agendar Campanha
+                  <Button 
+                    variant="gradient" 
+                    className="w-full"
+                    onClick={handleCreateCampaign}
+                    disabled={loadingCampaigns}
+                  >
+                    {loadingCampaigns ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Send className="h-4 w-4" />
+                        Criar Campanha
+                      </>
+                    )}
                   </Button>
                 </CardContent>
               </Card>
             </div>
-          </TabsContent>
-
-          <TabsContent value="monitor" className="mt-6">
-            <Card className="animate-fade-in shadow-card">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Monitoramento de Envios</CardTitle>
-                    <CardDescription>
-                      Acompanhe cada mensagem enviada em tempo real
-                    </CardDescription>
-                  </div>
-                  <div className="flex gap-2">
-                    <Badge variant="secondary" className="bg-success/10 text-success">
-                      <CheckCircle2 className="h-3 w-3 mr-1" />
-                      Enviadas: 3
-                    </Badge>
-                    <Badge variant="secondary" className="bg-destructive/10 text-destructive">
-                      <AlertCircle className="h-3 w-3 mr-1" />
-                      Falhas: 1
-                    </Badge>
-                    <Badge variant="secondary">
-                      <Clock className="h-3 w-3 mr-1" />
-                      Pendentes: 1
-                    </Badge>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Contato</TableHead>
-                      <TableHead>Telefone</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Enviado em</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {mockLogs.map((log) => (
-                      <TableRow key={log.id}>
-                        <TableCell className="font-medium">{log.contactName}</TableCell>
-                        <TableCell>{log.phone}</TableCell>
-                        <TableCell>
-                          {log.status === "sent" && (
-                            <Badge className="bg-success/10 text-success border-0">
-                              <CheckCircle2 className="h-3 w-3 mr-1" />
-                              Enviada
-                            </Badge>
-                          )}
-                          {log.status === "failed" && (
-                            <Badge className="bg-destructive/10 text-destructive border-0">
-                              <AlertCircle className="h-3 w-3 mr-1" />
-                              Falha
-                            </Badge>
-                          )}
-                          {log.status === "pending" && (
-                            <Badge variant="secondary">
-                              <Clock className="h-3 w-3 mr-1" />
-                              Pendente
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>{log.sentAt}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
           </TabsContent>
         </Tabs>
       </div>

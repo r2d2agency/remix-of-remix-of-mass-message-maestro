@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,48 +21,136 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Upload, Plus, Search, Users, FileSpreadsheet, Trash2, Eye } from "lucide-react";
-
-interface ContactList {
-  id: string;
-  name: string;
-  contactCount: number;
-  createdAt: string;
-}
-
-interface Contact {
-  id: string;
-  name: string;
-  phone: string;
-  listId: string;
-}
-
-const mockLists: ContactList[] = [
-  { id: "1", name: "Clientes VIP", contactCount: 250, createdAt: "10/01/2026" },
-  { id: "2", name: "Leads Janeiro", contactCount: 180, createdAt: "05/01/2026" },
-  { id: "3", name: "Reativação", contactCount: 420, createdAt: "01/01/2026" },
-];
-
-const mockContacts: Contact[] = [
-  { id: "1", name: "João Silva", phone: "+55 11 99999-1111", listId: "1" },
-  { id: "2", name: "Maria Santos", phone: "+55 11 99999-2222", listId: "1" },
-  { id: "3", name: "Pedro Oliveira", phone: "+55 11 99999-3333", listId: "1" },
-  { id: "4", name: "Ana Costa", phone: "+55 11 99999-4444", listId: "2" },
-  { id: "5", name: "Carlos Lima", phone: "+55 11 99999-5555", listId: "2" },
-];
+import { Upload, Search, Users, FileSpreadsheet, Trash2, Loader2 } from "lucide-react";
+import { useContacts, ContactList, Contact } from "@/hooks/use-contacts";
+import { toast } from "sonner";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 const Contatos = () => {
+  const { loading, getLists, createList, deleteList, getContacts, importContacts, deleteContact } = useContacts();
+  
+  const [lists, setLists] = useState<ContactList[]>([]);
+  const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedList, setSelectedList] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [newListName, setNewListName] = useState("");
+  const [isLoadingContacts, setIsLoadingContacts] = useState(false);
 
-  const filteredContacts = mockContacts.filter(
+  // Load lists on mount
+  useEffect(() => {
+    loadLists();
+  }, []);
+
+  // Load contacts when list changes
+  useEffect(() => {
+    if (selectedList) {
+      loadContacts(selectedList);
+    } else {
+      setContacts([]);
+    }
+  }, [selectedList]);
+
+  const loadLists = async () => {
+    try {
+      const data = await getLists();
+      setLists(data);
+    } catch (err) {
+      toast.error("Erro ao carregar listas");
+    }
+  };
+
+  const loadContacts = async (listId: string) => {
+    setIsLoadingContacts(true);
+    try {
+      const data = await getContacts(listId);
+      setContacts(data);
+    } catch (err) {
+      toast.error("Erro ao carregar contatos");
+    } finally {
+      setIsLoadingContacts(false);
+    }
+  };
+
+  const handleCreateList = async () => {
+    if (!newListName.trim()) {
+      toast.error("Digite um nome para a lista");
+      return;
+    }
+    try {
+      await createList(newListName);
+      toast.success("Lista criada com sucesso!");
+      setNewListName("");
+      setIsUploadOpen(false);
+      loadLists();
+    } catch (err) {
+      toast.error("Erro ao criar lista");
+    }
+  };
+
+  const handleDeleteList = async (id: string) => {
+    try {
+      await deleteList(id);
+      toast.success("Lista deletada com sucesso!");
+      if (selectedList === id) setSelectedList(null);
+      loadLists();
+    } catch (err) {
+      toast.error("Erro ao deletar lista");
+    }
+  };
+
+  const handleDeleteContact = async (id: string) => {
+    try {
+      await deleteContact(id);
+      toast.success("Contato removido!");
+      if (selectedList) loadContacts(selectedList);
+    } catch (err) {
+      toast.error("Erro ao remover contato");
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedList) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const text = event.target?.result as string;
+      const lines = text.split('\n').filter(line => line.trim());
+      
+      // Skip header if exists
+      const startIndex = lines[0]?.toLowerCase().includes('nome') ? 1 : 0;
+      
+      const contactsToImport = lines.slice(startIndex).map(line => {
+        const [name, phone] = line.split(/[,;]/).map(s => s.trim());
+        return { name: name || 'Sem nome', phone: phone || '' };
+      }).filter(c => c.phone);
+
+      if (contactsToImport.length === 0) {
+        toast.error("Nenhum contato válido encontrado no arquivo");
+        return;
+      }
+
+      try {
+        const count = await importContacts(selectedList, contactsToImport);
+        toast.success(`${count} contatos importados com sucesso!`);
+        loadContacts(selectedList);
+        loadLists();
+      } catch (err) {
+        toast.error("Erro ao importar contatos");
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const filteredContacts = contacts.filter(
     (contact) =>
-      (!selectedList || contact.listId === selectedList) &&
-      (contact.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        contact.phone.includes(searchTerm))
+      contact.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      contact.phone.includes(searchTerm)
   );
+
+  const totalContacts = lists.reduce((sum, list) => sum + Number(list.contact_count || 0), 0);
 
   return (
     <MainLayout>
@@ -79,14 +167,14 @@ const Contatos = () => {
             <DialogTrigger asChild>
               <Button variant="gradient">
                 <Upload className="h-4 w-4" />
-                Importar Lista
+                Nova Lista
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
-                <DialogTitle>Importar Lista de Contatos</DialogTitle>
+                <DialogTitle>Criar Nova Lista</DialogTitle>
                 <DialogDescription>
-                  Faça upload de uma planilha com os contatos (CSV ou Excel)
+                  Crie uma lista para organizar seus contatos
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
@@ -99,37 +187,13 @@ const Contatos = () => {
                     onChange={(e) => setNewListName(e.target.value)}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>Arquivo</Label>
-                  <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-border p-8 transition-colors hover:border-primary">
-                    <FileSpreadsheet className="h-10 w-10 text-muted-foreground" />
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      Arraste seu arquivo ou clique para selecionar
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Suporta CSV, XLS, XLSX
-                    </p>
-                    <Input
-                      type="file"
-                      accept=".csv,.xls,.xlsx"
-                      className="mt-4"
-                    />
-                  </div>
-                </div>
-                <div className="rounded-lg bg-accent/50 p-3">
-                  <p className="text-xs text-muted-foreground">
-                    <strong>Formato esperado:</strong> A planilha deve ter as colunas
-                    "nome" e "telefone" (com código do país).
-                  </p>
-                </div>
               </div>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setIsUploadOpen(false)}>
                   Cancelar
                 </Button>
-                <Button variant="gradient">
-                  <Upload className="h-4 w-4" />
-                  Importar
+                <Button variant="gradient" onClick={handleCreateList} disabled={loading}>
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Criar Lista"}
                 </Button>
               </div>
             </DialogContent>
@@ -149,102 +213,137 @@ const Contatos = () => {
                 <Users className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <p className="font-semibold text-foreground">Todos os Contatos</p>
+                <p className="font-semibold text-foreground">Todas as Listas</p>
                 <p className="text-sm text-muted-foreground">
-                  {mockContacts.length} contatos
+                  {totalContacts} contatos em {lists.length} listas
                 </p>
               </div>
             </CardContent>
           </Card>
 
-          {mockLists.map((list, index) => (
-            <Card
-              key={list.id}
-              className={`cursor-pointer transition-all duration-200 hover:shadow-elevated animate-fade-in ${
-                selectedList === list.id ? "ring-2 ring-primary" : ""
-              }`}
-              style={{ animationDelay: `${index * 100}ms` }}
-              onClick={() => setSelectedList(list.id)}
-            >
-              <CardContent className="flex items-center justify-between p-6">
-                <div className="flex items-center gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent">
-                    <FileSpreadsheet className="h-6 w-6 text-primary" />
+          {loading && lists.length === 0 ? (
+            <div className="col-span-2 flex items-center justify-center p-8">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : (
+            lists.map((list, index) => (
+              <Card
+                key={list.id}
+                className={`cursor-pointer transition-all duration-200 hover:shadow-elevated animate-fade-in ${
+                  selectedList === list.id ? "ring-2 ring-primary" : ""
+                }`}
+                style={{ animationDelay: `${index * 100}ms` }}
+                onClick={() => setSelectedList(list.id)}
+              >
+                <CardContent className="flex items-center justify-between p-6">
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent">
+                      <FileSpreadsheet className="h-6 w-6 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-foreground">{list.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {list.contact_count || 0} contatos
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-semibold text-foreground">{list.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {list.contactCount} contatos
-                    </p>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary">
+                      {format(new Date(list.created_at), "dd/MM/yy", { locale: ptBR })}
+                    </Badge>
+                    <Button 
+                      variant="ghost" 
+                      size="icon"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteList(list.id);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
                   </div>
-                </div>
-                <Badge variant="secondary">{list.createdAt}</Badge>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
 
         {/* Contacts Table */}
-        <Card className="animate-fade-in shadow-card">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>
-                  {selectedList
-                    ? mockLists.find((l) => l.id === selectedList)?.name
-                    : "Todos os Contatos"}
-                </CardTitle>
-                <CardDescription>
-                  {filteredContacts.length} contatos encontrados
-                </CardDescription>
+        {selectedList && (
+          <Card className="animate-fade-in shadow-card">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>
+                    {lists.find((l) => l.id === selectedList)?.name || "Contatos"}
+                  </CardTitle>
+                  <CardDescription>
+                    {filteredContacts.length} contatos
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="relative w-64">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar contatos..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                  <div>
+                    <Input
+                      type="file"
+                      accept=".csv,.txt"
+                      onChange={handleFileUpload}
+                      className="max-w-[200px]"
+                    />
+                  </div>
+                </div>
               </div>
-              <div className="relative w-64">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar contatos..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>Telefone</TableHead>
-                  <TableHead>Lista</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredContacts.map((contact) => (
-                  <TableRow key={contact.id}>
-                    <TableCell className="font-medium">{contact.name}</TableCell>
-                    <TableCell>{contact.phone}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">
-                        {mockLists.find((l) => l.id === contact.listId)?.name}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button variant="ghost" size="icon">
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon">
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+            </CardHeader>
+            <CardContent>
+              {isLoadingContacts ? (
+                <div className="flex items-center justify-center p-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : filteredContacts.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>Nenhum contato nesta lista</p>
+                  <p className="text-sm">Importe um arquivo CSV para adicionar contatos</p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nome</TableHead>
+                      <TableHead>Telefone</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredContacts.map((contact) => (
+                      <TableRow key={contact.id}>
+                        <TableCell className="font-medium">{contact.name}</TableCell>
+                        <TableCell>{contact.phone}</TableCell>
+                        <TableCell className="text-right">
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={() => handleDeleteContact(contact.id)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
     </MainLayout>
   );
