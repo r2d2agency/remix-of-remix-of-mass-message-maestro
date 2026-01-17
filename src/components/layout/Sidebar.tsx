@@ -1,4 +1,4 @@
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import {
@@ -12,8 +12,10 @@ import {
   Zap,
   Building2,
   Shield,
+  LogOut,
 } from "lucide-react";
 import { getAuthToken } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -30,6 +32,8 @@ const navigation = [
 
 export function Sidebar() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { logout, user } = useAuth();
   const [isSuperadmin, setIsSuperadmin] = useState(false);
 
   useEffect(() => {
@@ -109,13 +113,32 @@ export function Sidebar() {
         </nav>
 
         {/* Footer */}
-        <div className="border-t border-border p-4">
-          <div className="rounded-lg bg-accent/50 p-3">
-            <p className="text-xs font-medium text-accent-foreground">
-              Versão 1.0.0
-            </p>
+        <div className="border-t border-border p-4 space-y-3">
+          {user && (
+            <div className="rounded-lg bg-accent/50 p-3">
+              <p className="text-xs font-medium text-accent-foreground truncate">
+                {user.name || user.email}
+              </p>
+              <p className="text-xs text-muted-foreground truncate">
+                {user.email}
+              </p>
+            </div>
+          )}
+          
+          <button
+            onClick={() => {
+              logout();
+              navigate('/login');
+            }}
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-destructive hover:bg-destructive/10 transition-all duration-200"
+          >
+            <LogOut className="h-5 w-5" />
+            Sair
+          </button>
+          
+          <div className="text-center">
             <p className="text-xs text-muted-foreground">
-              Evolution API conectada
+              Versão 1.0.0
             </p>
           </div>
         </div>
