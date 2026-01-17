@@ -413,10 +413,16 @@ router.get('/payments/:organizationId', async (req, res) => {
 router.get('/customers/:organizationId', async (req, res) => {
   try {
     const { organizationId } = req.params;
+    const { show_blacklisted } = req.query;
 
     const access = await checkOrgAccess(req.userId, organizationId);
     if (!access) {
       return res.status(403).json({ error: 'Acesso negado' });
+    }
+
+    let whereClause = 'WHERE c.organization_id = $1';
+    if (show_blacklisted !== 'true') {
+      whereClause += ' AND (c.is_blacklisted = false OR c.is_blacklisted IS NULL)';
     }
 
     const result = await query(
@@ -425,8 +431,8 @@ router.get('/customers/:organizationId', async (req, res) => {
         (SELECT COUNT(*) FROM asaas_payments p WHERE p.customer_id = c.id AND p.status = 'OVERDUE') as overdue_count,
         (SELECT SUM(value) FROM asaas_payments p WHERE p.customer_id = c.id AND p.status IN ('PENDING', 'OVERDUE')) as total_due
        FROM asaas_customers c
-       WHERE c.organization_id = $1
-       ORDER BY c.name`,
+       ${whereClause}
+       ORDER BY c.is_blacklisted ASC NULLS FIRST, c.billing_paused ASC NULLS FIRST, c.name`,
       [organizationId]
     );
 
@@ -434,6 +440,262 @@ router.get('/customers/:organizationId', async (req, res) => {
   } catch (error) {
     console.error('Get customers error:', error);
     res.status(500).json({ error: 'Erro ao buscar clientes' });
+  }
+});
+
+// Update customer (blacklist, pause, etc)
+router.patch('/customers/:organizationId/:customerId', async (req, res) => {
+  try {
+    const { organizationId, customerId } = req.params;
+    const { is_blacklisted, blacklist_reason, billing_paused, billing_paused_until, billing_paused_reason } = req.body;
+
+    const access = await checkOrgAccess(req.userId, organizationId);
+    if (!access || !['owner', 'admin', 'manager'].includes(access.role)) {
+      return res.status(403).json({ error: 'Sem permissão para editar clientes' });
+    }
+
+    const result = await query(
+      `UPDATE asaas_customers SET
+         is_blacklisted = COALESCE($1, is_blacklisted),
+         blacklist_reason = CASE WHEN $1 = true THEN COALESCE($2, blacklist_reason) ELSE NULL END,
+         blacklisted_at = CASE WHEN $1 = true THEN COALESCE(blacklisted_at, NOW()) ELSE NULL END,
+         billing_paused = COALESCE($3, billing_paused),
+         billing_paused_until = CASE WHEN $3 = true THEN $4 ELSE NULL END,
+         billing_paused_reason = CASE WHEN $3 = true THEN $5 ELSE NULL END,
+         updated_at = NOW()
+       WHERE id = $6 AND organization_id = $7
+       RETURNING *`,
+      [is_blacklisted, blacklist_reason, billing_paused, billing_paused_until, billing_paused_reason, customerId, organizationId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Cliente não encontrado' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update customer error:', error);
+    res.status(500).json({ error: 'Erro ao atualizar cliente' });
+  }
+});
+
+// Get/Update integration settings (message limits, alerts, global pause)
+router.get('/settings/:organizationId', async (req, res) => {
+  try {
+    const { organizationId } = req.params;
+
+    const access = await checkOrgAccess(req.userId, organizationId);
+    if (!access) {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+
+    const result = await query(
+      `SELECT 
+        daily_message_limit_per_customer,
+        billing_paused,
+        billing_paused_until,
+        billing_paused_reason,
+        critical_alert_threshold,
+        critical_alert_days,
+        alert_email,
+        alert_whatsapp,
+        alert_connection_id
+       FROM asaas_integrations WHERE organization_id = $1`,
+      [organizationId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.json(null);
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Get settings error:', error);
+    res.status(500).json({ error: 'Erro ao buscar configurações' });
+  }
+});
+
+router.patch('/settings/:organizationId', async (req, res) => {
+  try {
+    const { organizationId } = req.params;
+    const { 
+      daily_message_limit_per_customer,
+      billing_paused,
+      billing_paused_until,
+      billing_paused_reason,
+      critical_alert_threshold,
+      critical_alert_days,
+      alert_email,
+      alert_whatsapp,
+      alert_connection_id
+    } = req.body;
+
+    const access = await checkOrgAccess(req.userId, organizationId);
+    if (!access || !['owner', 'admin'].includes(access.role)) {
+      return res.status(403).json({ error: 'Apenas admins podem alterar configurações' });
+    }
+
+    const result = await query(
+      `UPDATE asaas_integrations SET
+         daily_message_limit_per_customer = COALESCE($1, daily_message_limit_per_customer),
+         billing_paused = COALESCE($2, billing_paused),
+         billing_paused_until = $3,
+         billing_paused_reason = $4,
+         critical_alert_threshold = COALESCE($5, critical_alert_threshold),
+         critical_alert_days = COALESCE($6, critical_alert_days),
+         alert_email = COALESCE($7, alert_email),
+         alert_whatsapp = COALESCE($8, alert_whatsapp),
+         alert_connection_id = $9,
+         updated_at = NOW()
+       WHERE organization_id = $10
+       RETURNING *`,
+      [
+        daily_message_limit_per_customer, billing_paused, billing_paused_until, billing_paused_reason,
+        critical_alert_threshold, critical_alert_days, alert_email, alert_whatsapp, alert_connection_id,
+        organizationId
+      ]
+    );
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update settings error:', error);
+    res.status(500).json({ error: 'Erro ao atualizar configurações' });
+  }
+});
+
+// Get alerts
+router.get('/alerts/:organizationId', async (req, res) => {
+  try {
+    const { organizationId } = req.params;
+    const { unread_only, limit } = req.query;
+
+    const access = await checkOrgAccess(req.userId, organizationId);
+    if (!access) {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+
+    let whereClause = 'WHERE a.organization_id = $1';
+    if (unread_only === 'true') {
+      whereClause += ' AND a.is_read = false';
+    }
+
+    const result = await query(
+      `SELECT a.*, c.name as customer_name, c.phone as customer_phone
+       FROM billing_alerts a
+       LEFT JOIN asaas_customers c ON c.id = a.customer_id
+       ${whereClause}
+       ORDER BY a.created_at DESC
+       LIMIT $2`,
+      [organizationId, parseInt(limit) || 50]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get alerts error:', error);
+    res.status(500).json({ error: 'Erro ao buscar alertas' });
+  }
+});
+
+// Mark alert as read/resolved
+router.patch('/alerts/:organizationId/:alertId', async (req, res) => {
+  try {
+    const { organizationId, alertId } = req.params;
+    const { is_read, is_resolved } = req.body;
+
+    const access = await checkOrgAccess(req.userId, organizationId);
+    if (!access) {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+
+    const result = await query(
+      `UPDATE billing_alerts SET
+         is_read = COALESCE($1, is_read),
+         is_resolved = COALESCE($2, is_resolved),
+         resolved_at = CASE WHEN $2 = true THEN NOW() ELSE resolved_at END,
+         resolved_by = CASE WHEN $2 = true THEN $3 ELSE resolved_by END
+       WHERE id = $4 AND organization_id = $5
+       RETURNING *`,
+      [is_read, is_resolved, req.userId, alertId, organizationId]
+    );
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update alert error:', error);
+    res.status(500).json({ error: 'Erro ao atualizar alerta' });
+  }
+});
+
+// Generate critical alerts (called by scheduler or manually)
+router.post('/alerts/generate/:organizationId', async (req, res) => {
+  try {
+    const { organizationId } = req.params;
+
+    const access = await checkOrgAccess(req.userId, organizationId);
+    if (!access || !['owner', 'admin', 'manager'].includes(access.role)) {
+      return res.status(403).json({ error: 'Sem permissão' });
+    }
+
+    // Get settings
+    const settingsResult = await query(
+      `SELECT critical_alert_threshold, critical_alert_days FROM asaas_integrations WHERE organization_id = $1`,
+      [organizationId]
+    );
+    
+    if (settingsResult.rows.length === 0) {
+      return res.status(400).json({ error: 'Integração não configurada' });
+    }
+
+    const settings = settingsResult.rows[0];
+    const threshold = settings.critical_alert_threshold || 1000;
+    const criticalDays = settings.critical_alert_days || 30;
+
+    // Find customers exceeding threshold
+    const criticalCustomers = await query(`
+      SELECT 
+        c.id as customer_id,
+        c.name,
+        c.phone,
+        SUM(p.value) as total_overdue,
+        MAX(CURRENT_DATE - p.due_date) as max_days_overdue
+      FROM asaas_customers c
+      JOIN asaas_payments p ON p.customer_id = c.id
+      WHERE c.organization_id = $1 
+        AND p.status = 'OVERDUE'
+        AND (c.is_blacklisted = false OR c.is_blacklisted IS NULL)
+      GROUP BY c.id, c.name, c.phone
+      HAVING SUM(p.value) >= $2 OR MAX(CURRENT_DATE - p.due_date) >= $3
+    `, [organizationId, threshold, criticalDays]);
+
+    let created = 0;
+    for (const customer of criticalCustomers.rows) {
+      // Check if alert already exists for this customer (not resolved)
+      const existingAlert = await query(
+        `SELECT id FROM billing_alerts 
+         WHERE organization_id = $1 AND customer_id = $2 AND is_resolved = false`,
+        [organizationId, customer.customer_id]
+      );
+
+      if (existingAlert.rows.length === 0) {
+        await query(`
+          INSERT INTO billing_alerts (organization_id, customer_id, alert_type, title, description, total_overdue, days_overdue)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `, [
+          organizationId,
+          customer.customer_id,
+          'critical_customer',
+          `Inadimplência crítica: ${customer.name}`,
+          `Cliente com R$ ${Number(customer.total_overdue).toLocaleString('pt-BR')} em atraso há ${customer.max_days_overdue} dias`,
+          customer.total_overdue,
+          customer.max_days_overdue
+        ]);
+        created++;
+      }
+    }
+
+    res.json({ alerts_created: created });
+  } catch (error) {
+    console.error('Generate alerts error:', error);
+    res.status(500).json({ error: 'Erro ao gerar alertas' });
   }
 });
 

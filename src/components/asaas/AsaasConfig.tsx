@@ -17,7 +17,8 @@ import {
   RefreshCw, Settings, Receipt, Users, Bell, Plus, Trash2, 
   CheckCircle, AlertCircle, Clock, Calendar, Link2,
   History, RotateCcw, Play, BarChart3, Download, TrendingUp,
-  TrendingDown, Percent
+  TrendingDown, Percent, Ban, Pause, AlertTriangle, Shield,
+  Eye, EyeOff, Check
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -35,7 +36,8 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
     loading, error, 
     getIntegration, configureIntegration, syncPayments,
     getPayments, getCustomers, getRules, createRule, updateRule, deleteRule,
-    getDashboard, getReport
+    getDashboard, getReport, updateCustomer, getSettings, updateSettings,
+    getAlerts, updateAlert, generateAlerts
   } = useAsaas(organizationId);
   
   const { 
@@ -55,13 +57,19 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
   const [notificationHistory, setNotificationHistory] = useState<any[]>([]);
   const [notificationStats, setNotificationStats] = useState<any>(null);
   const [dashboard, setDashboard] = useState<any>(null);
+  const [settings, setSettings] = useState<any>(null);
+  const [alerts, setAlerts] = useState<any[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [historyStatusFilter, setHistoryStatusFilter] = useState<string>("all");
   const [reportStatusFilter, setReportStatusFilter] = useState<string>("OVERDUE");
+  const [showBlacklisted, setShowBlacklisted] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [showRuleDialog, setShowRuleDialog] = useState(false);
+  const [showCustomerDialog, setShowCustomerDialog] = useState(false);
+  const [showSettingsDialog, setShowSettingsDialog] = useState(false);
   const [editingRule, setEditingRule] = useState<any>(null);
+  const [editingCustomer, setEditingCustomer] = useState<any>(null);
   const [triggeringRule, setTriggeringRule] = useState<string | null>(null);
 
   // Form state for new rule
@@ -79,19 +87,34 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
     pause_duration: 600
   });
 
+  // Settings form
+  const [settingsForm, setSettingsForm] = useState({
+    daily_message_limit_per_customer: 3,
+    billing_paused: false,
+    billing_paused_until: "",
+    billing_paused_reason: "",
+    critical_alert_threshold: 1000,
+    critical_alert_days: 30,
+    alert_email: "",
+    alert_whatsapp: "",
+    alert_connection_id: ""
+  });
+
   useEffect(() => {
     loadData();
   }, [organizationId]);
 
   const loadData = async () => {
-    const [integ, pays, custs, rls, stats, history, dash] = await Promise.all([
+    const [integ, pays, custs, rls, stats, history, dash, sett, alts] = await Promise.all([
       getIntegration(),
       getPayments(),
-      getCustomers(),
+      getCustomers(showBlacklisted),
       getRules(),
       getNotificationStats(),
       getNotificationHistory({ limit: 50 }),
-      getDashboard()
+      getDashboard(),
+      getSettings(),
+      getAlerts()
     ]);
     setIntegration(integ);
     setPayments(pays);
@@ -100,6 +123,85 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
     setNotificationStats(stats);
     setNotificationHistory(history);
     setDashboard(dash);
+    setSettings(sett);
+    setAlerts(alts);
+    
+    if (sett) {
+      setSettingsForm({
+        daily_message_limit_per_customer: sett.daily_message_limit_per_customer || 3,
+        billing_paused: sett.billing_paused || false,
+        billing_paused_until: sett.billing_paused_until || "",
+        billing_paused_reason: sett.billing_paused_reason || "",
+        critical_alert_threshold: sett.critical_alert_threshold || 1000,
+        critical_alert_days: sett.critical_alert_days || 30,
+        alert_email: sett.alert_email || "",
+        alert_whatsapp: sett.alert_whatsapp || "",
+        alert_connection_id: sett.alert_connection_id || ""
+      });
+    }
+  };
+
+  const handleSaveSettings = async () => {
+    const result = await updateSettings(settingsForm);
+    if (result) {
+      toast({ title: "Configurações salvas!" });
+      setShowSettingsDialog(false);
+      await loadData();
+    } else {
+      toast({ title: "Erro ao salvar configurações", variant: "destructive" });
+    }
+  };
+
+  const handleToggleBlacklist = async (customer: any) => {
+    const result = await updateCustomer(customer.id, {
+      is_blacklisted: !customer.is_blacklisted,
+      blacklist_reason: !customer.is_blacklisted ? "Adicionado manualmente à blacklist" : undefined
+    });
+    if (result) {
+      toast({ title: customer.is_blacklisted ? "Cliente removido da blacklist" : "Cliente adicionado à blacklist" });
+      await loadData();
+    }
+  };
+
+  const handleTogglePause = async (customer: any) => {
+    setEditingCustomer(customer);
+    setShowCustomerDialog(true);
+  };
+
+  const handleSaveCustomerPause = async () => {
+    if (!editingCustomer) return;
+    
+    const result = await updateCustomer(editingCustomer.id, {
+      billing_paused: !editingCustomer.billing_paused,
+      billing_paused_until: editingCustomer.billing_paused ? null : editingCustomer.pauseUntil,
+      billing_paused_reason: editingCustomer.billing_paused ? null : editingCustomer.pauseReason
+    });
+    
+    if (result) {
+      toast({ title: editingCustomer.billing_paused ? "Cobranças retomadas" : "Cobranças pausadas" });
+      setShowCustomerDialog(false);
+      setEditingCustomer(null);
+      await loadData();
+    }
+  };
+
+  const handleMarkAlertRead = async (alertId: string) => {
+    await updateAlert(alertId, { is_read: true });
+    await loadData();
+  };
+
+  const handleResolveAlert = async (alertId: string) => {
+    await updateAlert(alertId, { is_resolved: true });
+    toast({ title: "Alerta resolvido" });
+    await loadData();
+  };
+
+  const handleGenerateAlerts = async () => {
+    const result = await generateAlerts();
+    if (result) {
+      toast({ title: `${result.alerts_created} alertas gerados` });
+      await loadData();
+    }
   };
 
   const handleExportReport = async () => {
@@ -398,6 +500,19 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
                 <Bell className="mr-2 h-4 w-4" />
                 Regras
               </TabsTrigger>
+              <TabsTrigger value="alerts" className="relative">
+                <AlertTriangle className="mr-2 h-4 w-4" />
+                Alertas
+                {alerts.filter(a => !a.is_read).length > 0 && (
+                  <Badge className="ml-2 bg-red-500 text-white text-xs px-1.5">
+                    {alerts.filter(a => !a.is_read).length}
+                  </Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="settings">
+                <Settings className="mr-2 h-4 w-4" />
+                Configurações
+              </TabsTrigger>
               <TabsTrigger value="history">
                 <History className="mr-2 h-4 w-4" />
                 Histórico
@@ -667,7 +782,13 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
               </Card>
             </TabsContent>
 
-            <TabsContent value="customers">
+            <TabsContent value="customers" className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Switch checked={showBlacklisted} onCheckedChange={(v) => { setShowBlacklisted(v); }} />
+                  <Label className="text-sm">Mostrar blacklist</Label>
+                </div>
+              </div>
               <Card>
                 <Table>
                   <TableHeader>
@@ -676,12 +797,14 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
                       <TableHead>Contato</TableHead>
                       <TableHead>Pendentes</TableHead>
                       <TableHead>Vencidos</TableHead>
-                      <TableHead>Total em Aberto</TableHead>
+                      <TableHead>Total</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {customers.map((customer) => (
-                      <TableRow key={customer.id}>
+                      <TableRow key={customer.id} className={customer.is_blacklisted ? "opacity-50 bg-red-500/5" : ""}>
                         <TableCell>
                           <p className="font-medium">{customer.name}</p>
                           <p className="text-sm text-muted-foreground">{customer.cpf_cnpj}</p>
@@ -691,13 +814,190 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
                           <p className="text-sm text-muted-foreground">{customer.email}</p>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline" className="text-yellow-500">
-                            {customer.pending_count}
-                          </Badge>
+                          <Badge variant="outline" className="text-yellow-500">{customer.pending_count}</Badge>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline" className="text-red-500">
-                            {customer.overdue_count}
+                          <Badge variant="outline" className="text-red-500">{customer.overdue_count}</Badge>
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          R$ {Number(customer.total_due || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            {customer.is_blacklisted && (
+                              <Badge className="bg-red-500 text-white"><Ban className="h-3 w-3 mr-1" />Blacklist</Badge>
+                            )}
+                            {customer.billing_paused && (
+                              <Badge className="bg-yellow-500 text-white"><Pause className="h-3 w-3 mr-1" />Pausado</Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            <Button variant="ghost" size="sm" onClick={() => handleToggleBlacklist(customer)} title={customer.is_blacklisted ? "Remover da blacklist" : "Adicionar à blacklist"}>
+                              <Ban className={`h-4 w-4 ${customer.is_blacklisted ? "text-red-500" : ""}`} />
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => handleTogglePause(customer)} title={customer.billing_paused ? "Retomar cobranças" : "Pausar cobranças"}>
+                              <Pause className={`h-4 w-4 ${customer.billing_paused ? "text-yellow-500" : ""}`} />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </Card>
+            </TabsContent>
+
+            {/* Alerts Tab */}
+            <TabsContent value="alerts" className="space-y-4">
+              <div className="flex justify-end">
+                <Button onClick={handleGenerateAlerts} variant="outline">
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Verificar Inadimplências
+                </Button>
+              </div>
+              <Card>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Cliente</TableHead>
+                      <TableHead>Alerta</TableHead>
+                      <TableHead>Valor</TableHead>
+                      <TableHead>Dias</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {alerts.map((alert) => (
+                      <TableRow key={alert.id} className={!alert.is_read ? "bg-yellow-500/5" : ""}>
+                        <TableCell>
+                          <p className="font-medium">{alert.customer_name}</p>
+                          <p className="text-sm text-muted-foreground">{alert.customer_phone}</p>
+                        </TableCell>
+                        <TableCell>
+                          <p className="font-medium">{alert.title}</p>
+                          <p className="text-sm text-muted-foreground">{alert.description}</p>
+                        </TableCell>
+                        <TableCell className="text-red-500 font-bold">
+                          R$ {Number(alert.total_overdue || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-red-500">{alert.days_overdue} dias</Badge>
+                        </TableCell>
+                        <TableCell>
+                          {alert.is_resolved ? (
+                            <Badge className="bg-green-500 text-white">Resolvido</Badge>
+                          ) : !alert.is_read ? (
+                            <Badge className="bg-yellow-500 text-white">Novo</Badge>
+                          ) : (
+                            <Badge variant="outline">Lido</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            {!alert.is_read && (
+                              <Button variant="ghost" size="sm" onClick={() => handleMarkAlertRead(alert.id)}>
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            )}
+                            {!alert.is_resolved && (
+                              <Button variant="ghost" size="sm" onClick={() => handleResolveAlert(alert.id)}>
+                                <Check className="h-4 w-4 text-green-500" />
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {alerts.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                          Nenhum alerta de inadimplência 🎉
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </Card>
+            </TabsContent>
+
+            {/* Settings Tab */}
+            <TabsContent value="settings" className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Shield className="h-5 w-5" />
+                      Limite de Mensagens
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Máximo de mensagens por cliente/dia</Label>
+                      <Input type="number" min={1} max={10} value={settingsForm.daily_message_limit_per_customer}
+                        onChange={(e) => setSettingsForm({...settingsForm, daily_message_limit_per_customer: parseInt(e.target.value) || 3})} />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Pause className="h-5 w-5" />
+                      Pausar Cobranças (Global)
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Switch checked={settingsForm.billing_paused} onCheckedChange={(v) => setSettingsForm({...settingsForm, billing_paused: v})} />
+                      <Label>Pausar todas as cobranças</Label>
+                    </div>
+                    {settingsForm.billing_paused && (
+                      <>
+                        <div className="space-y-2">
+                          <Label>Pausar até</Label>
+                          <Input type="date" value={settingsForm.billing_paused_until}
+                            onChange={(e) => setSettingsForm({...settingsForm, billing_paused_until: e.target.value})} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Motivo</Label>
+                          <Input placeholder="Ex: Férias, manutenção..." value={settingsForm.billing_paused_reason}
+                            onChange={(e) => setSettingsForm({...settingsForm, billing_paused_reason: e.target.value})} />
+                        </div>
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card className="md:col-span-2">
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <AlertTriangle className="h-5 w-5" />
+                      Alertas de Inadimplência
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>Valor limite para alerta (R$)</Label>
+                        <Input type="number" min={100} value={settingsForm.critical_alert_threshold}
+                          onChange={(e) => setSettingsForm({...settingsForm, critical_alert_threshold: parseFloat(e.target.value) || 1000})} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Dias de atraso para alerta</Label>
+                        <Input type="number" min={7} value={settingsForm.critical_alert_days}
+                          onChange={(e) => setSettingsForm({...settingsForm, critical_alert_days: parseInt(e.target.value) || 30})} />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+              <Button onClick={handleSaveSettings} disabled={loading}>
+                {loading ? "Salvando..." : "Salvar Configurações"}
+              </Button>
+            </TabsContent>
                           </Badge>
                         </TableCell>
                         <TableCell className="font-medium">
@@ -961,7 +1261,6 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
 
             {/* Notification History Tab */}
             <TabsContent value="history" className="space-y-4">
-              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <Select value={historyStatusFilter} onValueChange={setHistoryStatusFilter}>
                     <SelectTrigger className="w-48">
