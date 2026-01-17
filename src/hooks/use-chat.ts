@@ -1,4 +1,5 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { toast } from 'sonner';
 import { api } from '@/lib/api';
 
 export interface ConversationTag {
@@ -80,9 +81,91 @@ export interface ScheduledMessage {
   created_at: string;
 }
 
+export interface UserAlert {
+  id: string;
+  user_id: string;
+  type: string;
+  title: string;
+  message: string | null;
+  metadata: {
+    conversation_id?: string;
+    scheduled_message_id?: string;
+    message_preview?: string;
+  };
+  is_read: boolean;
+  created_at: string;
+}
+
 export const useChat = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const alertsPollingRef = useRef<NodeJS.Timeout | null>(null);
+  const lastAlertIdRef = useRef<string | null>(null);
+
+  // Alerts polling - show toast when new scheduled messages are sent
+  const getAlerts = useCallback(async (): Promise<UserAlert[]> => {
+    try {
+      const data = await api<UserAlert[]>('/api/chat/alerts');
+      return data;
+    } catch (err) {
+      console.error('Error fetching alerts:', err);
+      return [];
+    }
+  }, []);
+
+  const markAlertsRead = useCallback(async (alertIds: string[]): Promise<void> => {
+    try {
+      await api('/api/chat/alerts/read', {
+        method: 'POST',
+        body: { alert_ids: alertIds },
+      });
+    } catch (err) {
+      console.error('Error marking alerts as read:', err);
+    }
+  }, []);
+
+  // Start polling for alerts
+  const startAlertsPolling = useCallback(() => {
+    if (alertsPollingRef.current) return;
+
+    const pollAlerts = async () => {
+      const alerts = await getAlerts();
+      
+      if (alerts.length > 0) {
+        // Show toast for new alerts
+        const newAlerts = lastAlertIdRef.current 
+          ? alerts.filter(a => a.id !== lastAlertIdRef.current && new Date(a.created_at) > new Date(Date.now() - 60000))
+          : alerts.filter(a => new Date(a.created_at) > new Date(Date.now() - 10000));
+
+        newAlerts.forEach(alert => {
+          toast.success(alert.title, {
+            description: alert.message || undefined,
+            duration: 5000,
+          });
+        });
+
+        if (newAlerts.length > 0) {
+          // Mark as read
+          await markAlertsRead(newAlerts.map(a => a.id));
+        }
+
+        lastAlertIdRef.current = alerts[0]?.id || null;
+      }
+    };
+
+    // Initial poll
+    pollAlerts();
+
+    // Poll every 15 seconds
+    alertsPollingRef.current = setInterval(pollAlerts, 15000);
+  }, [getAlerts, markAlertsRead]);
+
+  const stopAlertsPolling = useCallback(() => {
+    if (alertsPollingRef.current) {
+      clearInterval(alertsPollingRef.current);
+      alertsPollingRef.current = null;
+    }
+  }, []);
 
   // Conversations
   const getConversations = useCallback(async (filters?: {
@@ -354,5 +437,10 @@ export const useChat = () => {
     scheduleMessage,
     cancelScheduledMessage,
     getScheduledCount,
+    // Alerts
+    getAlerts,
+    markAlertsRead,
+    startAlertsPolling,
+    stopAlertsPolling,
   };
 };

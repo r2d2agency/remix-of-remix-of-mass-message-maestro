@@ -155,6 +155,28 @@ export async function executeScheduledMessages() {
           [msg.conversation_id]
         );
 
+        // Create alert for user about sent scheduled message
+        const convInfo = await query(
+          `SELECT contact_name, contact_phone FROM conversations WHERE id = $1`,
+          [msg.conversation_id]
+        );
+        const contactName = convInfo.rows[0]?.contact_name || convInfo.rows[0]?.contact_phone || 'Contato';
+        
+        await query(
+          `INSERT INTO user_alerts (user_id, type, title, message, metadata)
+           VALUES ($1, 'scheduled_message_sent', $2, $3, $4)`,
+          [
+            msg.sender_id,
+            '📅 Mensagem agendada enviada',
+            `Mensagem enviada para ${contactName}`,
+            JSON.stringify({
+              conversation_id: msg.conversation_id,
+              scheduled_message_id: msg.id,
+              message_preview: msg.content?.substring(0, 100),
+            })
+          ]
+        );
+
         stats.sent++;
         console.log(`  ✓ Sent scheduled message ${msg.id}`);
       } else {

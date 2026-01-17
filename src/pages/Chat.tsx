@@ -21,6 +21,8 @@ const Chat = () => {
     removeTagFromConversation,
     getTeam,
     syncChatHistory,
+    startAlertsPolling,
+    stopAlertsPolling,
   } = useChat();
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -41,11 +43,16 @@ const Chat = () => {
     archived: false,
   });
 
-  // Load initial data
+  // Load initial data and start alerts polling
   useEffect(() => {
     loadConversations();
     loadTags();
     loadTeam();
+    startAlertsPolling();
+
+    return () => {
+      stopAlertsPolling();
+    };
   }, []);
 
   // Reload when filters change

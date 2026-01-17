@@ -892,4 +892,64 @@ router.get('/scheduled/count', authenticate, async (req, res) => {
   }
 });
 
+// ==========================================
+// ALERTS / NOTIFICATIONS
+// ==========================================
+
+// Get unread alerts for user
+router.get('/alerts', authenticate, async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT * FROM user_alerts 
+       WHERE user_id = $1 AND is_read = false 
+       ORDER BY created_at DESC 
+       LIMIT 20`,
+      [req.userId]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get alerts error:', error);
+    res.status(500).json({ error: 'Erro ao buscar alertas' });
+  }
+});
+
+// Mark alerts as read
+router.post('/alerts/read', authenticate, async (req, res) => {
+  try {
+    const { alert_ids } = req.body;
+
+    if (!alert_ids || !Array.isArray(alert_ids) || alert_ids.length === 0) {
+      return res.status(400).json({ error: 'IDs de alertas são obrigatórios' });
+    }
+
+    await query(
+      `UPDATE user_alerts 
+       SET is_read = true 
+       WHERE id = ANY($1) AND user_id = $2`,
+      [alert_ids, req.userId]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Mark alerts read error:', error);
+    res.status(500).json({ error: 'Erro ao marcar alertas como lidos' });
+  }
+});
+
+// Mark all alerts as read
+router.post('/alerts/read-all', authenticate, async (req, res) => {
+  try {
+    await query(
+      `UPDATE user_alerts SET is_read = true WHERE user_id = $1 AND is_read = false`,
+      [req.userId]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Mark all alerts read error:', error);
+    res.status(500).json({ error: 'Erro ao marcar alertas como lidos' });
+  }
+});
+
 export default router;
