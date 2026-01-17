@@ -221,23 +221,34 @@ router.get('/organizations', requireSuperadmin, async (req, res) => {
 // Create organization (superadmin only)
 router.post('/organizations', requireSuperadmin, async (req, res) => {
   try {
-    const { name, slug, logo_url, owner_email, plan_id, expires_at } = req.body;
+    const { name, slug, logo_url, owner_email, owner_name, owner_password, plan_id, expires_at } = req.body;
 
     if (!name || !slug || !owner_email) {
       return res.status(400).json({ error: 'Nome, slug e email do proprietário são obrigatórios' });
     }
 
-    // Find owner user
+    // Find or create owner user
+    let ownerId;
     const userResult = await query(
       `SELECT id FROM users WHERE email = $1`,
       [owner_email]
     );
 
     if (userResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Usuário proprietário não encontrado' });
-    }
+      // User doesn't exist, create one if password provided
+      if (!owner_password) {
+        return res.status(400).json({ error: 'Usuário não encontrado. Forneça nome e senha para criar novo usuário.' });
+      }
 
-    const ownerId = userResult.rows[0].id;
+      const hashedPassword = await bcrypt.hash(owner_password, 10);
+      const newUser = await query(
+        `INSERT INTO users (email, password_hash, name) VALUES ($1, $2, $3) RETURNING id`,
+        [owner_email, hashedPassword, owner_name || owner_email.split('@')[0]]
+      );
+      ownerId = newUser.rows[0].id;
+    } else {
+      ownerId = userResult.rows[0].id;
+    }
 
     // Create organization
     const orgResult = await query(

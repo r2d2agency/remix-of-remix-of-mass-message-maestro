@@ -226,6 +226,8 @@ export function useSuperadmin() {
     slug: string; 
     logo_url?: string;
     owner_email: string;
+    owner_name?: string;
+    owner_password?: string;
     plan_id?: string;
     expires_at?: string;
   }): Promise<Organization | null> => {

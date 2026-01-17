@@ -81,6 +81,8 @@ export default function Admin() {
   const [newOrgSlug, setNewOrgSlug] = useState('');
   const [newOrgLogo, setNewOrgLogo] = useState('');
   const [newOrgOwner, setNewOrgOwner] = useState('');
+  const [newOrgOwnerName, setNewOrgOwnerName] = useState('');
+  const [newOrgOwnerPassword, setNewOrgOwnerPassword] = useState('');
   const [newOrgPlan, setNewOrgPlan] = useState('');
   const [newOrgExpires, setNewOrgExpires] = useState<Date | undefined>();
 
@@ -270,6 +272,8 @@ export default function Admin() {
       slug: newOrgSlug.toLowerCase().replace(/[^a-z0-9-]/g, '-'),
       logo_url: newOrgLogo || undefined,
       owner_email: newOrgOwner,
+      owner_name: newOrgOwnerName || undefined,
+      owner_password: newOrgOwnerPassword || undefined,
       plan_id: newOrgPlan || undefined,
       expires_at: newOrgExpires?.toISOString()
     });
@@ -281,6 +285,8 @@ export default function Admin() {
       setNewOrgSlug('');
       setNewOrgLogo('');
       setNewOrgOwner('');
+      setNewOrgOwnerName('');
+      setNewOrgOwnerPassword('');
       setNewOrgPlan('');
       setNewOrgExpires(undefined);
       loadData();
@@ -734,6 +740,28 @@ export default function Admin() {
                         value={newOrgOwner}
                         onChange={(e) => setNewOrgOwner(e.target.value)}
                       />
+                      <p className="text-xs text-muted-foreground">
+                        Se o usuário não existir, preencha nome e senha abaixo para criá-lo.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Nome do Proprietário</Label>
+                        <Input
+                          placeholder="João Silva"
+                          value={newOrgOwnerName}
+                          onChange={(e) => setNewOrgOwnerName(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Senha (novo usuário)</Label>
+                        <Input
+                          type="password"
+                          placeholder="••••••••"
+                          value={newOrgOwnerPassword}
+                          onChange={(e) => setNewOrgOwnerPassword(e.target.value)}
+                        />
+                      </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
@@ -743,11 +771,17 @@ export default function Admin() {
                             <SelectValue placeholder="Selecione um plano" />
                           </SelectTrigger>
                           <SelectContent>
-                            {plans.filter(p => p.is_active).map(plan => (
-                              <SelectItem key={plan.id} value={plan.id}>
-                                {plan.name} - R$ {Number(plan.price).toFixed(2)}
-                              </SelectItem>
-                            ))}
+                            {plans.filter(p => p.is_active).length === 0 ? (
+                              <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+                                Nenhum plano ativo. Crie planos na aba "Planos".
+                              </div>
+                            ) : (
+                              plans.filter(p => p.is_active).map(plan => (
+                                <SelectItem key={plan.id} value={plan.id}>
+                                  {plan.name} - R$ {Number(plan.price).toFixed(2)}
+                                </SelectItem>
+                              ))
+                            )}
                           </SelectContent>
                         </Select>
                       </div>
