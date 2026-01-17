@@ -36,6 +36,7 @@ import {
   Loader2,
   Coffee,
   Settings2,
+  Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCampaigns, Campaign } from "@/hooks/use-campaigns";
@@ -75,7 +76,7 @@ const Campanhas = () => {
   const [campaignName, setCampaignName] = useState("");
   const [selectedConnection, setSelectedConnection] = useState("");
   const [selectedList, setSelectedList] = useState("");
-  const [selectedMessage, setSelectedMessage] = useState("");
+  const [selectedMessages, setSelectedMessages] = useState<string[]>([]);
   
   // Form state - Schedule
   const [startDate, setStartDate] = useState<Date>();
@@ -89,6 +90,7 @@ const Campanhas = () => {
   const [pauseAfterMessages, setPauseAfterMessages] = useState("20");
   const [pauseDuration, setPauseDuration] = useState("10");
   const [randomOrder, setRandomOrder] = useState(true);
+  const [randomMessages, setRandomMessages] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -115,7 +117,7 @@ const Campanhas = () => {
     setCampaignName("");
     setSelectedConnection("");
     setSelectedList("");
-    setSelectedMessage("");
+    setSelectedMessages([]);
     setStartDate(undefined);
     setEndDate(undefined);
     setStartTime("08:00");
@@ -125,10 +127,19 @@ const Campanhas = () => {
     setPauseAfterMessages("20");
     setPauseDuration("10");
     setRandomOrder(true);
+    setRandomMessages(false);
+  };
+
+  const toggleMessageSelection = (msgId: string) => {
+    setSelectedMessages(prev => 
+      prev.includes(msgId) 
+        ? prev.filter(id => id !== msgId)
+        : [...prev, msgId]
+    );
   };
 
   const handleCreateCampaign = async () => {
-    if (!campaignName || !selectedConnection || !selectedList || !selectedMessage) {
+    if (!campaignName || !selectedConnection || !selectedList || selectedMessages.length === 0) {
       toast.error("Preencha todos os campos obrigatórios");
       return;
     }
@@ -156,7 +167,7 @@ const Campanhas = () => {
         name: campaignName,
         connection_id: selectedConnection,
         list_id: selectedList,
-        message_id: selectedMessage,
+        message_ids: selectedMessages,
         start_date: startDate?.toISOString(),
         end_date: endDate?.toISOString(),
         start_time: startTime,
@@ -166,6 +177,7 @@ const Campanhas = () => {
         pause_after_messages: parseInt(pauseAfterMessages),
         pause_duration: parseInt(pauseDuration),
         random_order: randomOrder,
+        random_messages: randomMessages,
       });
       toast.success("Campanha criada com sucesso!");
       resetForm();
@@ -419,19 +431,42 @@ const Campanhas = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Mensagem</Label>
-                    <Select value={selectedMessage} onValueChange={setSelectedMessage}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione uma mensagem" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {messages.map((msg) => (
-                          <SelectItem key={msg.id} value={msg.id}>
-                            {msg.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="flex items-center justify-between">
+                      <Label>Mensagens ({selectedMessages.length} selecionadas)</Label>
+                      {selectedMessages.length > 1 && (
+                        <Badge variant="outline" className="text-xs">
+                          <Shuffle className="h-3 w-3 mr-1" />
+                          Envio aleatório
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="space-y-2 max-h-40 overflow-y-auto rounded-lg border p-2">
+                      {messages.map((msg) => (
+                        <div
+                          key={msg.id}
+                          className={cn(
+                            "flex items-center gap-2 p-2 rounded-md cursor-pointer transition-colors",
+                            selectedMessages.includes(msg.id)
+                              ? "bg-primary/10 border border-primary"
+                              : "hover:bg-accent"
+                          )}
+                          onClick={() => toggleMessageSelection(msg.id)}
+                        >
+                          <div className={cn(
+                            "w-4 h-4 rounded border flex items-center justify-center",
+                            selectedMessages.includes(msg.id) ? "bg-primary border-primary" : "border-muted-foreground"
+                          )}>
+                            {selectedMessages.includes(msg.id) && (
+                              <Check className="h-3 w-3 text-primary-foreground" />
+                            )}
+                          </div>
+                          <span className="text-sm">{msg.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Selecione múltiplas mensagens para envio aleatório entre contatos
+                    </p>
                   </div>
 
                   {/* Random Order Toggle */}

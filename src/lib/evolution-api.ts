@@ -135,6 +135,39 @@ export const evolutionApi = {
     }
   },
 
+  // Verificar se número é WhatsApp válido
+  async checkWhatsAppNumber(
+    config: EvolutionConfig,
+    phone: string
+  ): Promise<boolean> {
+    try {
+      const response = await fetch(
+        `${config.apiUrl}/chat/whatsappNumbers/${config.instanceName}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            apikey: config.apiKey,
+          },
+          body: JSON.stringify({
+            numbers: [phone],
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        return false;
+      }
+
+      const data = await response.json();
+      // Check if any number was found as valid WhatsApp
+      return data?.[0]?.exists === true;
+    } catch (error) {
+      console.error("Erro ao verificar número WhatsApp:", error);
+      return false;
+    }
+  },
+
   // Enviar mensagem de texto
   async sendTextMessage(
     config: EvolutionConfig,
@@ -160,6 +193,37 @@ export const evolutionApi = {
       return response.ok;
     } catch (error) {
       console.error("Erro ao enviar mensagem:", error);
+      return false;
+    }
+  },
+
+  // Enviar áudio como PTT (mensagem de voz)
+  async sendAudioMessage(
+    config: EvolutionConfig,
+    phone: string,
+    audioUrl: string,
+    ptt: boolean = true
+  ): Promise<boolean> {
+    try {
+      const response = await fetch(
+        `${config.apiUrl}/message/sendWhatsAppAudio/${config.instanceName}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            apikey: config.apiKey,
+          },
+          body: JSON.stringify({
+            number: phone,
+            audio: audioUrl,
+            encoding: true,
+          }),
+        }
+      );
+
+      return response.ok;
+    } catch (error) {
+      console.error("Erro ao enviar áudio:", error);
       return false;
     }
   },

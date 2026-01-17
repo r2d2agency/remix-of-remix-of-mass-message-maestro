@@ -40,7 +40,7 @@ export interface CreateCampaignData {
   name: string;
   connection_id: string;
   list_id: string;
-  message_id: string;
+  message_ids: string[];
   scheduled_at?: string;
   start_date?: string;
   end_date?: string;
@@ -51,6 +51,7 @@ export interface CreateCampaignData {
   pause_after_messages?: number;
   pause_duration?: number;
   random_order?: boolean;
+  random_messages?: boolean;
 }
 
 export const useCampaigns = () => {

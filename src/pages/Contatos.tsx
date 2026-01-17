@@ -21,22 +21,48 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Upload, Search, Users, FileSpreadsheet, Trash2, Loader2 } from "lucide-react";
+import {
+  Upload,
+  Search,
+  Users,
+  FileSpreadsheet,
+  Trash2,
+  Loader2,
+  Plus,
+  Edit,
+  Check,
+  X,
+  Phone,
+} from "lucide-react";
 import { useContacts, ContactList, Contact } from "@/hooks/use-contacts";
+import { ExcelImportDialog } from "@/components/contatos/ExcelImportDialog";
+import { evolutionApi } from "@/lib/evolution-api";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 const Contatos = () => {
-  const { loading, getLists, createList, deleteList, getContacts, importContacts, deleteContact } = useContacts();
-  
+  const {
+    loading,
+    getLists,
+    createList,
+    deleteList,
+    getContacts,
+    importContacts,
+    deleteContact,
+    updateContact,
+  } = useContacts();
+
   const [lists, setLists] = useState<ContactList[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedList, setSelectedList] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [isCreateListOpen, setIsCreateListOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
   const [newListName, setNewListName] = useState("");
   const [isLoadingContacts, setIsLoadingContacts] = useState(false);
+  const [editingContact, setEditingContact] = useState<string | null>(null);
+  const [validatingContact, setValidatingContact] = useState<string | null>(null);
 
   // Load lists on mount
   useEffect(() => {
@@ -82,7 +108,7 @@ const Contatos = () => {
       await createList(newListName);
       toast.success("Lista criada com sucesso!");
       setNewListName("");
-      setIsUploadOpen(false);
+      setIsCreateListOpen(false);
       loadLists();
     } catch (err) {
       toast.error("Erro ao criar lista");
@@ -110,38 +136,70 @@ const Contatos = () => {
     }
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !selectedList) return;
+  const handleUpdateContact = async (id: string, name: string, phone: string) => {
+    try {
+      await updateContact(id, { name, phone });
+      toast.success("Contato atualizado!");
+      setEditingContact(null);
+      if (selectedList) loadContacts(selectedList);
+    } catch (err) {
+      toast.error("Erro ao atualizar contato");
+    }
+  };
 
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      const text = event.target?.result as string;
-      const lines = text.split('\n').filter(line => line.trim());
-      
-      // Skip header if exists
-      const startIndex = lines[0]?.toLowerCase().includes('nome') ? 1 : 0;
-      
-      const contactsToImport = lines.slice(startIndex).map(line => {
-        const [name, phone] = line.split(/[,;]/).map(s => s.trim());
-        return { name: name || 'Sem nome', phone: phone || '' };
-      }).filter(c => c.phone);
+  const handleValidateWhatsApp = async (contactId: string, phone: string) => {
+    const config = evolutionApi.getConfig();
+    if (!config) {
+      toast.error("Configure a conexão Evolution API primeiro");
+      return;
+    }
 
-      if (contactsToImport.length === 0) {
-        toast.error("Nenhum contato válido encontrado no arquivo");
-        return;
+    setValidatingContact(contactId);
+    try {
+      const isValid = await evolutionApi.checkWhatsAppNumber(config, phone);
+      if (isValid) {
+        toast.success("Número é WhatsApp válido!");
+        await updateContact(contactId, { is_whatsapp: true });
+      } else {
+        toast.error("Número não é WhatsApp válido");
+        await updateContact(contactId, { is_whatsapp: false });
       }
+      if (selectedList) loadContacts(selectedList);
+    } catch (err) {
+      toast.error("Erro ao validar número");
+    } finally {
+      setValidatingContact(null);
+    }
+  };
 
-      try {
-        const count = await importContacts(selectedList, contactsToImport);
-        toast.success(`${count} contatos importados com sucesso!`);
-        loadContacts(selectedList);
-        loadLists();
-      } catch (err) {
-        toast.error("Erro ao importar contatos");
-      }
-    };
-    reader.readAsText(file);
+  const handleImportContacts = async (
+    contactsToImport: { name: string; phone: string; customFields?: Record<string, string> }[]
+  ) => {
+    if (!selectedList) {
+      toast.error("Selecione uma lista primeiro");
+      return;
+    }
+
+    try {
+      const count = await importContacts(
+        selectedList,
+        contactsToImport.map((c) => ({ name: c.name, phone: c.phone }))
+      );
+      toast.success(`${count} contatos importados com sucesso!`);
+      loadContacts(selectedList);
+      loadLists();
+    } catch (err) {
+      toast.error("Erro ao importar contatos");
+      throw err;
+    }
+  };
+
+  const validateWhatsAppNumber = async (phone: string): Promise<boolean> => {
+    const config = evolutionApi.getConfig();
+    if (!config) {
+      throw new Error("Evolution API não configurada");
+    }
+    return evolutionApi.checkWhatsAppNumber(config, phone);
   };
 
   const filteredContacts = contacts.filter(
@@ -163,10 +221,10 @@ const Contatos = () => {
               Gerencie suas listas de contatos
             </p>
           </div>
-          <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
+          <Dialog open={isCreateListOpen} onOpenChange={setIsCreateListOpen}>
             <DialogTrigger asChild>
               <Button variant="gradient">
-                <Upload className="h-4 w-4" />
+                <Plus className="h-4 w-4" />
                 Nova Lista
               </Button>
             </DialogTrigger>
@@ -189,7 +247,7 @@ const Contatos = () => {
                 </div>
               </div>
               <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setIsUploadOpen(false)}>
+                <Button variant="outline" onClick={() => setIsCreateListOpen(false)}>
                   Cancelar
                 </Button>
                 <Button variant="gradient" onClick={handleCreateList} disabled={loading}>
@@ -251,8 +309,8 @@ const Contatos = () => {
                     <Badge variant="secondary">
                       {format(new Date(list.created_at), "dd/MM/yy", { locale: ptBR })}
                     </Badge>
-                    <Button 
-                      variant="ghost" 
+                    <Button
+                      variant="ghost"
                       size="icon"
                       onClick={(e) => {
                         e.stopPropagation();
@@ -272,17 +330,13 @@ const Contatos = () => {
         {selectedList && (
           <Card className="animate-fade-in shadow-card">
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <CardTitle>
-                    {lists.find((l) => l.id === selectedList)?.name || "Contatos"}
-                  </CardTitle>
-                  <CardDescription>
-                    {filteredContacts.length} contatos
-                  </CardDescription>
+                  <CardTitle>{lists.find((l) => l.id === selectedList)?.name || "Contatos"}</CardTitle>
+                  <CardDescription>{filteredContacts.length} contatos</CardDescription>
                 </div>
-                <div className="flex items-center gap-4">
-                  <div className="relative w-64">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <div className="relative w-full sm:w-64">
                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
                       placeholder="Buscar contatos..."
@@ -291,14 +345,10 @@ const Contatos = () => {
                       className="pl-10"
                     />
                   </div>
-                  <div>
-                    <Input
-                      type="file"
-                      accept=".csv,.txt"
-                      onChange={handleFileUpload}
-                      className="max-w-[200px]"
-                    />
-                  </div>
+                  <Button variant="outline" onClick={() => setIsImportOpen(true)}>
+                    <Upload className="h-4 w-4" />
+                    Importar Excel
+                  </Button>
                 </div>
               </div>
             </CardHeader>
@@ -311,7 +361,11 @@ const Contatos = () => {
                 <div className="text-center py-8 text-muted-foreground">
                   <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
                   <p>Nenhum contato nesta lista</p>
-                  <p className="text-sm">Importe um arquivo CSV para adicionar contatos</p>
+                  <p className="text-sm mb-4">Importe um arquivo Excel para adicionar contatos</p>
+                  <Button variant="outline" onClick={() => setIsImportOpen(true)}>
+                    <Upload className="h-4 w-4" />
+                    Importar do Excel
+                  </Button>
                 </div>
               ) : (
                 <Table>
@@ -319,22 +373,71 @@ const Contatos = () => {
                     <TableRow>
                       <TableHead>Nome</TableHead>
                       <TableHead>Telefone</TableHead>
+                      <TableHead>WhatsApp</TableHead>
                       <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredContacts.map((contact) => (
                       <TableRow key={contact.id}>
-                        <TableCell className="font-medium">{contact.name}</TableCell>
-                        <TableCell>{contact.phone}</TableCell>
+                        <TableCell>
+                          {editingContact === contact.id ? (
+                            <Input
+                              defaultValue={contact.name}
+                              onBlur={(e) => handleUpdateContact(contact.id, e.target.value, contact.phone)}
+                              autoFocus
+                            />
+                          ) : (
+                            <span className="font-medium">{contact.name}</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {editingContact === contact.id ? (
+                            <Input defaultValue={contact.phone} id={`phone-${contact.id}`} />
+                          ) : (
+                            <span className="font-mono text-sm">{contact.phone}</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {contact.is_whatsapp === true ? (
+                            <Badge className="bg-green-500/10 text-green-500 border-0">
+                              <Check className="h-3 w-3 mr-1" />
+                              Válido
+                            </Badge>
+                          ) : contact.is_whatsapp === false ? (
+                            <Badge className="bg-destructive/10 text-destructive border-0">
+                              <X className="h-3 w-3 mr-1" />
+                              Inválido
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline">Não verificado</Badge>
+                          )}
+                        </TableCell>
                         <TableCell className="text-right">
-                          <Button 
-                            variant="ghost" 
-                            size="icon"
-                            onClick={() => handleDeleteContact(contact.id)}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleValidateWhatsApp(contact.id, contact.phone)}
+                              disabled={validatingContact === contact.id}
+                            >
+                              {validatingContact === contact.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Phone className="h-4 w-4" />
+                              )}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setEditingContact(editingContact === contact.id ? null : contact.id)}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => handleDeleteContact(contact.id)}>
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -344,6 +447,14 @@ const Contatos = () => {
             </CardContent>
           </Card>
         )}
+
+        {/* Excel Import Dialog */}
+        <ExcelImportDialog
+          open={isImportOpen}
+          onOpenChange={setIsImportOpen}
+          onImport={handleImportContacts}
+          validateWhatsApp={validateWhatsAppNumber}
+        />
       </div>
     </MainLayout>
   );

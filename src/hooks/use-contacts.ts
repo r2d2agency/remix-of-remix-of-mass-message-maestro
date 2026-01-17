@@ -15,6 +15,8 @@ export interface Contact {
   list_id: string;
   name: string;
   phone: string;
+  is_whatsapp?: boolean | null;
+  custom_fields?: Record<string, string>;
   created_at: string;
 }
 
@@ -134,6 +136,24 @@ export const useContacts = () => {
     }
   }, []);
 
+  const updateContact = useCallback(async (id: string, updates: { name?: string; phone?: string; is_whatsapp?: boolean }): Promise<Contact> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await api<Contact>(`/api/contacts/${id}`, {
+        method: 'PATCH',
+        body: updates,
+      });
+      return data;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao atualizar contato';
+      setError(message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   return {
     loading,
     error,
@@ -144,5 +164,6 @@ export const useContacts = () => {
     addContact,
     importContacts,
     deleteContact,
+    updateContact,
   };
 };
