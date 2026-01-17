@@ -10,6 +10,9 @@ const router = Router();
 // In-memory cache for typing status (cleared after 10 seconds)
 const typingStatus = new Map(); // Map<conversationId, { isTyping: boolean, timestamp: number }>
 
+// Lightweight in-memory diagnostics: last webhook received per instance
+const lastWebhookByInstance = new Map(); // Map<instanceName, { at: string, event: string|null, dataKeys: string[] }>
+
 const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL;
 const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY;
 const WEBHOOK_BASE_URL = process.env.WEBHOOK_BASE_URL || process.env.API_BASE_URL || 'https://whastsale-backend.exf0ty.easypanel.host';
@@ -781,6 +784,19 @@ router.post('/webhook', async (req, res) => {
     const normalizedEvent = event?.replace(/_/g, '.').toLowerCase();
     console.log('Webhook: Normalized event:', normalizedEvent);
 
+    // Track last webhook received (helps debug “webhook healthy but no messages”) 
+    try {
+      const safeData = payload?.data && typeof payload.data === 'object' ? payload.data : null;
+      const dataKeys = safeData ? Object.keys(safeData).slice(0, 15) : [];
+      lastWebhookByInstance.set(instanceName, {
+        at: new Date().toISOString(),
+        event: normalizedEvent || (typeof event === 'string' ? event : null),
+        dataKeys,
+      });
+    } catch {
+      // ignore diagnostics errors
+    }
+
     // Handle different event types
     switch (normalizedEvent) {
       case 'messages.upsert':
@@ -855,6 +871,8 @@ router.get('/:connectionId/webhook-diagnostic', authenticate, async (req, res) =
         url: WEBHOOK_BASE_URL || 'NOT SET',
         expectedEndpoint: WEBHOOK_BASE_URL ? `${WEBHOOK_BASE_URL}/api/evolution/webhook` : 'NOT SET',
       },
+      // Shows if THIS backend is actually receiving events from Evolution
+      lastWebhookReceived: lastWebhookByInstance.get(connection.instance_name) || null,
       evolutionWebhook: null,
       instanceStatus: null,
       errors: [],
@@ -1023,11 +1041,28 @@ function isLocalUploadsUrl(url) {
 // Handle incoming/outgoing messages
 async function handleMessageUpsert(connection, data) {
   try {
-    const message = data.message || data;
-    const key = data.key || message.key;
-    
+    // Evolution sometimes wraps messages in arrays/containers depending on version/config.
+    const candidates =
+      Array.isArray(data) ? data :
+      Array.isArray(data?.messages) ? data.messages :
+      Array.isArray(data?.data?.messages) ? data.data.messages :
+      Array.isArray(data?.data) ? data.data :
+      null;
+
+    if (candidates) {
+      for (const item of candidates) {
+        await handleMessageUpsert(connection, item);
+      }
+      return;
+    }
+
+    const message = data?.message || data;
+    const key = data?.key || message?.key;
+
     if (!key) {
-      console.log('Webhook: No message key found');
+      console.log('Webhook: No message key found', {
+        topLevelKeys: Object.keys(data || {}).slice(0, 15),
+      });
       return;
     }
 
