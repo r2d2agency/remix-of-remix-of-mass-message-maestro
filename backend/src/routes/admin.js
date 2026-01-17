@@ -28,11 +28,13 @@ const requireSuperadmin = async (req, res, next) => {
 // Check if current user is superadmin
 router.get('/check', async (req, res) => {
   try {
+    console.log('Checking superadmin for userId:', req.userId);
     const result = await query(
-      `SELECT is_superadmin FROM users WHERE id = $1`,
+      `SELECT id, email, is_superadmin FROM users WHERE id = $1`,
       [req.userId]
     );
     
+    console.log('User found:', result.rows[0]);
     res.json({ isSuperadmin: result.rows[0]?.is_superadmin || false });
   } catch (error) {
     console.error('Check superadmin error:', error);
