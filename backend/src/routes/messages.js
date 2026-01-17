@@ -5,12 +5,41 @@ import { authenticate } from '../middleware/auth.js';
 const router = Router();
 router.use(authenticate);
 
-// List user message templates
+// Helper to get user's organization
+async function getUserOrganization(userId) {
+  const result = await query(
+    `SELECT om.organization_id, om.role 
+     FROM organization_members om 
+     WHERE om.user_id = $1 
+     LIMIT 1`,
+    [userId]
+  );
+  return result.rows[0] || null;
+}
+
+// List message templates (user's own + organization's)
 router.get('/', async (req, res) => {
   try {
+    const org = await getUserOrganization(req.userId);
+
+    let whereClause = 'mt.user_id = $1';
+    let params = [req.userId];
+
+    if (org) {
+      // Get messages from user OR from members of same organization
+      whereClause = `(mt.user_id = $1 OR mt.user_id IN (
+        SELECT user_id FROM organization_members WHERE organization_id = $2
+      ))`;
+      params = [req.userId, org.organization_id];
+    }
+
     const result = await query(
-      'SELECT * FROM message_templates WHERE user_id = $1 ORDER BY created_at DESC',
-      [req.userId]
+      `SELECT mt.*, u.name as created_by_name
+       FROM message_templates mt
+       LEFT JOIN users u ON mt.user_id = u.id
+       WHERE ${whereClause}
+       ORDER BY mt.created_at DESC`,
+      params
     );
     res.json(result.rows);
   } catch (error) {
@@ -23,9 +52,21 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const org = await getUserOrganization(req.userId);
+
+    let whereClause = 'id = $1 AND user_id = $2';
+    let params = [id, req.userId];
+
+    if (org) {
+      whereClause = `id = $1 AND (user_id = $2 OR user_id IN (
+        SELECT user_id FROM organization_members WHERE organization_id = $3
+      ))`;
+      params = [id, req.userId, org.organization_id];
+    }
+
     const result = await query(
-      'SELECT * FROM message_templates WHERE id = $1 AND user_id = $2',
-      [id, req.userId]
+      `SELECT * FROM message_templates WHERE ${whereClause}`,
+      params
     );
 
     if (result.rows.length === 0) {
@@ -67,14 +108,29 @@ router.patch('/:id', async (req, res) => {
     const { id } = req.params;
     const { name, items } = req.body;
 
+    const org = await getUserOrganization(req.userId);
+
+    let whereClause = 'id = $3 AND user_id = $4';
+    let params = [name, items ? JSON.stringify(items) : null, id, req.userId];
+
+    if (org) {
+      // Allow editing own messages or org messages if has permission
+      if (['owner', 'admin', 'manager'].includes(org.role)) {
+        whereClause = `id = $3 AND (user_id = $4 OR user_id IN (
+          SELECT user_id FROM organization_members WHERE organization_id = $5
+        ))`;
+        params = [name, items ? JSON.stringify(items) : null, id, req.userId, org.organization_id];
+      }
+    }
+
     const result = await query(
       `UPDATE message_templates 
        SET name = COALESCE($1, name),
            items = COALESCE($2, items),
            updated_at = NOW()
-       WHERE id = $3 AND user_id = $4
+       WHERE ${whereClause}
        RETURNING *`,
-      [name, items ? JSON.stringify(items) : null, id, req.userId]
+      params
     );
 
     if (result.rows.length === 0) {
@@ -93,9 +149,21 @@ router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
+    const org = await getUserOrganization(req.userId);
+
+    let whereClause = 'id = $1 AND user_id = $2';
+    let params = [id, req.userId];
+
+    if (org && ['owner', 'admin', 'manager'].includes(org.role)) {
+      whereClause = `id = $1 AND (user_id = $2 OR user_id IN (
+        SELECT user_id FROM organization_members WHERE organization_id = $3
+      ))`;
+      params = [id, req.userId, org.organization_id];
+    }
+
     const result = await query(
-      'DELETE FROM message_templates WHERE id = $1 AND user_id = $2 RETURNING id',
-      [id, req.userId]
+      `DELETE FROM message_templates WHERE ${whereClause} RETURNING id`,
+      params
     );
 
     if (result.rows.length === 0) {
