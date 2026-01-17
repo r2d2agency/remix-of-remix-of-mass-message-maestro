@@ -20,6 +20,7 @@ const Chat = () => {
     addTagToConversation,
     removeTagFromConversation,
     getTeam,
+    syncChatHistory,
   } = useChat();
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -31,6 +32,7 @@ const Chat = () => {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sendingMessage, setSendingMessage] = useState(false);
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
+  const [syncingHistory, setSyncingHistory] = useState(false);
 
   const [filters, setFilters] = useState({
     search: '',
@@ -241,6 +243,29 @@ const Chat = () => {
     }
   };
 
+  const handleSyncHistory = async (days: number) => {
+    if (!selectedConversation) return;
+    setSyncingHistory(true);
+    try {
+      const result = await syncChatHistory({
+        connectionId: selectedConversation.connection_id,
+        remoteJid: selectedConversation.remote_jid,
+        days,
+      });
+
+      // Refresh messages and conversations
+      const msgs = await getMessages(selectedConversation.id);
+      setMessages(msgs);
+      loadConversations();
+
+      toast.success(result.message || `Sincronizado (${result.imported} mensagens)`);
+    } catch (error: any) {
+      toast.error(error?.message || 'Erro ao sincronizar histórico');
+    } finally {
+      setSyncingHistory(false);
+    }
+  };
+
   return (
     <MainLayout>
       <div className="h-[calc(100vh-120px)] flex rounded-lg border overflow-hidden bg-background shadow-lg">
@@ -267,6 +292,8 @@ const Chat = () => {
           sending={sendingMessage}
           tags={tags}
           team={team}
+          syncingHistory={syncingHistory}
+          onSyncHistory={handleSyncHistory}
           onSendMessage={handleSendMessage}
           onLoadMore={handleLoadMoreMessages}
           hasMore={hasMoreMessages}

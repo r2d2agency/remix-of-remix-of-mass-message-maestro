@@ -46,6 +46,7 @@ import {
   Upload,
   ArrowLeftRight,
   Plus,
+  RefreshCw,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -59,8 +60,10 @@ interface ChatAreaProps {
   messages: ChatMessage[];
   loading: boolean;
   sending: boolean;
+  syncingHistory?: boolean;
   tags: ConversationTag[];
   team: TeamMember[];
+  onSyncHistory?: (days: number) => Promise<void>;
   onSendMessage: (content: string, type?: string, mediaUrl?: string) => Promise<void>;
   onLoadMore: () => void;
   hasMore: boolean;
@@ -92,8 +95,10 @@ export function ChatArea({
   messages,
   loading,
   sending,
+  syncingHistory,
   tags,
   team,
+  onSyncHistory,
   onSendMessage,
   onLoadMore,
   hasMore,
@@ -108,6 +113,8 @@ export function ChatArea({
   const [showTransferDialog, setShowTransferDialog] = useState(false);
   const [transferTo, setTransferTo] = useState<string>("");
   const [transferNote, setTransferNote] = useState("");
+  const [showSyncDialog, setShowSyncDialog] = useState(false);
+  const [syncDays, setSyncDays] = useState<string>("7");
   const [showTagDialog, setShowTagDialog] = useState(false);
   const [newTagName, setNewTagName] = useState("");
   const [newTagColor, setNewTagColor] = useState("#6366f1");
@@ -230,6 +237,24 @@ export function ChatArea({
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Sync */}
+          {!!onSyncHistory && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setShowSyncDialog(true)}
+              disabled={!!syncingHistory}
+              title="Sincronizar histórico"
+            >
+              {syncingHistory ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+            </Button>
+          )}
+
           {/* Tags */}
           <div className="flex items-center gap-1">
             {conversation.tags.slice(0, 3).map(tag => (
@@ -357,33 +382,35 @@ export function ChatArea({
                 )}
               >
                 {/* Media content */}
-                {msg.message_type === 'image' && msg.media_url && (
+                {(msg.message_type === 'image' || (msg.media_mimetype?.startsWith('image/') ?? false)) && msg.media_url && (
                   <a href={msg.media_url} target="_blank" rel="noopener noreferrer">
                     <img
                       src={msg.media_url}
                       alt="Imagem"
+                      loading="lazy"
                       className="rounded max-w-full max-h-[300px] mb-2 cursor-pointer hover:opacity-90"
                       crossOrigin="anonymous"
                     />
                   </a>
                 )}
-                {msg.message_type === 'video' && msg.media_url && (
+
+                {(msg.message_type === 'video' || (msg.media_mimetype?.startsWith('video/') ?? false)) && msg.media_url && (
                   <div className="mb-2">
                     <video
                       controls
-                      controlsList="nodownload"
                       playsInline
                       preload="metadata"
                       className="rounded max-w-full max-h-[300px]"
                       crossOrigin="anonymous"
                     >
+                      {msg.media_mimetype && <source src={msg.media_url} type={msg.media_mimetype} />}
                       <source src={msg.media_url} type="video/mp4" />
                       <source src={msg.media_url} type="video/webm" />
                       Seu navegador não suporta vídeo.
                     </video>
-                    <a 
-                      href={msg.media_url} 
-                      target="_blank" 
+                    <a
+                      href={msg.media_url}
+                      target="_blank"
                       rel="noopener noreferrer"
                       className="text-xs underline opacity-70 hover:opacity-100"
                     >
@@ -391,29 +418,22 @@ export function ChatArea({
                     </a>
                   </div>
                 )}
-                {msg.message_type === 'audio' && (
+
+                {(msg.message_type === 'audio' || (msg.media_mimetype?.startsWith('audio/') ?? false)) && (
                   msg.media_url ? (
                     <div className="mb-2">
-                      <audio 
-                        controls 
-                        controlsList="nodownload"
+                      <audio
+                        controls
                         preload="auto"
                         className="w-full max-w-[280px]"
                         crossOrigin="anonymous"
                       >
+                        {msg.media_mimetype && <source src={msg.media_url} type={msg.media_mimetype} />}
                         <source src={msg.media_url} type="audio/ogg" />
                         <source src={msg.media_url} type="audio/mpeg" />
                         <source src={msg.media_url} type="audio/mp4" />
                         Seu navegador não suporta áudio.
                       </audio>
-                      <a 
-                        href={msg.media_url} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-xs underline opacity-70 hover:opacity-100"
-                      >
-                        Baixar áudio
-                      </a>
                     </div>
                   ) : (
                     <div className="flex items-center gap-2 text-sm opacity-70 mb-2">
@@ -554,6 +574,49 @@ export function ChatArea({
             </Button>
             <Button onClick={handleTransfer}>
               Transferir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Sync Dialog */}
+      <Dialog open={showSyncDialog} onOpenChange={setShowSyncDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Sincronizar histórico</DialogTitle>
+            <DialogDescription>
+              Importa mensagens antigas do WhatsApp para esta conversa.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Select value={syncDays} onValueChange={setSyncDays}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione o período" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">Último 1 dia</SelectItem>
+                <SelectItem value="3">Últimos 3 dias</SelectItem>
+                <SelectItem value="7">Últimos 7 dias</SelectItem>
+                <SelectItem value="30">Últimos 30 dias</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Dica: use isso quando mídias antigas não aparecem ou para recuperar histórico.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowSyncDialog(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!onSyncHistory) return;
+                await onSyncHistory(parseInt(syncDays, 10));
+                setShowSyncDialog(false);
+              }}
+              disabled={!onSyncHistory || !!syncingHistory}
+            >
+              {syncingHistory ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Sincronizar'}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -181,6 +181,25 @@ export const useChat = () => {
     return data;
   }, []);
 
+  // History sync
+  const syncChatHistory = useCallback(async (params: {
+    connectionId: string;
+    remoteJid: string;
+    days?: number;
+  }): Promise<{ imported: number; skipped?: number; total?: number; message?: string }> => {
+    const data = await api<{ imported: number; skipped?: number; total?: number; message?: string }>(
+      `/api/evolution/${params.connectionId}/sync-chat`,
+      {
+        method: 'POST',
+        body: {
+          remoteJid: params.remoteJid,
+          days: params.days ?? 7,
+        },
+      }
+    );
+    return data;
+  }, []);
+
   return {
     loading,
     error,
@@ -201,5 +220,7 @@ export const useChat = () => {
     removeTagFromConversation,
     // Team
     getTeam,
+    // History sync
+    syncChatHistory,
   };
 };

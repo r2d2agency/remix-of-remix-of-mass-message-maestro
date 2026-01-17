@@ -18,46 +18,65 @@ if (!fs.existsSync(UPLOADS_DIR)) {
 }
 
 // Download media from Evolution API and save locally
-async function downloadAndSaveMedia(connection, messageId, messageType) {
+async function downloadAndSaveMedia(connection, messageObj, messageType) {
   try {
+    const messageId = messageObj?.key?.id || messageObj?.message?.key?.id;
+    if (!messageId) {
+      console.log('downloadAndSaveMedia: missing messageId');
+      return null;
+    }
+
     console.log('Downloading media for message:', messageId, 'type:', messageType);
-    
-    // Get media from Evolution API
+
+    // Send the full message object when available (Evolution usually needs remoteJid + other fields)
+    const payload = {
+      message: messageObj?.message ? messageObj : { key: messageObj?.key, message: messageObj?.message },
+      convertToMp4: messageType === 'video',
+    };
+
     const mediaResponse = await fetch(
       `${EVOLUTION_API_URL}/chat/getBase64FromMediaMessage/${connection.instance_name}`,
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'apikey': EVOLUTION_API_KEY,
+          apikey: EVOLUTION_API_KEY,
         },
-        body: JSON.stringify({
-          message: {
-            key: {
-              id: messageId
-            }
-          },
-          convertToMp4: messageType === 'video' || messageType === 'audio'
-        })
+        body: JSON.stringify(payload),
       }
     );
 
     if (!mediaResponse.ok) {
-      console.error('Failed to get media from Evolution:', mediaResponse.status);
+      const text = await mediaResponse.text().catch(() => '');
+      console.error('Failed to get media from Evolution:', mediaResponse.status, text);
       return null;
     }
 
-    const mediaData = await mediaResponse.json();
-    
-    if (!mediaData.base64) {
+    const mediaData = await mediaResponse.json().catch(() => null);
+    const rawBase64 =
+      mediaData?.base64 ||
+      mediaData?.data ||
+      mediaData?.base64Data ||
+      null;
+
+    if (!rawBase64 || typeof rawBase64 !== 'string') {
       console.log('No base64 data in response');
       return null;
     }
 
+    // Some responses come as data URL: "data:audio/ogg;base64,AAAA..."
+    let base64 = rawBase64.trim();
+    const dataUrlIdx = base64.indexOf('base64,');
+    if (base64.startsWith('data:') && dataUrlIdx !== -1) {
+      base64 = base64.slice(dataUrlIdx + 'base64,'.length);
+    }
+    base64 = base64.replace(/\s/g, '');
+
+    const rawMimetype = (mediaData?.mimetype || mediaData?.mimeType || mediaData?.type || 'application/octet-stream');
+    const mimetype = String(rawMimetype).toLowerCase();
+
     // Determine file extension based on mimetype
-    const mimetype = mediaData.mimetype || 'application/octet-stream';
     let ext = '.bin';
-    
     if (mimetype.includes('image/jpeg') || mimetype.includes('image/jpg')) ext = '.jpg';
     else if (mimetype.includes('image/png')) ext = '.png';
     else if (mimetype.includes('image/gif')) ext = '.gif';
@@ -67,24 +86,21 @@ async function downloadAndSaveMedia(connection, messageId, messageType) {
     else if (mimetype.includes('audio/mp4') || mimetype.includes('audio/m4a')) ext = '.m4a';
     else if (mimetype.includes('audio/')) ext = '.ogg';
     else if (mimetype.includes('video/mp4')) ext = '.mp4';
+    else if (mimetype.includes('video/webm')) ext = '.webm';
     else if (mimetype.includes('video/')) ext = '.mp4';
     else if (mimetype.includes('application/pdf')) ext = '.pdf';
-    else if (mimetype.includes('document')) ext = '.pdf';
 
-    // Generate unique filename
     const filename = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${ext}`;
     const filePath = path.join(UPLOADS_DIR, filename);
 
-    // Decode base64 and save file
-    const buffer = Buffer.from(mediaData.base64, 'base64');
+    const buffer = Buffer.from(base64, 'base64');
     fs.writeFileSync(filePath, buffer);
 
-    console.log('Media saved:', filename, 'size:', buffer.length);
+    console.log('Media saved:', filename, 'size:', buffer.length, 'mimetype:', mimetype);
 
-    // Return the public URL
     return {
       url: `${API_BASE_URL}/uploads/${filename}`,
-      mimetype: mimetype
+      mimetype,
     };
   } catch (error) {
     console.error('Error downloading media:', error.message);
@@ -927,18 +943,17 @@ async function handleMessageUpsert(connection, data) {
 
     // Download and save media locally for media types
     const mediaTypes = ['image', 'audio', 'video', 'document', 'sticker'];
-    if (mediaTypes.includes(messageType) && !fromMe) {
+    if (mediaTypes.includes(messageType) && !mediaUrl) {
       console.log('Webhook: Downloading media for message:', messageId);
-      
-      // Try to download media from Evolution API
-      const localMedia = await downloadAndSaveMedia(connection, messageId, messageType);
-      
+
+      const localMedia = await downloadAndSaveMedia(connection, message, messageType);
+
       if (localMedia) {
         mediaUrl = localMedia.url;
         mediaMimetype = localMedia.mimetype || mediaMimetype;
         console.log('Webhook: Media downloaded and saved:', mediaUrl);
       } else {
-        console.log('Webhook: Could not download media, keeping original URL');
+        console.log('Webhook: Could not download media');
       }
     }
 
@@ -1276,6 +1291,7 @@ router.post('/:connectionId/sync-chat', authenticate, async (req, res) => {
         let content = '';
         let messageType = 'text';
         let mediaUrl = null;
+        let mediaMimetype = null;
 
         if (msgContent.conversation) {
           content = msgContent.conversation;
@@ -1284,24 +1300,39 @@ router.post('/:connectionId/sync-chat', authenticate, async (req, res) => {
         } else if (msgContent.imageMessage) {
           messageType = 'image';
           content = msgContent.imageMessage.caption || '[Imagem]';
+          mediaMimetype = msgContent.imageMessage.mimetype || null;
           mediaUrl = msgContent.imageMessage.url;
         } else if (msgContent.videoMessage) {
           messageType = 'video';
           content = msgContent.videoMessage.caption || '[Vídeo]';
+          mediaMimetype = msgContent.videoMessage.mimetype || null;
           mediaUrl = msgContent.videoMessage.url;
         } else if (msgContent.audioMessage) {
           messageType = 'audio';
           content = '[Áudio]';
+          mediaMimetype = msgContent.audioMessage.mimetype || null;
           mediaUrl = msgContent.audioMessage.url;
         } else if (msgContent.documentMessage) {
           messageType = 'document';
           content = msgContent.documentMessage.fileName || '[Documento]';
+          mediaMimetype = msgContent.documentMessage.mimetype || null;
           mediaUrl = msgContent.documentMessage.url;
         } else if (msgContent.stickerMessage) {
           messageType = 'sticker';
           content = '[Figurinha]';
+          mediaMimetype = msgContent.stickerMessage.mimetype || null;
+          mediaUrl = msgContent.stickerMessage.url;
         } else {
           content = '[Mensagem não suportada]';
+        }
+
+        const mediaTypes = ['image', 'audio', 'video', 'document', 'sticker'];
+        if (mediaTypes.includes(messageType) && !mediaUrl) {
+          const localMedia = await downloadAndSaveMedia(connection, msg, messageType);
+          if (localMedia) {
+            mediaUrl = localMedia.url;
+            mediaMimetype = localMedia.mimetype || mediaMimetype;
+          }
         }
 
         const timestamp = msg.messageTimestamp 
@@ -1310,8 +1341,8 @@ router.post('/:connectionId/sync-chat', authenticate, async (req, res) => {
 
         await query(
           `INSERT INTO chat_messages 
-            (conversation_id, message_id, from_me, content, message_type, media_url, status, timestamp)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+            (conversation_id, message_id, from_me, content, message_type, media_url, media_mimetype, status, timestamp)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
           [
             conversationId,
             messageId,
@@ -1319,6 +1350,7 @@ router.post('/:connectionId/sync-chat', authenticate, async (req, res) => {
             content,
             messageType,
             mediaUrl,
+            mediaMimetype,
             'received',
             timestamp
           ]
