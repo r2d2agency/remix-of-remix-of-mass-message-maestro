@@ -1,11 +1,96 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
+import fs from 'fs';
+import path from 'path';
+import crypto from 'crypto';
 
 const router = Router();
 
 const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL;
 const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY;
+const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
+const API_BASE_URL = process.env.API_BASE_URL || 'https://whastsale-backend.exf0ty.easypanel.host';
+
+// Ensure uploads directory exists
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+
+// Download media from Evolution API and save locally
+async function downloadAndSaveMedia(connection, messageId, messageType) {
+  try {
+    console.log('Downloading media for message:', messageId, 'type:', messageType);
+    
+    // Get media from Evolution API
+    const mediaResponse = await fetch(
+      `${EVOLUTION_API_URL}/chat/getBase64FromMediaMessage/${connection.instance_name}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': EVOLUTION_API_KEY,
+        },
+        body: JSON.stringify({
+          message: {
+            key: {
+              id: messageId
+            }
+          },
+          convertToMp4: messageType === 'video' || messageType === 'audio'
+        })
+      }
+    );
+
+    if (!mediaResponse.ok) {
+      console.error('Failed to get media from Evolution:', mediaResponse.status);
+      return null;
+    }
+
+    const mediaData = await mediaResponse.json();
+    
+    if (!mediaData.base64) {
+      console.log('No base64 data in response');
+      return null;
+    }
+
+    // Determine file extension based on mimetype
+    const mimetype = mediaData.mimetype || 'application/octet-stream';
+    let ext = '.bin';
+    
+    if (mimetype.includes('image/jpeg') || mimetype.includes('image/jpg')) ext = '.jpg';
+    else if (mimetype.includes('image/png')) ext = '.png';
+    else if (mimetype.includes('image/gif')) ext = '.gif';
+    else if (mimetype.includes('image/webp')) ext = '.webp';
+    else if (mimetype.includes('audio/ogg')) ext = '.ogg';
+    else if (mimetype.includes('audio/mpeg') || mimetype.includes('audio/mp3')) ext = '.mp3';
+    else if (mimetype.includes('audio/mp4') || mimetype.includes('audio/m4a')) ext = '.m4a';
+    else if (mimetype.includes('audio/')) ext = '.ogg';
+    else if (mimetype.includes('video/mp4')) ext = '.mp4';
+    else if (mimetype.includes('video/')) ext = '.mp4';
+    else if (mimetype.includes('application/pdf')) ext = '.pdf';
+    else if (mimetype.includes('document')) ext = '.pdf';
+
+    // Generate unique filename
+    const filename = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${ext}`;
+    const filePath = path.join(UPLOADS_DIR, filename);
+
+    // Decode base64 and save file
+    const buffer = Buffer.from(mediaData.base64, 'base64');
+    fs.writeFileSync(filePath, buffer);
+
+    console.log('Media saved:', filename, 'size:', buffer.length);
+
+    // Return the public URL
+    return {
+      url: `${API_BASE_URL}/uploads/${filename}`,
+      mimetype: mimetype
+    };
+  } catch (error) {
+    console.error('Error downloading media:', error.message);
+    return null;
+  }
+}
 
 // Helper to make Evolution API requests
 async function evolutionRequest(endpoint, method = 'GET', body = null) {
@@ -840,6 +925,23 @@ async function handleMessageUpsert(connection, data) {
       mediaUrl = data.media.url;
     }
 
+    // Download and save media locally for media types
+    const mediaTypes = ['image', 'audio', 'video', 'document', 'sticker'];
+    if (mediaTypes.includes(messageType) && !fromMe) {
+      console.log('Webhook: Downloading media for message:', messageId);
+      
+      // Try to download media from Evolution API
+      const localMedia = await downloadAndSaveMedia(connection, messageId, messageType);
+      
+      if (localMedia) {
+        mediaUrl = localMedia.url;
+        mediaMimetype = localMedia.mimetype || mediaMimetype;
+        console.log('Webhook: Media downloaded and saved:', mediaUrl);
+      } else {
+        console.log('Webhook: Could not download media, keeping original URL');
+      }
+    }
+
     // Get message timestamp
     const timestamp = message.messageTimestamp 
       ? new Date(parseInt(message.messageTimestamp) * 1000) 
@@ -864,7 +966,7 @@ async function handleMessageUpsert(connection, data) {
       ]
     );
 
-    console.log('Webhook: Message saved:', messageId, 'Type:', messageType, 'FromMe:', fromMe);
+    console.log('Webhook: Message saved:', messageId, 'Type:', messageType, 'FromMe:', fromMe, 'MediaUrl:', mediaUrl);
   } catch (error) {
     console.error('Handle message upsert error:', error);
   }
