@@ -8,11 +8,12 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useOrganizations } from '@/hooks/use-organizations';
+import { useSuperadmin } from '@/hooks/use-superadmin';
 import { toast } from 'sonner';
-import { Building2, Plus, Users, Settings, Trash2, UserPlus, Crown, Shield, User, Briefcase, Loader2, Pencil } from 'lucide-react';
+import { Building2, Plus, Users, Trash2, UserPlus, Crown, Shield, User, Briefcase, Loader2, Pencil } from 'lucide-react';
 
 interface Organization {
   id: string;
@@ -45,6 +46,7 @@ export default function Organizacoes() {
   const [members, setMembers] = useState<OrganizationMember[]>([]);
   const [loadingOrgs, setLoadingOrgs] = useState(true);
   const [loadingMembers, setLoadingMembers] = useState(false);
+  const [isSuperadmin, setIsSuperadmin] = useState(false);
   
   // Create org dialog
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -71,8 +73,11 @@ export default function Organizacoes() {
     removeMember 
   } = useOrganizations();
 
+  const { checkSuperadmin } = useSuperadmin();
+
   useEffect(() => {
     loadOrganizations();
+    checkSuperadmin().then(setIsSuperadmin);
   }, []);
 
   useEffect(() => {
@@ -185,13 +190,14 @@ export default function Organizacoes() {
             </p>
           </div>
           
-          <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Nova Organização
-              </Button>
-            </DialogTrigger>
+          {isSuperadmin && (
+            <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Nova Organização
+                </Button>
+              </DialogTrigger>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Criar Organização</DialogTitle>
@@ -236,6 +242,7 @@ export default function Organizacoes() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+          )}
         </div>
 
         <div className="grid gap-6 lg:grid-cols-4">
