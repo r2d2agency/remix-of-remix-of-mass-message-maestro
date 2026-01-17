@@ -8,6 +8,7 @@ import contactsRoutes from './routes/contacts.js';
 import campaignsRoutes from './routes/campaigns.js';
 import organizationsRoutes from './routes/organizations.js';
 import asaasRoutes from './routes/asaas.js';
+import { initDatabase } from './init-db.js';
 
 dotenv.config();
 
@@ -42,6 +43,9 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Blaster API running on port ${PORT}`);
+// Initialize database and start server
+initDatabase().then(() => {
+  app.listen(PORT, () => {
+    console.log(`🚀 Blaster API running on port ${PORT}`);
+  });
 });
