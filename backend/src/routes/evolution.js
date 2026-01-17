@@ -1014,7 +1014,7 @@ async function handleMessageUpsert(connection, data) {
     let mediaMimetype = null;
     let quotedMessageId = null;
 
-    const msgContent = message.message || message;
+    // msgContent already declared above (line 870)
 
     if (msgContent.conversation) {
       content = msgContent.conversation;
