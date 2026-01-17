@@ -1559,24 +1559,59 @@ router.post('/conversations', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'Conexão não está ativa' });
     }
 
-    // Normalize phone number
+    // Normalize phone number - remove all non-digits
     let phone = contact_phone.replace(/\D/g, '');
+    
+    // Remove country code 55 if present for comparison, then add it back
+    let phoneWithoutCountry = phone;
+    if (phone.startsWith('55') && phone.length > 11) {
+      phoneWithoutCountry = phone.substring(2);
+    }
+    
+    // Ensure country code
     if (!phone.startsWith('55')) {
       phone = '55' + phone;
     }
 
-    // Generate remote JID
+    // Generate remote JID variants
     const remoteJid = `${phone}@s.whatsapp.net`;
+    const remoteJidLid = `${phone}@lid`;
 
-    // Check if conversation already exists
+    // Check if conversation already exists - comprehensive search
+    // Search by: exact remote_jid, @lid variant, contact_phone with/without country code
     const existingConv = await query(
       `SELECT id FROM conversations 
-       WHERE connection_id = $1 AND (remote_jid = $2 OR contact_phone = $3)
+       WHERE connection_id = $1 AND (
+         remote_jid = $2 OR 
+         remote_jid = $3 OR 
+         remote_jid LIKE $4 OR
+         contact_phone = $5 OR 
+         contact_phone = $6 OR
+         contact_phone = $7
+       )
+       ORDER BY last_message_at DESC NULLS LAST
        LIMIT 1`,
-      [connection_id, remoteJid, phone]
+      [
+        connection_id, 
+        remoteJid, 
+        remoteJidLid,
+        `%${phoneWithoutCountry}@%`,
+        phone, 
+        phoneWithoutCountry,
+        contact_phone.replace(/\D/g, '') // original input cleaned
+      ]
     );
 
     if (existingConv.rows.length > 0) {
+      // Update contact name if provided and different
+      if (contact_name) {
+        await query(
+          `UPDATE conversations SET contact_name = $1, updated_at = NOW() 
+           WHERE id = $2 AND (contact_name IS NULL OR contact_name = contact_phone OR contact_name = '')`,
+          [contact_name, existingConv.rows[0].id]
+        );
+      }
+      
       // Return existing conversation
       const fullConv = await query(
         `SELECT 
@@ -1596,7 +1631,7 @@ router.post('/conversations', authenticate, async (req, res) => {
         WHERE conv.id = $1`,
         [existingConv.rows[0].id]
       );
-      return res.json(fullConv.rows[0]);
+      return res.json({ ...fullConv.rows[0], existed: true });
     }
 
     // Create new conversation

@@ -89,18 +89,30 @@ export function NewConversationDialog({
       return;
     }
 
+    // Validate phone - at least 10 digits (DDD + number)
+    const cleanPhone = contactPhone.trim().replace(/\D/g, '');
+    if (cleanPhone.length < 10 || cleanPhone.length > 15) {
+      toast({ title: "Número de telefone inválido", description: "Digite um número com DDD (ex: 11999999999)", variant: "destructive" });
+      return;
+    }
+
     setCreating(true);
     try {
-      const conversation = await api<Conversation>('/api/chat/conversations', {
+      const conversation = await api<Conversation & { existed?: boolean }>('/api/chat/conversations', {
         method: 'POST',
         body: JSON.stringify({
-          contact_phone: contactPhone.trim(),
+          contact_phone: cleanPhone,
           contact_name: contactName.trim() || undefined,
           connection_id: connectionId,
         }),
       });
 
-      toast({ title: "Conversa criada com sucesso" });
+      if (conversation.existed) {
+        toast({ title: "Conversa existente encontrada", description: "Abrindo conversa com este contato" });
+      } else {
+        toast({ title: "Conversa criada com sucesso" });
+      }
+      
       onConversationCreated(conversation);
       onOpenChange(false);
     } catch (error: any) {
