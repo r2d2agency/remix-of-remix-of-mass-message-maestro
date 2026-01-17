@@ -156,6 +156,13 @@ CREATE TABLE IF NOT EXISTS connections (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Add organization_id column if not exists (for existing databases)
+DO $$ BEGIN
+    ALTER TABLE connections ADD COLUMN IF NOT EXISTS organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE;
+EXCEPTION
+    WHEN duplicate_column THEN null;
+END $$;
+
 -- Connection Members
 CREATE TABLE IF NOT EXISTS connection_members (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
