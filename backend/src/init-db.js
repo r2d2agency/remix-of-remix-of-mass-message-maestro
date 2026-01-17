@@ -30,15 +30,45 @@ EXCEPTION
     WHEN duplicate_object THEN null;
 END $$;
 
+-- ============================================
+-- PLANS (SaaS)
+-- ============================================
+CREATE TABLE IF NOT EXISTS plans (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    max_connections INTEGER NOT NULL DEFAULT 1,
+    max_monthly_messages INTEGER NOT NULL DEFAULT 1000,
+    has_asaas_integration BOOLEAN DEFAULT false,
+    has_chat BOOLEAN DEFAULT true,
+    price DECIMAL(10, 2) NOT NULL DEFAULT 0,
+    billing_period VARCHAR(20) DEFAULT 'monthly',
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Organizations (multi-tenant)
 CREATE TABLE IF NOT EXISTS organizations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(255) NOT NULL,
     slug VARCHAR(100) UNIQUE NOT NULL,
     logo_url TEXT,
+    plan_id UUID REFERENCES plans(id) ON DELETE SET NULL,
+    expires_at TIMESTAMP WITH TIME ZONE,
+    asaas_customer_id VARCHAR(100),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Add plan columns if not exists (for existing databases)
+DO $$ BEGIN
+    ALTER TABLE organizations ADD COLUMN IF NOT EXISTS plan_id UUID REFERENCES plans(id) ON DELETE SET NULL;
+    ALTER TABLE organizations ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP WITH TIME ZONE;
+    ALTER TABLE organizations ADD COLUMN IF NOT EXISTS asaas_customer_id VARCHAR(100);
+EXCEPTION
+    WHEN duplicate_column THEN null;
+END $$;
 
 -- Organization Members
 CREATE TABLE IF NOT EXISTS organization_members (

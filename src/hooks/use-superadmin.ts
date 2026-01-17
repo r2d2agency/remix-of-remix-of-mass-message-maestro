@@ -11,12 +11,40 @@ interface User {
   created_at: string;
 }
 
+interface Plan {
+  id: string;
+  name: string;
+  description: string | null;
+  max_connections: number;
+  max_monthly_messages: number;
+  has_asaas_integration: boolean;
+  has_chat: boolean;
+  price: number;
+  billing_period: string;
+  is_active: boolean;
+  org_count?: number;
+  created_at: string;
+}
+
 interface Organization {
   id: string;
   name: string;
   slug: string;
   logo_url: string | null;
+  plan_id: string | null;
+  plan_name?: string;
+  plan_price?: number;
+  expires_at: string | null;
   member_count?: number;
+  created_at: string;
+}
+
+interface OrgMember {
+  id: string;
+  user_id: string;
+  email: string;
+  name: string;
+  role: string;
   created_at: string;
 }
 
@@ -40,6 +68,108 @@ export function useSuperadmin() {
     }
   }, []);
 
+  // ============================================
+  // PLANS
+  // ============================================
+
+  const getAllPlans = useCallback(async (): Promise<Plan[]> => {
+    try {
+      const response = await fetch(`${API_URL}/api/admin/plans`, { headers: getHeaders() });
+      if (!response.ok) throw new Error('Acesso negado');
+      return response.json();
+    } catch (err) {
+      console.error('Get plans error:', err);
+      return [];
+    }
+  }, []);
+
+  const createPlan = useCallback(async (data: {
+    name: string;
+    description?: string;
+    max_connections: number;
+    max_monthly_messages: number;
+    has_asaas_integration: boolean;
+    has_chat: boolean;
+    price: number;
+    billing_period: string;
+  }): Promise<Plan | null> => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await fetch(`${API_URL}/api/admin/plans`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(data)
+      });
+      
+      if (!response.ok) {
+        const res = await response.json();
+        throw new Error(res.error || 'Erro ao criar plano');
+      }
+      
+      return response.json();
+    } catch (err: any) {
+      setError(err.message);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const updatePlan = useCallback(async (id: string, data: Partial<Plan>): Promise<Plan | null> => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await fetch(`${API_URL}/api/admin/plans/${id}`, {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: JSON.stringify(data)
+      });
+      
+      if (!response.ok) {
+        const res = await response.json();
+        throw new Error(res.error || 'Erro ao atualizar plano');
+      }
+      
+      return response.json();
+    } catch (err: any) {
+      setError(err.message);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const deletePlan = useCallback(async (id: string): Promise<boolean> => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await fetch(`${API_URL}/api/admin/plans/${id}`, {
+        method: 'DELETE',
+        headers: getHeaders()
+      });
+      
+      if (!response.ok) {
+        const res = await response.json();
+        throw new Error(res.error || 'Erro ao deletar plano');
+      }
+      
+      return true;
+    } catch (err: any) {
+      setError(err.message);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // ============================================
+  // USERS
+  // ============================================
+
   const getAllUsers = useCallback(async (): Promise<User[]> => {
     try {
       const response = await fetch(`${API_URL}/api/admin/users`, { headers: getHeaders() });
@@ -50,6 +180,35 @@ export function useSuperadmin() {
       return [];
     }
   }, []);
+
+  const setSuperadmin = useCallback(async (userId: string, isSuperadmin: boolean): Promise<boolean> => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await fetch(`${API_URL}/api/admin/users/${userId}/superadmin`, {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: JSON.stringify({ is_superadmin: isSuperadmin })
+      });
+      
+      if (!response.ok) {
+        const res = await response.json();
+        throw new Error(res.error || 'Erro ao atualizar usuário');
+      }
+      
+      return true;
+    } catch (err: any) {
+      setError(err.message);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // ============================================
+  // ORGANIZATIONS
+  // ============================================
 
   const getAllOrganizations = useCallback(async (): Promise<Organization[]> => {
     try {
@@ -67,6 +226,8 @@ export function useSuperadmin() {
     slug: string; 
     logo_url?: string;
     owner_email: string;
+    plan_id?: string;
+    expires_at?: string;
   }): Promise<Organization | null> => {
     setLoading(true);
     setError(null);
@@ -95,6 +256,8 @@ export function useSuperadmin() {
   const updateOrganization = useCallback(async (id: string, data: { 
     name?: string; 
     logo_url?: string;
+    plan_id?: string;
+    expires_at?: string;
   }): Promise<Organization | null> => {
     setLoading(true);
     setError(null);
@@ -144,20 +307,89 @@ export function useSuperadmin() {
     }
   }, []);
 
-  const setSuperadmin = useCallback(async (userId: string, isSuperadmin: boolean): Promise<boolean> => {
+  // ============================================
+  // ORGANIZATION MEMBERS
+  // ============================================
+
+  const getOrganizationMembers = useCallback(async (orgId: string): Promise<OrgMember[]> => {
+    try {
+      const response = await fetch(`${API_URL}/api/admin/organizations/${orgId}/members`, { headers: getHeaders() });
+      if (!response.ok) throw new Error('Acesso negado');
+      return response.json();
+    } catch (err) {
+      console.error('Get org members error:', err);
+      return [];
+    }
+  }, []);
+
+  const createOrganizationUser = useCallback(async (orgId: string, data: {
+    email: string;
+    name: string;
+    password: string;
+    role: string;
+  }): Promise<OrgMember | null> => {
     setLoading(true);
     setError(null);
     
     try {
-      const response = await fetch(`${API_URL}/api/admin/users/${userId}/superadmin`, {
-        method: 'PATCH',
+      const response = await fetch(`${API_URL}/api/admin/organizations/${orgId}/users`, {
+        method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify({ is_superadmin: isSuperadmin })
+        body: JSON.stringify(data)
       });
       
       if (!response.ok) {
         const res = await response.json();
-        throw new Error(res.error || 'Erro ao atualizar usuário');
+        throw new Error(res.error || 'Erro ao criar usuário');
+      }
+      
+      return response.json();
+    } catch (err: any) {
+      setError(err.message);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const updateMemberRole = useCallback(async (orgId: string, memberId: string, role: string): Promise<boolean> => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await fetch(`${API_URL}/api/admin/organizations/${orgId}/members/${memberId}`, {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: JSON.stringify({ role })
+      });
+      
+      if (!response.ok) {
+        const res = await response.json();
+        throw new Error(res.error || 'Erro ao atualizar membro');
+      }
+      
+      return true;
+    } catch (err: any) {
+      setError(err.message);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const removeMember = useCallback(async (orgId: string, memberId: string): Promise<boolean> => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await fetch(`${API_URL}/api/admin/organizations/${orgId}/members/${memberId}`, {
+        method: 'DELETE',
+        headers: getHeaders()
+      });
+      
+      if (!response.ok) {
+        const res = await response.json();
+        throw new Error(res.error || 'Erro ao remover membro');
       }
       
       return true;
@@ -173,11 +405,23 @@ export function useSuperadmin() {
     loading,
     error,
     checkSuperadmin,
+    // Plans
+    getAllPlans,
+    createPlan,
+    updatePlan,
+    deletePlan,
+    // Users
     getAllUsers,
+    setSuperadmin,
+    // Organizations
     getAllOrganizations,
     createOrganization,
     updateOrganization,
     deleteOrganization,
-    setSuperadmin
+    // Organization Members
+    getOrganizationMembers,
+    createOrganizationUser,
+    updateMemberRole,
+    removeMember
   };
 }
