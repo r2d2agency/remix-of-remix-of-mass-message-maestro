@@ -5,6 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,12 +49,16 @@ import {
   ArrowLeftRight,
   Plus,
   RefreshCw,
+  PenLine,
+  Play,
+  Pause,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { ChatMessage, Conversation, ConversationTag, TeamMember } from "@/hooks/use-chat";
 import { useUpload } from "@/hooks/use-upload";
+import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
 interface ChatAreaProps {
@@ -118,11 +124,21 @@ export function ChatArea({
   const [showTagDialog, setShowTagDialog] = useState(false);
   const [newTagName, setNewTagName] = useState("");
   const [newTagColor, setNewTagColor] = useState("#6366f1");
+  const [signMessages, setSignMessages] = useState(() => {
+    const saved = localStorage.getItem('chat-sign-messages');
+    return saved === 'true';
+  });
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { uploadFile, isUploading } = useUpload();
+  const { user } = useAuth();
+
+  // Save signature preference
+  useEffect(() => {
+    localStorage.setItem('chat-sign-messages', signMessages.toString());
+  }, [signMessages]);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -132,13 +148,19 @@ export function ChatArea({
   const handleSend = async () => {
     if (!messageText.trim() || sending) return;
     
-    const text = messageText.trim();
+    let text = messageText.trim();
+    
+    // Add signature if enabled
+    if (signMessages && user?.name) {
+      text = `*${user.name}*\n${text}`;
+    }
+    
     setMessageText("");
     
     try {
       await onSendMessage(text, 'text');
     } catch (error) {
-      setMessageText(text); // Restore on error
+      setMessageText(messageText.trim()); // Restore original text on error
     }
   };
 
@@ -421,11 +443,15 @@ export function ChatArea({
 
                 {(msg.message_type === 'audio' || (msg.media_mimetype?.startsWith('audio/') ?? false)) && (
                   msg.media_url ? (
-                    <div className="mb-2">
+                    <div className="mb-2 flex items-center gap-3 min-w-[250px] p-2 rounded-lg bg-background/30">
+                      <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                        <Mic className="h-5 w-5 text-primary" />
+                      </div>
                       <audio
                         controls
                         preload="auto"
-                        className="w-full max-w-[280px]"
+                        className="flex-1 h-10"
+                        style={{ minWidth: '180px' }}
                         crossOrigin="anonymous"
                       >
                         {msg.media_mimetype && <source src={msg.media_url} type={msg.media_mimetype} />}
@@ -488,6 +514,24 @@ export function ChatArea({
 
       {/* Input */}
       <div className="p-4 border-t bg-card">
+        {/* Signature toggle */}
+        <div className="flex items-center gap-2 mb-2">
+          <Checkbox
+            id="sign-messages"
+            checked={signMessages}
+            onCheckedChange={(checked) => setSignMessages(checked === true)}
+          />
+          <Label
+            htmlFor="sign-messages"
+            className="text-xs text-muted-foreground cursor-pointer flex items-center gap-1"
+          >
+            <PenLine className="h-3 w-3" />
+            Assinar mensagens {user?.name && signMessages && (
+              <span className="text-primary">(*{user.name}*)</span>
+            )}
+          </Label>
+        </div>
+        
         <div className="flex items-end gap-2">
           {/* Hidden file input */}
           <input
