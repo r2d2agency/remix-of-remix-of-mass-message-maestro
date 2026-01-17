@@ -833,6 +833,10 @@ function extractPhoneFromJid(remoteJid) {
     .replace(/[^0-9]/g, '');
 }
 
+function isLocalUploadsUrl(url) {
+  return typeof url === 'string' && url.includes('/uploads/');
+}
+
 // Handle incoming/outgoing messages
 async function handleMessageUpsert(connection, data) {
   try {
@@ -914,15 +918,26 @@ async function handleMessageUpsert(connection, data) {
       }
     }
 
-    // Check if message already exists
+    const mediaTypes = ['image', 'audio', 'video', 'document', 'sticker'];
+
+    // Check if message already exists (if it exists but media is not local, we can reprocess)
     const existingMsg = await query(
-      `SELECT id FROM chat_messages WHERE message_id = $1`,
+      `SELECT id, media_url, message_type, media_mimetype FROM chat_messages WHERE message_id = $1`,
       [messageId]
     );
 
-    if (existingMsg.rows.length > 0) {
-      console.log('Webhook: Message already exists:', messageId);
-      return;
+    const existingRow = existingMsg.rows[0] || null;
+
+    if (existingRow) {
+      const existingIsMedia = mediaTypes.includes(existingRow.message_type);
+      const existingHasLocalMedia = existingIsMedia && isLocalUploadsUrl(existingRow.media_url);
+
+      if (!existingIsMedia || existingHasLocalMedia) {
+        console.log('Webhook: Message already exists:', messageId);
+        return;
+      }
+
+      console.log('Webhook: Message exists but media is not local; will attempt to download:', messageId);
     }
 
     // Extract message content and type
@@ -1294,12 +1309,17 @@ router.post('/:connectionId/sync-chat', authenticate, async (req, res) => {
 
     console.log(`Sync: Found ${messages.length} messages, ${filteredMessages.length} in last ${days} days`);
 
-    // Find or create conversation
-    const contactPhone = remoteJid.replace('@s.whatsapp.net', '').replace('@c.us', '');
-    
+    // Find or create conversation (normalize JID to avoid duplicates)
+    const normalizedRemoteJid = normalizeRemoteJid(remoteJid);
+    const contactPhone = extractPhoneFromJid(remoteJid);
+
     let convResult = await query(
-      `SELECT * FROM conversations WHERE connection_id = $1 AND remote_jid = $2`,
-      [connection.id, remoteJid]
+      `SELECT * FROM conversations 
+       WHERE connection_id = $1 
+       AND (remote_jid = $2 OR contact_phone = $3)
+       ORDER BY last_message_at DESC
+       LIMIT 1`,
+      [connection.id, normalizedRemoteJid, contactPhone]
     );
 
     let conversationId;
@@ -1310,11 +1330,19 @@ router.post('/:connectionId/sync-chat', authenticate, async (req, res) => {
         `INSERT INTO conversations (connection_id, remote_jid, contact_name, contact_phone, last_message_at)
          VALUES ($1, $2, $3, $4, NOW())
          RETURNING id`,
-        [connection.id, remoteJid, contactPhone, contactPhone]
+        [connection.id, normalizedRemoteJid, contactPhone, contactPhone]
       );
       conversationId = newConv.rows[0].id;
     } else {
       conversationId = convResult.rows[0].id;
+
+      // Update remote_jid if it was different (migrate old format)
+      if (convResult.rows[0].remote_jid !== normalizedRemoteJid) {
+        await query(
+          `UPDATE conversations SET remote_jid = $1 WHERE id = $2`,
+          [normalizedRemoteJid, conversationId]
+        );
+      }
     }
 
     // Import messages
