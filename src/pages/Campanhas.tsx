@@ -97,19 +97,45 @@ const Campanhas = () => {
   }, []);
 
   const loadData = async () => {
-    try {
-      const [campaignsData, listsData, messagesData, connectionsData] = await Promise.all([
-        getCampaigns(),
-        getLists(),
-        getMessages(),
-        api<Connection[]>('/api/connections'),
-      ]);
-      setCampaigns(campaignsData);
-      setLists(listsData);
-      setMessages(messagesData);
-      setConnections(connectionsData);
-    } catch (err) {
-      toast.error("Erro ao carregar dados");
+    const results = await Promise.allSettled([
+      getCampaigns(),
+      getLists(),
+      getMessages(),
+      api<Connection[]>('/api/connections'),
+    ]);
+
+    const [campaignsRes, listsRes, messagesRes, connectionsRes] = results;
+
+    if (campaignsRes.status === 'fulfilled') {
+      setCampaigns(campaignsRes.value);
+    } else {
+      console.error('Erro ao carregar campanhas:', campaignsRes.reason);
+      setCampaigns([]);
+      toast.error(`Erro ao carregar campanhas: ${campaignsRes.reason?.message || 'verifique o backend'}`);
+    }
+
+    if (listsRes.status === 'fulfilled') {
+      setLists(listsRes.value);
+    } else {
+      console.error('Erro ao carregar listas:', listsRes.reason);
+      setLists([]);
+      toast.error(`Erro ao carregar listas: ${listsRes.reason?.message || 'verifique o backend'}`);
+    }
+
+    if (messagesRes.status === 'fulfilled') {
+      setMessages(messagesRes.value);
+    } else {
+      console.error('Erro ao carregar mensagens:', messagesRes.reason);
+      setMessages([]);
+      toast.error(`Erro ao carregar mensagens: ${messagesRes.reason?.message || 'verifique o backend'}`);
+    }
+
+    if (connectionsRes.status === 'fulfilled') {
+      setConnections(connectionsRes.value);
+    } else {
+      console.error('Erro ao carregar conexões:', connectionsRes.reason);
+      setConnections([]);
+      toast.error(`Erro ao carregar conexões: ${connectionsRes.reason?.message || 'verifique o backend'}`);
     }
   };
 
@@ -400,34 +426,42 @@ const Campanhas = () => {
 
                   <div className="space-y-2">
                     <Label>Conexão WhatsApp</Label>
-                    <Select value={selectedConnection} onValueChange={setSelectedConnection}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione uma conexão" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {connections.map((conn) => (
-                          <SelectItem key={conn.id} value={conn.id}>
-                            {conn.name} ({conn.status})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                     <Select value={selectedConnection} onValueChange={setSelectedConnection} disabled={connections.length === 0}>
+                       <SelectTrigger>
+                         <SelectValue placeholder={connections.length === 0 ? "Nenhuma conexão disponível" : "Selecione uma conexão"} />
+                       </SelectTrigger>
+                       <SelectContent>
+                         {connections.length === 0 ? (
+                           <div className="px-2 py-2 text-sm text-muted-foreground">Nenhuma conexão encontrada</div>
+                         ) : (
+                           connections.map((conn) => (
+                             <SelectItem key={conn.id} value={conn.id}>
+                               {conn.name} ({conn.status})
+                             </SelectItem>
+                           ))
+                         )}
+                       </SelectContent>
+                     </Select>
                   </div>
 
                   <div className="space-y-2">
                     <Label>Lista de Contatos</Label>
-                    <Select value={selectedList} onValueChange={setSelectedList}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione uma lista" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {lists.map((list) => (
-                          <SelectItem key={list.id} value={list.id}>
-                            {list.name} ({list.contact_count || 0} contatos)
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                     <Select value={selectedList} onValueChange={setSelectedList} disabled={lists.length === 0}>
+                       <SelectTrigger>
+                         <SelectValue placeholder={lists.length === 0 ? "Nenhuma lista disponível" : "Selecione uma lista"} />
+                       </SelectTrigger>
+                       <SelectContent>
+                         {lists.length === 0 ? (
+                           <div className="px-2 py-2 text-sm text-muted-foreground">Nenhuma lista encontrada</div>
+                         ) : (
+                           lists.map((list) => (
+                             <SelectItem key={list.id} value={list.id}>
+                               {list.name} ({list.contact_count || 0} contatos)
+                             </SelectItem>
+                           ))
+                         )}
+                       </SelectContent>
+                     </Select>
                   </div>
 
                   <div className="space-y-2">
@@ -440,30 +474,36 @@ const Campanhas = () => {
                         </Badge>
                       )}
                     </div>
-                    <div className="space-y-2 max-h-40 overflow-y-auto rounded-lg border p-2">
-                      {messages.map((msg) => (
-                        <div
-                          key={msg.id}
-                          className={cn(
-                            "flex items-center gap-2 p-2 rounded-md cursor-pointer transition-colors",
-                            selectedMessages.includes(msg.id)
-                              ? "bg-primary/10 border border-primary"
-                              : "hover:bg-accent"
-                          )}
-                          onClick={() => toggleMessageSelection(msg.id)}
-                        >
-                          <div className={cn(
-                            "w-4 h-4 rounded border flex items-center justify-center",
-                            selectedMessages.includes(msg.id) ? "bg-primary border-primary" : "border-muted-foreground"
-                          )}>
-                            {selectedMessages.includes(msg.id) && (
-                              <Check className="h-3 w-3 text-primary-foreground" />
-                            )}
-                          </div>
-                          <span className="text-sm">{msg.name}</span>
-                        </div>
-                      ))}
-                    </div>
+                     <div className="space-y-2 max-h-40 overflow-y-auto rounded-lg border p-2">
+                       {messages.length === 0 ? (
+                         <div className="p-3 text-sm text-muted-foreground">
+                           Nenhuma mensagem encontrada
+                         </div>
+                       ) : (
+                         messages.map((msg) => (
+                           <div
+                             key={msg.id}
+                             className={cn(
+                               "flex items-center gap-2 p-2 rounded-md cursor-pointer transition-colors",
+                               selectedMessages.includes(msg.id)
+                                 ? "bg-primary/10 border border-primary"
+                                 : "hover:bg-accent"
+                             )}
+                             onClick={() => toggleMessageSelection(msg.id)}
+                           >
+                             <div className={cn(
+                               "w-4 h-4 rounded border flex items-center justify-center",
+                               selectedMessages.includes(msg.id) ? "bg-primary border-primary" : "border-muted-foreground"
+                             )}>
+                               {selectedMessages.includes(msg.id) && (
+                                 <Check className="h-3 w-3 text-primary-foreground" />
+                               )}
+                             </div>
+                             <span className="text-sm">{msg.name}</span>
+                           </div>
+                         ))
+                       )}
+                     </div>
                     <p className="text-xs text-muted-foreground">
                       Selecione múltiplas mensagens para envio aleatório entre contatos
                     </p>

@@ -26,13 +26,25 @@ export const api = async <T>(endpoint: string, options: ApiOptions = {}): Promis
     body: body ? JSON.stringify(body) : undefined,
   });
 
-  const data = await response.json();
+  const contentType = response.headers.get('content-type') || '';
+  let data: any = null;
 
-  if (!response.ok) {
-    throw new Error(data.error || 'Erro na requisição');
+  if (contentType.includes('application/json')) {
+    data = await response.json().catch(() => null);
+  } else {
+    const text = await response.text().catch(() => '');
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { raw: text };
+    }
   }
 
-  return data;
+  if (!response.ok) {
+    throw new Error(data?.error || data?.message || `Erro na requisição (${response.status})`);
+  }
+
+  return data as T;
 };
 
 // Auth helpers
