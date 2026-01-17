@@ -77,7 +77,7 @@ const Conexao = () => {
     try {
       const result = await api<Connection & { qrCode?: string }>('/api/evolution/create', {
         method: 'POST',
-        body: JSON.stringify({ name: newConnectionName }),
+        body: { name: newConnectionName },
       });
 
       setConnections(prev => [...prev, result]);
