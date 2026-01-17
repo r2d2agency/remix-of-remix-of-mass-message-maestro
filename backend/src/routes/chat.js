@@ -1451,8 +1451,9 @@ router.patch('/scheduled/:messageId', authenticate, async (req, res) => {
 // CHAT CONTACTS
 // ==========================================
 
-// Get all contacts from conversations
-router.get('/contacts', authenticate, async (req, res) => {
+// Get all contacts from conversations (legacy/debug)
+// NOTE: The main agenda endpoint is GET /contacts further below (chat_contacts + auto-populate).
+router.get('/contacts/conversations', authenticate, async (req, res) => {
   try {
     const connectionIds = await getUserConnections(req.userId);
 
@@ -1460,7 +1461,8 @@ router.get('/contacts', authenticate, async (req, res) => {
       return res.json([]);
     }
 
-    const result = await query(`
+    const result = await query(
+      `
       SELECT 
         conv.id,
         conv.id as conversation_id,
@@ -1474,11 +1476,13 @@ router.get('/contacts', authenticate, async (req, res) => {
       JOIN connections conn ON conn.id = conv.connection_id
       WHERE conv.connection_id = ANY($1) AND conv.is_archived = false
       ORDER BY conv.contact_name NULLS LAST, conv.contact_phone
-    `, [connectionIds]);
+      `,
+      [connectionIds]
+    );
 
     res.json(result.rows);
   } catch (error) {
-    console.error('Get chat contacts error:', error);
+    console.error('Get conversation contacts error:', error);
     res.status(500).json({ error: 'Erro ao buscar contatos' });
   }
 });
