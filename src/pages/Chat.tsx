@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { ConversationList } from "@/components/chat/ConversationList";
@@ -59,6 +59,11 @@ const Chat = () => {
     connection: 'all',
   });
 
+  // Keep latest loader for intervals / effects without stale closures
+  const loadConversationsRef = useRef<() => void>(() => {});
+  // Keep a just-created "empty" conversation visible until it has messages
+  const stickyConversationRef = useRef<Conversation | null>(null);
+
   // Load initial data and start alerts polling
   useEffect(() => {
     loadConversations();
@@ -85,16 +90,16 @@ const Chat = () => {
 
   // Reload when filters change
   useEffect(() => {
-    loadConversations();
+    loadConversationsRef.current();
   }, [filters]);
 
-  // Auto-refresh conversations every 15 seconds
+  // Auto-refresh conversations every 15 seconds (avoid stale closures)
   useEffect(() => {
     const interval = setInterval(() => {
-      loadConversations();
+      loadConversationsRef.current();
     }, 15000);
     return () => clearInterval(interval);
-  }, [filters]);
+  }, []);
 
   // Auto-refresh messages every 5 seconds when conversation is selected
   useEffect(() => {
@@ -104,9 +109,9 @@ const Chat = () => {
       try {
         const msgs = await getMessages(selectedConversation.id);
         setMessages(msgs);
-        
+
         // Also refresh conversation list to update unread counts
-        loadConversations();
+        loadConversationsRef.current();
       } catch (error) {
         console.error('Error refreshing messages:', error);
       }
@@ -135,14 +140,25 @@ const Chat = () => {
 
       const data = await getConversations(filterParams);
 
-      // Keep the currently selected conversation visible if it's still "empty" (no messages yet).
-      // The backend hides empty conversations by default to keep the list clean.
+      const sticky = stickyConversationRef.current;
       const keepEmptySelected = !!selectedConversation && !selectedConversation.last_message_at;
-      const merged = keepEmptySelected && !data.some(c => c.id === selectedConversation!.id)
-        ? [selectedConversation!, ...data]
-        : data;
+      const keepSticky = !!sticky && !sticky.last_message_at;
+
+      // Merge in "empty" conversations we want to keep visible
+      let merged = data;
+      if (keepEmptySelected && !merged.some(c => c.id === selectedConversation!.id)) {
+        merged = [selectedConversation!, ...merged];
+      }
+      if (keepSticky && !merged.some(c => c.id === sticky!.id)) {
+        merged = [sticky!, ...merged];
+      }
 
       setConversations(merged);
+
+      // Clear sticky once it is naturally returned by the backend (or has messages)
+      if (sticky && (sticky.last_message_at || data.some(c => c.id === sticky.id))) {
+        stickyConversationRef.current = null;
+      }
 
       // Update selected conversation if it exists
       if (selectedConversation) {
@@ -155,6 +171,11 @@ const Chat = () => {
       console.error('Error loading conversations:', error);
     }
   }, [getConversations, filters, selectedConversation]);
+
+  // Keep ref pointing to the latest loadConversations (used by intervals above)
+  useEffect(() => {
+    loadConversationsRef.current = loadConversations;
+  }, [loadConversations]);
 
   const loadTags = async () => {
     try {
@@ -364,30 +385,32 @@ const Chat = () => {
   };
 
   const handleNewConversationCreated = async (conversation: Conversation) => {
-    // Add to list
+    // Keep it visible even if it has no messages yet
+    stickyConversationRef.current = conversation;
+
+    // Add to list immediately
     setConversations(prev => {
-      // Remove if already exists (in case of duplicate)
       const filtered = prev.filter(c => c.id !== conversation.id);
       return [conversation, ...filtered];
     });
-    
+
     // Load full conversation data and select it properly
     try {
       const fullConversation = await getConversation(conversation.id);
       if (fullConversation) {
+        stickyConversationRef.current = fullConversation;
         await handleSelectConversation(fullConversation);
       } else {
-        // Fallback to provided conversation
         await handleSelectConversation(conversation);
       }
     } catch (error) {
       console.error('Error loading new conversation:', error);
-      // Still select the conversation even if there's an error
       setSelectedConversation(conversation);
       setMessages([]);
     }
-    
-    loadConversations();
+
+    // Refresh list (will keep sticky if backend still hides empties)
+    loadConversationsRef.current();
   };
 
   return (
