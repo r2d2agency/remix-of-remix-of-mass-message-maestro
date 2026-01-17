@@ -21,7 +21,6 @@ import {
   Eye, EyeOff, Check
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
-import { ptBR } from "date-fns/locale";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import * as XLSX from "xlsx";
 
@@ -998,17 +997,6 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
                 {loading ? "Salvando..." : "Salvar Configurações"}
               </Button>
             </TabsContent>
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          R$ {Number(customer.total_due || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </Card>
-            </TabsContent>
 
             <TabsContent value="rules" className="space-y-4">
               <div className="flex justify-end">
@@ -1261,6 +1249,7 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
 
             {/* Notification History Tab */}
             <TabsContent value="history" className="space-y-4">
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <Select value={historyStatusFilter} onValueChange={setHistoryStatusFilter}>
                     <SelectTrigger className="w-48">
