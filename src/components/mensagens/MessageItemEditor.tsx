@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import {
   Type,
   Image,
@@ -11,7 +12,6 @@ import {
   GripVertical,
   Variable,
   Upload,
-  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -23,6 +23,7 @@ export interface MessageItem {
   content: string;
   mediaUrl?: string;
   caption?: string;
+  ptt?: boolean; // Push-to-talk for audio (send as voice message)
 }
 
 interface MessageItemEditorProps {
@@ -31,6 +32,7 @@ interface MessageItemEditorProps {
   onUpdate: (id: string, updates: Partial<MessageItem>) => void;
   onDelete: (id: string) => void;
   insertVariable: (id: string, variable: string) => void;
+  dragHandleProps?: React.HTMLAttributes<HTMLDivElement>;
 }
 
 const typeConfig = {
@@ -66,6 +68,7 @@ export function MessageItemEditor({
   onUpdate,
   onDelete,
   insertVariable,
+  dragHandleProps,
 }: MessageItemEditorProps) {
   const config = typeConfig[item.type];
   const Icon = config.icon;
@@ -74,7 +77,10 @@ export function MessageItemEditor({
     <div className="group relative rounded-lg border border-border bg-card p-4 transition-all hover:border-primary/50">
       {/* Header */}
       <div className="flex items-center gap-3 mb-3">
-        <div className="flex items-center gap-2 text-muted-foreground cursor-grab">
+        <div 
+          className="flex items-center gap-2 text-muted-foreground cursor-grab active:cursor-grabbing"
+          {...dragHandleProps}
+        >
           <GripVertical className="h-4 w-4" />
         </div>
         <div className={cn("flex items-center gap-2 px-2 py-1 rounded-md", config.bgColor)}>
@@ -133,6 +139,22 @@ export function MessageItemEditor({
             </div>
           </div>
 
+          {/* PTT option for audio */}
+          {item.type === "audio" && (
+            <div className="flex items-center justify-between rounded-lg bg-accent/50 p-3">
+              <div className="space-y-0.5">
+                <Label className="text-sm font-medium">Enviar como áudio gravado</Label>
+                <p className="text-xs text-muted-foreground">
+                  O áudio será enviado como mensagem de voz (PTT)
+                </p>
+              </div>
+              <Switch
+                checked={item.ptt ?? true}
+                onCheckedChange={(checked) => onUpdate(item.id, { ptt: checked })}
+              />
+            </div>
+          )}
+
           {/* Preview for images */}
           {item.type === "image" && item.mediaUrl && (
             <div className="relative rounded-lg overflow-hidden bg-muted aspect-video max-w-[200px]">
@@ -144,6 +166,26 @@ export function MessageItemEditor({
                   e.currentTarget.style.display = "none";
                 }}
               />
+            </div>
+          )}
+
+          {/* Audio preview */}
+          {item.type === "audio" && item.mediaUrl && (
+            <div className="rounded-lg bg-muted p-3">
+              <audio controls className="w-full h-8">
+                <source src={item.mediaUrl} />
+                Seu navegador não suporta áudio.
+              </audio>
+            </div>
+          )}
+
+          {/* Video preview */}
+          {item.type === "video" && item.mediaUrl && (
+            <div className="relative rounded-lg overflow-hidden bg-muted aspect-video max-w-[300px]">
+              <video controls className="w-full h-full">
+                <source src={item.mediaUrl} />
+                Seu navegador não suporta vídeo.
+              </video>
             </div>
           )}
 

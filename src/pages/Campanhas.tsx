@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -27,13 +28,14 @@ import {
   Pause,
   CheckCircle2,
   AlertCircle,
-  Eye,
   Trash2,
   Timer,
   Users,
   MessageSquare,
   Shuffle,
   Loader2,
+  Coffee,
+  Settings2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCampaigns, Campaign } from "@/hooks/use-campaigns";
@@ -69,14 +71,24 @@ const Campanhas = () => {
   const [activeTab, setActiveTab] = useState("list");
   const [selectedCampaign, setSelectedCampaign] = useState<string | null>(null);
   
-  // Form state
+  // Form state - Basic
   const [campaignName, setCampaignName] = useState("");
   const [selectedConnection, setSelectedConnection] = useState("");
   const [selectedList, setSelectedList] = useState("");
   const [selectedMessage, setSelectedMessage] = useState("");
+  
+  // Form state - Schedule
   const [startDate, setStartDate] = useState<Date>();
-  const [minDelay, setMinDelay] = useState("5");
-  const [maxDelay, setMaxDelay] = useState("15");
+  const [endDate, setEndDate] = useState<Date>();
+  const [startTime, setStartTime] = useState("08:00");
+  const [endTime, setEndTime] = useState("18:00");
+  
+  // Form state - Delays
+  const [minDelay, setMinDelay] = useState("120");
+  const [maxDelay, setMaxDelay] = useState("300");
+  const [pauseAfterMessages, setPauseAfterMessages] = useState("20");
+  const [pauseDuration, setPauseDuration] = useState("10");
+  const [randomOrder, setRandomOrder] = useState(true);
 
   useEffect(() => {
     loadData();
@@ -105,13 +117,37 @@ const Campanhas = () => {
     setSelectedList("");
     setSelectedMessage("");
     setStartDate(undefined);
-    setMinDelay("5");
-    setMaxDelay("15");
+    setEndDate(undefined);
+    setStartTime("08:00");
+    setEndTime("18:00");
+    setMinDelay("120");
+    setMaxDelay("300");
+    setPauseAfterMessages("20");
+    setPauseDuration("10");
+    setRandomOrder(true);
   };
 
   const handleCreateCampaign = async () => {
     if (!campaignName || !selectedConnection || !selectedList || !selectedMessage) {
       toast.error("Preencha todos os campos obrigatórios");
+      return;
+    }
+
+    const minDelayNum = parseInt(minDelay);
+    const maxDelayNum = parseInt(maxDelay);
+    
+    if (minDelayNum < 120) {
+      toast.error("Delay mínimo deve ser de pelo menos 120 segundos");
+      return;
+    }
+    
+    if (maxDelayNum > 300) {
+      toast.error("Delay máximo não pode exceder 300 segundos");
+      return;
+    }
+
+    if (minDelayNum > maxDelayNum) {
+      toast.error("Delay mínimo não pode ser maior que o máximo");
       return;
     }
 
@@ -121,9 +157,15 @@ const Campanhas = () => {
         connection_id: selectedConnection,
         list_id: selectedList,
         message_id: selectedMessage,
-        scheduled_at: startDate?.toISOString(),
-        min_delay: parseInt(minDelay),
-        max_delay: parseInt(maxDelay),
+        start_date: startDate?.toISOString(),
+        end_date: endDate?.toISOString(),
+        start_time: startTime,
+        end_time: endTime,
+        min_delay: minDelayNum,
+        max_delay: maxDelayNum,
+        pause_after_messages: parseInt(pauseAfterMessages),
+        pause_duration: parseInt(pauseDuration),
+        random_order: randomOrder,
       });
       toast.success("Campanha criada com sucesso!");
       resetForm();
@@ -220,6 +262,12 @@ const Campanhas = () => {
                               <StatusIcon className="h-3 w-3 mr-1" />
                               {config.label}
                             </Badge>
+                            {campaign.random_order && (
+                              <Badge variant="outline" className="text-xs">
+                                <Shuffle className="h-3 w-3 mr-1" />
+                                Aleatório
+                              </Badge>
+                            )}
                           </div>
                           <div className="mt-2 flex flex-wrap gap-4 text-sm text-muted-foreground">
                             <span className="flex items-center gap-1">
@@ -230,15 +278,26 @@ const Campanhas = () => {
                               <MessageSquare className="h-4 w-4" />
                               {campaign.message_name || "Mensagem removida"}
                             </span>
-                            {campaign.scheduled_at && (
+                            {campaign.start_date && (
                               <span className="flex items-center gap-1">
                                 <CalendarIcon className="h-4 w-4" />
-                                {format(new Date(campaign.scheduled_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                                {format(new Date(campaign.start_date), "dd/MM/yyyy", { locale: ptBR })}
+                                {campaign.end_date && ` - ${format(new Date(campaign.end_date), "dd/MM/yyyy", { locale: ptBR })}`}
+                              </span>
+                            )}
+                            {campaign.start_time && campaign.end_time && (
+                              <span className="flex items-center gap-1">
+                                <Clock className="h-4 w-4" />
+                                {campaign.start_time} - {campaign.end_time}
                               </span>
                             )}
                             <span className="flex items-center gap-1">
-                              <Clock className="h-4 w-4" />
-                              {campaign.min_delay}-{campaign.max_delay}s entre envios
+                              <Timer className="h-4 w-4" />
+                              {campaign.min_delay}-{campaign.max_delay}s
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Coffee className="h-4 w-4" />
+                              Pausa a cada {campaign.pause_after_messages} msgs
                             </span>
                           </div>
                         </div>
@@ -305,6 +364,7 @@ const Campanhas = () => {
 
           <TabsContent value="create" className="mt-6">
             <div className="grid gap-6 lg:grid-cols-2">
+              {/* Campaign Details */}
               <Card className="animate-fade-in shadow-card">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -373,103 +433,216 @@ const Campanhas = () => {
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {/* Random Order Toggle */}
+                  <div className="flex items-center justify-between rounded-lg bg-accent/50 p-4">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <Shuffle className="h-4 w-4 text-primary" />
+                        <Label className="font-medium">Ordem Aleatória</Label>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Enviar para contatos em ordem aleatória
+                      </p>
+                    </div>
+                    <Switch
+                      checked={randomOrder}
+                      onCheckedChange={setRandomOrder}
+                    />
+                  </div>
                 </CardContent>
               </Card>
 
-              <Card className="animate-fade-in shadow-card">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Timer className="h-5 w-5 text-primary" />
-                    Agendamento
-                  </CardTitle>
-                  <CardDescription>
-                    Configure quando e como os envios serão feitos
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Data de Início (opcional)</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            "w-full justify-start text-left font-normal",
-                            !startDate && "text-muted-foreground"
-                          )}
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {startDate ? format(startDate, "dd/MM/yyyy", { locale: ptBR }) : "Iniciar imediatamente"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0">
-                        <Calendar
-                          mode="single"
-                          selected={startDate}
-                          onSelect={setStartDate}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="minDelay">Delay Mínimo (seg)</Label>
-                      <Input
-                        id="minDelay"
-                        type="number"
-                        min="1"
-                        max="300"
-                        value={minDelay}
-                        onChange={(e) => setMinDelay(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="maxDelay">Delay Máximo (seg)</Label>
-                      <Input
-                        id="maxDelay"
-                        type="number"
-                        min="1"
-                        max="300"
-                        value={maxDelay}
-                        onChange={(e) => setMaxDelay(e.target.value)}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="rounded-lg bg-accent/50 p-4">
-                    <div className="flex items-start gap-3">
-                      <Shuffle className="h-5 w-5 text-primary mt-0.5" />
-                      <div>
-                        <p className="text-sm font-medium text-foreground">
-                          Envio Aleatório Ativo
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          As mensagens serão enviadas com pausas aleatórias de {minDelay} a {maxDelay} segundos
-                          entre cada envio para proteger sua conta.
-                        </p>
+              {/* Schedule Settings */}
+              <div className="space-y-6">
+                <Card className="animate-fade-in shadow-card">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <CalendarIcon className="h-5 w-5 text-primary" />
+                      Período de Envio
+                    </CardTitle>
+                    <CardDescription>
+                      Configure quando a campanha deve ser executada
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Data de Início</Label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className={cn(
+                                "w-full justify-start text-left font-normal",
+                                !startDate && "text-muted-foreground"
+                              )}
+                            >
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              {startDate ? format(startDate, "dd/MM/yyyy", { locale: ptBR }) : "Hoje"}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0">
+                            <Calendar
+                              mode="single"
+                              selected={startDate}
+                              onSelect={setStartDate}
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Data de Término</Label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className={cn(
+                                "w-full justify-start text-left font-normal",
+                                !endDate && "text-muted-foreground"
+                              )}
+                            >
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              {endDate ? format(endDate, "dd/MM/yyyy", { locale: ptBR }) : "Sem limite"}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0">
+                            <Calendar
+                              mode="single"
+                              selected={endDate}
+                              onSelect={setEndDate}
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
                       </div>
                     </div>
-                  </div>
 
-                  <Button 
-                    variant="gradient" 
-                    className="w-full"
-                    onClick={handleCreateCampaign}
-                    disabled={loadingCampaigns}
-                  >
-                    {loadingCampaigns ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <>
-                        <Send className="h-4 w-4" />
-                        Criar Campanha
-                      </>
-                    )}
-                  </Button>
-                </CardContent>
-              </Card>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="startTime">Horário de Início</Label>
+                        <Input
+                          id="startTime"
+                          type="time"
+                          value={startTime}
+                          onChange={(e) => setStartTime(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="endTime">Horário de Término</Label>
+                        <Input
+                          id="endTime"
+                          type="time"
+                          value={endTime}
+                          onChange={(e) => setEndTime(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
+                      <Clock className="inline h-3 w-3 mr-1" />
+                      Envios serão feitos apenas entre {startTime} e {endTime}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="animate-fade-in shadow-card">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Settings2 className="h-5 w-5 text-primary" />
+                      Configurações de Delay
+                    </CardTitle>
+                    <CardDescription>
+                      Proteja sua conta com delays e pausas automáticas
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="minDelay">Delay Mínimo (seg)</Label>
+                        <Input
+                          id="minDelay"
+                          type="number"
+                          min="120"
+                          max="300"
+                          value={minDelay}
+                          onChange={(e) => setMinDelay(e.target.value)}
+                        />
+                        <p className="text-xs text-muted-foreground">Mínimo: 120s</p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="maxDelay">Delay Máximo (seg)</Label>
+                        <Input
+                          id="maxDelay"
+                          type="number"
+                          min="120"
+                          max="300"
+                          value={maxDelay}
+                          onChange={(e) => setMaxDelay(e.target.value)}
+                        />
+                        <p className="text-xs text-muted-foreground">Máximo: 300s</p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="pauseAfterMessages">Pausar após (msgs)</Label>
+                        <Input
+                          id="pauseAfterMessages"
+                          type="number"
+                          min="5"
+                          max="50"
+                          value={pauseAfterMessages}
+                          onChange={(e) => setPauseAfterMessages(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="pauseDuration">Duração da pausa (min)</Label>
+                        <Input
+                          id="pauseDuration"
+                          type="number"
+                          min="5"
+                          max="30"
+                          value={pauseDuration}
+                          onChange={(e) => setPauseDuration(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg bg-accent/50 p-4">
+                      <div className="flex items-start gap-3">
+                        <Coffee className="h-5 w-5 text-primary mt-0.5" />
+                        <div>
+                          <p className="text-sm font-medium text-foreground">
+                            Pausas Automáticas
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            A cada {pauseAfterMessages} mensagens, o sistema fará uma pausa de {pauseDuration} minutos
+                            para proteger sua conta.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <Button 
+                      variant="gradient" 
+                      className="w-full"
+                      onClick={handleCreateCampaign}
+                      disabled={loadingCampaigns}
+                    >
+                      {loadingCampaigns ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Send className="h-4 w-4" />
+                          Criar Campanha
+                        </>
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
             </div>
           </TabsContent>
         </Tabs>
