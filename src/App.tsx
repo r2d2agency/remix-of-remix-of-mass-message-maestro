@@ -12,6 +12,7 @@ import Conexao from "./pages/Conexao";
 import Contatos from "./pages/Contatos";
 import Mensagens from "./pages/Mensagens";
 import Campanhas from "./pages/Campanhas";
+import Cobranca from "./pages/Cobranca";
 import Configuracoes from "./pages/Configuracoes";
 import NotFound from "./pages/NotFound";
 
@@ -32,6 +33,7 @@ const App = () => (
             <Route path="/contatos" element={<ProtectedRoute><Contatos /></ProtectedRoute>} />
             <Route path="/mensagens" element={<ProtectedRoute><Mensagens /></ProtectedRoute>} />
             <Route path="/campanhas" element={<ProtectedRoute><Campanhas /></ProtectedRoute>} />
+            <Route path="/cobranca" element={<ProtectedRoute><Cobranca /></ProtectedRoute>} />
             <Route path="/configuracoes" element={<ProtectedRoute><Configuracoes /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>

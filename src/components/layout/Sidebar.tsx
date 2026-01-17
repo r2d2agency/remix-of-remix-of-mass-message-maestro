@@ -6,6 +6,7 @@ import {
   Users,
   MessageSquare,
   Send,
+  Receipt,
   Settings,
   Zap,
 } from "lucide-react";
@@ -16,6 +17,7 @@ const navigation = [
   { name: "Contatos", href: "/contatos", icon: Users },
   { name: "Mensagens", href: "/mensagens", icon: MessageSquare },
   { name: "Campanhas", href: "/campanhas", icon: Send },
+  { name: "Cobrança", href: "/cobranca", icon: Receipt },
   { name: "Configurações", href: "/configuracoes", icon: Settings },
 ];
 

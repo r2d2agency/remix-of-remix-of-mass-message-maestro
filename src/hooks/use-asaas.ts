@@ -1,7 +1,5 @@
 import { useState, useCallback } from 'react';
-import { getAuthToken } from '@/lib/api';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+import { api } from '@/lib/api';
 
 interface AsaasIntegration {
   id: string;
@@ -55,18 +53,11 @@ export function useAsaas(organizationId: string | null) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const getHeaders = () => ({
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${getAuthToken()}`
-  });
-
   const getIntegration = useCallback(async (): Promise<AsaasIntegration | null> => {
     if (!organizationId) return null;
     
     try {
-      const response = await fetch(`${API_URL}/api/asaas/integration/${organizationId}`, { headers: getHeaders() });
-      if (!response.ok) throw new Error('Erro ao buscar integração');
-      return response.json();
+      return await api<AsaasIntegration | null>(`/api/asaas/integration/${organizationId}`);
     } catch (err) {
       console.error('Get integration error:', err);
       return null;
@@ -80,18 +71,11 @@ export function useAsaas(organizationId: string | null) {
     setError(null);
     
     try {
-      const response = await fetch(`${API_URL}/api/asaas/integration/${organizationId}`, {
+      const result = await api<AsaasIntegration>(`/api/asaas/integration/${organizationId}`, {
         method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({ api_key: apiKey, environment })
+        body: { api_key: apiKey, environment }
       });
-      
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Erro ao configurar integração');
-      }
-      
-      return response.json();
+      return result;
     } catch (err: any) {
       setError(err.message);
       return null;
@@ -107,17 +91,10 @@ export function useAsaas(organizationId: string | null) {
     setError(null);
     
     try {
-      const response = await fetch(`${API_URL}/api/asaas/sync/${organizationId}`, {
-        method: 'POST',
-        headers: getHeaders()
+      const result = await api<{ customers_synced: number; payments_synced: number }>(`/api/asaas/sync/${organizationId}`, {
+        method: 'POST'
       });
-      
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Erro ao sincronizar');
-      }
-      
-      return response.json();
+      return result;
     } catch (err: any) {
       setError(err.message);
       return null;
@@ -135,9 +112,8 @@ export function useAsaas(organizationId: string | null) {
       if (filters?.due_date_start) params.set('due_date_start', filters.due_date_start);
       if (filters?.due_date_end) params.set('due_date_end', filters.due_date_end);
       
-      const response = await fetch(`${API_URL}/api/asaas/payments/${organizationId}?${params}`, { headers: getHeaders() });
-      if (!response.ok) throw new Error('Erro ao buscar cobranças');
-      return response.json();
+      const queryString = params.toString() ? `?${params.toString()}` : '';
+      return await api<AsaasPayment[]>(`/api/asaas/payments/${organizationId}${queryString}`);
     } catch (err) {
       console.error('Get payments error:', err);
       return [];
@@ -148,9 +124,7 @@ export function useAsaas(organizationId: string | null) {
     if (!organizationId) return [];
     
     try {
-      const response = await fetch(`${API_URL}/api/asaas/customers/${organizationId}`, { headers: getHeaders() });
-      if (!response.ok) throw new Error('Erro ao buscar clientes');
-      return response.json();
+      return await api<AsaasCustomer[]>(`/api/asaas/customers/${organizationId}`);
     } catch (err) {
       console.error('Get customers error:', err);
       return [];
@@ -161,9 +135,7 @@ export function useAsaas(organizationId: string | null) {
     if (!organizationId) return [];
     
     try {
-      const response = await fetch(`${API_URL}/api/asaas/rules/${organizationId}`, { headers: getHeaders() });
-      if (!response.ok) throw new Error('Erro ao buscar regras');
-      return response.json();
+      return await api<NotificationRule[]>(`/api/asaas/rules/${organizationId}`);
     } catch (err) {
       console.error('Get rules error:', err);
       return [];
@@ -177,18 +149,11 @@ export function useAsaas(organizationId: string | null) {
     setError(null);
     
     try {
-      const response = await fetch(`${API_URL}/api/asaas/rules/${organizationId}`, {
+      const result = await api<NotificationRule>(`/api/asaas/rules/${organizationId}`, {
         method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify(rule)
+        body: rule
       });
-      
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Erro ao criar regra');
-      }
-      
-      return response.json();
+      return result;
     } catch (err: any) {
       setError(err.message);
       return null;
@@ -204,18 +169,11 @@ export function useAsaas(organizationId: string | null) {
     setError(null);
     
     try {
-      const response = await fetch(`${API_URL}/api/asaas/rules/${organizationId}/${ruleId}`, {
+      const result = await api<NotificationRule>(`/api/asaas/rules/${organizationId}/${ruleId}`, {
         method: 'PATCH',
-        headers: getHeaders(),
-        body: JSON.stringify(rule)
+        body: rule
       });
-      
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Erro ao atualizar regra');
-      }
-      
-      return response.json();
+      return result;
     } catch (err: any) {
       setError(err.message);
       return null;
@@ -231,16 +189,9 @@ export function useAsaas(organizationId: string | null) {
     setError(null);
     
     try {
-      const response = await fetch(`${API_URL}/api/asaas/rules/${organizationId}/${ruleId}`, {
-        method: 'DELETE',
-        headers: getHeaders()
+      await api(`/api/asaas/rules/${organizationId}/${ruleId}`, {
+        method: 'DELETE'
       });
-      
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Erro ao excluir regra');
-      }
-      
       return true;
     } catch (err: any) {
       setError(err.message);
