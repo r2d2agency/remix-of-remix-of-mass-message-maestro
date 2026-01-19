@@ -214,53 +214,42 @@ router.delete('/:connectionId/send-attempts', authenticate, async (req, res) => 
  * W-API uses specific event names like:
  * - webhookReceived: incoming message
  * - webhookDelivery: outgoing message confirmation (fromApi)
+ * - webhookStatus: delivery/read/server updates
  * - webhookConnected / webhookDisconnected: connection status
  */
 function detectEventType(payload) {
   const event = payload.event;
 
   // W-API specific event types
-  if (event === 'webhookReceived') {
-    // Incoming message from contact
-    return 'message_received';
-  }
-
-  if (event === 'webhookDelivery') {
-    // Outgoing message confirmation (sent via API)
-    return 'message_sent';
-  }
-
-  if (event === 'webhookConnected') {
-    return 'connection_update';
-  }
-
-  if (event === 'webhookDisconnected') {
-    return 'connection_update';
-  }
+  if (event === 'webhookReceived') return 'message_received';
+  if (event === 'webhookDelivery') return 'message_sent';
+  if (event === 'webhookStatus') return 'status_update';
+  if (event === 'webhookConnected' || event === 'webhookDisconnected') return 'connection_update';
 
   // Legacy/fallback: Evolution-style events
   if (event === 'message' || event === 'messages.upsert') {
-    if (payload.fromMe === false || payload.isFromMe === false) {
-      return 'message_received';
-    }
+    if (payload.fromMe === false || payload.isFromMe === false) return 'message_received';
     return 'message_sent';
   }
 
   // Check by presence of message fields (msgContent is W-API specific)
   if (payload.msgContent || payload.message || payload.text || payload.body) {
-    if (payload.fromMe === true || payload.isFromMe === true || payload.fromApi === true) {
-      return 'message_sent';
-    }
+    if (payload.fromMe === true || payload.isFromMe === true || payload.fromApi === true) return 'message_sent';
     return 'message_received';
   }
 
-  // Status update (delivery ack)
-  if (event === 'message.ack' || payload.ack !== undefined) {
-    return 'status_update';
-  }
+  // Status update (legacy ack)
+  if (event === 'message.ack' || payload.ack !== undefined) return 'status_update';
 
-  // Connection status
-  if (event === 'connection.update' || payload.status || payload.connected !== undefined) {
+  // Connection status (be strict: avoid treating delivery status as connection)
+  if (
+    event === 'connection.update' ||
+    payload.connected !== undefined ||
+    payload.status === 'connected' ||
+    payload.status === 'disconnected' ||
+    payload.state === 'open' ||
+    payload.state === 'close'
+  ) {
     return 'connection_update';
   }
 
@@ -445,16 +434,25 @@ async function handleOutgoingMessage(connection, payload) {
 async function handleStatusUpdate(connection, payload) {
   try {
     const messageId = payload.messageId || payload.id || payload.key?.id;
-    const ack = payload.ack;
-
     if (!messageId) return;
 
-    // Map ack values to status
     let status = 'sent';
-    if (ack === 1) status = 'sent';
-    else if (ack === 2) status = 'delivered';
-    else if (ack === 3) status = 'read';
-    else if (ack === -1 || ack === 0) status = 'failed';
+
+    // W-API status event
+    if (payload.event === 'webhookStatus' && typeof payload.status === 'string') {
+      const s = payload.status.toUpperCase();
+      if (s === 'SERVER') status = 'sent';
+      else if (s === 'DELIVERY' || s === 'DELIVERED') status = 'delivered';
+      else if (s === 'READ') status = 'read';
+      else if (s === 'FAILED' || s === 'ERROR') status = 'failed';
+    } else {
+      // Legacy ack mapping
+      const ack = payload.ack;
+      if (ack === 1) status = 'sent';
+      else if (ack === 2) status = 'delivered';
+      else if (ack === 3) status = 'read';
+      else if (ack === -1 || ack === 0) status = 'failed';
+    }
 
     await query(
       `UPDATE chat_messages SET status = $1 WHERE message_id = $2`,
