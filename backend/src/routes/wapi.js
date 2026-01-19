@@ -991,8 +991,15 @@ function extractMessageContent(payload) {
   let content = '';
   let mediaUrl = null;
   let mediaMimetype = null;
+  let waMediaKey = null; // For encrypted WhatsApp media
 
   const msgContent = payload.msgContent || {};
+
+  // Helper to extract mediaKey from various locations
+  const extractMediaKey = (obj) => {
+    if (!obj) return null;
+    return obj.mediaKey || obj.media_key || obj.key || null;
+  };
 
   const pickFirstString = (obj, keys) => {
     if (!obj) return null;
@@ -1015,28 +1022,14 @@ function extractMessageContent(payload) {
   if (typeof msgContent.conversation === 'string' && msgContent.conversation) {
     content = msgContent.conversation;
     messageType = 'text';
-    return { messageType, content, mediaUrl, mediaMimetype };
+    return { messageType, content, mediaUrl, mediaMimetype, waMediaKey };
   }
 
   // Extended text message
   if (msgContent.extendedTextMessage) {
     content = msgContent.extendedTextMessage.text || '';
     messageType = 'text';
-    return { messageType, content, mediaUrl, mediaMimetype };
-  }
-
-  // Text message (W-API uses msgContent.conversation)
-  if (typeof msgContent.conversation === 'string' && msgContent.conversation) {
-    content = msgContent.conversation;
-    messageType = 'text';
-    return { messageType, content, mediaUrl, mediaMimetype };
-  }
-
-  // Extended text message
-  if (msgContent.extendedTextMessage) {
-    content = msgContent.extendedTextMessage.text || '';
-    messageType = 'text';
-    return { messageType, content, mediaUrl, mediaMimetype };
+    return { messageType, content, mediaUrl, mediaMimetype, waMediaKey };
   }
 
   // Image message
@@ -1047,8 +1040,9 @@ function extractMessageContent(payload) {
       pickFirstString(msgContent.imageMessage, ['url', 'fileUrl', 'mediaUrl', 'link', 'downloadUrl', 'base64', 'data']) ||
       payloadMediaUrl;
     content = msgContent.imageMessage.caption || '';
-    console.log('[W-API Extract] Image message found. MediaURL:', mediaUrl?.slice?.(0, 100), 'MIME:', mediaMimetype);
-    return { messageType, content, mediaUrl, mediaMimetype };
+    waMediaKey = extractMediaKey(msgContent.imageMessage) || extractMediaKey(payload);
+    console.log('[W-API Extract] Image message found. MediaURL:', mediaUrl?.slice?.(0, 100), 'MIME:', mediaMimetype, 'hasMediaKey:', Boolean(waMediaKey));
+    return { messageType, content, mediaUrl, mediaMimetype, waMediaKey };
   }
 
   // Audio message
@@ -1059,7 +1053,8 @@ function extractMessageContent(payload) {
       pickFirstString(msgContent.audioMessage, ['url', 'fileUrl', 'mediaUrl', 'link', 'downloadUrl', 'base64', 'data']) ||
       pickFirstString(payload, ['mediaUrl', 'url', 'fileUrl', 'downloadUrl', 'base64', 'data']);
     content = '[Áudio]';
-    return { messageType, content, mediaUrl, mediaMimetype };
+    waMediaKey = extractMediaKey(msgContent.audioMessage) || extractMediaKey(payload);
+    return { messageType, content, mediaUrl, mediaMimetype, waMediaKey };
   }
 
   // Video message
@@ -1070,7 +1065,8 @@ function extractMessageContent(payload) {
       pickFirstString(msgContent.videoMessage, ['url', 'fileUrl', 'mediaUrl', 'link', 'downloadUrl', 'base64', 'data']) ||
       pickFirstString(payload, ['mediaUrl', 'url', 'fileUrl', 'downloadUrl', 'base64', 'data']);
     content = msgContent.videoMessage.caption || '';
-    return { messageType, content, mediaUrl, mediaMimetype };
+    waMediaKey = extractMediaKey(msgContent.videoMessage) || extractMediaKey(payload);
+    return { messageType, content, mediaUrl, mediaMimetype, waMediaKey };
   }
 
   // Document message
@@ -1081,7 +1077,8 @@ function extractMessageContent(payload) {
       pickFirstString(msgContent.documentMessage, ['url', 'fileUrl', 'mediaUrl', 'link', 'downloadUrl', 'base64', 'data']) ||
       pickFirstString(payload, ['mediaUrl', 'url', 'fileUrl', 'downloadUrl', 'base64', 'data']);
     content = msgContent.documentMessage.fileName || '[Documento]';
-    return { messageType, content, mediaUrl, mediaMimetype };
+    waMediaKey = extractMediaKey(msgContent.documentMessage) || extractMediaKey(payload);
+    return { messageType, content, mediaUrl, mediaMimetype, waMediaKey };
   }
 
   // Sticker message
@@ -1092,7 +1089,8 @@ function extractMessageContent(payload) {
       pickFirstString(msgContent.stickerMessage, ['url', 'fileUrl', 'mediaUrl', 'link', 'downloadUrl', 'base64', 'data']) ||
       pickFirstString(payload, ['mediaUrl', 'url', 'fileUrl', 'downloadUrl', 'base64', 'data']);
     content = '[Figurinha]';
-    return { messageType, content, mediaUrl, mediaMimetype };
+    waMediaKey = extractMediaKey(msgContent.stickerMessage) || extractMediaKey(payload);
+    return { messageType, content, mediaUrl, mediaMimetype, waMediaKey };
   }
 
   // Fallback: legacy format (payload.text, payload.body, etc.)
@@ -1109,6 +1107,7 @@ function extractMessageContent(payload) {
     mediaMimetype = mediaMimetype || payload.imageMessage?.mimetype || payload.mimetype || null;
     mediaUrl = payload.image || payload.imageMessage?.url || payload.mediaUrl || payload.url || null;
     content = payload.caption || payload.imageMessage?.caption || '';
+    waMediaKey = extractMediaKey(payload.imageMessage) || extractMediaKey(payload);
   }
 
   if (payload.audio || payload.audioMessage) {
@@ -1116,6 +1115,7 @@ function extractMessageContent(payload) {
     mediaMimetype = mediaMimetype || payload.audioMessage?.mimetype || payload.mimetype || null;
     mediaUrl = payload.audio || payload.audioMessage?.url || payload.mediaUrl || payload.url || null;
     content = '[Áudio]';
+    waMediaKey = extractMediaKey(payload.audioMessage) || extractMediaKey(payload);
   }
 
   if (payload.video || payload.videoMessage) {
@@ -1123,6 +1123,7 @@ function extractMessageContent(payload) {
     mediaMimetype = mediaMimetype || payload.videoMessage?.mimetype || payload.mimetype || null;
     mediaUrl = payload.video || payload.videoMessage?.url || payload.mediaUrl || payload.url || null;
     content = payload.caption || payload.videoMessage?.caption || '';
+    waMediaKey = extractMediaKey(payload.videoMessage) || extractMediaKey(payload);
   }
 
   if (payload.document || payload.documentMessage) {
@@ -1130,6 +1131,7 @@ function extractMessageContent(payload) {
     mediaMimetype = mediaMimetype || payload.documentMessage?.mimetype || payload.mimetype || null;
     mediaUrl = payload.document || payload.documentMessage?.url || payload.mediaUrl || payload.url || null;
     content = payload.fileName || payload.documentMessage?.fileName || '[Documento]';
+    waMediaKey = extractMediaKey(payload.documentMessage) || extractMediaKey(payload);
   }
 
   if (payload.sticker || payload.stickerMessage) {
@@ -1137,9 +1139,10 @@ function extractMessageContent(payload) {
     mediaMimetype = mediaMimetype || payload.stickerMessage?.mimetype || payload.mimetype || null;
     mediaUrl = payload.sticker || payload.stickerMessage?.url || payload.mediaUrl || payload.url || null;
     content = '[Figurinha]';
+    waMediaKey = extractMediaKey(payload.stickerMessage) || extractMediaKey(payload);
   }
 
-  return { messageType, content, mediaUrl, mediaMimetype };
+  return { messageType, content, mediaUrl, mediaMimetype, waMediaKey };
 }
 
 export default router;
