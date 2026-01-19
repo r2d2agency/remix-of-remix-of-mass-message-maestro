@@ -4,6 +4,8 @@ import { authenticate } from '../middleware/auth.js';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import * as whatsappProvider from '../lib/whatsapp-provider.js';
+
 
 const router = Router();
 
@@ -478,7 +480,7 @@ router.get('/:connectionId/qrcode', authenticate, async (req, res) => {
   }
 });
 
-// Check connection status
+// Check connection status (supports both Evolution API and W-API)
 router.get('/:connectionId/status', authenticate, async (req, res) => {
   try {
     const { connectionId } = req.params;
@@ -495,12 +497,11 @@ router.get('/:connectionId/status', authenticate, async (req, res) => {
 
     const connection = connResult.rows[0];
 
-    // Check status on Evolution
-    const statusResult = await evolutionRequest(`/instance/connectionState/${connection.instance_name}`, 'GET');
+    // Use unified provider to check status
+    const statusResult = await whatsappProvider.checkStatus(connection);
     
-    const isConnected = statusResult.instance?.state === 'open';
-    const phoneNumber = statusResult.instance?.phoneNumber || null;
-    const newStatus = isConnected ? 'connected' : 'disconnected';
+    const newStatus = statusResult.status || 'disconnected';
+    const phoneNumber = statusResult.phoneNumber || null;
 
     // Update status in database if changed
     if (connection.status !== newStatus || connection.phone_number !== phoneNumber) {
@@ -513,7 +514,7 @@ router.get('/:connectionId/status', authenticate, async (req, res) => {
     res.json({
       status: newStatus,
       phoneNumber,
-      state: statusResult.instance?.state,
+      provider: connection.provider || 'evolution',
     });
   } catch (error) {
     console.error('Check status error:', error);
@@ -521,7 +522,7 @@ router.get('/:connectionId/status', authenticate, async (req, res) => {
   }
 });
 
-// Disconnect/Logout from WhatsApp
+// Disconnect/Logout from WhatsApp (supports both Evolution API and W-API)
 router.post('/:connectionId/logout', authenticate, async (req, res) => {
   try {
     const { connectionId } = req.params;
@@ -538,8 +539,8 @@ router.post('/:connectionId/logout', authenticate, async (req, res) => {
 
     const connection = connResult.rows[0];
 
-    // Logout from Evolution
-    await evolutionRequest(`/instance/logout/${connection.instance_name}`, 'DELETE');
+    // Use unified provider to disconnect
+    await whatsappProvider.disconnect(connection);
 
     // Update status in database
     await query(
