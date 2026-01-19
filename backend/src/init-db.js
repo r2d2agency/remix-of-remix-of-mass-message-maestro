@@ -474,6 +474,71 @@ CREATE TABLE IF NOT EXISTS asaas_webhook_events (
     error_message TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- ============================================
+-- ASAAS v3 (advanced billing controls)
+-- These columns/tables are required by backend/src/routes/asaas.js
+-- ============================================
+
+-- Customer blacklist + pause controls
+DO $$ BEGIN
+    ALTER TABLE asaas_customers ADD COLUMN IF NOT EXISTS is_blacklisted BOOLEAN DEFAULT false;
+    ALTER TABLE asaas_customers ADD COLUMN IF NOT EXISTS blacklist_reason TEXT;
+    ALTER TABLE asaas_customers ADD COLUMN IF NOT EXISTS blacklisted_at TIMESTAMP WITH TIME ZONE;
+
+    ALTER TABLE asaas_customers ADD COLUMN IF NOT EXISTS billing_paused BOOLEAN DEFAULT false;
+    ALTER TABLE asaas_customers ADD COLUMN IF NOT EXISTS billing_paused_until TIMESTAMP WITH TIME ZONE;
+    ALTER TABLE asaas_customers ADD COLUMN IF NOT EXISTS billing_paused_reason TEXT;
+EXCEPTION
+    WHEN duplicate_column THEN null;
+    WHEN others THEN null;
+END $$;
+
+-- Integration settings (limits/alerts/global pause)
+DO $$ BEGIN
+    ALTER TABLE asaas_integrations ADD COLUMN IF NOT EXISTS daily_message_limit_per_customer INTEGER;
+
+    ALTER TABLE asaas_integrations ADD COLUMN IF NOT EXISTS billing_paused BOOLEAN DEFAULT false;
+    ALTER TABLE asaas_integrations ADD COLUMN IF NOT EXISTS billing_paused_until TIMESTAMP WITH TIME ZONE;
+    ALTER TABLE asaas_integrations ADD COLUMN IF NOT EXISTS billing_paused_reason TEXT;
+
+    ALTER TABLE asaas_integrations ADD COLUMN IF NOT EXISTS critical_alert_threshold DECIMAL(10, 2);
+    ALTER TABLE asaas_integrations ADD COLUMN IF NOT EXISTS critical_alert_days INTEGER;
+    ALTER TABLE asaas_integrations ADD COLUMN IF NOT EXISTS alert_email TEXT;
+    ALTER TABLE asaas_integrations ADD COLUMN IF NOT EXISTS alert_whatsapp BOOLEAN DEFAULT false;
+    ALTER TABLE asaas_integrations ADD COLUMN IF NOT EXISTS alert_connection_id UUID REFERENCES connections(id) ON DELETE SET NULL;
+EXCEPTION
+    WHEN duplicate_column THEN null;
+    WHEN others THEN null;
+END $$;
+
+-- Daily message count per customer (anti-spam)
+CREATE TABLE IF NOT EXISTS billing_daily_message_count (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE NOT NULL,
+    customer_id UUID REFERENCES asaas_customers(id) ON DELETE CASCADE NOT NULL,
+    day DATE NOT NULL,
+    message_count INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE (customer_id, day)
+);
+
+-- Critical delinquency alerts
+CREATE TABLE IF NOT EXISTS billing_alerts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE NOT NULL,
+    customer_id UUID REFERENCES asaas_customers(id) ON DELETE CASCADE,
+    alert_type VARCHAR(50) NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    total_overdue DECIMAL(12, 2),
+    days_overdue INTEGER,
+    is_read BOOLEAN DEFAULT false,
+    is_resolved BOOLEAN DEFAULT false,
+    resolved_at TIMESTAMP WITH TIME ZONE,
+    resolved_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 `;
 
 // ============================================
@@ -713,6 +778,11 @@ CREATE INDEX IF NOT EXISTS idx_asaas_payments_org ON asaas_payments(organization
 CREATE INDEX IF NOT EXISTS idx_asaas_payments_status ON asaas_payments(status);
 CREATE INDEX IF NOT EXISTS idx_asaas_payments_due_date ON asaas_payments(due_date);
 CREATE INDEX IF NOT EXISTS idx_billing_notifications_payment ON billing_notifications(payment_id);
+
+CREATE INDEX IF NOT EXISTS idx_billing_alerts_org ON billing_alerts(organization_id);
+CREATE INDEX IF NOT EXISTS idx_billing_alerts_unresolved ON billing_alerts(organization_id, is_resolved) WHERE is_resolved = false;
+CREATE INDEX IF NOT EXISTS idx_billing_daily_msg_customer_day ON billing_daily_message_count(customer_id, day);
+
 CREATE INDEX IF NOT EXISTS idx_conversations_conn ON conversations(connection_id);
 CREATE INDEX IF NOT EXISTS idx_conversations_assigned ON conversations(assigned_to);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_conv ON chat_messages(conversation_id);
