@@ -507,3 +507,72 @@ export async function sendMessage(instanceId, token, phone, content, messageType
       return sendText(instanceId, token, phone, content);
   }
 }
+
+/**
+ * Download media from W-API using messageId
+ * This is needed because WhatsApp CDN URLs (mmg.whatsapp.net) require authentication
+ */
+export async function downloadMedia(instanceId, token, messageId) {
+  try {
+    console.log('[W-API] Downloading media for messageId:', messageId);
+    
+    const response = await fetch(
+      `${W_API_BASE_URL}/message/download-media?instanceId=${encodeURIComponent(instanceId)}&messageId=${encodeURIComponent(messageId)}`,
+      {
+        method: 'GET',
+        headers: getHeaders(token),
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      console.error('[W-API] Download media failed:', response.status, errorText.slice(0, 500));
+      return { success: false, error: `HTTP ${response.status}` };
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    
+    // Check if response is JSON (error or base64 data)
+    if (contentType.includes('application/json')) {
+      const data = await response.json();
+      
+      // W-API may return base64 in the response
+      if (data.base64 || data.data) {
+        const base64 = data.base64 || data.data;
+        const mimetype = data.mimetype || data.mimeType || 'image/jpeg';
+        return { 
+          success: true, 
+          base64: `data:${mimetype};base64,${base64}`,
+          mimetype 
+        };
+      }
+      
+      // Or a URL to download
+      if (data.url || data.mediaUrl) {
+        return { 
+          success: true, 
+          url: data.url || data.mediaUrl,
+          mimetype: data.mimetype || data.mimeType 
+        };
+      }
+      
+      return { success: false, error: data.message || data.error || 'No media data in response' };
+    }
+    
+    // Response is binary data
+    const buffer = await response.arrayBuffer();
+    const base64 = Buffer.from(buffer).toString('base64');
+    const mimetype = contentType.split(';')[0].trim() || 'application/octet-stream';
+    
+    console.log('[W-API] Downloaded media successfully, size:', buffer.byteLength, 'type:', mimetype);
+    
+    return { 
+      success: true, 
+      base64: `data:${mimetype};base64,${base64}`,
+      mimetype 
+    };
+  } catch (error) {
+    console.error('[W-API] downloadMedia error:', error);
+    return { success: false, error: error.message };
+  }
+}

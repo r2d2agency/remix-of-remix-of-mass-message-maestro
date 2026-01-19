@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
-import { getSendAttempts, clearSendAttempts } from '../lib/wapi-provider.js';
+import { getSendAttempts, clearSendAttempts, downloadMedia as wapiDownloadMedia } from '../lib/wapi-provider.js';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
@@ -206,14 +206,35 @@ function shouldCacheExternally(mediaUrl) {
   return isAbsoluteUrl(u);
 }
 
-async function cacheMediaAndUpdateMessage({ messageId, mediaUrl, messageType, mediaMimetype }) {
+function isWhatsAppCdnUrl(url) {
+  if (!url) return false;
+  return url.includes('mmg.whatsapp.net') || url.includes('media.whatsapp.net');
+}
+
+async function cacheMediaAndUpdateMessage({ messageId, mediaUrl, messageType, mediaMimetype, connection }) {
   console.log('[W-API Cache] Starting media cache for:', messageId, 'URL:', String(mediaUrl).slice(0, 200));
   
   try {
     const raw = mediaUrl;
-
     let cached;
-    if (/^data:/i.test(raw)) {
+
+    // If it's a WhatsApp CDN URL, we need to use W-API download endpoint
+    if (isWhatsAppCdnUrl(raw) && connection?.instance_id && connection?.wapi_token) {
+      console.log('[W-API Cache] WhatsApp CDN URL detected, using W-API download endpoint...');
+      
+      const downloadResult = await wapiDownloadMedia(connection.instance_id, connection.wapi_token, messageId);
+      
+      if (downloadResult.success && downloadResult.base64) {
+        console.log('[W-API Cache] Downloaded via W-API, saving to uploads...');
+        cached = await writeDataUrlToUploads(downloadResult.base64, messageType, downloadResult.mimetype || mediaMimetype);
+      } else if (downloadResult.success && downloadResult.url) {
+        console.log('[W-API Cache] Got new URL from W-API, downloading...');
+        cached = await downloadToUploads(downloadResult.url, messageType, downloadResult.mimetype || mediaMimetype);
+      } else {
+        console.error('[W-API Cache] W-API download failed:', downloadResult.error);
+        return; // Don't update, keep original URL
+      }
+    } else if (/^data:/i.test(raw)) {
       console.log('[W-API Cache] Processing as data URL (base64)');
       cached = await writeDataUrlToUploads(raw, messageType, mediaMimetype);
     } else {
@@ -232,6 +253,8 @@ async function cacheMediaAndUpdateMessage({ messageId, mediaUrl, messageType, me
     console.log('[W-API Cache] Successfully cached:', cached.publicUrl);
   } catch (err) {
     console.error('[W-API Cache] Failed to cache media:', err?.message || err, 'Original URL:', String(mediaUrl).slice(0, 200));
+  }
+}
   }
 }
 
@@ -522,7 +545,7 @@ async function handleIncomingMessage(connection, payload) {
     // Cache media in background for reliability (CORS/expiração de URL)
     if (mediaUrl && shouldCacheExternally(mediaUrl)) {
       console.log('[W-API] Starting background media cache...');
-      cacheMediaAndUpdateMessage({ messageId, mediaUrl, messageType, mediaMimetype });
+      cacheMediaAndUpdateMessage({ messageId, mediaUrl, messageType, mediaMimetype, connection });
     } else if (messageType !== 'text' && !mediaUrl) {
       console.log('[W-API] WARNING: Non-text message without mediaUrl! Type:', messageType);
     }
@@ -605,7 +628,7 @@ async function handleOutgoingMessage(connection, payload) {
     );
 
     if (mediaUrl && shouldCacheExternally(mediaUrl)) {
-      cacheMediaAndUpdateMessage({ messageId, mediaUrl, messageType, mediaMimetype });
+      cacheMediaAndUpdateMessage({ messageId, mediaUrl, messageType, mediaMimetype, connection });
     }
 
     // Update conversation timestamp
