@@ -143,47 +143,129 @@ function downloadToUploads(url, messageType, hintedMime, redirectCount = 0) {
 
     console.log('[W-API Media] Attempting download:', url.slice(0, 200));
 
-    const req = client.get(url, {
-      headers: {
-        'User-Agent': 'Whatsale/1.0',
-        'Accept': '*/*',
+    const req = client.get(
+      url,
+      {
+        headers: {
+          'User-Agent': 'Whatsale/1.0',
+          'Accept': '*/*',
+        },
       },
-    }, (res) => {
-      const status = res.statusCode || 0;
+      (res) => {
+        const status = res.statusCode || 0;
+        console.log('[W-API Media] Download response:', status);
 
-      console.log('[W-API Media] Download response:', status);
+        // Redirect handling
+        if (
+          [301, 302, 303, 307, 308].includes(status) &&
+          res.headers.location &&
+          redirectCount < 3
+        ) {
+          const nextUrl = new URL(res.headers.location, url).toString();
+          res.resume();
+          return resolve(downloadToUploads(nextUrl, messageType, hintedMime, redirectCount + 1));
+        }
 
-      // Redirect handling
-      if ([301, 302, 303, 307, 308].includes(status) && res.headers.location && redirectCount < 3) {
-        const nextUrl = new URL(res.headers.location, url).toString();
-        res.resume();
-        return resolve(downloadToUploads(nextUrl, messageType, hintedMime, redirectCount + 1));
-      }
+        if (status < 200 || status >= 300) {
+          res.resume();
+          return reject(new Error(`HTTP ${status}`));
+        }
 
-      if (status < 200 || status >= 300) {
-        res.resume();
-        return reject(new Error(`HTTP ${status}`));
-      }
+        const headerMime = String(res.headers['content-type'] || '').split(';')[0].trim();
+        const mime = headerMime || hintedMime || null;
 
-      const mime = (String(res.headers['content-type'] || '').split(';')[0].trim() || hintedMime || null);
-      const ext = extFromMime(mime) || extFromUrl(url) || defaultExtByType(messageType);
+        // --- sniff first bytes to avoid saving decrypted media as .enc (WhatsApp CDN) ---
+        let head = Buffer.alloc(0);
+        const onData = (chunk) => {
+          try {
+            if (head.length >= 64) return;
+            const b = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+            const need = 64 - head.length;
+            head = Buffer.concat([head, b.slice(0, need)]);
+          } catch {
+            // ignore
+          }
+        };
+        res.on('data', onData);
 
-      const filename = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}.${ext}`;
-      const filePath = path.join(UPLOADS_DIR, filename);
-      const fileStream = fs.createWriteStream(filePath);
+        const sniffExt = () => {
+          const b = head;
+          if (!b || b.length < 12) return null;
 
-      res.pipe(fileStream);
-      fileStream.on('finish', () => {
-        fileStream.close(() => {
-          console.log('[W-API Media] Downloaded successfully:', filename);
-          resolve({ publicUrl: buildUploadsPublicUrl(filename), mime });
+          // JPEG
+          if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'jpg';
+          // PNG
+          if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return 'png';
+          // GIF
+          if (b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x38) return 'gif';
+          // WEBP (RIFF....WEBP)
+          if (
+            b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 &&
+            b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50
+          ) return 'webp';
+          // PDF
+          if (b[0] === 0x25 && b[1] === 0x50 && b[2] === 0x44 && b[3] === 0x46) return 'pdf';
+          // OGG
+          if (b[0] === 0x4f && b[1] === 0x67 && b[2] === 0x67 && b[3] === 0x53) return 'ogg';
+          // MP4/QuickTime: ....ftyp
+          if (b[4] === 0x66 && b[5] === 0x74 && b[6] === 0x79 && b[7] === 0x70) return 'mp4';
+
+          return null;
+        };
+
+        const mimeFromExt = (ext) => {
+          const map = {
+            jpg: 'image/jpeg',
+            jpeg: 'image/jpeg',
+            png: 'image/png',
+            gif: 'image/gif',
+            webp: 'image/webp',
+            pdf: 'application/pdf',
+            ogg: 'audio/ogg',
+            mp4: 'video/mp4',
+          };
+          return map[ext] || null;
+        };
+
+        // Write to a temporary file first, then rename with the correct extension
+        const tmpName = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}.tmp`;
+        const tmpPath = path.join(UPLOADS_DIR, tmpName);
+        const fileStream = fs.createWriteStream(tmpPath);
+
+        res.pipe(fileStream);
+
+        fileStream.on('finish', async () => {
+          try {
+            fileStream.close(() => {
+              const sniffed = sniffExt();
+              const ext = extFromMime(mime) || sniffed || defaultExtByType(messageType);
+              const finalName = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}.${ext}`;
+              const finalPath = path.join(UPLOADS_DIR, finalName);
+
+              try {
+                fs.renameSync(tmpPath, finalPath);
+              } catch (e) {
+                // fallback: keep temp file if rename fails
+                console.error('[W-API Media] Rename failed:', e?.message || e);
+                return resolve({ publicUrl: buildUploadsPublicUrl(tmpName), mime: mime || hintedMime || null });
+              }
+
+              const finalMime = mimeFromExt(ext) || mime || hintedMime || null;
+              console.log('[W-API Media] Downloaded successfully:', finalName, 'mime:', finalMime);
+              resolve({ publicUrl: buildUploadsPublicUrl(finalName), mime: finalMime });
+            });
+          } catch (err) {
+            console.error('[W-API Media] Finish handler error:', err?.message || err);
+            return resolve({ publicUrl: buildUploadsPublicUrl(tmpName), mime: mime || hintedMime || null });
+          }
         });
-      });
-      fileStream.on('error', (err) => {
-        res.resume();
-        reject(err);
-      });
-    });
+
+        fileStream.on('error', (err) => {
+          res.resume();
+          reject(err);
+        });
+      }
+    );
 
     req.on('error', (err) => {
       console.error('[W-API Media] Download error:', err.message);

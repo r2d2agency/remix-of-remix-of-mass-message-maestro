@@ -540,17 +540,61 @@ export async function downloadMedia(instanceId, token, messageId) {
   const normalizeJson = (data) => {
     if (!data || typeof data !== 'object') return null;
 
-    const base64Raw = data.base64 || data.data || data.media || data.file || null;
-    const url = data.url || data.mediaUrl || data.fileUrl || data.downloadUrl || null;
-    const mimetype = data.mimetype || data.mimeType || data.type || data.contentType || null;
+    // Some W-API versions wrap the payload in { data: {...} } or { result: {...} }
+    const roots = [data, data?.data, data?.result].filter((v) => v && typeof v === 'object');
 
-    if (typeof base64Raw === 'string' && base64Raw.trim()) {
+    const visit = (obj, depth, cb) => {
+      if (!obj || typeof obj !== 'object' || depth > 4) return;
+      cb(obj);
+      for (const v of Object.values(obj)) {
+        if (v && typeof v === 'object') visit(v, depth + 1, cb);
+      }
+    };
+
+    const pickFirstStringDeep = (keys) => {
+      for (const r of roots) {
+        let found = null;
+        visit(r, 0, (o) => {
+          if (found) return;
+          for (const k of keys) {
+            const v = o?.[k];
+            if (typeof v === 'string' && v.trim()) {
+              found = v.trim();
+              return;
+            }
+          }
+        });
+        if (found) return found;
+      }
+      return null;
+    };
+
+    const mimetype =
+      pickFirstStringDeep(['mimetype', 'mimeType', 'type', 'contentType']) ||
+      null;
+
+    // base64 can be nested and/or come without data: prefix
+    const base64Raw = pickFirstStringDeep([
+      'base64',
+      'b64',
+      'fileBase64',
+      'mediaBase64',
+      'data',
+      'file',
+      'buffer',
+      'content',
+    ]);
+
+    if (base64Raw) {
       const b = base64Raw.trim();
-      const b64 = b.startsWith('data:') ? b : `data:${mimetype || 'application/octet-stream'};base64,${b}`;
+      const b64 = b.startsWith('data:')
+        ? b
+        : `data:${mimetype || 'application/octet-stream'};base64,${b}`;
       return { success: true, base64: b64, mimetype: mimetype || undefined };
     }
 
-    if (typeof url === 'string' && url.trim()) {
+    const url = pickFirstStringDeep(['url', 'mediaUrl', 'fileUrl', 'downloadUrl', 'link']);
+    if (url) {
       return { success: true, url: url.trim(), mimetype: mimetype || undefined };
     }
 
