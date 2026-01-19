@@ -638,7 +638,7 @@ router.delete('/:connectionId', authenticate, async (req, res) => {
   }
 });
 
-// Send test message
+// Send test message (supports both Evolution API and W-API)
 router.post('/:connectionId/test', authenticate, async (req, res) => {
   try {
     const { connectionId } = req.params;
@@ -665,50 +665,40 @@ router.post('/:connectionId/test', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'Conexão não está ativa. Conecte primeiro.' });
     }
 
-    // Format phone number
+    // Detect provider to use correct method
+    const provider = whatsappProvider.detectProvider(connection);
+    console.log(`[Test Message] Provider: ${provider}, Connection: ${connectionId}, Phone: ${phone}`);
+
+    // Format phone number (remove non-digits)
     const formattedPhone = phone.replace(/\D/g, '');
-    const remoteJid = formattedPhone.includes('@') ? formattedPhone : `${formattedPhone}@s.whatsapp.net`;
 
     let result;
 
-    // Send media if provided
+    // Use unified whatsappProvider for all message types
     if (mediaUrl) {
-      const endpoint = mediaType === 'audio' 
-        ? `/message/sendWhatsAppAudio/${connection.instance_name}`
-        : `/message/sendMedia/${connection.instance_name}`;
-      
-      const body = {
-        number: remoteJid,
-        mediatype: mediaType || 'document',
-        media: mediaUrl,
-        caption: message || undefined,
-        fileName: fileName || undefined,
-      };
-
-      // For audio, use PTT format
-      if (mediaType === 'audio') {
-        body.audio = mediaUrl;
-        body.delay = 1200;
-        delete body.media;
-        delete body.mediatype;
-        delete body.caption;
-      }
-
-      result = await evolutionRequest(endpoint, 'POST', body);
+      // Determine message type based on mediaType
+      const msgType = mediaType || 'document';
+      result = await whatsappProvider.sendMessage(connection, formattedPhone, message || fileName || '', msgType, mediaUrl);
     } else if (message) {
-      // Send text message
-      result = await evolutionRequest(`/message/sendText/${connection.instance_name}`, 'POST', {
-        number: remoteJid,
-        text: message,
-      });
+      // Send text message using unified provider
+      result = await whatsappProvider.sendMessage(connection, formattedPhone, message, 'text', null);
     } else {
       return res.status(400).json({ error: 'Mensagem ou mídia é obrigatório' });
     }
 
-    res.json({ success: true, result });
+    console.log(`[Test Message] Result:`, result);
+
+    if (result.success === false) {
+      return res.status(400).json({ 
+        error: result.error || 'Falha ao enviar mensagem',
+        details: result
+      });
+    }
+
+    res.json({ success: true, result, provider });
   } catch (error) {
     console.error('Send test message error:', error);
-    res.status(500).json({ error: 'Erro ao enviar mensagem de teste' });
+    res.status(500).json({ error: error.message || 'Erro ao enviar mensagem de teste' });
   }
 });
 
