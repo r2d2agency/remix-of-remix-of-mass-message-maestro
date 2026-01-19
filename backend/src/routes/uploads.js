@@ -121,4 +121,47 @@ router.delete('/:filename', authenticate, (req, res) => {
   }
 });
 
+// Check if file exists (public diagnostic endpoint)
+router.get('/check/:filename', (req, res) => {
+  try {
+    const filePath = path.join(uploadsDir, req.params.filename);
+    const exists = fs.existsSync(filePath);
+    
+    if (exists) {
+      const stats = fs.statSync(filePath);
+      const baseUrl = process.env.API_BASE_URL || 'https://whastsale-backend.exf0ty.easypanel.host';
+      res.json({ 
+        exists: true, 
+        size: stats.size,
+        created: stats.birthtime,
+        url: `${baseUrl}/uploads/${req.params.filename}`
+      });
+    } else {
+      res.json({ exists: false, message: 'Arquivo não encontrado no servidor' });
+    }
+  } catch (error) {
+    console.error('Check error:', error);
+    res.status(500).json({ error: 'Erro ao verificar arquivo' });
+  }
+});
+
+// List recent uploads (for diagnostics)
+router.get('/list', authenticate, (req, res) => {
+  try {
+    const files = fs.readdirSync(uploadsDir)
+      .map(name => {
+        const filePath = path.join(uploadsDir, name);
+        const stats = fs.statSync(filePath);
+        return { name, size: stats.size, created: stats.birthtime };
+      })
+      .sort((a, b) => new Date(b.created) - new Date(a.created))
+      .slice(0, 50);
+    
+    res.json({ files, count: files.length });
+  } catch (error) {
+    console.error('List error:', error);
+    res.status(500).json({ error: 'Erro ao listar arquivos' });
+  }
+});
+
 export default router;

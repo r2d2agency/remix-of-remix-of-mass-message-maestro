@@ -141,6 +141,8 @@ function downloadToUploads(url, messageType, hintedMime, redirectCount = 0) {
   return new Promise((resolve, reject) => {
     const client = url.startsWith('https://') ? https : http;
 
+    console.log('[W-API Media] Attempting download:', url.slice(0, 200));
+
     const req = client.get(url, {
       headers: {
         'User-Agent': 'Whatsale/1.0',
@@ -148,6 +150,8 @@ function downloadToUploads(url, messageType, hintedMime, redirectCount = 0) {
       },
     }, (res) => {
       const status = res.statusCode || 0;
+
+      console.log('[W-API Media] Download response:', status);
 
       // Redirect handling
       if ([301, 302, 303, 307, 308].includes(status) && res.headers.location && redirectCount < 3) {
@@ -171,6 +175,7 @@ function downloadToUploads(url, messageType, hintedMime, redirectCount = 0) {
       res.pipe(fileStream);
       fileStream.on('finish', () => {
         fileStream.close(() => {
+          console.log('[W-API Media] Downloaded successfully:', filename);
           resolve({ publicUrl: buildUploadsPublicUrl(filename), mime });
         });
       });
@@ -180,7 +185,10 @@ function downloadToUploads(url, messageType, hintedMime, redirectCount = 0) {
       });
     });
 
-    req.on('error', reject);
+    req.on('error', (err) => {
+      console.error('[W-API Media] Download error:', err.message);
+      reject(err);
+    });
     req.setTimeout(15000, () => {
       req.destroy(new Error('Timeout downloading media'));
     });
@@ -199,13 +207,17 @@ function shouldCacheExternally(mediaUrl) {
 }
 
 async function cacheMediaAndUpdateMessage({ messageId, mediaUrl, messageType, mediaMimetype }) {
+  console.log('[W-API Cache] Starting media cache for:', messageId, 'URL:', String(mediaUrl).slice(0, 200));
+  
   try {
     const raw = mediaUrl;
 
     let cached;
     if (/^data:/i.test(raw)) {
+      console.log('[W-API Cache] Processing as data URL (base64)');
       cached = await writeDataUrlToUploads(raw, messageType, mediaMimetype);
     } else {
+      console.log('[W-API Cache] Processing as HTTP URL');
       cached = await downloadToUploads(raw, messageType, mediaMimetype);
     }
 
@@ -216,8 +228,10 @@ async function cacheMediaAndUpdateMessage({ messageId, mediaUrl, messageType, me
        WHERE message_id = $3`,
       [cached.publicUrl, cached.mime, messageId]
     );
+    
+    console.log('[W-API Cache] Successfully cached:', cached.publicUrl);
   } catch (err) {
-    console.error('[W-API] Failed to cache media:', err?.message || err);
+    console.error('[W-API Cache] Failed to cache media:', err?.message || err, 'Original URL:', String(mediaUrl).slice(0, 200));
   }
 }
 
@@ -475,10 +489,13 @@ async function handleIncomingMessage(connection, payload) {
 
     // Extract message content
     const { messageType, content, mediaUrl: rawMediaUrl, mediaMimetype } = extractMessageContent(payload);
+    
+    console.log('[W-API] Extracted content:', { messageType, contentLen: content?.length, rawMediaUrl: rawMediaUrl?.slice?.(0, 100), mediaMimetype });
+    
     const mediaUrl = normalizeUploadsUrl(rawMediaUrl);
 
     if (!content && !mediaUrl) {
-      console.log('[W-API] Empty message content, skipping');
+      console.log('[W-API] Empty message content, skipping. Full msgContent:', JSON.stringify(payload.msgContent || {}).slice(0, 500));
       return;
     }
 
@@ -500,9 +517,14 @@ async function handleIncomingMessage(connection, payload) {
       [conversationId, messageId, content, messageType, mediaUrl, mediaMimetype || null]
     );
 
+    console.log('[W-API] Message saved. Type:', messageType, 'MediaURL:', mediaUrl?.slice?.(0, 100));
+
     // Cache media in background for reliability (CORS/expiração de URL)
     if (mediaUrl && shouldCacheExternally(mediaUrl)) {
+      console.log('[W-API] Starting background media cache...');
       cacheMediaAndUpdateMessage({ messageId, mediaUrl, messageType, mediaMimetype });
+    } else if (messageType !== 'text' && !mediaUrl) {
+      console.log('[W-API] WARNING: Non-text message without mediaUrl! Type:', messageType);
     }
 
     console.log('[W-API] Incoming message saved:', messageId, 'Type:', messageType, 'From:', cleanPhone);
@@ -663,6 +685,9 @@ async function handleConnectionUpdate(connection, payload) {
  * - msgContent.videoMessage: video with caption
  * - msgContent.documentMessage: document with filename
  * - msgContent.stickerMessage: sticker
+ * 
+ * IMPORTANT: W-API may send media WITHOUT a direct URL.
+ * In that case, we need to use the W-API download endpoint.
  */
 function extractMessageContent(payload) {
   let messageType = 'text';
@@ -685,6 +710,23 @@ function extractMessageContent(payload) {
     const m = pickFirstString(obj, ['mimetype', 'mimeType', 'type', 'contentType']);
     return m || null;
   };
+  
+  // Check for direct media URL at payload level (some W-API versions)
+  const payloadMediaUrl = pickFirstString(payload, ['mediaUrl', 'url', 'fileUrl', 'downloadUrl', 'media', 'base64', 'data']);
+
+  // Text message (W-API uses msgContent.conversation)
+  if (typeof msgContent.conversation === 'string' && msgContent.conversation) {
+    content = msgContent.conversation;
+    messageType = 'text';
+    return { messageType, content, mediaUrl, mediaMimetype };
+  }
+
+  // Extended text message
+  if (msgContent.extendedTextMessage) {
+    content = msgContent.extendedTextMessage.text || '';
+    messageType = 'text';
+    return { messageType, content, mediaUrl, mediaMimetype };
+  }
 
   // Text message (W-API uses msgContent.conversation)
   if (typeof msgContent.conversation === 'string' && msgContent.conversation) {
@@ -706,8 +748,9 @@ function extractMessageContent(payload) {
     mediaMimetype = pickMime(msgContent.imageMessage) || payload.mediaMimetype || payload.mimetype || null;
     mediaUrl =
       pickFirstString(msgContent.imageMessage, ['url', 'fileUrl', 'mediaUrl', 'link', 'downloadUrl', 'base64', 'data']) ||
-      pickFirstString(payload, ['mediaUrl', 'url', 'fileUrl', 'downloadUrl', 'base64', 'data']);
+      payloadMediaUrl;
     content = msgContent.imageMessage.caption || '';
+    console.log('[W-API Extract] Image message found. MediaURL:', mediaUrl?.slice?.(0, 100), 'MIME:', mediaMimetype);
     return { messageType, content, mediaUrl, mediaMimetype };
   }
 
