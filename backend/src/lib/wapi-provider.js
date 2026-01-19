@@ -24,12 +24,10 @@ export async function configureWebhooks(instanceId, token) {
   console.log(`[W-API] Configuring webhooks for instance ${instanceId} -> ${webhookUrl}`);
   
   const webhookTypes = [
-    { endpoint: 'update-webhook-receive', name: 'receive' },
-    { endpoint: 'update-webhook-send', name: 'send' },
-    { endpoint: 'update-webhook-connected', name: 'connected' },
-    { endpoint: 'update-webhook-disconnected', name: 'disconnected' },
-    { endpoint: 'update-webhook-status', name: 'status' },
-    { endpoint: 'update-webhook-chat-presence', name: 'presence' },
+    { endpoint: 'update-webhook-received', name: 'received' },      // Mensagens recebidas
+    { endpoint: 'update-webhook-delivery', name: 'delivery' },      // Status de entrega
+    { endpoint: 'update-webhook-connected', name: 'connected' },    // Conexão estabelecida
+    { endpoint: 'update-webhook-disconnected', name: 'disconnected' }, // Desconexão
   ];
 
   const results = [];
