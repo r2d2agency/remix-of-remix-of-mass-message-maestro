@@ -51,18 +51,43 @@ router.get('/', async (req, res) => {
 // Create connection
 router.post('/', async (req, res) => {
   try {
-    const { api_url, api_key, instance_name, name } = req.body;
+    const { 
+      provider = 'evolution', 
+      api_url, 
+      api_key, 
+      instance_name, 
+      instance_id,
+      wapi_token,
+      name 
+    } = req.body;
 
-    if (!api_url || !api_key || !instance_name) {
-      return res.status(400).json({ error: 'URL, API Key e nome da instância são obrigatórios' });
+    // Validate based on provider
+    if (provider === 'wapi') {
+      if (!instance_id || !wapi_token) {
+        return res.status(400).json({ error: 'Instance ID e Token são obrigatórios para W-API' });
+      }
+    } else {
+      if (!api_url || !api_key || !instance_name) {
+        return res.status(400).json({ error: 'URL, API Key e nome da instância são obrigatórios' });
+      }
     }
 
     const org = await getUserOrganization(req.userId);
 
     const result = await query(
-      `INSERT INTO connections (user_id, organization_id, api_url, api_key, instance_name, name)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [req.userId, org?.organization_id || null, api_url, api_key, instance_name, name || instance_name]
+      `INSERT INTO connections (user_id, organization_id, provider, api_url, api_key, instance_name, instance_id, wapi_token, name)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [
+        req.userId, 
+        org?.organization_id || null, 
+        provider,
+        api_url || null, 
+        api_key || null, 
+        instance_name || null,
+        instance_id || null,
+        wapi_token || null,
+        name || instance_name || instance_id
+      ]
     );
 
     res.status(201).json(result.rows[0]);
@@ -76,26 +101,38 @@ router.post('/', async (req, res) => {
 router.patch('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { api_url, api_key, instance_name, name, status } = req.body;
+    const { 
+      provider,
+      api_url, 
+      api_key, 
+      instance_name, 
+      instance_id,
+      wapi_token,
+      name, 
+      status 
+    } = req.body;
 
     const org = await getUserOrganization(req.userId);
 
     // Allow update if user owns the connection OR belongs to same organization
-    let whereClause = 'id = $6 AND user_id = $7';
-    let params = [api_url, api_key, instance_name, name, status, id, req.userId];
+    let whereClause = 'id = $9 AND user_id = $10';
+    let params = [provider, api_url, api_key, instance_name, instance_id, wapi_token, name, status, id, req.userId];
 
     if (org) {
-      whereClause = 'id = $6 AND organization_id = $7';
-      params = [api_url, api_key, instance_name, name, status, id, org.organization_id];
+      whereClause = 'id = $9 AND organization_id = $10';
+      params = [provider, api_url, api_key, instance_name, instance_id, wapi_token, name, status, id, org.organization_id];
     }
 
     const result = await query(
       `UPDATE connections 
-       SET api_url = COALESCE($1, api_url),
-           api_key = COALESCE($2, api_key),
-           instance_name = COALESCE($3, instance_name),
-           name = COALESCE($4, name),
-           status = COALESCE($5, status),
+       SET provider = COALESCE($1, provider),
+           api_url = COALESCE($2, api_url),
+           api_key = COALESCE($3, api_key),
+           instance_name = COALESCE($4, instance_name),
+           instance_id = COALESCE($5, instance_id),
+           wapi_token = COALESCE($6, wapi_token),
+           name = COALESCE($7, name),
+           status = COALESCE($8, status),
            updated_at = NOW()
        WHERE ${whereClause}
        RETURNING *`,

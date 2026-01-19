@@ -18,7 +18,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 interface Connection {
   id: string;
   name: string;
+  provider?: 'evolution' | 'wapi';
   instance_name: string;
+  instance_id?: string;
   status: string;
   phone_number?: string;
   created_at: string;

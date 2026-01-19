@@ -1,60 +1,9 @@
 import { query } from './db.js';
+import * as whatsappProvider from './lib/whatsapp-provider.js';
 
-const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL;
-const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY;
-
-// Send message via Evolution API
-async function sendEvolutionMessage(connection, phone, content, messageType, mediaUrl) {
-  try {
-    let endpoint;
-    let body;
-
-    if (messageType === 'text') {
-      endpoint = `/message/sendText/${connection.instance_name}`;
-      body = {
-        number: phone,
-        text: content,
-      };
-    } else if (messageType === 'audio') {
-      endpoint = `/message/sendWhatsAppAudio/${connection.instance_name}`;
-      body = {
-        number: phone,
-        audio: mediaUrl,
-        delay: 1200,
-      };
-    } else {
-      // image, video, document
-      endpoint = `/message/sendMedia/${connection.instance_name}`;
-      body = {
-        number: phone,
-        mediatype: messageType,
-        media: mediaUrl,
-      };
-      if (content) {
-        body.caption = content;
-      }
-    }
-
-    const response = await fetch(`${connection.api_url}${endpoint}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        apikey: connection.api_key,
-      },
-      body: JSON.stringify(body),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || 'Failed to send message');
-    }
-
-    const result = await response.json();
-    return { success: true, messageId: result.key?.id };
-  } catch (error) {
-    console.error('Evolution API error:', error);
-    return { success: false, error: error.message };
-  }
+// Send message via unified WhatsApp provider
+async function sendWhatsAppMessage(connection, phone, content, messageType, mediaUrl) {
+  return whatsappProvider.sendMessage(connection, phone, content, messageType, mediaUrl);
 }
 
 // Main function to execute scheduled messages
@@ -73,9 +22,12 @@ export async function executeScheduledMessages() {
       SELECT 
         sm.*,
         conv.remote_jid,
+        conn.provider,
         conn.api_url,
         conn.api_key,
         conn.instance_name,
+        conn.instance_id,
+        conn.wapi_token,
         conn.status as connection_status
       FROM scheduled_messages sm
       JOIN conversations conv ON conv.id = sm.conversation_id
@@ -109,14 +61,17 @@ export async function executeScheduledMessages() {
         continue;
       }
 
-      // Send the message
+      // Send the message using unified provider
       const connection = {
+        provider: msg.provider,
         api_url: msg.api_url,
         api_key: msg.api_key,
         instance_name: msg.instance_name,
+        instance_id: msg.instance_id,
+        wapi_token: msg.wapi_token,
       };
 
-      const result = await sendEvolutionMessage(
+      const result = await sendWhatsAppMessage(
         connection,
         msg.remote_jid,
         msg.content,

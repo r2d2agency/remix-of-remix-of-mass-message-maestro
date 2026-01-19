@@ -1,5 +1,5 @@
 import { query } from './db.js';
-
+import * as whatsappProvider from './lib/whatsapp-provider.js';
 // Translation map for common Evolution API errors
 const errorTranslations = {
   'not a whatsapp number': 'Número não é WhatsApp',
@@ -45,87 +45,36 @@ function replaceVariables(text, contact) {
     .replace(/\{\{obs\}\}/gi, contact.notes || '');
 }
 
-// Helper to send message via Evolution API
-async function sendEvolutionMessage(connection, phone, messageItems, contact) {
+// Helper to send message via unified WhatsApp provider
+async function sendWhatsAppMessage(connection, phone, messageItems, contact) {
   const results = [];
   
   for (const item of messageItems) {
     try {
-      let endpoint;
-      let body;
       const remoteJid = phone.includes('@') ? phone : `${phone}@s.whatsapp.net`;
 
       // Support both camelCase (frontend) and snake_case formats
       const mediaUrl = item.mediaUrl || item.media_url;
-      const fileName = item.fileName || item.file_name;
 
       // Replace variables in content
       const processedContent = replaceVariables(item.content || item.caption, contact);
 
-      if (item.type === 'text') {
-        endpoint = `/message/sendText/${connection.instance_name}`;
-        body = {
-          number: remoteJid,
-          text: processedContent,
-        };
-      } else if (mediaUrl) {
-        // Handle media types similar to test route in evolution.js
-        if (item.type === 'audio') {
-          endpoint = `/message/sendWhatsAppAudio/${connection.instance_name}`;
-          body = {
-            number: remoteJid,
-            audio: mediaUrl,
-            delay: 1200,
-          };
-        } else {
-          endpoint = `/message/sendMedia/${connection.instance_name}`;
-          body = {
-            number: remoteJid,
-            mediatype: item.type, // 'image', 'video', 'document'
-            media: mediaUrl,
-          };
-          // Only add caption if it has content
-          if (processedContent) {
-            body.caption = processedContent;
-          }
-          // Only add fileName for documents
-          if (item.type === 'document' && fileName) {
-            body.fileName = fileName;
-          }
-        }
-      } else {
-        // Fallback to text if no media
-        endpoint = `/message/sendText/${connection.instance_name}`;
-        body = {
-          number: remoteJid,
-          text: processedContent || '',
-        };
-      }
+      const result = await whatsappProvider.sendMessage(
+        connection,
+        remoteJid,
+        processedContent,
+        item.type,
+        mediaUrl
+      );
 
-      console.log(`  Sending ${item.type} to ${phone}:`, { endpoint, mediaUrl, body });
-
-      const response = await fetch(`${connection.api_url}${endpoint}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          apikey: connection.api_key,
-        },
-        body: JSON.stringify(body),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || errorData.error || `HTTP ${response.status}`);
-      }
-
-      results.push({ success: true, item });
+      results.push({ success: result.success, item, error: result.error });
       
       // Small delay between items of same message
       if (messageItems.length > 1) {
         await new Promise(resolve => setTimeout(resolve, 1500));
       }
     } catch (error) {
-      console.error('Evolution API error for item:', error);
+      console.error('WhatsApp provider error for item:', error);
       results.push({ success: false, item, error: error.message });
     }
   }
@@ -183,13 +132,17 @@ export async function executeCampaignMessages() {
         cm.scheduled_at,
         c.status as campaign_status,
         c.connection_id,
+        conn.provider,
         conn.api_url,
         conn.api_key,
         conn.instance_name,
+        conn.instance_id,
+        conn.wapi_token,
         conn.status as connection_status,
         mt.items as message_items,
         co.name as contact_name,
-        co.phone as contact_phone
+        co.phone as contact_phone,
+        co.email as contact_email
       FROM campaign_messages cm
       JOIN campaigns c ON c.id = cm.campaign_id
       JOIN connections conn ON conn.id = c.connection_id
@@ -232,11 +185,14 @@ export async function executeCampaignMessages() {
           continue;
         }
 
-        // Build connection object
+        // Build connection object with all provider fields
         const connection = {
+          provider: msg.provider,
           api_url: msg.api_url,
           api_key: msg.api_key,
           instance_name: msg.instance_name,
+          instance_id: msg.instance_id,
+          wapi_token: msg.wapi_token,
         };
 
         // Build contact object for variable replacement
@@ -249,8 +205,8 @@ export async function executeCampaignMessages() {
           notes: msg.contact_notes || '',
         };
 
-        // Send message
-        const result = await sendEvolutionMessage(connection, msg.phone, messageItems, contact);
+        // Send message using unified provider
+        const result = await sendWhatsAppMessage(connection, msg.phone, messageItems, contact);
 
         if (result.success) {
           await query(
