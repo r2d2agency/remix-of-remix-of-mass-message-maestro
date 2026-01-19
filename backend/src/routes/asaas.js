@@ -487,6 +487,18 @@ router.patch('/customers/:organizationId/:customerId', async (req, res) => {
 
 // Get/Update integration settings (message limits, alerts, global pause)
 router.get('/settings/:organizationId', async (req, res) => {
+  const buildDefaultSettings = () => ({
+    daily_message_limit_per_customer: 3,
+    billing_paused: false,
+    billing_paused_until: null,
+    billing_paused_reason: null,
+    critical_alert_threshold: 1000,
+    critical_alert_days: 30,
+    alert_email: null,
+    alert_whatsapp: null,
+    alert_connection_id: null
+  });
+
   try {
     const { organizationId } = req.params;
 
@@ -495,37 +507,34 @@ router.get('/settings/:organizationId', async (req, res) => {
       return res.status(403).json({ error: 'Acesso negado' });
     }
 
-    const result = await query(
-      `SELECT 
-        daily_message_limit_per_customer,
-        billing_paused,
-        billing_paused_until,
-        billing_paused_reason,
-        critical_alert_threshold,
-        critical_alert_days,
-        alert_email,
-        alert_whatsapp,
-        alert_connection_id
-       FROM asaas_integrations WHERE organization_id = $1`,
-      [organizationId]
-    );
-
-    // Return empty settings if no integration configured yet
-    if (result.rows.length === 0) {
-      return res.json({
-        daily_message_limit_per_customer: null,
-        billing_paused: false,
-        billing_paused_until: null,
-        billing_paused_reason: null,
-        critical_alert_threshold: null,
-        critical_alert_days: null,
-        alert_email: null,
-        alert_whatsapp: false,
-        alert_connection_id: null
-      });
+    let result;
+    try {
+      result = await query(
+        `SELECT 
+          daily_message_limit_per_customer,
+          billing_paused,
+          billing_paused_until,
+          billing_paused_reason,
+          critical_alert_threshold,
+          critical_alert_days,
+          alert_email,
+          alert_whatsapp,
+          alert_connection_id
+         FROM asaas_integrations WHERE organization_id = $1`,
+        [organizationId]
+      );
+    } catch (queryError) {
+      // During initial setup, the DB may not have the newest columns yet.
+      console.log('Settings query error (schema may not be ready):', queryError.message);
+      return res.json(buildDefaultSettings());
     }
 
-    res.json(result.rows[0]);
+    if (!result || result.rows.length === 0) {
+      return res.json(buildDefaultSettings());
+    }
+
+    // Merge with defaults so missing/null values don't break the UI
+    res.json({ ...buildDefaultSettings(), ...result.rows[0] });
   } catch (error) {
     console.error('Get settings error:', error);
     res.status(500).json({ error: 'Erro ao buscar configurações' });
@@ -535,7 +544,7 @@ router.get('/settings/:organizationId', async (req, res) => {
 router.patch('/settings/:organizationId', async (req, res) => {
   try {
     const { organizationId } = req.params;
-    const { 
+    const {
       daily_message_limit_per_customer,
       billing_paused,
       billing_paused_until,
@@ -552,26 +561,50 @@ router.patch('/settings/:organizationId', async (req, res) => {
       return res.status(403).json({ error: 'Apenas admins podem alterar configurações' });
     }
 
-    const result = await query(
-      `UPDATE asaas_integrations SET
-         daily_message_limit_per_customer = COALESCE($1, daily_message_limit_per_customer),
-         billing_paused = COALESCE($2, billing_paused),
-         billing_paused_until = $3,
-         billing_paused_reason = $4,
-         critical_alert_threshold = COALESCE($5, critical_alert_threshold),
-         critical_alert_days = COALESCE($6, critical_alert_days),
-         alert_email = COALESCE($7, alert_email),
-         alert_whatsapp = COALESCE($8, alert_whatsapp),
-         alert_connection_id = $9,
-         updated_at = NOW()
-       WHERE organization_id = $10
-       RETURNING *`,
-      [
-        daily_message_limit_per_customer, billing_paused, billing_paused_until, billing_paused_reason,
-        critical_alert_threshold, critical_alert_days, alert_email, alert_whatsapp, alert_connection_id,
-        organizationId
-      ]
+    // If integration doesn't exist yet, the UI shouldn't try to persist settings.
+    const integrationExists = await query(
+      `SELECT 1 FROM asaas_integrations WHERE organization_id = $1`,
+      [organizationId]
     );
+    if (integrationExists.rows.length === 0) {
+      return res.status(400).json({ error: 'Integração Asaas ainda não configurada' });
+    }
+
+    let result;
+    try {
+      result = await query(
+        `UPDATE asaas_integrations SET
+           daily_message_limit_per_customer = COALESCE($1, daily_message_limit_per_customer),
+           billing_paused = COALESCE($2, billing_paused),
+           billing_paused_until = $3,
+           billing_paused_reason = $4,
+           critical_alert_threshold = COALESCE($5, critical_alert_threshold),
+           critical_alert_days = COALESCE($6, critical_alert_days),
+           alert_email = COALESCE($7, alert_email),
+           alert_whatsapp = COALESCE($8, alert_whatsapp),
+           alert_connection_id = $9,
+           updated_at = NOW()
+         WHERE organization_id = $10
+         RETURNING *`,
+        [
+          daily_message_limit_per_customer,
+          billing_paused,
+          billing_paused_until,
+          billing_paused_reason,
+          critical_alert_threshold,
+          critical_alert_days,
+          alert_email,
+          alert_whatsapp,
+          alert_connection_id,
+          organizationId
+        ]
+      );
+    } catch (queryError) {
+      console.log('Update settings query error (schema may not be ready):', queryError.message);
+      return res.status(503).json({
+        error: 'Banco de dados ainda não está pronto para salvar configurações. Reinicie/reimplante o backend para aplicar o schema.'
+      });
+    }
 
     res.json(result.rows[0]);
   } catch (error) {
