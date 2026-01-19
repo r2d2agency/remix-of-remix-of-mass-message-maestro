@@ -175,9 +175,9 @@ async function handleIncomingMessage(connection, payload) {
       return;
     }
 
-    // Check for duplicate message
+    // Check for duplicate message in chat_messages table
     const existingMsg = await query(
-      `SELECT id FROM messages WHERE message_id = $1`,
+      `SELECT id FROM chat_messages WHERE message_id = $1`,
       [messageId]
     );
 
@@ -186,9 +186,9 @@ async function handleIncomingMessage(connection, payload) {
       return;
     }
 
-    // Insert message
+    // Insert message into chat_messages table (correct table)
     await query(
-      `INSERT INTO messages (conversation_id, message_id, content, message_type, media_url, is_from_me, status, created_at)
+      `INSERT INTO chat_messages (conversation_id, message_id, content, message_type, media_url, from_me, status, timestamp)
        VALUES ($1, $2, $3, $4, $5, false, 'received', NOW())`,
       [conversationId, messageId, content, messageType, mediaUrl]
     );
@@ -223,17 +223,27 @@ async function handleOutgoingMessage(connection, payload) {
     const conversationId = convResult.rows[0].id;
     const { messageType, content, mediaUrl } = extractMessageContent(payload);
 
-    // Check for duplicate
+    // Check for duplicate or pending message (optimistic UI pattern)
     const existingMsg = await query(
-      `SELECT id FROM messages WHERE message_id = $1`,
-      [messageId]
+      `SELECT id FROM chat_messages WHERE message_id = $1 OR 
+       (message_id LIKE 'temp_%' AND conversation_id = $2 AND from_me = true AND status = 'pending' 
+        AND timestamp > NOW() - INTERVAL '60 seconds')`,
+      [messageId, conversationId]
     );
 
-    if (existingMsg.rows.length > 0) return;
+    if (existingMsg.rows.length > 0) {
+      // Update the pending message with real message ID
+      await query(
+        `UPDATE chat_messages SET message_id = $1, status = 'sent' WHERE id = $2`,
+        [messageId, existingMsg.rows[0].id]
+      );
+      console.log('[W-API] Updated pending message with real ID:', messageId);
+      return;
+    }
 
-    // Insert sent message
+    // Insert sent message into chat_messages table (correct table)
     await query(
-      `INSERT INTO messages (conversation_id, message_id, content, message_type, media_url, is_from_me, status, created_at)
+      `INSERT INTO chat_messages (conversation_id, message_id, content, message_type, media_url, from_me, status, timestamp)
        VALUES ($1, $2, $3, $4, $5, true, 'sent', NOW())`,
       [conversationId, messageId, content, messageType, mediaUrl]
     );
@@ -268,7 +278,7 @@ async function handleStatusUpdate(connection, payload) {
     else if (ack === -1 || ack === 0) status = 'failed';
 
     await query(
-      `UPDATE messages SET status = $1 WHERE message_id = $2`,
+      `UPDATE chat_messages SET status = $1 WHERE message_id = $2`,
       [status, messageId]
     );
 

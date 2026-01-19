@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
+import * as whatsappProvider from '../lib/whatsapp-provider.js';
 
 const router = Router();
 
@@ -672,13 +673,16 @@ router.post('/conversations/:id/messages', authenticate, async (req, res) => {
     const { content, message_type = 'text', media_url, media_mimetype, quoted_message_id } = req.body;
     const connectionIds = await getUserConnections(req.userId);
 
-    // Get conversation with connection details
+    // Get conversation with connection details (including W-API fields)
     const convResult = await query(
       `SELECT 
         conv.*,
         conn.api_url,
         conn.api_key,
         conn.instance_name,
+        conn.provider,
+        conn.instance_id,
+        conn.wapi_token,
         conn.status as connection_status
       FROM conversations conv
       JOIN connections conn ON conn.id = conv.connection_id
@@ -692,7 +696,12 @@ router.post('/conversations/:id/messages', authenticate, async (req, res) => {
 
     const conversation = convResult.rows[0];
 
-    if (conversation.connection_status !== 'connected') {
+    // For W-API, consider connected if has instance_id and token (status may not be updated yet)
+    const provider = whatsappProvider.detectProvider(conversation);
+    const isConnected = conversation.connection_status === 'connected' || 
+      (provider === 'wapi' && conversation.instance_id && conversation.wapi_token);
+
+    if (!isConnected) {
       return res.status(400).json({ error: 'Conexão não está ativa' });
     }
 
@@ -733,99 +742,33 @@ router.post('/conversations/:id/messages', authenticate, async (req, res) => {
     res.status(201).json(savedMessage);
 
     // ============================================================
-    // ASYNC: Send to Evolution API in background
+    // ASYNC: Send to WhatsApp via unified provider (Evolution or W-API)
     // ============================================================
     (async () => {
       try {
-        const remoteJid = conversation.remote_jid;
-        let evolutionEndpoint;
-        let evolutionBody;
+        // Extract phone number from remote_jid
+        const phone = conversation.remote_jid.replace('@s.whatsapp.net', '').replace('@g.us', '');
 
-        // Get quoted message key if replying
-        let quotedMessageKey = null;
-        if (quoted_message_id) {
-          const quotedMsg = await query(
-            `SELECT message_id FROM chat_messages WHERE id = $1`,
-            [quoted_message_id]
-          );
-          if (quotedMsg.rows.length > 0 && quotedMsg.rows[0].message_id) {
-            quotedMessageKey = quotedMsg.rows[0].message_id;
-          }
-        }
-
-        if (message_type === 'text') {
-          evolutionEndpoint = `/message/sendText/${conversation.instance_name}`;
-          evolutionBody = {
-            number: remoteJid,
-            text: content,
-          };
-          if (quotedMessageKey) {
-            evolutionBody.quoted = {
-              key: {
-                remoteJid: remoteJid,
-                id: quotedMessageKey,
-              },
-            };
-          }
-        } else if (message_type === 'audio') {
-          evolutionEndpoint = `/message/sendWhatsAppAudio/${conversation.instance_name}`;
-          evolutionBody = {
-            number: remoteJid,
-            audio: media_url,
-            delay: 1200,
-          };
-          if (quotedMessageKey) {
-            evolutionBody.quoted = {
-              key: {
-                remoteJid: remoteJid,
-                id: quotedMessageKey,
-              },
-            };
-          }
-        } else {
-          // image, video, document
-          evolutionEndpoint = `/message/sendMedia/${conversation.instance_name}`;
-          evolutionBody = {
-            number: remoteJid,
-            mediatype: message_type,
-            media: media_url,
-          };
-          if (content) {
-            evolutionBody.caption = content;
-          }
-          if (quotedMessageKey) {
-            evolutionBody.quoted = {
-              key: {
-                remoteJid: remoteJid,
-                id: quotedMessageKey,
-              },
-            };
-          }
-        }
-
-        const evolutionResponse = await fetch(`${conversation.api_url}${evolutionEndpoint}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            apikey: conversation.api_key,
-          },
-          body: JSON.stringify(evolutionBody),
-        });
-
-        if (!evolutionResponse.ok) {
-          const errorData = await evolutionResponse.json().catch(() => ({}));
-          throw new Error(errorData.message || 'Falha ao enviar mensagem');
-        }
-
-        const evolutionResult = await evolutionResponse.json();
-
-        // Update message with Evolution message_id and status='sent'
-        await query(
-          `UPDATE chat_messages SET message_id = $1, status = 'sent' WHERE id = $2`,
-          [evolutionResult.key?.id || null, savedMessage.id]
+        // Use unified provider to send message
+        const result = await whatsappProvider.sendMessage(
+          conversation,
+          phone,
+          content,
+          message_type,
+          media_url
         );
+
+        if (result.success) {
+          // Update message with provider message_id and status='sent'
+          await query(
+            `UPDATE chat_messages SET message_id = $1, status = 'sent' WHERE id = $2`,
+            [result.messageId || null, savedMessage.id]
+          );
+        } else {
+          throw new Error(result.error || 'Falha ao enviar mensagem');
+        }
       } catch (bgError) {
-        console.error('Background Evolution send error:', bgError.message);
+        console.error('Background send error:', bgError.message);
         // Mark as failed so UI can show error state
         await query(
           `UPDATE chat_messages SET status = 'failed' WHERE id = $1`,
