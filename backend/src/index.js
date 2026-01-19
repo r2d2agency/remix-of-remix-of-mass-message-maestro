@@ -15,6 +15,7 @@ import adminRoutes from './routes/admin.js';
 import uploadsRoutes from './routes/uploads.js';
 import notificationsRoutes from './routes/notifications.js';
 import evolutionRoutes from './routes/evolution.js';
+import wapiRoutes from './routes/wapi.js';
 import chatRoutes from './routes/chat.js';
 import quickRepliesRoutes from './routes/quick-replies.js';
 import { initDatabase } from './init-db.js';
@@ -104,6 +105,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/uploads', uploadsRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/evolution', evolutionRoutes);
+app.use('/api/wapi', wapiRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/quick-replies', quickRepliesRoutes);
 
