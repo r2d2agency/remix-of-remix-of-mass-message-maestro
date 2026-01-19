@@ -161,21 +161,30 @@ const Conexao = () => {
     }
   };
 
-  const handleGetQRCode = async (connection: Connection) => {
-    setSelectedConnection(connection);
-    setQrCodeDialog(true);
-    setLoadingQr(true);
-    setQrCode(null);
+const handleGetQRCode = async (connection: Connection) => {
+  const isWapi = connection.provider === 'wapi' || !!connection.instance_id;
 
-    try {
-      const result = await api<{ qrCode: string }>(`/api/evolution/${connection.id}/qrcode`);
-      setQrCode(result.qrCode);
-    } catch (error) {
-      toast.error('Erro ao buscar QR Code');
-    } finally {
-      setLoadingQr(false);
-    }
-  };
+  // W-API connects inside the W-API panel; here we just sync status.
+  if (isWapi) {
+    toast.info('W-API: o QR Code é gerado no painel da W-API. Vou apenas verificar o status aqui.');
+    await handleCheckStatus(connection);
+    return;
+  }
+
+  setSelectedConnection(connection);
+  setQrCodeDialog(true);
+  setLoadingQr(true);
+  setQrCode(null);
+
+  try {
+    const result = await api<{ qrCode: string }>(`/api/evolution/${connection.id}/qrcode`);
+    setQrCode(result.qrCode);
+  } catch (error) {
+    toast.error('Erro ao buscar QR Code');
+  } finally {
+    setLoadingQr(false);
+  }
+};
 
   const handleRefreshQRCode = async () => {
     if (!selectedConnection) return;
@@ -520,7 +529,9 @@ const Conexao = () => {
                     </Badge>
                   </div>
                   <CardDescription className="text-xs">
-                    {connection.instance_name}
+                    {(connection.provider === 'wapi' || !!connection.instance_id)
+                      ? (connection.instance_id || 'W-API')
+                      : (connection.instance_name || '')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -567,15 +578,32 @@ const Conexao = () => {
                         </Button>
                       </>
                     ) : (
-                      <Button 
-                        variant="default" 
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => handleGetQRCode(connection)}
-                      >
-                        <QrCode className="h-4 w-4 mr-1" />
-                        Conectar
-                      </Button>
+                      (connection.provider === 'wapi' || !!connection.instance_id) ? (
+                        <Button 
+                          variant="default" 
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => handleCheckStatus(connection)}
+                          disabled={checkingStatus === connection.id}
+                        >
+                          {checkingStatus === connection.id ? (
+                            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-4 w-4 mr-1" />
+                          )}
+                          Verificar
+                        </Button>
+                      ) : (
+                        <Button 
+                          variant="default" 
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => handleGetQRCode(connection)}
+                        >
+                          <QrCode className="h-4 w-4 mr-1" />
+                          Conectar
+                        </Button>
+                      )
                     )}
 
                     {/* Full Diagnostic Panel */}
