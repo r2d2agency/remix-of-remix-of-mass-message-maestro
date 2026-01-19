@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
+import * as wapiProvider from '../lib/wapi-provider.js';
 
 const router = Router();
 router.use(authenticate);
@@ -90,7 +91,22 @@ router.post('/', async (req, res) => {
       ]
     );
 
-    res.status(201).json(result.rows[0]);
+    const connection = result.rows[0];
+
+    // Auto-configure webhooks for W-API connections
+    if (provider === 'wapi') {
+      try {
+        const webhookResult = await wapiProvider.configureWebhooks(instance_id, wapi_token);
+        console.log('[W-API] Webhook configuration result:', webhookResult);
+        connection.webhooks_configured = webhookResult.success;
+        connection.webhooks_count = webhookResult.configured;
+      } catch (webhookError) {
+        console.error('[W-API] Failed to configure webhooks:', webhookError);
+        connection.webhooks_configured = false;
+      }
+    }
+
+    res.status(201).json(connection);
   } catch (error) {
     console.error('Create connection error:', error);
     res.status(500).json({ error: 'Erro ao criar conexão' });
@@ -182,4 +198,55 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// Reconfigure webhooks for W-API connection
+router.post('/:id/configure-webhooks', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const org = await getUserOrganization(req.userId);
+
+    // Get connection
+    let whereClause = 'id = $1 AND user_id = $2';
+    let params = [id, req.userId];
+
+    if (org) {
+      whereClause = 'id = $1 AND organization_id = $2';
+      params = [id, org.organization_id];
+    }
+
+    const connResult = await query(
+      `SELECT * FROM connections WHERE ${whereClause}`,
+      params
+    );
+
+    if (connResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Conexão não encontrada' });
+    }
+
+    const connection = connResult.rows[0];
+
+    if (connection.provider !== 'wapi') {
+      return res.status(400).json({ error: 'Esta funcionalidade é apenas para conexões W-API' });
+    }
+
+    if (!connection.instance_id || !connection.wapi_token) {
+      return res.status(400).json({ error: 'Instance ID e Token não configurados' });
+    }
+
+    // Configure webhooks
+    const result = await wapiProvider.configureWebhooks(connection.instance_id, connection.wapi_token);
+
+    res.json({
+      success: result.success,
+      message: result.success 
+        ? `${result.configured}/${result.total} webhooks configurados com sucesso` 
+        : 'Falha ao configurar webhooks',
+      details: result.results,
+    });
+  } catch (error) {
+    console.error('Configure webhooks error:', error);
+    res.status(500).json({ error: 'Erro ao configurar webhooks' });
+  }
+});
+
 export default router;
+

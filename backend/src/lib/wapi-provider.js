@@ -2,6 +2,7 @@
 // https://api.w-api.app/v1/
 
 const W_API_BASE_URL = 'https://api.w-api.app/v1';
+const WEBHOOK_BASE_URL = process.env.WEBHOOK_BASE_URL || process.env.API_BASE_URL || 'https://whastsale-backend.exf0ty.easypanel.host';
 
 /**
  * Get headers for W-API requests
@@ -10,6 +11,65 @@ function getHeaders(token) {
   return {
     'Content-Type': 'application/json',
     'Authorization': `Bearer ${token}`,
+  };
+}
+
+/**
+ * Configure all webhooks for a W-API instance
+ * Called when creating or updating a connection
+ */
+export async function configureWebhooks(instanceId, token) {
+  const webhookUrl = `${WEBHOOK_BASE_URL}/api/wapi/webhook`;
+  
+  console.log(`[W-API] Configuring webhooks for instance ${instanceId} -> ${webhookUrl}`);
+  
+  const webhookTypes = [
+    { endpoint: 'update-webhook-receive', name: 'receive' },
+    { endpoint: 'update-webhook-send', name: 'send' },
+    { endpoint: 'update-webhook-connected', name: 'connected' },
+    { endpoint: 'update-webhook-disconnected', name: 'disconnected' },
+    { endpoint: 'update-webhook-status', name: 'status' },
+    { endpoint: 'update-webhook-chat-presence', name: 'presence' },
+  ];
+
+  const results = [];
+  
+  for (const wh of webhookTypes) {
+    try {
+      const response = await fetch(
+        `${W_API_BASE_URL}/webhook/${wh.endpoint}?instanceId=${instanceId}`,
+        {
+          method: 'PUT',
+          headers: getHeaders(token),
+          body: JSON.stringify({ url: webhookUrl }),
+        }
+      );
+      
+      const data = await response.json().catch(() => ({}));
+      results.push({ 
+        type: wh.name, 
+        success: response.ok, 
+        status: response.status,
+        data 
+      });
+      
+      if (response.ok) {
+        console.log(`[W-API] Webhook ${wh.name} configured successfully`);
+      } else {
+        console.log(`[W-API] Webhook ${wh.name} failed:`, response.status, data);
+      }
+    } catch (error) {
+      console.error(`[W-API] Error configuring webhook ${wh.name}:`, error.message);
+      results.push({ type: wh.name, success: false, error: error.message });
+    }
+  }
+  
+  const successCount = results.filter(r => r.success).length;
+  return {
+    success: successCount > 0,
+    configured: successCount,
+    total: webhookTypes.length,
+    results,
   };
 }
 
