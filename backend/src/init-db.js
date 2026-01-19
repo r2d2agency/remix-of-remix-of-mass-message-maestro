@@ -141,15 +141,23 @@ CREATE TABLE IF NOT EXISTS user_roles (
 // STEP 5: CONNECTIONS (depends on users, organizations)
 // ============================================
 const step5Connections = `
--- Evolution API Connections
+-- WhatsApp Connections (Evolution API + W-API)
 CREATE TABLE IF NOT EXISTS connections (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
     organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
-    api_url VARCHAR(500) NOT NULL,
-    api_key VARCHAR(500) NOT NULL,
-    instance_name VARCHAR(255) NOT NULL,
+
+    -- Evolution provider fields (nullable because W-API doesn't use them)
+    api_url VARCHAR(500),
+    api_key VARCHAR(500),
+    instance_name VARCHAR(255),
+
+    -- Multi-provider fields
+    provider VARCHAR(20) NOT NULL DEFAULT 'evolution',
+    instance_id VARCHAR(255),
+    wapi_token TEXT,
+
     status VARCHAR(50) DEFAULT 'disconnected',
     phone_number VARCHAR(50),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -169,6 +177,54 @@ DO $$ BEGIN
 EXCEPTION
     WHEN duplicate_column THEN null;
 END $$;
+
+-- W-API / multi-provider columns (for existing databases)
+DO $$ BEGIN
+    ALTER TABLE connections ADD COLUMN IF NOT EXISTS provider VARCHAR(20) DEFAULT 'evolution';
+    ALTER TABLE connections ADD COLUMN IF NOT EXISTS instance_id VARCHAR(255);
+    ALTER TABLE connections ADD COLUMN IF NOT EXISTS wapi_token TEXT;
+EXCEPTION
+    WHEN duplicate_column THEN null;
+END $$;
+
+-- Ensure nullable Evolution-only columns (required by Evolution, but unused by W-API)
+DO $$ BEGIN
+    ALTER TABLE connections ALTER COLUMN api_url DROP NOT NULL;
+EXCEPTION WHEN others THEN null; END $$;
+
+DO $$ BEGIN
+    ALTER TABLE connections ALTER COLUMN api_key DROP NOT NULL;
+EXCEPTION WHEN others THEN null; END $$;
+
+DO $$ BEGIN
+    ALTER TABLE connections ALTER COLUMN instance_name DROP NOT NULL;
+EXCEPTION WHEN others THEN null; END $$;
+
+-- Enforce required fields per provider
+DO $$
+BEGIN
+    -- Normalize provider
+    UPDATE connections SET provider = 'evolution' WHERE provider IS NULL;
+
+    -- Provider value constraint
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'connections_provider_chk') THEN
+        ALTER TABLE connections
+        ADD CONSTRAINT connections_provider_chk
+        CHECK (provider IN ('evolution', 'wapi'));
+    END IF;
+
+    -- Required fields per provider constraint
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'connections_provider_required_fields_chk') THEN
+        ALTER TABLE connections
+        ADD CONSTRAINT connections_provider_required_fields_chk
+        CHECK (
+            (provider = 'wapi' AND instance_id IS NOT NULL AND wapi_token IS NOT NULL)
+            OR
+            (provider = 'evolution' AND api_url IS NOT NULL AND api_key IS NOT NULL AND instance_name IS NOT NULL)
+        );
+    END IF;
+END $$;
+
 
 -- Connection Members
 CREATE TABLE IF NOT EXISTS connection_members (

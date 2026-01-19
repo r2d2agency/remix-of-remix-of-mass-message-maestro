@@ -53,3 +53,53 @@ END $$;
 UPDATE connections 
 SET provider = 'evolution' 
 WHERE provider IS NULL;
+
+-- IMPORTANT: allow W-API rows by making Evolution-only fields nullable
+-- (application layer already validates required fields per provider)
+DO $$ BEGIN
+    ALTER TABLE connections ALTER COLUMN api_url DROP NOT NULL;
+EXCEPTION WHEN others THEN null; END $$;
+
+DO $$ BEGIN
+    ALTER TABLE connections ALTER COLUMN api_key DROP NOT NULL;
+EXCEPTION WHEN others THEN null; END $$;
+
+DO $$ BEGIN
+    ALTER TABLE connections ALTER COLUMN instance_name DROP NOT NULL;
+EXCEPTION WHEN others THEN null; END $$;
+
+-- Enforce provider + required fields at DB level
+DO $$
+BEGIN
+    -- Ensure provider is not null
+    BEGIN
+        ALTER TABLE connections ALTER COLUMN provider SET DEFAULT 'evolution';
+        UPDATE connections SET provider = 'evolution' WHERE provider IS NULL;
+        ALTER TABLE connections ALTER COLUMN provider SET NOT NULL;
+    EXCEPTION WHEN others THEN null; END;
+
+    -- Provider must be one of the supported values
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'connections_provider_chk'
+    ) THEN
+        ALTER TABLE connections
+        ADD CONSTRAINT connections_provider_chk
+        CHECK (provider IN ('evolution', 'wapi'));
+    END IF;
+
+    -- Required fields per provider
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'connections_provider_required_fields_chk'
+    ) THEN
+        ALTER TABLE connections
+        ADD CONSTRAINT connections_provider_required_fields_chk
+        CHECK (
+            (provider = 'wapi' AND instance_id IS NOT NULL AND wapi_token IS NOT NULL)
+            OR
+            (provider = 'evolution' AND api_url IS NOT NULL AND api_key IS NOT NULL AND instance_name IS NOT NULL)
+        );
+    END IF;
+END $$;
+
