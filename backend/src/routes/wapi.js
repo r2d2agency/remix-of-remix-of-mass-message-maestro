@@ -5,6 +5,8 @@ import { getSendAttempts, clearSendAttempts } from '../lib/wapi-provider.js';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
+import http from 'http';
+import https from 'https';
 
 const router = Router();
 
@@ -60,6 +62,163 @@ async function getAccessibleConnection(connectionId, userId) {
 // Ensure uploads directory exists
 if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+
+function isAbsoluteUrl(u) {
+  return typeof u === 'string' && /^https?:\/\//i.test(u);
+}
+
+function normalizeUploadsUrl(u) {
+  if (!u || typeof u !== 'string') return null;
+  const s = u.trim();
+  if (!s) return null;
+  if (isAbsoluteUrl(s) || /^data:/i.test(s) || /^blob:/i.test(s)) return s;
+  if (s.startsWith('/')) return `${API_BASE_URL}${s}`;
+  return `${API_BASE_URL}/${s}`;
+}
+
+function extFromMime(mime) {
+  if (!mime) return null;
+  const m = String(mime).split(';')[0].trim().toLowerCase();
+  const map = {
+    'image/jpeg': 'jpg',
+    'image/jpg': 'jpg',
+    'image/png': 'png',
+    'image/webp': 'webp',
+    'image/gif': 'gif',
+    'audio/ogg': 'ogg',
+    'audio/mpeg': 'mp3',
+    'audio/mp3': 'mp3',
+    'audio/mp4': 'm4a',
+    'audio/wav': 'wav',
+    'audio/webm': 'webm',
+    'video/mp4': 'mp4',
+    'video/webm': 'webm',
+    'application/pdf': 'pdf',
+  };
+  return map[m] || null;
+}
+
+function extFromUrl(u) {
+  try {
+    const url = new URL(u);
+    const ext = path.extname(url.pathname || '').replace('.', '').toLowerCase();
+    return ext || null;
+  } catch {
+    return null;
+  }
+}
+
+function defaultExtByType(messageType) {
+  if (messageType === 'image') return 'jpg';
+  if (messageType === 'video') return 'mp4';
+  if (messageType === 'audio') return 'ogg';
+  if (messageType === 'sticker') return 'webp';
+  if (messageType === 'document') return 'bin';
+  return 'bin';
+}
+
+function buildUploadsPublicUrl(filename) {
+  return `${API_BASE_URL}/uploads/${filename}`;
+}
+
+async function writeDataUrlToUploads(dataUrl, messageType, hintedMime) {
+  const m = String(dataUrl).match(/^data:([^;,]+)?;base64,(.*)$/i);
+  if (!m) throw new Error('Invalid data URL');
+  const mime = (m[1] || hintedMime || '').trim() || null;
+  const base64 = m[2] || '';
+  const buf = Buffer.from(base64, 'base64');
+
+  const ext = extFromMime(mime) || defaultExtByType(messageType);
+  const filename = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}.${ext}`;
+  const filePath = path.join(UPLOADS_DIR, filename);
+  await fs.promises.writeFile(filePath, buf);
+
+  return { publicUrl: buildUploadsPublicUrl(filename), mime };
+}
+
+function downloadToUploads(url, messageType, hintedMime, redirectCount = 0) {
+  return new Promise((resolve, reject) => {
+    const client = url.startsWith('https://') ? https : http;
+
+    const req = client.get(url, {
+      headers: {
+        'User-Agent': 'Whatsale/1.0',
+        'Accept': '*/*',
+      },
+    }, (res) => {
+      const status = res.statusCode || 0;
+
+      // Redirect handling
+      if ([301, 302, 303, 307, 308].includes(status) && res.headers.location && redirectCount < 3) {
+        const nextUrl = new URL(res.headers.location, url).toString();
+        res.resume();
+        return resolve(downloadToUploads(nextUrl, messageType, hintedMime, redirectCount + 1));
+      }
+
+      if (status < 200 || status >= 300) {
+        res.resume();
+        return reject(new Error(`HTTP ${status}`));
+      }
+
+      const mime = (String(res.headers['content-type'] || '').split(';')[0].trim() || hintedMime || null);
+      const ext = extFromMime(mime) || extFromUrl(url) || defaultExtByType(messageType);
+
+      const filename = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}.${ext}`;
+      const filePath = path.join(UPLOADS_DIR, filename);
+      const fileStream = fs.createWriteStream(filePath);
+
+      res.pipe(fileStream);
+      fileStream.on('finish', () => {
+        fileStream.close(() => {
+          resolve({ publicUrl: buildUploadsPublicUrl(filename), mime });
+        });
+      });
+      fileStream.on('error', (err) => {
+        res.resume();
+        reject(err);
+      });
+    });
+
+    req.on('error', reject);
+    req.setTimeout(15000, () => {
+      req.destroy(new Error('Timeout downloading media'));
+    });
+  });
+}
+
+function shouldCacheExternally(mediaUrl) {
+  if (!mediaUrl || typeof mediaUrl !== 'string') return false;
+  const u = mediaUrl.trim();
+  if (!u) return false;
+  if (/^data:/i.test(u)) return true;
+  // Se já é do nosso /uploads, não precisa cachear
+  if (u.startsWith(`${API_BASE_URL}/uploads/`)) return false;
+  // URLs externas: cachear para evitar expiração/CORS
+  return isAbsoluteUrl(u);
+}
+
+async function cacheMediaAndUpdateMessage({ messageId, mediaUrl, messageType, mediaMimetype }) {
+  try {
+    const raw = mediaUrl;
+
+    let cached;
+    if (/^data:/i.test(raw)) {
+      cached = await writeDataUrlToUploads(raw, messageType, mediaMimetype);
+    } else {
+      cached = await downloadToUploads(raw, messageType, mediaMimetype);
+    }
+
+    await query(
+      `UPDATE chat_messages
+       SET media_url = $1,
+           media_mimetype = COALESCE($2, media_mimetype)
+       WHERE message_id = $3`,
+      [cached.publicUrl, cached.mime, messageId]
+    );
+  } catch (err) {
+    console.error('[W-API] Failed to cache media:', err?.message || err);
+  }
 }
 
 /**
@@ -315,7 +474,8 @@ async function handleIncomingMessage(connection, payload) {
     }
 
     // Extract message content
-    const { messageType, content, mediaUrl } = extractMessageContent(payload);
+    const { messageType, content, mediaUrl: rawMediaUrl, mediaMimetype } = extractMessageContent(payload);
+    const mediaUrl = normalizeUploadsUrl(rawMediaUrl);
 
     if (!content && !mediaUrl) {
       console.log('[W-API] Empty message content, skipping');
@@ -335,10 +495,15 @@ async function handleIncomingMessage(connection, payload) {
 
     // Insert message into chat_messages table
     await query(
-      `INSERT INTO chat_messages (conversation_id, message_id, content, message_type, media_url, from_me, status, timestamp)
-       VALUES ($1, $2, $3, $4, $5, false, 'received', NOW())`,
-      [conversationId, messageId, content, messageType, mediaUrl]
+      `INSERT INTO chat_messages (conversation_id, message_id, content, message_type, media_url, media_mimetype, from_me, status, timestamp)
+       VALUES ($1, $2, $3, $4, $5, $6, false, 'received', NOW())`,
+      [conversationId, messageId, content, messageType, mediaUrl, mediaMimetype || null]
     );
+
+    // Cache media in background for reliability (CORS/expiração de URL)
+    if (mediaUrl && shouldCacheExternally(mediaUrl)) {
+      cacheMediaAndUpdateMessage({ messageId, mediaUrl, messageType, mediaMimetype });
+    }
 
     console.log('[W-API] Incoming message saved:', messageId, 'Type:', messageType, 'From:', cleanPhone);
   } catch (error) {
@@ -382,13 +547,14 @@ async function handleOutgoingMessage(connection, payload) {
     }
 
     const conversationId = convResult.rows[0].id;
-    const { messageType, content, mediaUrl } = extractMessageContent(payload);
+    const { messageType, content, mediaUrl: rawMediaUrl, mediaMimetype } = extractMessageContent(payload);
+    const mediaUrl = normalizeUploadsUrl(rawMediaUrl);
 
     // Check for duplicate or pending message (optimistic UI pattern)
     const existingMsg = await query(
       `SELECT id, message_id FROM chat_messages WHERE message_id = $1 OR 
        (message_id LIKE 'temp_%' AND conversation_id = $2 AND from_me = true AND status = 'pending' 
-        AND timestamp > NOW() - INTERVAL '120 seconds')
+         AND timestamp > NOW() - INTERVAL '120 seconds')
        ORDER BY CASE WHEN message_id = $1 THEN 0 ELSE 1 END
        LIMIT 1`,
       [messageId, conversationId]
@@ -411,10 +577,14 @@ async function handleOutgoingMessage(connection, payload) {
 
     // Insert sent message if not found (e.g., sent from W-API panel directly)
     await query(
-      `INSERT INTO chat_messages (conversation_id, message_id, content, message_type, media_url, from_me, status, timestamp)
-       VALUES ($1, $2, $3, $4, $5, true, 'sent', NOW())`,
-      [conversationId, messageId, content, messageType, mediaUrl]
+      `INSERT INTO chat_messages (conversation_id, message_id, content, message_type, media_url, media_mimetype, from_me, status, timestamp)
+       VALUES ($1, $2, $3, $4, $5, $6, true, 'sent', NOW())`,
+      [conversationId, messageId, content, messageType, mediaUrl, mediaMimetype || null]
     );
+
+    if (mediaUrl && shouldCacheExternally(mediaUrl)) {
+      cacheMediaAndUpdateMessage({ messageId, mediaUrl, messageType, mediaMimetype });
+    }
 
     // Update conversation timestamp
     await query(
@@ -498,61 +668,91 @@ function extractMessageContent(payload) {
   let messageType = 'text';
   let content = '';
   let mediaUrl = null;
+  let mediaMimetype = null;
 
   const msgContent = payload.msgContent || {};
 
+  const pickFirstString = (obj, keys) => {
+    if (!obj) return null;
+    for (const k of keys) {
+      const v = obj?.[k];
+      if (typeof v === 'string' && v.trim()) return v.trim();
+    }
+    return null;
+  };
+
+  const pickMime = (obj) => {
+    const m = pickFirstString(obj, ['mimetype', 'mimeType', 'type', 'contentType']);
+    return m || null;
+  };
+
   // Text message (W-API uses msgContent.conversation)
-  if (msgContent.conversation) {
+  if (typeof msgContent.conversation === 'string' && msgContent.conversation) {
     content = msgContent.conversation;
     messageType = 'text';
-    return { messageType, content, mediaUrl };
+    return { messageType, content, mediaUrl, mediaMimetype };
   }
 
   // Extended text message
   if (msgContent.extendedTextMessage) {
     content = msgContent.extendedTextMessage.text || '';
     messageType = 'text';
-    return { messageType, content, mediaUrl };
+    return { messageType, content, mediaUrl, mediaMimetype };
   }
 
   // Image message
   if (msgContent.imageMessage) {
     messageType = 'image';
-    mediaUrl = msgContent.imageMessage.url || payload.mediaUrl;
+    mediaMimetype = pickMime(msgContent.imageMessage) || payload.mediaMimetype || payload.mimetype || null;
+    mediaUrl =
+      pickFirstString(msgContent.imageMessage, ['url', 'fileUrl', 'mediaUrl', 'link', 'downloadUrl', 'base64', 'data']) ||
+      pickFirstString(payload, ['mediaUrl', 'url', 'fileUrl', 'downloadUrl', 'base64', 'data']);
     content = msgContent.imageMessage.caption || '';
-    return { messageType, content, mediaUrl };
+    return { messageType, content, mediaUrl, mediaMimetype };
   }
 
   // Audio message
   if (msgContent.audioMessage) {
     messageType = 'audio';
-    mediaUrl = msgContent.audioMessage.url || payload.mediaUrl;
+    mediaMimetype = pickMime(msgContent.audioMessage) || payload.mediaMimetype || payload.mimetype || null;
+    mediaUrl =
+      pickFirstString(msgContent.audioMessage, ['url', 'fileUrl', 'mediaUrl', 'link', 'downloadUrl', 'base64', 'data']) ||
+      pickFirstString(payload, ['mediaUrl', 'url', 'fileUrl', 'downloadUrl', 'base64', 'data']);
     content = '[Áudio]';
-    return { messageType, content, mediaUrl };
+    return { messageType, content, mediaUrl, mediaMimetype };
   }
 
   // Video message
   if (msgContent.videoMessage) {
     messageType = 'video';
-    mediaUrl = msgContent.videoMessage.url || payload.mediaUrl;
+    mediaMimetype = pickMime(msgContent.videoMessage) || payload.mediaMimetype || payload.mimetype || null;
+    mediaUrl =
+      pickFirstString(msgContent.videoMessage, ['url', 'fileUrl', 'mediaUrl', 'link', 'downloadUrl', 'base64', 'data']) ||
+      pickFirstString(payload, ['mediaUrl', 'url', 'fileUrl', 'downloadUrl', 'base64', 'data']);
     content = msgContent.videoMessage.caption || '';
-    return { messageType, content, mediaUrl };
+    return { messageType, content, mediaUrl, mediaMimetype };
   }
 
   // Document message
   if (msgContent.documentMessage) {
     messageType = 'document';
-    mediaUrl = msgContent.documentMessage.url || payload.mediaUrl;
+    mediaMimetype = pickMime(msgContent.documentMessage) || payload.mediaMimetype || payload.mimetype || null;
+    mediaUrl =
+      pickFirstString(msgContent.documentMessage, ['url', 'fileUrl', 'mediaUrl', 'link', 'downloadUrl', 'base64', 'data']) ||
+      pickFirstString(payload, ['mediaUrl', 'url', 'fileUrl', 'downloadUrl', 'base64', 'data']);
     content = msgContent.documentMessage.fileName || '[Documento]';
-    return { messageType, content, mediaUrl };
+    return { messageType, content, mediaUrl, mediaMimetype };
   }
 
   // Sticker message
   if (msgContent.stickerMessage) {
     messageType = 'sticker';
-    mediaUrl = msgContent.stickerMessage.url || payload.mediaUrl;
+    mediaMimetype = pickMime(msgContent.stickerMessage) || payload.mediaMimetype || payload.mimetype || null;
+    mediaUrl =
+      pickFirstString(msgContent.stickerMessage, ['url', 'fileUrl', 'mediaUrl', 'link', 'downloadUrl', 'base64', 'data']) ||
+      pickFirstString(payload, ['mediaUrl', 'url', 'fileUrl', 'downloadUrl', 'base64', 'data']);
     content = '[Figurinha]';
-    return { messageType, content, mediaUrl };
+    return { messageType, content, mediaUrl, mediaMimetype };
   }
 
   // Fallback: legacy format (payload.text, payload.body, etc.)
@@ -566,35 +766,40 @@ function extractMessageContent(payload) {
 
   if (payload.image || payload.imageMessage) {
     messageType = 'image';
-    mediaUrl = payload.image || payload.imageMessage?.url || payload.mediaUrl;
+    mediaMimetype = mediaMimetype || payload.imageMessage?.mimetype || payload.mimetype || null;
+    mediaUrl = payload.image || payload.imageMessage?.url || payload.mediaUrl || payload.url || null;
     content = payload.caption || payload.imageMessage?.caption || '';
   }
 
   if (payload.audio || payload.audioMessage) {
     messageType = 'audio';
-    mediaUrl = payload.audio || payload.audioMessage?.url || payload.mediaUrl;
+    mediaMimetype = mediaMimetype || payload.audioMessage?.mimetype || payload.mimetype || null;
+    mediaUrl = payload.audio || payload.audioMessage?.url || payload.mediaUrl || payload.url || null;
     content = '[Áudio]';
   }
 
   if (payload.video || payload.videoMessage) {
     messageType = 'video';
-    mediaUrl = payload.video || payload.videoMessage?.url || payload.mediaUrl;
+    mediaMimetype = mediaMimetype || payload.videoMessage?.mimetype || payload.mimetype || null;
+    mediaUrl = payload.video || payload.videoMessage?.url || payload.mediaUrl || payload.url || null;
     content = payload.caption || payload.videoMessage?.caption || '';
   }
 
   if (payload.document || payload.documentMessage) {
     messageType = 'document';
-    mediaUrl = payload.document || payload.documentMessage?.url || payload.mediaUrl;
+    mediaMimetype = mediaMimetype || payload.documentMessage?.mimetype || payload.mimetype || null;
+    mediaUrl = payload.document || payload.documentMessage?.url || payload.mediaUrl || payload.url || null;
     content = payload.fileName || payload.documentMessage?.fileName || '[Documento]';
   }
 
   if (payload.sticker || payload.stickerMessage) {
     messageType = 'sticker';
-    mediaUrl = payload.sticker || payload.stickerMessage?.url || payload.mediaUrl;
+    mediaMimetype = mediaMimetype || payload.stickerMessage?.mimetype || payload.mimetype || null;
+    mediaUrl = payload.sticker || payload.stickerMessage?.url || payload.mediaUrl || payload.url || null;
     content = '[Figurinha]';
   }
 
-  return { messageType, content, mediaUrl };
+  return { messageType, content, mediaUrl, mediaMimetype };
 }
 
 export default router;

@@ -77,6 +77,7 @@ import {
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { resolveMediaUrl } from "@/lib/media";
 import { ChatMessage, Conversation, ConversationTag, TeamMember, ConversationNote } from "@/hooks/use-chat";
 import { useChat } from "@/hooks/use-chat";
 import { useUpload } from "@/hooks/use-upload";
@@ -704,6 +705,7 @@ export function ChatArea({
           {messages.map((msg) => {
             const isSearchResult = searchResults.includes(msg.id);
             const isCurrentResult = searchResults[currentSearchIndex] === msg.id;
+            const mediaUrl = resolveMediaUrl(msg.media_url);
             
             return (
             <div
@@ -766,11 +768,11 @@ export function ChatArea({
                 )}
 
                 {/* Media content */}
-                {(msg.message_type === 'image' || (msg.media_mimetype?.startsWith('image/') ?? false)) && msg.media_url && (
-                  <a href={msg.media_url} target="_blank" rel="noopener noreferrer">
+                {(msg.message_type === 'image' || (msg.media_mimetype?.startsWith('image/') ?? false)) && mediaUrl && (
+                  <a href={mediaUrl} target="_blank" rel="noopener noreferrer">
                     <img
-                      src={msg.media_url}
-                      alt="Imagem"
+                      src={mediaUrl}
+                      alt="Imagem recebida"
                       loading="lazy"
                       className="rounded max-w-full max-h-[300px] mb-2 cursor-pointer hover:opacity-90"
                       crossOrigin="anonymous"
@@ -778,7 +780,7 @@ export function ChatArea({
                   </a>
                 )}
 
-                {(msg.message_type === 'video' || (msg.media_mimetype?.startsWith('video/') ?? false)) && msg.media_url && (
+                {(msg.message_type === 'video' || (msg.media_mimetype?.startsWith('video/') ?? false)) && mediaUrl && (
                   <div className="mb-2">
                     <video
                       controls
@@ -787,13 +789,13 @@ export function ChatArea({
                       className="rounded max-w-full max-h-[300px]"
                       crossOrigin="anonymous"
                     >
-                      {msg.media_mimetype && <source src={msg.media_url} type={msg.media_mimetype} />}
-                      <source src={msg.media_url} type="video/mp4" />
-                      <source src={msg.media_url} type="video/webm" />
+                      {msg.media_mimetype && <source src={mediaUrl} type={msg.media_mimetype} />}
+                      <source src={mediaUrl} type="video/mp4" />
+                      <source src={mediaUrl} type="video/webm" />
                       Seu navegador não suporta vídeo.
                     </video>
                     <a
-                      href={msg.media_url}
+                      href={mediaUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-xs underline opacity-70 hover:opacity-100"
@@ -804,7 +806,7 @@ export function ChatArea({
                 )}
 
                 {(msg.message_type === 'audio' || (msg.media_mimetype?.startsWith('audio/') ?? false)) && (
-                  msg.media_url ? (
+                  mediaUrl ? (
                     <div className="mb-2 flex items-center gap-3 min-w-[250px] p-2 rounded-lg bg-background/30">
                       <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
                         <Mic className="h-5 w-5 text-primary" />
@@ -816,10 +818,10 @@ export function ChatArea({
                         style={{ minWidth: '180px' }}
                         crossOrigin="anonymous"
                       >
-                        {msg.media_mimetype && <source src={msg.media_url} type={msg.media_mimetype} />}
-                        <source src={msg.media_url} type="audio/ogg" />
-                        <source src={msg.media_url} type="audio/mpeg" />
-                        <source src={msg.media_url} type="audio/mp4" />
+                        {msg.media_mimetype && <source src={mediaUrl} type={msg.media_mimetype} />}
+                        <source src={mediaUrl} type="audio/ogg" />
+                        <source src={mediaUrl} type="audio/mpeg" />
+                        <source src={mediaUrl} type="audio/mp4" />
                         Seu navegador não suporta áudio.
                       </audio>
                     </div>
@@ -830,17 +832,17 @@ export function ChatArea({
                     </div>
                   )
                 )}
-                {msg.message_type === 'sticker' && msg.media_url && (
+                {msg.message_type === 'sticker' && mediaUrl && (
                   <img
-                    src={msg.media_url}
-                    alt="Sticker"
+                    src={mediaUrl}
+                    alt="Sticker recebido"
                     className="max-w-[150px] max-h-[150px] mb-2"
                     crossOrigin="anonymous"
                   />
                 )}
-                {msg.message_type === 'document' && msg.media_url && (
+                {msg.message_type === 'document' && mediaUrl && (
                   <a
-                    href={msg.media_url}
+                    href={mediaUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 text-sm underline mb-2"
