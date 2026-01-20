@@ -482,7 +482,8 @@ router.patch('/customers/:organizationId/:customerId', async (req, res) => {
          blacklist_reason = CASE WHEN $1 = true THEN COALESCE($2, blacklist_reason) ELSE NULL END,
          blacklisted_at = CASE WHEN $1 = true THEN COALESCE(blacklisted_at, NOW()) ELSE NULL END,
          billing_paused = COALESCE($3, billing_paused),
-         billing_paused_until = CASE WHEN $3 = true THEN $4 ELSE NULL END,
+         -- Accept empty string from UI date inputs ("" -> NULL) to avoid invalid date errors
+         billing_paused_until = CASE WHEN $3 = true THEN NULLIF($4, '')::date ELSE NULL END,
          billing_paused_reason = CASE WHEN $3 = true THEN $5 ELSE NULL END,
          updated_at = NOW()
        WHERE id = $6 AND organization_id = $7

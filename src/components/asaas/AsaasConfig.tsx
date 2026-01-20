@@ -169,11 +169,14 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
 
   const handleSaveCustomerPause = async () => {
     if (!editingCustomer) return;
+
+    const normalizedPauseUntil = editingCustomer.pauseUntil ? editingCustomer.pauseUntil : null;
+    const normalizedPauseReason = editingCustomer.pauseReason ? editingCustomer.pauseReason : null;
     
     const result = await updateCustomer(editingCustomer.id, {
       billing_paused: !editingCustomer.billing_paused,
-      billing_paused_until: editingCustomer.billing_paused ? null : editingCustomer.pauseUntil,
-      billing_paused_reason: editingCustomer.billing_paused ? null : editingCustomer.pauseReason
+      billing_paused_until: editingCustomer.billing_paused ? null : normalizedPauseUntil,
+      billing_paused_reason: editingCustomer.billing_paused ? null : normalizedPauseReason
     });
     
     if (result) {
