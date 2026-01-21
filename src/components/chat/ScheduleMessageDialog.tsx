@@ -133,6 +133,9 @@ export function ScheduleMessageDialog({
     setDate(undefined);
     setTime("09:00");
     clearMedia();
+    
+    // Close dialog after scheduling
+    onOpenChange(false);
   };
 
   const formatScheduledDate = (dateStr: string) => {
