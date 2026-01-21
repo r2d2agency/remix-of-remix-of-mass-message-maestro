@@ -652,7 +652,14 @@ function detectEventType(payload) {
   const event = payload.event;
 
   // W-API specific event types
-  if (event === 'webhookReceived') return 'message_received';
+  // webhookReceived can be fromMe=true when sent from the phone directly
+  if (event === 'webhookReceived') {
+    // Check if it's actually a message we sent from the phone
+    if (payload.fromMe === true || payload.isFromMe === true) {
+      return 'message_sent';
+    }
+    return 'message_received';
+  }
   if (event === 'webhookDelivery') return 'message_sent';
   if (event === 'webhookStatus') return 'status_update';
   if (event === 'webhookConnected' || event === 'webhookDisconnected') return 'connection_update';
@@ -901,17 +908,34 @@ async function handleIncomingMessage(connection, payload) {
  */
 async function handleOutgoingMessage(connection, payload) {
   try {
-    // W-API format: chat.id is the destination phone for outgoing
-    const phone = payload.chat?.id || payload.phone || payload.to || payload.remoteJid?.split('@')[0];
+    // W-API format: chat.id is the destination phone/group for outgoing
+    const chatId = payload.chat?.id || payload.phone || payload.to || payload.remoteJid;
     const messageId = payload.messageId || payload.id || payload.key?.id;
 
-    if (!phone || !messageId) {
-      console.log('[W-API] Missing phone or messageId in outgoing:', { phone, messageId });
+    if (!chatId || !messageId) {
+      console.log('[W-API] Missing chatId or messageId in outgoing:', { chatId, messageId });
       return;
     }
 
-    const cleanPhone = String(phone).replace(/\D/g, '');
-    const remoteJid = cleanPhone.includes('@') ? cleanPhone : `${cleanPhone}@s.whatsapp.net`;
+    // Check if this is a group message
+    const isGroup = String(chatId).includes('@g.us') || (String(chatId).includes('-') && !String(chatId).match(/^\d+$/));
+    
+    let remoteJid;
+    let cleanPhone = null;
+    
+    if (isGroup) {
+      // Keep group JID as-is
+      remoteJid = String(chatId).includes('@') ? chatId : `${chatId}@g.us`;
+    } else {
+      // Individual chat - normalize phone
+      cleanPhone = String(chatId).replace(/\D/g, '').replace(/@.*$/, '');
+      remoteJid = cleanPhone ? `${cleanPhone}@s.whatsapp.net` : null;
+    }
+
+    if (!remoteJid) {
+      console.log('[W-API] Invalid chat format for outgoing:', chatId);
+      return;
+    }
 
     // Find conversation
     const convResult = await query(
@@ -920,11 +944,26 @@ async function handleOutgoingMessage(connection, payload) {
     );
 
     if (convResult.rows.length === 0) {
-      console.log('[W-API] Conversation not found for outgoing message to:', remoteJid);
-      return;
+      // For outgoing messages from phone, we might need to create the conversation
+      console.log('[W-API] Conversation not found for outgoing message to:', remoteJid, '- creating...');
+      
+      const contactName = isGroup 
+        ? (payload.chat?.name || payload.groupName || 'Grupo')
+        : (payload.chat?.pushName || cleanPhone);
+      
+      const newConv = await query(
+        `INSERT INTO conversations (connection_id, remote_jid, contact_name, contact_phone, is_group, group_name, last_message_at, unread_count)
+         VALUES ($1, $2, $3, $4, $5, $6, NOW(), 0)
+         RETURNING id`,
+        [connection.id, remoteJid, contactName, isGroup ? null : cleanPhone, isGroup, isGroup ? contactName : null]
+      );
+      
+      var conversationId = newConv.rows[0].id;
+      console.log('[W-API] Created new conversation for outgoing:', conversationId);
+    } else {
+      var conversationId = convResult.rows[0].id;
     }
 
-    const conversationId = convResult.rows[0].id;
     const { messageType, content, mediaUrl: rawMediaUrl, mediaMimetype } = extractMessageContent(payload);
     const mediaUrl = normalizeUploadsUrl(rawMediaUrl);
 
@@ -970,7 +1009,7 @@ async function handleOutgoingMessage(connection, payload) {
       [conversationId]
     );
 
-    console.log('[W-API] Outgoing message saved:', messageId, 'To:', cleanPhone);
+    console.log('[W-API] Outgoing message saved:', messageId, 'To:', remoteJid);
   } catch (error) {
     console.error('[W-API] Error handling outgoing message:', error);
   }
