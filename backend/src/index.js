@@ -59,6 +59,42 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+// Request-scoped context + correlation id for structured logs
+app.use((req, res, next) => {
+  const startedAt = Date.now();
+  const rawHeader = req.headers['x-request-id'];
+  const incomingRequestId = Array.isArray(rawHeader) ? rawHeader[0] : rawHeader;
+  const requestId = (incomingRequestId && String(incomingRequestId).trim()) || crypto.randomUUID();
+
+  requestContext.run(
+    {
+      request_id: requestId,
+      http_method: req.method,
+      http_path: req.originalUrl,
+    },
+    () => {
+      req.requestId = requestId;
+      res.setHeader('X-Request-Id', requestId);
+
+      log('info', 'http.request', {
+        http_method: req.method,
+        http_path: req.originalUrl,
+      });
+
+      res.on('finish', () => {
+        log('info', 'http.response', {
+          http_method: req.method,
+          http_path: req.originalUrl,
+          status_code: res.statusCode,
+          duration_ms: Date.now() - startedAt,
+        });
+      });
+
+      next();
+    }
+  );
+});
+
 // Serve uploaded files statically with CORS headers
 const uploadsDir = path.join(process.cwd(), 'uploads');
 app.use('/uploads', (req, res, next) => {
@@ -116,7 +152,9 @@ app.get('/health', (req, res) => {
 
 // Global error handler with CORS headers
 app.use((err, req, res, next) => {
-  console.error('Global error handler:', err);
+  logError('http.unhandled_error', err, {
+    status_code: err?.status || 500,
+  });
   
   // Ensure CORS headers are set even on errors
   res.header('Access-Control-Allow-Origin', '*');
@@ -124,7 +162,8 @@ app.use((err, req, res, next) => {
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
   
   res.status(err.status || 500).json({
-    error: err.message || 'Internal Server Error'
+    error: err.message || 'Internal Server Error',
+    requestId: req.requestId || null,
   });
 });
 

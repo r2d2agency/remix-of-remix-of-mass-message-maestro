@@ -5,6 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import * as whatsappProvider from '../lib/whatsapp-provider.js';
+import { logError, logInfo } from '../logger.js';
 
 
 const router = Router();
@@ -483,16 +484,35 @@ router.get('/:connectionId/qrcode', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'Conexão não encontrada' });
     }
 
+    const provider = whatsappProvider.detectProvider(connection);
+    const startedAt = Date.now();
+    logInfo('connection.qrcode_check_started', {
+      connection_id: connectionId,
+      provider,
+    });
+
     // Use unified provider to get QR code
     const qrCode = await whatsappProvider.getQRCode(connection);
+
+    logInfo('connection.qrcode_check_finished', {
+      connection_id: connectionId,
+      provider,
+      duration_ms: Date.now() - startedAt,
+      has_qrcode: Boolean(qrCode),
+    });
     
     res.json({
       qrCode: qrCode || null,
       pairingCode: null, // W-API doesn't support pairing code yet
     });
   } catch (error) {
-    console.error('Get QR code error:', error);
-    res.status(500).json({ error: 'Erro ao buscar QR Code' });
+    logError('connection.qrcode_check_failed', error, {
+      connection_id: req.params.connectionId,
+    });
+    res.status(500).json({
+      error: 'Erro ao buscar QR Code',
+      requestId: req.requestId || null,
+    });
   }
 });
 
@@ -505,6 +525,13 @@ router.get('/:connectionId/status', authenticate, async (req, res) => {
     if (!connection) {
       return res.status(404).json({ error: 'Conexão não encontrada' });
     }
+
+    const provider = whatsappProvider.detectProvider(connection);
+    const startedAt = Date.now();
+    logInfo('connection.status_check_started', {
+      connection_id: connectionId,
+      provider,
+    });
 
     // Use unified provider to check status
     const statusResult = await whatsappProvider.checkStatus(connection);
@@ -520,15 +547,33 @@ router.get('/:connectionId/status', authenticate, async (req, res) => {
       );
     }
 
+    logInfo('connection.status_check_finished', {
+      connection_id: connectionId,
+      provider,
+      duration_ms: Date.now() - startedAt,
+      status: newStatus,
+      has_phone: Boolean(phoneNumber),
+      has_error: Boolean(statusResult?.error),
+    });
+
     res.json({
       status: newStatus,
       phoneNumber,
-      provider: whatsappProvider.detectProvider(connection),
+      provider,
       error: statusResult.error || null,
     });
   } catch (error) {
-    console.error('Check status error:', error);
-    res.status(500).json({ error: 'Erro interno ao verificar o status da instância.' });
+    // Keep endpoint stable for the UI: return disconnected + error (HTTP 200)
+    logError('connection.status_check_failed', error, {
+      connection_id: req.params.connectionId,
+    });
+    res.json({
+      status: 'disconnected',
+      phoneNumber: null,
+      provider: null,
+      error: 'Erro interno ao verificar o status da instância.',
+      requestId: req.requestId || null,
+    });
   }
 });
 

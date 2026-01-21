@@ -1,6 +1,8 @@
 // W-API Provider - Backend implementation
 // https://api.w-api.app/v1/
 
+import { logError, logInfo, logWarn } from '../logger.js';
+
 const W_API_BASE_URL = 'https://api.w-api.app/v1';
 const WEBHOOK_BASE_URL = process.env.WEBHOOK_BASE_URL || process.env.API_BASE_URL || 'https://whastsale-backend.exf0ty.easypanel.host';
 
@@ -58,8 +60,11 @@ function getHeaders(token) {
  */
 export async function configureWebhooks(instanceId, token) {
   const webhookUrl = `${WEBHOOK_BASE_URL}/api/wapi/webhook`;
-  
-  console.log(`[W-API] Configuring webhooks for instance ${instanceId} -> ${webhookUrl}`);
+
+  logInfo('wapi.webhooks_configure_started', {
+    instance_id: instanceId,
+    webhook_url: webhookUrl,
+  });
   
   const webhookTypes = [
     { endpoint: 'update-webhook-received', name: 'received' },      // Mensagens recebidas
@@ -80,7 +85,7 @@ export async function configureWebhooks(instanceId, token) {
           body: JSON.stringify({ url: webhookUrl }),
         }
       );
-      
+
       const data = await response.json().catch(() => ({}));
       results.push({ 
         type: wh.name, 
@@ -88,19 +93,37 @@ export async function configureWebhooks(instanceId, token) {
         status: response.status,
         data 
       });
-      
+
       if (response.ok) {
-        console.log(`[W-API] Webhook ${wh.name} configured successfully`);
+        logInfo('wapi.webhook_configured', {
+          instance_id: instanceId,
+          webhook_type: wh.name,
+          status_code: response.status,
+        });
       } else {
-        console.log(`[W-API] Webhook ${wh.name} failed:`, response.status, data);
+        logWarn('wapi.webhook_config_failed', {
+          instance_id: instanceId,
+          webhook_type: wh.name,
+          status_code: response.status,
+          error: data?.message || data?.error || null,
+          body_preview: JSON.stringify(data).slice(0, 400),
+        });
       }
     } catch (error) {
-      console.error(`[W-API] Error configuring webhook ${wh.name}:`, error.message);
+      logError('wapi.webhook_config_exception', error, {
+        instance_id: instanceId,
+        webhook_type: wh.name,
+      });
       results.push({ type: wh.name, success: false, error: error.message });
     }
   }
   
   const successCount = results.filter(r => r.success).length;
+  logInfo('wapi.webhooks_configure_finished', {
+    instance_id: instanceId,
+    configured: successCount,
+    total: webhookTypes.length,
+  });
   return {
     success: successCount > 0,
     configured: successCount,
@@ -115,19 +138,27 @@ export async function configureWebhooks(instanceId, token) {
  */
 export async function checkStatus(instanceId, token) {
   const encodedInstanceId = encodeURIComponent(instanceId || '');
+  const startedAt = Date.now();
 
   try {
     // W-API uses /instance/status-instance endpoint
+    logInfo('wapi.status_check_started', {
+      instance_id: instanceId,
+    });
+
     const response = await fetch(
       `${W_API_BASE_URL}/instance/status-instance?instanceId=${encodedInstanceId}`,
       { headers: getHeaders(token) }
     );
 
     const responseText = await response.text();
-    console.log(
-      `[W-API] Status check for ${instanceId}: HTTP ${response.status}, Body:`,
-      responseText.slice(0, 800)
-    );
+
+    logInfo('wapi.status_check_http', {
+      instance_id: instanceId,
+      status_code: response.status,
+      duration_ms: Date.now() - startedAt,
+      body_preview: String(responseText || '').slice(0, 300),
+    });
 
     if (!response.ok) {
       let errMsg = `HTTP ${response.status}`;
@@ -137,6 +168,12 @@ export async function checkStatus(instanceId, token) {
       } catch {
         // ignore
       }
+
+      logWarn('wapi.status_check_non_ok', {
+        instance_id: instanceId,
+        status_code: response.status,
+        error: errMsg,
+      });
       return { status: 'disconnected', error: errMsg };
     }
 
@@ -144,10 +181,18 @@ export async function checkStatus(instanceId, token) {
     try {
       data = JSON.parse(responseText);
     } catch {
+      logError('wapi.status_check_parse_failed', new Error('Invalid JSON response'), {
+        instance_id: instanceId,
+        status_code: response.status,
+        body_preview: String(responseText || '').slice(0, 500),
+      });
       return { status: 'disconnected', error: 'Invalid JSON response' };
     }
 
-    console.log('[W-API] Parsed status data:', JSON.stringify(data));
+    logInfo('wapi.status_check_parsed', {
+      instance_id: instanceId,
+      keys: Object.keys(data || {}).slice(0, 50),
+    });
 
     const candidates = [
       data,
@@ -192,14 +237,23 @@ export async function checkStatus(instanceId, token) {
     }
 
     if (isConnected) {
-      console.log('[W-API] Instance is CONNECTED, phone:', phoneNumber);
+      logInfo('wapi.status_check_connected', {
+        instance_id: instanceId,
+        has_phone: Boolean(phoneNumber),
+      });
       return { status: 'connected', phoneNumber };
     }
 
-    console.log('[W-API] Instance is DISCONNECTED');
+    logInfo('wapi.status_check_disconnected', {
+      instance_id: instanceId,
+      has_phone: Boolean(phoneNumber),
+    });
     return { status: 'disconnected', phoneNumber: phoneNumber || undefined };
   } catch (error) {
-    console.error('[W-API] checkStatus error:', error);
+    logError('wapi.status_check_exception', error, {
+      instance_id: instanceId,
+      duration_ms: Date.now() - startedAt,
+    });
     return { status: 'disconnected', error: error.message };
   }
 }

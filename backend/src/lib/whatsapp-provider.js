@@ -2,6 +2,7 @@
 // Routes requests to the correct provider (Evolution API or W-API)
 
 import * as wapiProvider from './wapi-provider.js';
+import { logError, logInfo, logWarn } from '../logger.js';
 
 /**
  * Detect provider from connection data
@@ -32,6 +33,12 @@ export async function checkStatus(connection) {
 
   // Evolution API
   try {
+    const startedAt = Date.now();
+    logInfo('evolution.status_check_started', {
+      connection_id: connection.id,
+      instance_name: connection.instance_name,
+    });
+
     const response = await fetch(
       `${connection.api_url}/instance/connectionState/${connection.instance_name}`,
       {
@@ -40,21 +47,55 @@ export async function checkStatus(connection) {
     );
 
     if (!response.ok) {
-      return { status: 'disconnected', error: 'Failed to check status' };
+      const text = await response.text().catch(() => '');
+      logWarn('evolution.status_check_non_ok', {
+        connection_id: connection.id,
+        instance_name: connection.instance_name,
+        status_code: response.status,
+        duration_ms: Date.now() - startedAt,
+        body_preview: String(text || '').slice(0, 300),
+      });
+      return { status: 'disconnected', error: `Failed to check status (HTTP ${response.status})` };
     }
 
-    const data = await response.json();
+    const text = await response.text().catch(() => '');
+    let data;
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch (e) {
+      logError('evolution.status_check_parse_failed', e, {
+        connection_id: connection.id,
+        instance_name: connection.instance_name,
+        duration_ms: Date.now() - startedAt,
+        body_preview: String(text || '').slice(0, 500),
+      });
+      return { status: 'disconnected', error: 'Invalid JSON response' };
+    }
 
     if (data.instance?.state === 'open') {
+      logInfo('evolution.status_check_connected', {
+        connection_id: connection.id,
+        instance_name: connection.instance_name,
+        duration_ms: Date.now() - startedAt,
+        has_phone: Boolean(data.instance?.phoneNumber),
+      });
       return {
         status: 'connected',
         phoneNumber: data.instance?.phoneNumber,
       };
     }
 
+    logInfo('evolution.status_check_disconnected', {
+      connection_id: connection.id,
+      instance_name: connection.instance_name,
+      duration_ms: Date.now() - startedAt,
+    });
     return { status: 'disconnected' };
   } catch (error) {
-    console.error('Evolution checkStatus error:', error);
+    logError('evolution.status_check_exception', error, {
+      connection_id: connection.id,
+      instance_name: connection.instance_name,
+    });
     return { status: 'disconnected', error: error.message };
   }
 }
