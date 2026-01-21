@@ -32,6 +32,7 @@ import {
 import { useQuickReplies, QuickReply, CreateQuickReplyData } from "@/hooks/use-quick-replies";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface QuickRepliesPanelProps {
   onSelect: (content: string) => void;
@@ -39,6 +40,7 @@ interface QuickRepliesPanelProps {
 }
 
 export function QuickRepliesPanel({ onSelect, onClose }: QuickRepliesPanelProps) {
+  const isMobile = useIsMobile();
   const [quickReplies, setQuickReplies] = useState<QuickReply[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>("");
@@ -143,7 +145,12 @@ export function QuickRepliesPanel({ onSelect, onClose }: QuickRepliesPanelProps)
   };
 
   return (
-    <div className="flex flex-col h-full bg-card border-l w-80">
+    <div className={cn(
+      "flex flex-col bg-card",
+      isMobile 
+        ? "fixed inset-0 z-50 h-full w-full" 
+        : "h-full border-l w-80"
+    )}>
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b">
         <div className="flex items-center gap-2">

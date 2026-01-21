@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { ScheduledMessage } from "@/hooks/use-chat";
 import { useUpload } from "@/hooks/use-upload";
 import { toast } from "sonner";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface ScheduleMessageDialogProps {
   open: boolean;
@@ -48,6 +49,7 @@ export function ScheduleMessageDialog({
   onCancelScheduled,
   sending,
 }: ScheduleMessageDialogProps) {
+  const isMobile = useIsMobile();
   const [content, setContent] = useState("");
   const [date, setDate] = useState<Date | undefined>(undefined);
   const [time, setTime] = useState("09:00");
@@ -151,7 +153,10 @@ export function ScheduleMessageDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+      <DialogContent className={cn(
+        "max-w-md overflow-y-auto",
+        isMobile ? "h-[100dvh] max-h-[100dvh] w-full rounded-none p-4" : "max-h-[90vh]"
+      )}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CalendarClock className="h-5 w-5" />
@@ -251,7 +256,7 @@ export function ScheduleMessageDialog({
                   {date ? format(date, "PPP", { locale: ptBR }) : "Selecione a data"}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0 z-50" align="start">
+              <PopoverContent className="w-auto p-0 z-[100]" align="center" side={isMobile ? "top" : "bottom"}>
                 <Calendar
                   mode="single"
                   selected={date}

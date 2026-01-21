@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface NotesPanelProps {
   conversationId: string;
@@ -26,6 +27,7 @@ interface NotesPanelProps {
 }
 
 export function NotesPanel({ conversationId, onClose }: NotesPanelProps) {
+  const isMobile = useIsMobile();
   const [notes, setNotes] = useState<ConversationNote[]>([]);
   const [loading, setLoading] = useState(true);
   const [newNote, setNewNote] = useState("");
@@ -103,7 +105,12 @@ export function NotesPanel({ conversationId, onClose }: NotesPanelProps) {
   };
 
   return (
-    <div className="flex flex-col h-full bg-card border-l w-80">
+    <div className={cn(
+      "flex flex-col bg-card",
+      isMobile 
+        ? "fixed inset-0 z-50 h-full w-full" 
+        : "h-full border-l w-80"
+    )}>
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b">
         <div className="flex items-center gap-2">
