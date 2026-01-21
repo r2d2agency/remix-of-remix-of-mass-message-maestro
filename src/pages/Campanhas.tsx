@@ -41,6 +41,7 @@ import {
   Search,
   Filter,
   X,
+  Tag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCampaigns, Campaign } from "@/hooks/use-campaigns";
@@ -54,6 +55,13 @@ interface Connection {
   id: string;
   name: string;
   status: string;
+}
+
+interface ConversationTag {
+  id: string;
+  name: string;
+  color: string;
+  conversation_count: number;
 }
 
 const statusConfig = {
@@ -73,6 +81,7 @@ const Campanhas = () => {
   const [lists, setLists] = useState<ContactList[]>([]);
   const [messages, setMessages] = useState<MessageTemplate[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
+  const [conversationTags, setConversationTags] = useState<ConversationTag[]>([]);
 
   const [activeTab, setActiveTab] = useState("list");
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
@@ -95,6 +104,11 @@ const Campanhas = () => {
   const [selectedList, setSelectedList] = useState("");
   const [selectedMessages, setSelectedMessages] = useState<string[]>([]);
   
+  // Form state - Tag source
+  const [contactSource, setContactSource] = useState<'list' | 'tag'>('list');
+  const [selectedTag, setSelectedTag] = useState("");
+  const [creatingListFromTag, setCreatingListFromTag] = useState(false);
+  
   // Form state - Schedule
   const [startDate, setStartDate] = useState<Date>();
   const [endDate, setEndDate] = useState<Date>();
@@ -115,9 +129,10 @@ const Campanhas = () => {
       getLists(),
       getMessages(),
       api<Connection[]>('/api/connections'),
+      api<ConversationTag[]>('/api/chat/tags/with-count'),
     ]);
 
-    const [campaignsRes, listsRes, messagesRes, connectionsRes] = results;
+    const [campaignsRes, listsRes, messagesRes, connectionsRes, tagsRes] = results;
 
     if (campaignsRes.status === 'fulfilled') {
       setCampaigns(campaignsRes.value);
@@ -145,6 +160,13 @@ const Campanhas = () => {
     } else {
       console.error('Erro ao carregar conexões:', connectionsRes.reason);
       setConnections([]);
+    }
+
+    if (tagsRes.status === 'fulfilled') {
+      setConversationTags(tagsRes.value);
+    } else {
+      console.error('Erro ao carregar tags:', tagsRes.reason);
+      setConversationTags([]);
     }
   }, [getCampaigns, getLists, getMessages]);
 
@@ -222,6 +244,8 @@ const Campanhas = () => {
     setSelectedConnection("");
     setSelectedList("");
     setSelectedMessages([]);
+    setContactSource('list');
+    setSelectedTag("");
     setStartDate(undefined);
     setEndDate(undefined);
     setStartTime("08:00");
@@ -252,9 +276,17 @@ const Campanhas = () => {
   };
 
   const handleCreateCampaign = async () => {
-    if (!campaignName || !selectedConnection || !selectedList || selectedMessages.length === 0) {
-      toast.error("Preencha todos os campos obrigatórios");
-      return;
+    // Validate based on contact source
+    if (contactSource === 'list') {
+      if (!campaignName || !selectedConnection || !selectedList || selectedMessages.length === 0) {
+        toast.error("Preencha todos os campos obrigatórios");
+        return;
+      }
+    } else {
+      if (!campaignName || !selectedConnection || !selectedTag || selectedMessages.length === 0) {
+        toast.error("Preencha todos os campos obrigatórios");
+        return;
+      }
     }
 
     const minDelayNum = parseInt(minDelay);
@@ -276,10 +308,39 @@ const Campanhas = () => {
     }
 
     try {
+      let listIdToUse = selectedList;
+
+      // If using tag source, create list from tag first
+      if (contactSource === 'tag' && selectedTag) {
+        setCreatingListFromTag(true);
+        try {
+          const tagInfo = conversationTags.find(t => t.id === selectedTag);
+          const result = await api<{ id: string; contact_count: number; message: string }>('/api/contacts/lists/from-tag', {
+            method: 'POST',
+            body: {
+              tag_id: selectedTag,
+              name: `${campaignName} - ${tagInfo?.name || 'Tag'}`,
+              connection_id: selectedConnection,
+            },
+          });
+          listIdToUse = result.id;
+          toast.success(result.message);
+          
+          // Reload lists to show the new one
+          const newLists = await getLists();
+          setLists(newLists);
+        } catch (tagErr: any) {
+          toast.error(tagErr.message || "Erro ao criar lista a partir da tag");
+          setCreatingListFromTag(false);
+          return;
+        }
+        setCreatingListFromTag(false);
+      }
+
       await createCampaign({
         name: campaignName,
         connection_id: selectedConnection,
-        list_id: selectedList,
+        list_id: listIdToUse,
         message_ids: selectedMessages,
         start_date: formatDateForApi(startDate),
         end_date: formatDateForApi(endDate),
@@ -674,25 +735,83 @@ const Campanhas = () => {
                      </Select>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label>Lista de Contatos</Label>
-                     <Select value={selectedList} onValueChange={setSelectedList} disabled={lists.length === 0}>
-                       <SelectTrigger>
-                         <SelectValue placeholder={lists.length === 0 ? "Nenhuma lista disponível" : "Selecione uma lista"} />
-                       </SelectTrigger>
-                       <SelectContent>
-                         {lists.length === 0 ? (
-                           <div className="px-2 py-2 text-sm text-muted-foreground">Nenhuma lista encontrada</div>
-                         ) : (
-                           lists.map((list) => (
-                             <SelectItem key={list.id} value={list.id}>
-                               {list.name} ({list.contact_count || 0} contatos)
-                             </SelectItem>
-                           ))
-                         )}
-                       </SelectContent>
-                     </Select>
+                  {/* Contact Source Toggle */}
+                  <div className="space-y-3">
+                    <Label>Origem dos Contatos</Label>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant={contactSource === 'list' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setContactSource('list')}
+                        className="flex-1"
+                      >
+                        <Users className="h-4 w-4 mr-2" />
+                        Lista
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={contactSource === 'tag' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setContactSource('tag')}
+                        className="flex-1"
+                      >
+                        <Tag className="h-4 w-4 mr-2" />
+                        Tag de Conversa
+                      </Button>
+                    </div>
                   </div>
+
+                  {contactSource === 'list' ? (
+                    <div className="space-y-2">
+                      <Label>Lista de Contatos</Label>
+                       <Select value={selectedList} onValueChange={setSelectedList} disabled={lists.length === 0}>
+                         <SelectTrigger>
+                           <SelectValue placeholder={lists.length === 0 ? "Nenhuma lista disponível" : "Selecione uma lista"} />
+                         </SelectTrigger>
+                         <SelectContent>
+                           {lists.length === 0 ? (
+                             <div className="px-2 py-2 text-sm text-muted-foreground">Nenhuma lista encontrada</div>
+                           ) : (
+                             lists.map((list) => (
+                               <SelectItem key={list.id} value={list.id}>
+                                 {list.name} ({list.contact_count || 0} contatos)
+                               </SelectItem>
+                             ))
+                           )}
+                         </SelectContent>
+                       </Select>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <Label>Tag de Conversa</Label>
+                      <Select value={selectedTag} onValueChange={setSelectedTag} disabled={conversationTags.length === 0}>
+                        <SelectTrigger>
+                          <SelectValue placeholder={conversationTags.length === 0 ? "Nenhuma tag disponível" : "Selecione uma tag"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {conversationTags.length === 0 ? (
+                            <div className="px-2 py-2 text-sm text-muted-foreground">Nenhuma tag encontrada</div>
+                          ) : (
+                            conversationTags.filter(t => t.conversation_count > 0).map((tag) => (
+                              <SelectItem key={tag.id} value={tag.id}>
+                                <div className="flex items-center gap-2">
+                                  <div 
+                                    className="w-3 h-3 rounded-full" 
+                                    style={{ backgroundColor: tag.color }}
+                                  />
+                                  {tag.name} ({tag.conversation_count} conversas)
+                                </div>
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Será criada uma lista com os números das conversas que possuem esta tag
+                      </p>
+                    </div>
+                  )}
 
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
@@ -934,10 +1053,13 @@ const Campanhas = () => {
                       variant="gradient" 
                       className="w-full"
                       onClick={handleCreateCampaign}
-                      disabled={loadingCampaigns}
+                      disabled={loadingCampaigns || creatingListFromTag}
                     >
-                      {loadingCampaigns ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                      {loadingCampaigns || creatingListFromTag ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          {creatingListFromTag ? 'Criando lista da tag...' : 'Criando campanha...'}
+                        </>
                       ) : (
                         <>
                           <Send className="h-4 w-4" />

@@ -553,4 +553,103 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// ==========================================
+// CREATE LIST FROM CONVERSATION TAG
+// ==========================================
+
+// Create a contact list from conversations that have a specific tag
+router.post('/lists/from-tag', async (req, res) => {
+  try {
+    const { tag_id, name, connection_id } = req.body;
+
+    if (!tag_id) {
+      return res.status(400).json({ error: 'Tag é obrigatória' });
+    }
+
+    const org = await getUserOrganization(req.userId);
+    if (!org) {
+      return res.status(400).json({ error: 'Usuário não pertence a uma organização' });
+    }
+
+    // Verify tag belongs to user's organization
+    const tagCheck = await query(
+      'SELECT id, name FROM conversation_tags WHERE id = $1 AND organization_id = $2',
+      [tag_id, org.organization_id]
+    );
+
+    if (tagCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Tag não encontrada' });
+    }
+
+    const tagName = tagCheck.rows[0].name;
+    const listName = name || `Tag: ${tagName}`;
+
+    // Get all conversations with this tag that have phone numbers
+    // Only get active (non-archived) individual conversations with messages
+    const conversationsResult = await query(
+      `SELECT DISTINCT 
+        conv.contact_name,
+        conv.contact_phone
+       FROM conversations conv
+       JOIN conversation_tag_links ctl ON ctl.conversation_id = conv.id
+       JOIN connections conn ON conn.id = conv.connection_id
+       WHERE ctl.tag_id = $1
+         AND conn.organization_id = $2
+         AND conv.contact_phone IS NOT NULL
+         AND conv.contact_phone != ''
+         AND COALESCE(conv.is_group, false) = false
+         AND conv.is_archived = false
+         AND EXISTS (SELECT 1 FROM chat_messages cm WHERE cm.conversation_id = conv.id)`,
+      [tag_id, org.organization_id]
+    );
+
+    if (conversationsResult.rows.length === 0) {
+      return res.status(400).json({ error: 'Nenhuma conversa ativa encontrada com esta tag' });
+    }
+
+    // Create the list
+    const listResult = await query(
+      'INSERT INTO contact_lists (user_id, name, connection_id) VALUES ($1, $2, $3) RETURNING *',
+      [req.userId, listName, connection_id || null]
+    );
+
+    const listId = listResult.rows[0].id;
+
+    // Insert contacts into the list
+    const contacts = conversationsResult.rows;
+    let insertedCount = 0;
+
+    for (const contact of contacts) {
+      try {
+        await query(
+          'INSERT INTO contacts (list_id, name, phone) VALUES ($1, $2, $3)',
+          [listId, contact.contact_name || contact.contact_phone, contact.contact_phone]
+        );
+        insertedCount++;
+      } catch (insertErr) {
+        // Skip duplicates or errors
+        console.warn('Failed to insert contact:', insertErr.message);
+      }
+    }
+
+    // Get the list with contact count
+    const finalList = await query(
+      `SELECT cl.*, COUNT(c.id)::int as contact_count
+       FROM contact_lists cl
+       LEFT JOIN contacts c ON c.list_id = cl.id
+       WHERE cl.id = $1
+       GROUP BY cl.id`,
+      [listId]
+    );
+
+    res.status(201).json({
+      ...finalList.rows[0],
+      message: `Lista criada com ${insertedCount} contatos da tag "${tagName}"`
+    });
+  } catch (error) {
+    console.error('Create list from tag error:', error);
+    res.status(500).json({ error: 'Erro ao criar lista a partir da tag' });
+  }
+});
+
 export default router;

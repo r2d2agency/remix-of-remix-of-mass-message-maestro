@@ -93,10 +93,10 @@ const Chat = () => {
     }
   };
 
-  // Reload when filters change
+  // Reload when filters or activeTab change
   useEffect(() => {
     loadConversationsRef.current();
-  }, [filters]);
+  }, [filters, activeTab]);
 
   // Auto-refresh conversations every 8 seconds (backup - events handle immediate updates)
   useEffect(() => {
