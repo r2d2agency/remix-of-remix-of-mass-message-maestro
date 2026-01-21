@@ -82,7 +82,7 @@ function SidebarContentComponent({ isExpanded, isSuperadmin, onNavigate }: Sideb
   const navigate = useNavigate();
   const { logout, user } = useAuth();
   const { branding } = useBranding();
-  const [openSections, setOpenSections] = useState<string[]>(["Disparos", "Configurações"]);
+  const [openSections, setOpenSections] = useState<string[]>(["Atendimento"]);
 
   const handleLogout = () => {
     logout();
