@@ -58,6 +58,7 @@ import {
   X,
   Upload,
   ArrowLeftRight,
+  ArrowLeft,
   Plus,
   RefreshCw,
   PenLine,
@@ -117,6 +118,8 @@ interface ChatAreaProps {
   onCreateTag: (name: string, color: string) => void;
   onDeleteConversation?: () => Promise<void>;
   onReleaseConversation?: () => Promise<void>;
+  isMobile?: boolean;
+  onMobileBack?: () => void;
 }
 
 const messageStatusIcon = (status: string) => {
@@ -156,6 +159,8 @@ export function ChatArea({
   onCreateTag,
   onDeleteConversation,
   onReleaseConversation,
+  isMobile = false,
+  onMobileBack,
 }: ChatAreaProps) {
   // Manager (Supervisor) = apenas visualização
   const isViewOnly = userRole === 'manager';
@@ -512,6 +517,17 @@ export function ChatArea({
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b bg-card">
         <div className="flex items-center gap-3">
+          {/* Mobile back button */}
+          {isMobile && onMobileBack && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 mr-1"
+              onClick={onMobileBack}
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+          )}
           <Avatar className="h-10 w-10">
             <AvatarFallback className="bg-primary/10 text-primary">
               {getInitials(conversation.is_group ? conversation.group_name : conversation.contact_name)}

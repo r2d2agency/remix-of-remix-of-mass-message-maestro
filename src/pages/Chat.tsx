@@ -10,6 +10,8 @@ import { api } from "@/lib/api";
 import { chatEvents } from "@/lib/chat-events";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MessageSquare, Users } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
 
 interface UserProfile {
   user?: {
@@ -19,6 +21,7 @@ interface UserProfile {
 
 const Chat = () => {
   const location = useLocation();
+  const isMobile = useIsMobile();
 
   const {
     loading,
@@ -549,86 +552,109 @@ const Chat = () => {
     loadConversationsRef.current();
   };
 
+  // Mobile: go back to conversation list
+  const handleMobileBack = () => {
+    selectedIdRef.current = null;
+    setSelectedConversation(null);
+    setMessages([]);
+  };
+
+  // Mobile-aware conversation selection
+  const handleMobileSelectConversation = useCallback(async (conversation: Conversation) => {
+    await handleSelectConversation(conversation);
+  }, [handleSelectConversation]);
+
   return (
     <MainLayout>
       <div className="h-[calc(100vh-120px)] flex flex-col rounded-lg border overflow-hidden bg-background shadow-lg">
-        {/* Tab Header */}
-        <div className="border-b px-4 py-2 bg-muted/30 flex-shrink-0">
-           <Tabs value={activeTab} onValueChange={(v) => {
-              setActiveTab(v as 'chats' | 'groups');
-              selectedIdRef.current = null; // Clear ref when switching tabs
-              setSelectedConversation(null);
-              setMessages([]);
-            }}>
-            <TabsList className="grid w-[260px] grid-cols-2">
-              <TabsTrigger value="chats" className="flex items-center gap-2">
-                <MessageSquare className="h-4 w-4" />
-                Conversas
-              </TabsTrigger>
-              <TabsTrigger value="groups" className="flex items-center gap-2">
-                <Users className="h-4 w-4" />
-                Grupos
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
+        {/* Tab Header - Hide on mobile when chat is open */}
+        {(!isMobile || !selectedConversation) && (
+          <div className="border-b px-4 py-2 bg-muted/30 flex-shrink-0">
+             <Tabs value={activeTab} onValueChange={(v) => {
+                setActiveTab(v as 'chats' | 'groups');
+                selectedIdRef.current = null;
+                setSelectedConversation(null);
+                setMessages([]);
+              }}>
+              <TabsList className="grid w-[260px] grid-cols-2">
+                <TabsTrigger value="chats" className="flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4" />
+                  Conversas
+                </TabsTrigger>
+                <TabsTrigger value="groups" className="flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  Grupos
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+        )}
 
         <div className="flex flex-1 overflow-hidden">
-          {/* Conversation List - Left Panel */}
-          <div className="w-[350px] flex-shrink-0">
-            <ConversationList
-              conversations={conversations}
-              selectedId={selectedConversation?.id || null}
-              onSelect={handleSelectConversation}
+          {/* Conversation List - Hide on mobile when chat is open */}
+          {(!isMobile || !selectedConversation) && (
+            <div className={cn(
+              "flex-shrink-0",
+              isMobile ? "w-full" : "w-[350px]"
+            )}>
+              <ConversationList
+                conversations={conversations}
+                selectedId={selectedConversation?.id || null}
+                onSelect={handleMobileSelectConversation}
+                tags={tags}
+                team={team}
+                loading={loading}
+                onRefresh={loadConversations}
+                filters={filters}
+                onFiltersChange={setFilters}
+                isAdmin={isAdmin}
+                connections={connections}
+                onNewConversation={activeTab === 'chats' ? () => setNewConversationOpen(true) : undefined}
+                onAcceptConversation={handleAcceptConversation}
+                attendanceCounts={attendanceCounts}
+              />
+            </div>
+          )}
+
+          {/* Chat Area - Full width on mobile, show back button */}
+          {(!isMobile || selectedConversation) && (
+            <ChatArea
+              conversation={selectedConversation}
+              messages={messages}
+              loading={loadingMessages}
+              sending={sendingMessage}
               tags={tags}
               team={team}
-              loading={loading}
-              onRefresh={loadConversations}
-              filters={filters}
-              onFiltersChange={setFilters}
+              syncingHistory={syncingHistory}
               isAdmin={isAdmin}
-              connections={connections}
-              onNewConversation={activeTab === 'chats' ? () => setNewConversationOpen(true) : undefined}
-              onAcceptConversation={handleAcceptConversation}
-              attendanceCounts={attendanceCounts}
+              userRole={userRole}
+              onSyncHistory={handleSyncHistory}
+              onSendMessage={handleSendMessage}
+              onLoadMore={handleLoadMoreMessages}
+              hasMore={hasMoreMessages}
+              onAddTag={handleAddTag}
+              onRemoveTag={handleRemoveTag}
+              onAssign={handleAssign}
+              onArchive={handleArchive}
+              onTransfer={handleTransfer}
+              onCreateTag={handleCreateTag}
+              onDeleteConversation={async () => {
+                if (!selectedConversation) return;
+                try {
+                  await api(`/api/chat/conversations/${selectedConversation.id}`, { method: 'DELETE' });
+                  toast.success('Conversa excluída');
+                  setSelectedConversation(null);
+                  setMessages([]);
+                  loadConversations();
+                } catch (error: any) {
+                  toast.error(error.message || 'Erro ao excluir conversa');
+                }
+              }}
+              onReleaseConversation={handleReleaseConversation}
+              isMobile={isMobile}
+              onMobileBack={handleMobileBack}
             />
-          </div>
-
-          {/* Chat Area - Right Panel */}
-          <ChatArea
-          conversation={selectedConversation}
-          messages={messages}
-          loading={loadingMessages}
-          sending={sendingMessage}
-          tags={tags}
-          team={team}
-          syncingHistory={syncingHistory}
-          isAdmin={isAdmin}
-          userRole={userRole}
-          onSyncHistory={handleSyncHistory}
-          onSendMessage={handleSendMessage}
-          onLoadMore={handleLoadMoreMessages}
-          hasMore={hasMoreMessages}
-          onAddTag={handleAddTag}
-          onRemoveTag={handleRemoveTag}
-          onAssign={handleAssign}
-          onArchive={handleArchive}
-          onTransfer={handleTransfer}
-          onCreateTag={handleCreateTag}
-          onDeleteConversation={async () => {
-            if (!selectedConversation) return;
-            try {
-              await api(`/api/chat/conversations/${selectedConversation.id}`, { method: 'DELETE' });
-              toast.success('Conversa excluída');
-              setSelectedConversation(null);
-              setMessages([]);
-              loadConversations();
-            } catch (error: any) {
-              toast.error(error.message || 'Erro ao excluir conversa');
-            }
-          }}
-          onReleaseConversation={handleReleaseConversation}
-        />
+          )}
         </div>
       </div>
 
