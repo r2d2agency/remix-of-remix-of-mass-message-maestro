@@ -30,6 +30,29 @@ if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 }
 
+/**
+ * Helper to get a connection with organization-based access control
+ * Allows access if user owns the connection OR it belongs to their organization
+ */
+async function getAccessibleConnection(connectionId, userId) {
+  // Get user's organization
+  const orgResult = await query(
+    `SELECT organization_id FROM organization_members WHERE user_id = $1 LIMIT 1`,
+    [userId]
+  );
+  const userOrgId = orgResult.rows[0]?.organization_id || null;
+
+  // Get connection - allow access if user owns it OR it belongs to their organization
+  const connResult = await query(
+    `SELECT * FROM connections 
+     WHERE id = $1 
+     AND (user_id = $2 OR organization_id = $3)`,
+    [connectionId, userId, userOrgId]
+  );
+
+  return connResult.rows[0] || null;
+}
+
 // Download media from Evolution API and save locally
 async function downloadAndSaveMedia(connection, messageObj, messageType) {
   try {
@@ -450,29 +473,22 @@ router.post('/create', authenticate, async (req, res) => {
   }
 });
 
-// Get QR Code for connection
+// Get QR Code for connection (supports both Evolution API and W-API)
 router.get('/:connectionId/qrcode', authenticate, async (req, res) => {
   try {
     const { connectionId } = req.params;
 
-    // Get connection
-    const connResult = await query(
-      'SELECT * FROM connections WHERE id = $1 AND user_id = $2',
-      [connectionId, req.userId]
-    );
-
-    if (connResult.rows.length === 0) {
+    const connection = await getAccessibleConnection(connectionId, req.userId);
+    if (!connection) {
       return res.status(404).json({ error: 'Conexão não encontrada' });
     }
 
-    const connection = connResult.rows[0];
-
-    // Get QR code from Evolution
-    const qrResult = await evolutionRequest(`/instance/connect/${connection.instance_name}`, 'GET');
+    // Use unified provider to get QR code
+    const qrCode = await whatsappProvider.getQRCode(connection);
     
     res.json({
-      qrCode: qrResult.base64 || qrResult.qrcode?.base64 || null,
-      pairingCode: qrResult.pairingCode || null,
+      qrCode: qrCode || null,
+      pairingCode: null, // W-API doesn't support pairing code yet
     });
   } catch (error) {
     console.error('Get QR code error:', error);
@@ -485,17 +501,10 @@ router.get('/:connectionId/status', authenticate, async (req, res) => {
   try {
     const { connectionId } = req.params;
 
-    // Get connection
-    const connResult = await query(
-      'SELECT * FROM connections WHERE id = $1 AND user_id = $2',
-      [connectionId, req.userId]
-    );
-
-    if (connResult.rows.length === 0) {
+    const connection = await getAccessibleConnection(connectionId, req.userId);
+    if (!connection) {
       return res.status(404).json({ error: 'Conexão não encontrada' });
     }
-
-    const connection = connResult.rows[0];
 
     // Use unified provider to check status
     const statusResult = await whatsappProvider.checkStatus(connection);
@@ -519,7 +528,7 @@ router.get('/:connectionId/status', authenticate, async (req, res) => {
     });
   } catch (error) {
     console.error('Check status error:', error);
-    res.status(500).json({ error: 'Erro ao verificar status' });
+    res.status(500).json({ error: 'Erro interno ao verificar o status da instância.' });
   }
 });
 
@@ -528,17 +537,10 @@ router.post('/:connectionId/logout', authenticate, async (req, res) => {
   try {
     const { connectionId } = req.params;
 
-    // Get connection
-    const connResult = await query(
-      'SELECT * FROM connections WHERE id = $1 AND user_id = $2',
-      [connectionId, req.userId]
-    );
-
-    if (connResult.rows.length === 0) {
+    const connection = await getAccessibleConnection(connectionId, req.userId);
+    if (!connection) {
       return res.status(404).json({ error: 'Conexão não encontrada' });
     }
-
-    const connection = connResult.rows[0];
 
     // Use unified provider to disconnect
     await whatsappProvider.disconnect(connection);
