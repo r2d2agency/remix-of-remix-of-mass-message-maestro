@@ -7,63 +7,71 @@
 @layer base {
   :root,
   .light {
-    /* Light mode - Clean professional look */
-    --background: 220 15% 97%;
-    --foreground: 220 20% 10%;
+    /* Light mode - Modern WhatsApp-inspired look */
+    --background: 210 20% 96%;
+    --foreground: 220 25% 12%;
 
     --card: 0 0% 100%;
-    --card-foreground: 220 20% 10%;
+    --card-foreground: 220 25% 12%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 220 20% 10%;
+    --popover-foreground: 220 25% 12%;
 
-    --primary: 200 100% 45%;
+    --primary: 142 70% 45%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 14% 92%;
-    --secondary-foreground: 220 20% 20%;
+    --secondary: 210 15% 93%;
+    --secondary-foreground: 220 20% 25%;
 
-    --muted: 220 14% 94%;
-    --muted-foreground: 220 10% 46%;
+    --muted: 210 15% 95%;
+    --muted-foreground: 220 10% 40%;
 
-    --accent: 200 80% 94%;
-    --accent-foreground: 200 100% 35%;
+    --accent: 142 50% 92%;
+    --accent-foreground: 142 70% 30%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 152 69% 40%;
+    --success: 142 70% 45%;
     --success-foreground: 0 0% 100%;
 
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
 
-    --border: 220 13% 88%;
-    --input: 220 13% 88%;
-    --ring: 200 100% 45%;
+    --border: 210 15% 85%;
+    --input: 210 15% 85%;
+    --ring: 142 70% 45%;
 
     --radius: 0.75rem;
 
-    /* Neon blue tokens - Light mode */
-    --neon-blue: 200 100% 45%;
-    --neon-glow: 200 100% 55%;
-    --gradient-primary: linear-gradient(135deg, hsl(200 100% 45%), hsl(210 100% 40%));
-    --gradient-hero: linear-gradient(135deg, hsl(200 100% 45%) 0%, hsl(220 80% 35%) 100%);
-    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(220 15% 98%) 100%);
-    --shadow-card: 0 4px 24px -4px hsl(220 20% 10% / 0.06);
-    --shadow-elevated: 0 12px 40px -12px hsl(220 20% 10% / 0.12);
-    --shadow-neon: 0 0 20px hsl(200 100% 45% / 0.25);
-    --glass-bg: hsl(0 0% 100% / 0.85);
-    --glass-border: hsl(220 13% 88% / 0.8);
+    /* Chat specific - Light mode */
+    --chat-bg: 30 30% 90%;
+    --chat-pattern: hsl(30 20% 85% / 0.6);
+    --message-sent: 142 70% 45%;
+    --message-sent-foreground: 0 0% 100%;
+    --message-received: 0 0% 100%;
+    --message-received-foreground: 220 25% 12%;
+
+    /* Modern tokens - Light mode */
+    --neon-blue: 142 70% 45%;
+    --neon-glow: 142 70% 55%;
+    --gradient-primary: linear-gradient(135deg, hsl(142 70% 45%), hsl(152 70% 40%));
+    --gradient-hero: linear-gradient(135deg, hsl(142 70% 45%) 0%, hsl(160 60% 35%) 100%);
+    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(210 20% 98%) 100%);
+    --shadow-card: 0 2px 12px -2px hsl(220 20% 10% / 0.08), 0 1px 3px hsl(220 20% 10% / 0.04);
+    --shadow-elevated: 0 8px 30px -8px hsl(220 20% 10% / 0.15);
+    --shadow-neon: 0 0 20px hsl(142 70% 45% / 0.25);
+    --glass-bg: hsl(0 0% 100% / 0.9);
+    --glass-border: hsl(210 15% 85% / 0.8);
 
     --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 220 20% 20%;
-    --sidebar-primary: 200 100% 45%;
+    --sidebar-foreground: 220 20% 25%;
+    --sidebar-primary: 142 70% 45%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 200 80% 94%;
-    --sidebar-accent-foreground: 200 100% 35%;
-    --sidebar-border: 220 13% 90%;
-    --sidebar-ring: 200 100% 45%;
+    --sidebar-accent: 142 50% 94%;
+    --sidebar-accent-foreground: 142 70% 30%;
+    --sidebar-border: 210 15% 90%;
+    --sidebar-ring: 142 70% 45%;
   }
 
   .dark {
@@ -101,6 +109,14 @@
     --border: 220 18% 20%;
     --input: 220 18% 20%;
     --ring: 200 100% 50%;
+
+    /* Chat specific - Dark mode */
+    --chat-bg: 220 20% 10%;
+    --chat-pattern: hsl(220 18% 14% / 0.5);
+    --message-sent: 200 100% 50%;
+    --message-sent-foreground: 220 25% 8%;
+    --message-received: 220 18% 18%;
+    --message-received-foreground: 220 10% 95%;
 
     /* Neon blue tokens - Dark mode */
     --neon-blue: 200 100% 50%;
@@ -240,6 +256,41 @@
 
 .neon-pulse {
   animation: neonPulse 2s ease-in-out infinite;
+}
+
+/* Chat wallpaper pattern - WhatsApp style */
+.chat-wallpaper {
+  background-color: hsl(var(--chat-bg));
+  background-image: 
+    url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%239C92AC' fill-opacity='0.08'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+}
+
+.light .chat-wallpaper {
+  background-color: hsl(30 30% 90%);
+  background-image: 
+    url("data:image/svg+xml,%3Csvg width='80' height='80' viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23a1968a' fill-opacity='0.15'%3E%3Cpath d='M50 50c0-5.523 4.477-10 10-10s10 4.477 10 10-4.477 10-10 10c0 5.523-4.477 10-10 10s-10-4.477-10-10 4.477-10 10-10zM10 10c0-5.523 4.477-10 10-10s10 4.477 10 10-4.477 10-10 10c0 5.523-4.477 10-10 10S0 25.523 0 20s4.477-10 10-10zm10 8c4.418 0 8-3.582 8-8s-3.582-8-8-8-8 3.582-8 8 3.582 8 8 8zm40 40c4.418 0 8-3.582 8-8s-3.582-8-8-8-8 3.582-8 8 3.582 8 8 8z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E"),
+    linear-gradient(180deg, hsl(30 30% 92%) 0%, hsl(30 25% 88%) 100%);
+}
+
+.dark .chat-wallpaper {
+  background-color: hsl(220 20% 10%);
+  background-image: 
+    url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%234a5568' fill-opacity='0.1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+}
+
+/* Message bubbles */
+.message-sent {
+  background-color: hsl(var(--message-sent));
+  color: hsl(var(--message-sent-foreground));
+}
+
+.message-received {
+  background-color: hsl(var(--message-received));
+  color: hsl(var(--message-received-foreground));
+}
+
+.light .message-received {
+  box-shadow: 0 1px 2px hsl(0 0% 0% / 0.08);
 }
 
 /* Custom scrollbar utilities */

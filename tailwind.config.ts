@@ -62,6 +62,16 @@ export default {
           DEFAULT: "hsl(var(--neon-blue))",
           glow: "hsl(var(--neon-glow))",
         },
+        chat: {
+          bg: "hsl(var(--chat-bg))",
+          pattern: "var(--chat-pattern)",
+        },
+        message: {
+          sent: "hsl(var(--message-sent))",
+          "sent-foreground": "hsl(var(--message-sent-foreground))",
+          received: "hsl(var(--message-received))",
+          "received-foreground": "hsl(var(--message-received-foreground))",
+        },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",

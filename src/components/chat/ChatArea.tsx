@@ -750,7 +750,7 @@ export function ChatArea({
       )}
 
       {/* Messages */}
-      <ScrollArea ref={scrollAreaRef} className="flex-1 p-4">
+      <ScrollArea ref={scrollAreaRef} className="flex-1 p-4 chat-wallpaper">
         {hasMore && (
           <div className="flex justify-center mb-4">
             <Button
@@ -798,9 +798,9 @@ export function ChatArea({
                 className={cn(
                   "max-w-[70%] rounded-lg p-3 transition-all",
                   msg.from_me
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted",
-                  msg.message_type === 'system' && "bg-accent text-accent-foreground text-center max-w-full text-xs italic",
+                    ? "message-sent"
+                    : "message-received",
+                  msg.message_type === 'system' && "!bg-accent !text-accent-foreground text-center max-w-full text-xs italic",
                   isSearchResult && "ring-2 ring-yellow-400",
                   isCurrentResult && "ring-2 ring-yellow-500 bg-yellow-50 dark:bg-yellow-900/30"
                 )}
