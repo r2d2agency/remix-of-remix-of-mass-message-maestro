@@ -1182,6 +1182,11 @@ async function handleMessageUpsert(connection, data) {
 
     const isGroup = typeof rawRemoteJid === 'string' && rawRemoteJid.includes('@g.us');
 
+    // Skip group messages - they should not create individual conversations
+    if (isGroup) {
+      console.log('Webhook: Skipping group message from:', rawRemoteJid);
+      return;
+    }
 
     // === EARLY CHECK: Skip messages that have no real content BEFORE creating conversation ===
     const msgContent = message.message || message;

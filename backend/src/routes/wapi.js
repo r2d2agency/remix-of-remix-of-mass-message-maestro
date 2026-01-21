@@ -700,18 +700,34 @@ function detectEventType(payload) {
  */
 async function handleIncomingMessage(connection, payload) {
   try {
-    // W-API format: chat.id is the sender phone for incoming
-    const phone = payload.chat?.id || payload.phone || payload.from || payload.sender?.id || payload.remoteJid?.split('@')[0];
+    // W-API format: chat.id is the chat identifier (can be phone or group JID)
+    const chatId = payload.chat?.id || payload.phone || payload.from || payload.remoteJid;
     const messageId = payload.messageId || payload.id || payload.key?.id || crypto.randomUUID();
 
-    if (!phone) {
-      console.log('[W-API] No phone in incoming message, payload:', JSON.stringify(payload).slice(0, 300));
+    if (!chatId) {
+      console.log('[W-API] No chatId in incoming message, payload:', JSON.stringify(payload).slice(0, 300));
       return;
     }
 
+    // Check if this is a group message
+    const isGroup = String(chatId).includes('@g.us') || String(chatId).includes('-');
+    
+    if (isGroup) {
+      console.log('[W-API] Skipping group message from:', chatId);
+      return; // Skip group messages for now - they should not create individual conversations
+    }
+
+    // For individual chats, get the sender info
+    const senderId = payload.sender?.id || payload.from || chatId;
+    
     // Normalize phone to JID format
-    const cleanPhone = String(phone).replace(/\D/g, '');
-    const remoteJid = cleanPhone.includes('@') ? cleanPhone : `${cleanPhone}@s.whatsapp.net`;
+    const cleanPhone = String(chatId).replace(/\D/g, '').replace(/@.*$/, '');
+    const remoteJid = cleanPhone ? `${cleanPhone}@s.whatsapp.net` : null;
+    
+    if (!remoteJid || !cleanPhone) {
+      console.log('[W-API] Invalid phone format:', chatId);
+      return;
+    }
 
     // Get or create conversation
     let conversationResult = await query(
