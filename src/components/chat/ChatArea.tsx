@@ -74,6 +74,7 @@ import {
   Square,
   CalendarClock,
   Users,
+  Undo2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -115,6 +116,7 @@ interface ChatAreaProps {
   onTransfer: (userId: string | null, note?: string) => void;
   onCreateTag: (name: string, color: string) => void;
   onDeleteConversation?: () => Promise<void>;
+  onReleaseConversation?: () => Promise<void>;
 }
 
 const messageStatusIcon = (status: string) => {
@@ -153,6 +155,7 @@ export function ChatArea({
   onTransfer,
   onCreateTag,
   onDeleteConversation,
+  onReleaseConversation,
 }: ChatAreaProps) {
   // Manager (Supervisor) = apenas visualização
   const isViewOnly = userRole === 'manager';
@@ -670,6 +673,12 @@ export function ChatArea({
               {!isViewOnly && (
                 <>
                   <DropdownMenuSeparator />
+                  {onReleaseConversation && conversation.attendance_status === 'attending' && (
+                    <DropdownMenuItem onClick={onReleaseConversation}>
+                      <Undo2 className="h-4 w-4 mr-2" />
+                      Liberar (voltar para aguardando)
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem onClick={() => setShowTransferDialog(true)}>
                     <ArrowLeftRight className="h-4 w-4 mr-2" />
                     Transferir atendimento

@@ -64,6 +64,66 @@ async function getUserConnections(userId) {
 // CONVERSATIONS
 // ==========================================
 
+// Get attendance status counts (for tab badges)
+router.get('/conversations/attendance-counts', authenticate, async (req, res) => {
+  try {
+    const connectionIds = await getUserConnections(req.userId);
+    
+    if (connectionIds.length === 0) {
+      return res.json({ waiting: 0, attending: 0 });
+    }
+
+    const { is_group } = req.query;
+
+    let groupFilter = '';
+    if (is_group === 'true') {
+      groupFilter = ` AND COALESCE(conv.is_group, false) = true`;
+    } else if (is_group === 'false') {
+      groupFilter = ` AND COALESCE(conv.is_group, false) = false`;
+    }
+
+    // Try to get counts with attendance_status column
+    try {
+      const result = await query(`
+        SELECT 
+          COUNT(*) FILTER (WHERE COALESCE(conv.attendance_status, 'waiting') = 'waiting') as waiting,
+          COUNT(*) FILTER (WHERE conv.attendance_status = 'attending' OR conv.attendance_status IS NULL) as attending
+        FROM conversations conv
+        WHERE conv.connection_id = ANY($1)
+          AND conv.is_archived = false
+          AND EXISTS (SELECT 1 FROM chat_messages cm WHERE cm.conversation_id = conv.id)
+          ${groupFilter}
+      `, [connectionIds]);
+
+      res.json({
+        waiting: parseInt(result.rows[0]?.waiting || 0),
+        attending: parseInt(result.rows[0]?.attending || 0)
+      });
+    } catch (dbError) {
+      // Fallback if attendance_status column doesn't exist
+      const message = String(dbError?.message || '');
+      if (/attendance_status/i.test(message)) {
+        const result = await query(`
+          SELECT COUNT(*) as total
+          FROM conversations conv
+          WHERE conv.connection_id = ANY($1)
+            AND conv.is_archived = false
+            AND EXISTS (SELECT 1 FROM chat_messages cm WHERE cm.conversation_id = conv.id)
+            ${groupFilter}
+        `, [connectionIds]);
+
+        const total = parseInt(result.rows[0]?.total || 0);
+        res.json({ waiting: 0, attending: total });
+      } else {
+        throw dbError;
+      }
+    }
+  } catch (error) {
+    console.error('Get attendance counts error:', error);
+    res.status(500).json({ error: 'Erro ao buscar contagem' });
+  }
+});
+
 // Get conversations with unread messages only
 router.get('/conversations/unread', authenticate, async (req, res) => {
   try {

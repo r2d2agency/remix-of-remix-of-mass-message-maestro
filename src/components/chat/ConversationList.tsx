@@ -86,6 +86,7 @@ interface ConversationListProps {
   onPinConversation?: (id: string, pinned: boolean) => void;
   onNewConversation?: () => void;
   onAcceptConversation?: (id: string) => Promise<void>;
+  attendanceCounts?: { waiting: number; attending: number };
 }
 
 const getMessageTypeIcon = (type: string | null) => {
@@ -127,6 +128,7 @@ export function ConversationList({
   isAdmin = false,
   onNewConversation,
   onAcceptConversation,
+  attendanceCounts,
 }: ConversationListProps) {
   const [localSearch, setLocalSearch] = useState(filters.search);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -308,6 +310,11 @@ export function ConversationList({
           >
             <CheckCircle className="h-3.5 w-3.5" />
             Atendendo
+            {attendanceCounts && attendanceCounts.attending > 0 && (
+              <Badge variant="secondary" className="h-4 min-w-4 px-1 text-[10px] font-semibold">
+                {attendanceCounts.attending}
+              </Badge>
+            )}
           </button>
           <button
             onClick={() => onFiltersChange({ ...filters, attendance_status: 'waiting' })}
@@ -320,6 +327,11 @@ export function ConversationList({
           >
             <Clock className="h-3.5 w-3.5" />
             Aguardando
+            {attendanceCounts && attendanceCounts.waiting > 0 && (
+              <Badge variant="destructive" className="h-4 min-w-4 px-1 text-[10px] font-semibold animate-pulse">
+                {attendanceCounts.waiting}
+              </Badge>
+            )}
           </button>
         </div>
 

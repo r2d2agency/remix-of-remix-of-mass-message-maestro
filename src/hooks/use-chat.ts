@@ -489,6 +489,17 @@ export const useChat = () => {
     }
   }, []);
 
+  // Get attendance counts for tabs
+  const getAttendanceCounts = useCallback(async (isGroup: boolean): Promise<{ waiting: number; attending: number }> => {
+    try {
+      const data = await api<{ waiting: number; attending: number }>(`/api/chat/conversations/attendance-counts?is_group=${isGroup}`);
+      return data;
+    } catch (err) {
+      console.error('Error fetching attendance counts:', err);
+      return { waiting: 0, attending: 0 };
+    }
+  }, []);
+
   return {
     loading,
     error,
@@ -537,5 +548,7 @@ export const useChat = () => {
     markAlertsRead,
     startAlertsPolling,
     stopAlertsPolling,
+    // Attendance counts
+    getAttendanceCounts,
   };
 };

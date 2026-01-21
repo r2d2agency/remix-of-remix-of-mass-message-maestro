@@ -29,6 +29,7 @@ const Chat = () => {
     transferConversation,
     pinConversation,
     acceptConversation,
+    releaseConversation,
     getConnections,
     getMessages,
     sendMessage,
@@ -41,6 +42,7 @@ const Chat = () => {
     syncGroupName,
     startAlertsPolling,
     stopAlertsPolling,
+    getAttendanceCounts,
   } = useChat();
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -57,6 +59,7 @@ const Chat = () => {
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
   const [syncingHistory, setSyncingHistory] = useState(false);
   const [newConversationOpen, setNewConversationOpen] = useState(false);
+  const [attendanceCounts, setAttendanceCounts] = useState<{ waiting: number; attending: number }>({ waiting: 0, attending: 0 });
   const [filters, setFilters] = useState({
     search: '',
     tag: 'all',
@@ -83,6 +86,7 @@ const Chat = () => {
     loadTags();
     loadTeam();
     loadConnections();
+    loadAttendanceCounts();
     checkUserRole();
     startAlertsPolling();
 
@@ -90,6 +94,13 @@ const Chat = () => {
       stopAlertsPolling();
     };
   }, []);
+
+  // Load attendance counts
+  const loadAttendanceCounts = useCallback(async () => {
+    const isGroup = activeTab === 'groups';
+    const counts = await getAttendanceCounts(isGroup);
+    setAttendanceCounts(counts);
+  }, [activeTab, getAttendanceCounts]);
 
   const checkUserRole = async () => {
     try {
@@ -209,13 +220,16 @@ const Chat = () => {
           });
         }
       }
+
+      // Also refresh attendance counts
+      loadAttendanceCounts();
     } catch (error) {
       console.error('Error loading conversations:', error);
     } finally {
       isLoadingConversationsRef.current = false;
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [getConversations, filters.search, filters.tag, filters.assigned, filters.connection, filters.archived, filters.attendance_status, activeTab]);
+  }, [getConversations, filters.search, filters.tag, filters.assigned, filters.connection, filters.archived, filters.attendance_status, activeTab, loadAttendanceCounts]);
 
   // Keep ref pointing to the latest loadConversations (used by intervals above)
   useEffect(() => {
@@ -491,6 +505,20 @@ const Chat = () => {
     }
   };
 
+  const handleReleaseConversation = async () => {
+    if (!selectedConversation) return;
+    try {
+      await releaseConversation(selectedConversation.id);
+      selectedIdRef.current = null;
+      setSelectedConversation(null);
+      setMessages([]);
+      loadConversations();
+      toast.success('Conversa liberada para aguardando');
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao liberar conversa');
+    }
+  };
+
   const handleNewConversationCreated = async (conversation: Conversation) => {
     // Keep it visible even if it has no messages yet
     stickyConversationRef.current = conversation;
@@ -562,6 +590,7 @@ const Chat = () => {
               connections={connections}
               onNewConversation={activeTab === 'chats' ? () => setNewConversationOpen(true) : undefined}
               onAcceptConversation={handleAcceptConversation}
+              attendanceCounts={attendanceCounts}
             />
           </div>
 
@@ -598,6 +627,7 @@ const Chat = () => {
               toast.error(error.message || 'Erro ao excluir conversa');
             }
           }}
+          onReleaseConversation={handleReleaseConversation}
         />
         </div>
       </div>
