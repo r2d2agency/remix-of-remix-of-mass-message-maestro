@@ -160,19 +160,30 @@ export function useConnectionStatus(options: UseConnectionStatusOptions = {}) {
     checkAllConnections();
   }, [checkAllConnections]);
 
-  // Auto-start monitoring
+  // Auto-start monitoring (stable ref to prevent re-runs)
   useEffect(() => {
     isMounted.current = true;
     
     if (autoStart) {
-      startMonitoring();
+      // Initial check only - interval is started in startMonitoring
+      checkAllConnections();
+      
+      // Set up periodic checks
+      intervalRef.current = setInterval(() => {
+        checkAllConnections();
+      }, intervalSeconds * 1000);
     }
     
     return () => {
       isMounted.current = false;
-      stopMonitoring();
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
     };
-  }, [autoStart, startMonitoring, stopMonitoring]);
+  // Only run once on mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Computed values
   const connectedCount = connections.filter(c => c.status === 'connected').length;

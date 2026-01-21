@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
-import { getSendAttempts, clearSendAttempts, downloadMedia as wapiDownloadMedia, getChats as wapiGetChats } from '../lib/wapi-provider.js';
+import { getSendAttempts, clearSendAttempts, downloadMedia as wapiDownloadMedia, getChats as wapiGetChats, getGroupInfo as wapiGetGroupInfo } from '../lib/wapi-provider.js';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
@@ -759,6 +759,65 @@ router.delete('/:connectionId/send-attempts', authenticate, async (req, res) => 
 });
 
 /**
+ * Sync group name from W-API for a specific conversation
+ */
+router.post('/:connectionId/sync-group-name/:conversationId', authenticate, async (req, res) => {
+  try {
+    const { connectionId, conversationId } = req.params;
+
+    const connection = await getAccessibleConnection(connectionId, req.userId);
+    if (!connection) return res.status(404).json({ error: 'Conexão não encontrada' });
+
+    if (connection.provider !== 'wapi') {
+      return res.status(400).json({ error: 'Esta função é apenas para conexões W-API' });
+    }
+
+    // Get conversation
+    const convResult = await query(
+      `SELECT remote_jid, is_group, group_name FROM conversations WHERE id = $1 AND connection_id = $2`,
+      [conversationId, connectionId]
+    );
+
+    if (convResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Conversa não encontrada' });
+    }
+
+    const conversation = convResult.rows[0];
+    if (!conversation.is_group) {
+      return res.status(400).json({ error: 'Esta conversa não é um grupo' });
+    }
+
+    // Try to get group info from W-API
+    const groupInfo = await wapiGetGroupInfo(connection.instance_id, connection.wapi_token, conversation.remote_jid);
+
+    if (!groupInfo.success || !groupInfo.name) {
+      return res.json({ 
+        success: false, 
+        message: 'Não foi possível obter o nome do grupo da W-API',
+        current_name: conversation.group_name 
+      });
+    }
+
+    // Update the conversation with the group name
+    await query(
+      `UPDATE conversations SET group_name = $1 WHERE id = $2`,
+      [groupInfo.name, conversationId]
+    );
+
+    console.log('[W-API] Synced group name:', conversation.remote_jid, '->', groupInfo.name);
+
+    res.json({
+      success: true,
+      group_name: groupInfo.name,
+      message: 'Nome do grupo atualizado com sucesso'
+    });
+  } catch (error) {
+    console.error('[W-API] sync-group-name error:', error);
+    res.status(500).json({ error: 'Erro ao sincronizar nome do grupo' });
+  }
+});
+
+/**
  * Detect event type from W-API payload
  * W-API uses specific event names like:
  * - webhookReceived: incoming message
@@ -873,29 +932,48 @@ async function handleIncomingMessage(connection, payload) {
     let conversationId;
       if (conversationResult.rows.length === 0) {
       // Create new conversation
-        const groupName = isGroup
-          ? (payload.chat?.name || payload.chat?.groupName || payload.chat?.subject || payload.groupName || payload.groupSubject || payload.subject || null)
-          : null;
+      // Try multiple sources for group name - W-API sends it in various ways
+      const groupName = isGroup
+        ? (payload.chat?.name || payload.chat?.groupName || payload.chat?.subject || 
+           payload.groupName || payload.groupSubject || payload.subject || 
+           payload.group?.name || payload.group?.subject || null)
+        : null;
 
-        const contactName = isGroup 
-          ? (groupName || 'Grupo')
+      if (isGroup) {
+        console.log('[W-API] Group name extraction - chatId:', chatId, 
+          'name:', payload.chat?.name, 
+          'groupName:', payload.chat?.groupName,
+          'subject:', payload.chat?.subject,
+          'payload.groupName:', payload.groupName,
+          'extracted:', groupName);
+      }
+
+      const contactName = isGroup 
+        ? (groupName || 'Grupo')
         : (payload.sender?.pushName || payload.pushName || payload.name || payload.senderName || cleanPhone);
 
       const newConv = await query(
         `INSERT INTO conversations (connection_id, remote_jid, contact_name, contact_phone, is_group, group_name, last_message_at, unread_count)
          VALUES ($1, $2, $3, $4, $5, $6, NOW(), 1)
          RETURNING id`,
-        [connection.id, remoteJid, contactName, isGroup ? null : cleanPhone, isGroup, isGroup ? contactName : null]
+        [connection.id, remoteJid, contactName, isGroup ? null : cleanPhone, isGroup, isGroup ? groupName : null]
       );
       conversationId = newConv.rows[0].id;
-      console.log('[W-API] Created new', isGroup ? 'group' : 'conversation:', conversationId);
+      console.log('[W-API] Created new', isGroup ? 'group' : 'conversation:', conversationId, isGroup ? `name: ${groupName}` : '');
       } else {
       conversationId = conversationResult.rows[0].id;
 
       // Update conversation
       if (isGroup) {
         // For groups, update group_name if we have a new name
-          const groupName = payload.chat?.name || payload.chat?.groupName || payload.chat?.subject || payload.groupName || payload.groupSubject || payload.subject || null;
+        const groupName = payload.chat?.name || payload.chat?.groupName || payload.chat?.subject || 
+                         payload.groupName || payload.groupSubject || payload.subject ||
+                         payload.group?.name || payload.group?.subject || null;
+        
+        if (groupName) {
+          console.log('[W-API] Updating group name for conversation', conversationId, 'to:', groupName);
+        }
+        
         await query(
           `UPDATE conversations 
            SET last_message_at = NOW(), 

@@ -460,6 +460,19 @@ export const useChat = () => {
     return data.count;
   }, []);
 
+  // Sync group name from W-API
+  const syncGroupName = useCallback(async (connectionId: string, conversationId: string): Promise<{ success: boolean; group_name?: string }> => {
+    try {
+      const data = await api<{ success: boolean; group_name?: string }>(`/api/wapi/${connectionId}/sync-group-name/${conversationId}`, {
+        method: 'POST',
+      });
+      return data;
+    } catch (err) {
+      console.error('Error syncing group name:', err);
+      return { success: false };
+    }
+  }, []);
+
   return {
     loading,
     error,
@@ -499,6 +512,8 @@ export const useChat = () => {
     scheduleMessage,
     cancelScheduledMessage,
     getScheduledCount,
+    // Groups
+    syncGroupName,
     // Alerts
     getAlerts,
     markAlertsRead,

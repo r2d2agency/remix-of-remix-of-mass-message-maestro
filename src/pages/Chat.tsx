@@ -37,6 +37,7 @@ const Chat = () => {
     removeTagFromConversation,
     getTeam,
     syncChatHistory,
+    syncGroupName,
     startAlertsPolling,
     stopAlertsPolling,
   } = useChat();
@@ -95,11 +96,12 @@ const Chat = () => {
     }
   };
 
-  // Auto-refresh conversations every 8 seconds (backup - events handle immediate updates)
+  // Auto-refresh conversations every 15 seconds (backup - events handle immediate updates)
+  // Increased from 8s to 15s to reduce flickering
   useEffect(() => {
     const interval = setInterval(() => {
       loadConversationsRef.current();
-    }, 8000);
+    }, 15000);
     return () => clearInterval(interval);
   }, []);
 
@@ -166,16 +168,13 @@ const Chat = () => {
       const data = await getConversations(filterParams);
 
       const sticky = stickyConversationRef.current;
-      const keepEmptySelected = !!selectedConversation && !selectedConversation.last_message_at;
-      const keepSticky = !!sticky && !sticky.last_message_at;
 
       // Merge in "empty" conversations we want to keep visible
       let merged = data;
-      if (keepEmptySelected && !merged.some(c => c.id === selectedConversation!.id)) {
-        merged = [selectedConversation!, ...merged];
-      }
-      if (keepSticky && !merged.some(c => c.id === sticky!.id)) {
-        merged = [sticky!, ...merged];
+      
+      // Keep sticky conversation visible if it has no messages yet
+      if (sticky && !sticky.last_message_at && !merged.some(c => c.id === sticky.id)) {
+        merged = [sticky, ...merged];
       }
 
       setConversations(merged);
@@ -185,17 +184,17 @@ const Chat = () => {
         stickyConversationRef.current = null;
       }
 
-      // Update selected conversation if it exists
-      if (selectedConversation) {
-        const updated = merged.find(c => c.id === selectedConversation.id);
-        if (updated) {
-          setSelectedConversation(updated);
-        }
-      }
+      // Update selected conversation if it exists (using functional update to avoid stale closure)
+      setSelectedConversation(prev => {
+        if (!prev) return null;
+        const updated = merged.find(c => c.id === prev.id);
+        return updated || prev;
+      });
     } catch (error) {
       console.error('Error loading conversations:', error);
     }
-  }, [getConversations, filters, selectedConversation, activeTab]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [getConversations, filters.search, filters.tag, filters.assigned, filters.connection, filters.archived, activeTab]);
 
   // Keep ref pointing to the latest loadConversations (used by intervals above)
   useEffect(() => {
@@ -203,9 +202,11 @@ const Chat = () => {
   }, [loadConversations]);
 
   // Reload immediately when filters or activeTab change
+  // Note: loadConversations deps are now stable so this only triggers on actual filter changes
   useEffect(() => {
     loadConversations();
-  }, [loadConversations]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.search, filters.tag, filters.assigned, filters.connection, filters.archived, activeTab]);
 
   const loadTags = async () => {
     try {
@@ -240,13 +241,34 @@ const Chat = () => {
         await markAsRead(conversation.id);
         loadConversations();
       }
+
+      // For groups without a name, try to sync from W-API
+      if (conversation.is_group && !conversation.group_name) {
+        syncGroupName(conversation.connection_id, conversation.id).then(result => {
+          if (result.success && result.group_name) {
+            // Update the conversation locally
+            setSelectedConversation(prev => 
+              prev?.id === conversation.id 
+                ? { ...prev, group_name: result.group_name } 
+                : prev
+            );
+            setConversations(prev => 
+              prev.map(c => 
+                c.id === conversation.id 
+                  ? { ...c, group_name: result.group_name } 
+                  : c
+              )
+            );
+          }
+        }).catch(console.error);
+      }
     } catch (error) {
       console.error('Error loading messages:', error);
       toast.error('Erro ao carregar mensagens');
     } finally {
       setLoadingMessages(false);
     }
-  }, [getMessages, markAsRead, loadConversations]);
+  }, [getMessages, markAsRead, loadConversations, syncGroupName]);
 
   // If we arrive from the Agenda (or any deep link): /chat?conversation=<id>
   useEffect(() => {

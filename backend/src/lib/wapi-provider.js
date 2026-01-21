@@ -553,6 +553,58 @@ export async function checkNumber(instanceId, token, phone) {
 }
 
 /**
+ * Get group info/metadata from W-API
+ * Returns group name, participants, etc.
+ */
+export async function getGroupInfo(instanceId, token, groupJid) {
+  const encodedInstanceId = encodeURIComponent(instanceId || '');
+  const encodedGroupId = encodeURIComponent(groupJid?.replace('@g.us', '') || '');
+
+  try {
+    // Try different W-API endpoints for group info
+    const endpoints = [
+      `${W_API_BASE_URL}/group/metadata?instanceId=${encodedInstanceId}&groupId=${encodedGroupId}`,
+      `${W_API_BASE_URL}/group/get-group?instanceId=${encodedInstanceId}&groupId=${encodedGroupId}`,
+      `${W_API_BASE_URL}/group/info?instanceId=${encodedInstanceId}&groupId=${encodedGroupId}`,
+    ];
+
+    for (const url of endpoints) {
+      try {
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: getHeaders(token),
+        });
+
+        if (!response.ok) continue;
+
+        const data = await response.json();
+        
+        // Extract group name from various possible response formats
+        const groupName = data?.subject || data?.name || data?.groupName || 
+                         data?.data?.subject || data?.data?.name ||
+                         data?.result?.subject || data?.result?.name || null;
+
+        if (groupName) {
+          console.log('[W-API] Got group info for', groupJid, ':', groupName);
+          return {
+            success: true,
+            name: groupName,
+            subject: groupName,
+            participants: data?.participants || data?.data?.participants || [],
+          };
+        }
+      } catch (e) {
+        // Continue to next endpoint
+      }
+    }
+
+    return { success: false, error: 'Could not fetch group info' };
+  } catch (error) {
+    console.error('W-API getGroupInfo error:', error);
+    return { success: false, error: error.message };
+  }
+
+/**
  * Get all chats from W-API (includes contacts with chat history)
  * Returns an array of chat objects with phone and name
  */
