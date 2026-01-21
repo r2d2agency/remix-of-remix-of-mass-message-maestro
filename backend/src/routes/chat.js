@@ -109,104 +109,123 @@ router.get('/conversations', authenticate, async (req, res) => {
     }
 
     const { search, tag, assigned, archived, connection, includeEmpty, is_group, attendance_status } = req.query;
-    
-    let sql = `
-      SELECT 
-        conv.*,
-        conn.name as connection_name,
-        conn.phone_number as connection_phone,
-        u.name as assigned_name,
-        ua.name as accepted_by_name,
-        COALESCE(
-          (SELECT json_agg(json_build_object('id', t.id, 'name', t.name, 'color', t.color))
-           FROM conversation_tag_links ctl
-           JOIN conversation_tags t ON t.id = ctl.tag_id
-           WHERE ctl.conversation_id = conv.id
-          ), '[]'::json
-        ) as tags,
-        (SELECT content FROM chat_messages WHERE conversation_id = conv.id ORDER BY timestamp DESC LIMIT 1) as last_message,
-        (SELECT message_type FROM chat_messages WHERE conversation_id = conv.id ORDER BY timestamp DESC LIMIT 1) as last_message_type
-      FROM conversations conv
-      JOIN connections conn ON conn.id = conv.connection_id
-      LEFT JOIN users u ON u.id = conv.assigned_to
-      LEFT JOIN users ua ON ua.id = conv.accepted_by
-      WHERE conv.connection_id = ANY($1)
-    `;
-    
-    const params = [connectionIds];
-    let paramIndex = 2;
 
-    // IMPORTANT: Only show conversations with messages (unless explicitly requested)
-    if (includeEmpty !== 'true') {
-      sql += ` AND EXISTS (SELECT 1 FROM chat_messages cm WHERE cm.conversation_id = conv.id)`;
+    const buildQuery = (supportsAttendance = true) => {
+      let sql = `
+        SELECT 
+          conv.*,
+          conn.name as connection_name,
+          conn.phone_number as connection_phone,
+          u.name as assigned_name,
+          ${supportsAttendance ? 'ua.name as accepted_by_name,' : ''}
+          COALESCE(
+            (SELECT json_agg(json_build_object('id', t.id, 'name', t.name, 'color', t.color))
+             FROM conversation_tag_links ctl
+             JOIN conversation_tags t ON t.id = ctl.tag_id
+             WHERE ctl.conversation_id = conv.id
+            ), '[]'::json
+          ) as tags,
+          (SELECT content FROM chat_messages WHERE conversation_id = conv.id ORDER BY timestamp DESC LIMIT 1) as last_message,
+          (SELECT message_type FROM chat_messages WHERE conversation_id = conv.id ORDER BY timestamp DESC LIMIT 1) as last_message_type
+        FROM conversations conv
+        JOIN connections conn ON conn.id = conv.connection_id
+        LEFT JOIN users u ON u.id = conv.assigned_to
+        ${supportsAttendance ? 'LEFT JOIN users ua ON ua.id = conv.accepted_by' : ''}
+        WHERE conv.connection_id = ANY($1)
+      `;
+
+      const params = [connectionIds];
+      let paramIndex = 2;
+
+      // IMPORTANT: Only show conversations with messages (unless explicitly requested)
+      if (includeEmpty !== 'true') {
+        sql += ` AND EXISTS (SELECT 1 FROM chat_messages cm WHERE cm.conversation_id = conv.id)`;
+      }
+
+      // Filter by group status
+      if (is_group === 'true') {
+        sql += ` AND COALESCE(conv.is_group, false) = true`;
+      } else if (is_group === 'false') {
+        sql += ` AND COALESCE(conv.is_group, false) = false`;
+      }
+      // If is_group is not specified, show all (for backward compatibility)
+
+      // Filter by archived status
+      if (archived === 'true') {
+        sql += ` AND conv.is_archived = true`;
+      } else {
+        sql += ` AND conv.is_archived = false`;
+      }
+
+      // Filter by connection
+      if (connection && connection !== 'all') {
+        sql += ` AND conv.connection_id = $${paramIndex}`;
+        params.push(connection);
+        paramIndex++;
+      }
+
+      // Filter by search
+      if (search) {
+        sql += ` AND (conv.contact_name ILIKE $${paramIndex} OR conv.contact_phone ILIKE $${paramIndex} OR conv.group_name ILIKE $${paramIndex})`;
+        params.push(`%${search}%`);
+        paramIndex++;
+      }
+
+      // Filter by tag
+      if (tag) {
+        sql += ` AND EXISTS (
+          SELECT 1 FROM conversation_tag_links ctl 
+          WHERE ctl.conversation_id = conv.id AND ctl.tag_id = $${paramIndex}
+        )`;
+        params.push(tag);
+        paramIndex++;
+      }
+
+      // Filter by assigned user
+      if (assigned === 'me') {
+        sql += ` AND conv.assigned_to = $${paramIndex}`;
+        params.push(req.userId);
+        paramIndex++;
+      } else if (assigned === 'unassigned') {
+        sql += ` AND conv.assigned_to IS NULL`;
+      } else if (assigned && assigned !== 'all') {
+        sql += ` AND conv.assigned_to = $${paramIndex}`;
+        params.push(assigned);
+        paramIndex++;
+      }
+
+      // Filter by attendance status (waiting/attending)
+      // Note: NULL or 'waiting' = waiting, 'attending' = attending
+      // When filtering for 'attending', also include NULL for backward compatibility with existing conversations
+      if (supportsAttendance) {
+        if (attendance_status === 'waiting') {
+          sql += ` AND COALESCE(conv.attendance_status, 'waiting') = 'waiting'`;
+        } else if (attendance_status === 'attending') {
+          sql += ` AND (conv.attendance_status = 'attending' OR conv.attendance_status IS NULL)`;
+        }
+      }
+
+      // Order by pinned first, then by last_message_at
+      sql += ` ORDER BY COALESCE(conv.is_pinned, false) DESC, conv.last_message_at DESC NULLS LAST, conv.created_at DESC`;
+
+      return { sql, params };
+    };
+
+    let result;
+    try {
+      const { sql, params } = buildQuery(true);
+      result = await query(sql, params);
+    } catch (error) {
+      // Backward compatible fallback when DB migration wasn't applied yet.
+      // Common failures: missing columns attendance_status / accepted_by / accepted_at.
+      const message = String(error?.message || '');
+      const missingAttendanceColumns = /attendance_status|accepted_by|accepted_at/i.test(message);
+      if (!missingAttendanceColumns) throw error;
+
+      const { sql, params } = buildQuery(false);
+      result = await query(sql, params);
     }
 
-    // Filter by group status
-    if (is_group === 'true') {
-      sql += ` AND COALESCE(conv.is_group, false) = true`;
-    } else if (is_group === 'false') {
-      sql += ` AND COALESCE(conv.is_group, false) = false`;
-    }
-    // If is_group is not specified, show all (for backward compatibility)
-
-    // Filter by archived status
-    if (archived === 'true') {
-      sql += ` AND conv.is_archived = true`;
-    } else {
-      sql += ` AND conv.is_archived = false`;
-    }
-
-    // Filter by connection
-    if (connection && connection !== 'all') {
-      sql += ` AND conv.connection_id = $${paramIndex}`;
-      params.push(connection);
-      paramIndex++;
-    }
-
-    // Filter by search
-    if (search) {
-      sql += ` AND (conv.contact_name ILIKE $${paramIndex} OR conv.contact_phone ILIKE $${paramIndex} OR conv.group_name ILIKE $${paramIndex})`;
-      params.push(`%${search}%`);
-      paramIndex++;
-    }
-
-    // Filter by tag
-    if (tag) {
-      sql += ` AND EXISTS (
-        SELECT 1 FROM conversation_tag_links ctl 
-        WHERE ctl.conversation_id = conv.id AND ctl.tag_id = $${paramIndex}
-      )`;
-      params.push(tag);
-      paramIndex++;
-    }
-
-    // Filter by assigned user
-    if (assigned === 'me') {
-      sql += ` AND conv.assigned_to = $${paramIndex}`;
-      params.push(req.userId);
-      paramIndex++;
-    } else if (assigned === 'unassigned') {
-      sql += ` AND conv.assigned_to IS NULL`;
-    } else if (assigned && assigned !== 'all') {
-      sql += ` AND conv.assigned_to = $${paramIndex}`;
-      params.push(assigned);
-      paramIndex++;
-    }
-
-    // Filter by attendance status (waiting/attending)
-    // Note: NULL or 'waiting' = waiting, 'attending' = attending
-    // When filtering for 'attending', also include NULL for backward compatibility with existing conversations
-    if (attendance_status === 'waiting') {
-      sql += ` AND COALESCE(conv.attendance_status, 'waiting') = 'waiting'`;
-    } else if (attendance_status === 'attending') {
-      // Show conversations that are explicitly 'attending' OR have no status (legacy conversations)
-      sql += ` AND (conv.attendance_status = 'attending' OR conv.attendance_status IS NULL)`;
-    }
-
-    // Order by pinned first, then by last_message_at
-    sql += ` ORDER BY COALESCE(conv.is_pinned, false) DESC, conv.last_message_at DESC NULLS LAST, conv.created_at DESC`;
-
-    const result = await query(sql, params);
     res.json(result.rows);
   } catch (error) {
     console.error('Get conversations error:', error);
