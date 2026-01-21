@@ -161,23 +161,35 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
   };
 
   const handleToggleBlacklist = async (customer: any) => {
-    const result = await updateCustomer(customer.id, {
-      is_blacklisted: !customer.is_blacklisted,
-      blacklist_reason: !customer.is_blacklisted ? "Adicionado manualmente à blacklist" : undefined
-    });
-    if (result) {
-      toast({ title: customer.is_blacklisted ? "Cliente removido da blacklist" : "Cliente adicionado à blacklist" });
-      await loadData();
-    } else {
+    console.log('handleToggleBlacklist called with:', customer.id, customer.name);
+    try {
+      const result = await updateCustomer(customer.id, {
+        is_blacklisted: !customer.is_blacklisted,
+        blacklist_reason: !customer.is_blacklisted ? "Adicionado manualmente à blacklist" : undefined
+      });
+      console.log('updateCustomer result:', result);
+      if (result) {
+        toast({ title: customer.is_blacklisted ? "Cliente removido da blacklist" : "Cliente adicionado à blacklist" });
+        await loadData();
+      } else {
+        toast({ 
+          title: "Erro ao atualizar cliente", 
+          description: error || "Verifique o console para mais detalhes",
+          variant: "destructive" 
+        });
+      }
+    } catch (err) {
+      console.error('handleToggleBlacklist error:', err);
       toast({ 
         title: "Erro ao atualizar cliente", 
-        description: error || "Verifique o console para mais detalhes",
+        description: String(err),
         variant: "destructive" 
       });
     }
   };
 
-  const handleTogglePause = async (customer: any) => {
+  const handleTogglePause = (customer: any) => {
+    console.log('handleTogglePause called with:', customer.id, customer.name);
     setEditingCustomer(customer);
     setShowCustomerDialog(true);
   };
@@ -857,10 +869,30 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-1">
-                            <Button variant="ghost" size="sm" onClick={() => handleToggleBlacklist(customer)} title={customer.is_blacklisted ? "Remover da blacklist" : "Adicionar à blacklist"}>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleToggleBlacklist(customer);
+                              }} 
+                              title={customer.is_blacklisted ? "Remover da blacklist" : "Adicionar à blacklist"}
+                            >
                               <Ban className={`h-4 w-4 ${customer.is_blacklisted ? "text-red-500" : ""}`} />
                             </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleTogglePause(customer)} title={customer.billing_paused ? "Retomar cobranças" : "Pausar cobranças"}>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleTogglePause(customer);
+                              }} 
+                              title={customer.billing_paused ? "Retomar cobranças" : "Pausar cobranças"}
+                            >
                               <Pause className={`h-4 w-4 ${customer.billing_paused ? "text-yellow-500" : ""}`} />
                             </Button>
                           </div>
