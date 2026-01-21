@@ -189,7 +189,10 @@ router.post('/:id/members', async (req, res) => {
     );
     
     if (userResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Usuário não encontrado' });
+      return res.status(404).json({ 
+        error: 'Usuário não encontrado', 
+        details: `Nenhum usuário com o email "${email}" está cadastrado no sistema. O usuário precisa se cadastrar primeiro.`
+      });
     }
 
     const userId = userResult.rows[0].id;

@@ -1421,6 +1421,86 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
               </Card>
             </TabsContent>
           </Tabs>
+
+          {/* Customer Pause Dialog */}
+          <Dialog open={showCustomerDialog} onOpenChange={(open) => {
+            setShowCustomerDialog(open);
+            if (!open) setEditingCustomer(null);
+          }}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>
+                  {editingCustomer?.billing_paused ? "Retomar Cobranças" : "Pausar Cobranças"}
+                </DialogTitle>
+                <DialogDescription>
+                  {editingCustomer?.billing_paused 
+                    ? `Retomar o envio de notificações para ${editingCustomer?.name}`
+                    : `Pausar temporariamente as notificações para ${editingCustomer?.name}`
+                  }
+                </DialogDescription>
+              </DialogHeader>
+              
+              {!editingCustomer?.billing_paused && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Pausar até (opcional)</Label>
+                    <Input 
+                      type="date" 
+                      value={editingCustomer?.pauseUntil || ""}
+                      onChange={(e) => setEditingCustomer({
+                        ...editingCustomer,
+                        pauseUntil: e.target.value
+                      })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Motivo (opcional)</Label>
+                    <Input 
+                      placeholder="Ex: Negociação em andamento..."
+                      value={editingCustomer?.pauseReason || ""}
+                      onChange={(e) => setEditingCustomer({
+                        ...editingCustomer,
+                        pauseReason: e.target.value
+                      })}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {editingCustomer?.billing_paused && (
+                <div className="py-4 text-center text-muted-foreground">
+                  <Pause className="h-12 w-12 mx-auto mb-2 text-yellow-500" />
+                  <p>As cobranças estão pausadas para este cliente.</p>
+                  {editingCustomer?.billing_paused_until && (
+                    <p className="text-sm mt-1">
+                      Pausado até: {format(parseISO(editingCustomer.billing_paused_until), "dd/MM/yyyy")}
+                    </p>
+                  )}
+                  {editingCustomer?.billing_paused_reason && (
+                    <p className="text-sm mt-1">Motivo: {editingCustomer.billing_paused_reason}</p>
+                  )}
+                </div>
+              )}
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => {
+                  setShowCustomerDialog(false);
+                  setEditingCustomer(null);
+                }}>
+                  Cancelar
+                </Button>
+                <Button 
+                  onClick={handleSaveCustomerPause}
+                  disabled={loading}
+                  variant={editingCustomer?.billing_paused ? "default" : "destructive"}
+                >
+                  {loading ? "Salvando..." : (
+                    editingCustomer?.billing_paused ? "Retomar Cobranças" : "Pausar Cobranças"
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </>
       )}
     </div>
