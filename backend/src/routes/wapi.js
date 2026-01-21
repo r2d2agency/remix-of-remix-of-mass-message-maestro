@@ -1020,10 +1020,35 @@ async function handleIncomingMessage(connection, payload) {
     }
 
     // Get or create conversation
+    // First try by remote_jid, then fallback to contact_phone for individual chats
+    // This handles cases where remote_jid format changes (@lid vs @s.whatsapp.net)
     let conversationResult = await query(
       `SELECT id FROM conversations WHERE connection_id = $1 AND remote_jid = $2`,
       [connection.id, remoteJid]
     );
+
+    // For individual chats, also try matching by phone number if no exact JID match
+    if (conversationResult.rows.length === 0 && !isGroup && cleanPhone) {
+      console.log('[W-API] No exact JID match, trying by phone:', cleanPhone);
+      conversationResult = await query(
+        `SELECT id FROM conversations 
+         WHERE connection_id = $1 
+           AND contact_phone = $2 
+           AND is_group = false
+         ORDER BY last_message_at DESC
+         LIMIT 1`,
+        [connection.id, cleanPhone]
+      );
+      
+      if (conversationResult.rows.length > 0) {
+        // Update the remote_jid to the new format
+        console.log('[W-API] Found conversation by phone, updating remote_jid to:', remoteJid);
+        await query(
+          `UPDATE conversations SET remote_jid = $1 WHERE id = $2`,
+          [remoteJid, conversationResult.rows[0].id]
+        );
+      }
+    }
 
     let conversationId;
       if (conversationResult.rows.length === 0) {
@@ -1048,6 +1073,8 @@ async function handleIncomingMessage(connection, payload) {
         ? (groupName || 'Grupo')
         : (payload.sender?.pushName || payload.pushName || payload.name || payload.senderName || cleanPhone);
 
+      console.log('[W-API] Creating NEW conversation for:', { remoteJid, cleanPhone, contactName, isGroup });
+
       const newConv = await query(
         `INSERT INTO conversations (connection_id, remote_jid, contact_name, contact_phone, is_group, group_name, last_message_at, unread_count, attendance_status)
          VALUES ($1, $2, $3, $4, $5, $6, NOW(), 1, 'waiting')
@@ -1055,7 +1082,7 @@ async function handleIncomingMessage(connection, payload) {
         [connection.id, remoteJid, contactName, isGroup ? null : cleanPhone, isGroup, isGroup ? groupName : null]
       );
       conversationId = newConv.rows[0].id;
-      console.log('[W-API] Created new', isGroup ? 'group' : 'conversation:', conversationId, isGroup ? `name: ${groupName}` : '');
+      console.log('[W-API] Created new', isGroup ? 'group' : 'conversation:', conversationId, isGroup ? `name: ${groupName}` : '', 'phone:', cleanPhone);
       } else {
       conversationId = conversationResult.rows[0].id;
 
