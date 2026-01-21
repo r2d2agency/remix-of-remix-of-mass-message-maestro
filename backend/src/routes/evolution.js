@@ -1284,7 +1284,19 @@ async function handleMessageUpsert(connection, data) {
     if (convResult.rows.length === 0) {
       // Create new conversation
       // For groups, use group subject as name; for individuals, use pushName
-      const groupSubject = isGroup ? (data.groupMetadata?.subject || data.subject || message.groupMetadata?.subject || 'Grupo') : null;
+      const groupSubject = isGroup
+        ? (
+            data.groupMetadata?.subject ||
+            data.groupMetadata?.name ||
+            data.groupSubject ||
+            data.subject ||
+            message.groupMetadata?.subject ||
+            message.groupMetadata?.name ||
+            message.groupSubject ||
+            message.subject ||
+            'Grupo'
+          )
+        : null;
       const displayName = isGroup ? groupSubject : (pushName || contactPhone);
       
       const newConv = await query(
@@ -1310,7 +1322,16 @@ async function handleMessageUpsert(connection, data) {
       // Update conversation
       if (isGroup) {
         // For groups, update group_name if available
-        const groupSubject = data.groupMetadata?.subject || data.subject || message.groupMetadata?.subject || null;
+        const groupSubject =
+          data.groupMetadata?.subject ||
+          data.groupMetadata?.name ||
+          data.groupSubject ||
+          data.subject ||
+          message.groupMetadata?.subject ||
+          message.groupMetadata?.name ||
+          message.groupSubject ||
+          message.subject ||
+          null;
         if (!fromMe) {
           await query(
             `UPDATE conversations 

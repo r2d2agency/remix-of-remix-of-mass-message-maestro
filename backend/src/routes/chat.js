@@ -755,13 +755,17 @@ router.post('/conversations/:id/messages', authenticate, async (req, res) => {
     // ============================================================
     (async () => {
       try {
-        // Extract phone number from remote_jid
-        const phone = conversation.remote_jid.replace('@s.whatsapp.net', '').replace('@g.us', '');
+        // IMPORTANT: groups must keep the full JID (@g.us). If we strip it,
+        // providers will send to an invalid destination.
+        const isGroup = String(conversation.remote_jid || '').includes('@g.us') || conversation.is_group === true;
+        const to = isGroup
+          ? conversation.remote_jid
+          : String(conversation.remote_jid || '').replace('@s.whatsapp.net', '');
 
         // Use unified provider to send message
         const result = await whatsappProvider.sendMessage(
           conversation,
-          phone,
+          to,
           content,
           message_type,
           media_url

@@ -710,7 +710,7 @@ async function handleIncomingMessage(connection, payload) {
     }
 
     // Check if this is a group message
-    const isGroup = String(chatId).includes('@g.us') || (String(chatId).includes('-') && !String(chatId).match(/^\d+$/));
+      const isGroup = String(chatId).includes('@g.us') || (String(chatId).includes('-') && !String(chatId).match(/^\d+$/));
     
     // Check if connection allows group messages
     if (isGroup && !connection.show_groups) {
@@ -746,10 +746,14 @@ async function handleIncomingMessage(connection, payload) {
     );
 
     let conversationId;
-    if (conversationResult.rows.length === 0) {
+      if (conversationResult.rows.length === 0) {
       // Create new conversation
-      const contactName = isGroup 
-        ? (payload.chat?.name || payload.groupName || 'Grupo')
+        const groupName = isGroup
+          ? (payload.chat?.name || payload.chat?.groupName || payload.chat?.subject || payload.groupName || payload.groupSubject || payload.subject || null)
+          : null;
+
+        const contactName = isGroup 
+          ? (groupName || 'Grupo')
         : (payload.sender?.pushName || payload.pushName || payload.name || payload.senderName || cleanPhone);
 
       const newConv = await query(
@@ -760,13 +764,13 @@ async function handleIncomingMessage(connection, payload) {
       );
       conversationId = newConv.rows[0].id;
       console.log('[W-API] Created new', isGroup ? 'group' : 'conversation:', conversationId);
-    } else {
+      } else {
       conversationId = conversationResult.rows[0].id;
 
       // Update conversation
       if (isGroup) {
         // For groups, update group_name if we have a new name
-        const groupName = payload.chat?.name || payload.groupName || null;
+          const groupName = payload.chat?.name || payload.chat?.groupName || payload.chat?.subject || payload.groupName || payload.groupSubject || payload.subject || null;
         await query(
           `UPDATE conversations 
            SET last_message_at = NOW(), 
