@@ -67,6 +67,7 @@ interface ConversationListProps {
     assigned: string;
     archived: boolean;
     connection: string;
+    is_group: boolean;
   };
   onFiltersChange: (filters: {
     search: string;
@@ -74,6 +75,7 @@ interface ConversationListProps {
     assigned: string;
     archived: boolean;
     connection: string;
+    is_group: boolean;
   }) => void;
   isAdmin?: boolean;
   connections?: Connection[];

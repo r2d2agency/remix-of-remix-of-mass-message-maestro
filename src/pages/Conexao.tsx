@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Plus, QrCode, RefreshCw, Plug, Unplug, Trash2, Phone, Loader2, Wifi, WifiOff, Send, Settings2, AlertTriangle, CheckCircle, Eye, Activity, Radio } from "lucide-react";
+import { Plus, QrCode, RefreshCw, Plug, Unplug, Trash2, Phone, Loader2, Wifi, WifiOff, Send, Settings2, AlertTriangle, CheckCircle, Eye, Activity, Radio, Users } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
@@ -15,6 +15,7 @@ import { TestMessageDialog } from "@/components/conexao/TestMessageDialog";
 import { WebhookDiagnosticPanel } from "@/components/conexao/WebhookDiagnosticPanel";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Switch } from "@/components/ui/switch";
 
 interface Connection {
   id: string;
@@ -24,6 +25,7 @@ interface Connection {
   instance_id?: string;
   status: string;
   phone_number?: string;
+  show_groups?: boolean;
   created_at: string;
 }
 
@@ -571,6 +573,34 @@ const handleGetQRCode = async (connection: Connection) => {
                       <span>{connection.phone_number}</span>
                     </div>
                   )}
+
+                  {/* Groups Toggle */}
+                  <div className="flex items-center justify-between rounded-lg border p-3 bg-muted/30">
+                    <div className="flex items-center gap-2">
+                      <Users className="h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <p className="text-sm font-medium">Grupos</p>
+                        <p className="text-xs text-muted-foreground">Receber mensagens de grupos</p>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={connection.show_groups || false}
+                      onCheckedChange={async (checked) => {
+                        try {
+                          await api(`/api/connections/${connection.id}`, {
+                            method: 'PATCH',
+                            body: { show_groups: checked }
+                          });
+                          setConnections(prev => prev.map(c => 
+                            c.id === connection.id ? { ...c, show_groups: checked } : c
+                          ));
+                          toast.success(checked ? 'Grupos habilitados' : 'Grupos desabilitados');
+                        } catch (error: any) {
+                          toast.error(error.message || 'Erro ao atualizar');
+                        }
+                      }}
+                    />
+                  </div>
 
                   <div className="flex gap-2">
                     {connection.status === 'connected' ? (

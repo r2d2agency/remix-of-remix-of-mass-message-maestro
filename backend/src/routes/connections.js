@@ -136,18 +136,19 @@ router.patch('/:id', async (req, res) => {
       instance_id,
       wapi_token,
       name, 
-      status 
+      status,
+      show_groups
     } = req.body;
 
     const org = await getUserOrganization(req.userId);
 
     // Allow update if user owns the connection OR belongs to same organization
-    let whereClause = 'id = $9 AND user_id = $10';
-    let params = [provider, api_url, api_key, instance_name, instance_id, wapi_token, name, status, id, req.userId];
+    let whereClause = 'id = $10 AND user_id = $11';
+    let params = [provider, api_url, api_key, instance_name, instance_id, wapi_token, name, status, show_groups, id, req.userId];
 
     if (org) {
-      whereClause = 'id = $9 AND organization_id = $10';
-      params = [provider, api_url, api_key, instance_name, instance_id, wapi_token, name, status, id, org.organization_id];
+      whereClause = 'id = $10 AND organization_id = $11';
+      params = [provider, api_url, api_key, instance_name, instance_id, wapi_token, name, status, show_groups, id, org.organization_id];
     }
 
     const result = await query(
@@ -160,6 +161,7 @@ router.patch('/:id', async (req, res) => {
            wapi_token = COALESCE($6, wapi_token),
            name = COALESCE($7, name),
            status = COALESCE($8, status),
+           show_groups = COALESCE($9, show_groups),
            updated_at = NOW()
        WHERE ${whereClause}
        RETURNING *`,

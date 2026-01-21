@@ -76,7 +76,7 @@ router.get('/conversations', authenticate, async (req, res) => {
       return res.json([]);
     }
 
-    const { search, tag, assigned, archived, connection, includeEmpty } = req.query;
+    const { search, tag, assigned, archived, connection, includeEmpty, is_group } = req.query;
     
     let sql = `
       SELECT 
@@ -107,6 +107,14 @@ router.get('/conversations', authenticate, async (req, res) => {
       sql += ` AND EXISTS (SELECT 1 FROM chat_messages cm WHERE cm.conversation_id = conv.id)`;
     }
 
+    // Filter by group status
+    if (is_group === 'true') {
+      sql += ` AND COALESCE(conv.is_group, false) = true`;
+    } else if (is_group === 'false') {
+      sql += ` AND COALESCE(conv.is_group, false) = false`;
+    }
+    // If is_group is not specified, show all (for backward compatibility)
+
     // Filter by archived status
     if (archived === 'true') {
       sql += ` AND conv.is_archived = true`;
@@ -123,7 +131,7 @@ router.get('/conversations', authenticate, async (req, res) => {
 
     // Filter by search
     if (search) {
-      sql += ` AND (conv.contact_name ILIKE $${paramIndex} OR conv.contact_phone ILIKE $${paramIndex})`;
+      sql += ` AND (conv.contact_name ILIKE $${paramIndex} OR conv.contact_phone ILIKE $${paramIndex} OR conv.group_name ILIKE $${paramIndex})`;
       params.push(`%${search}%`);
       paramIndex++;
     }

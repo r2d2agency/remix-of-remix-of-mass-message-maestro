@@ -8,6 +8,8 @@ import { useChat, Conversation, ChatMessage, ConversationTag, TeamMember } from 
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { chatEvents } from "@/lib/chat-events";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MessageSquare, Users } from "lucide-react";
 
 interface UserProfile {
   user?: {
@@ -58,7 +60,9 @@ const Chat = () => {
     assigned: 'all',
     archived: false,
     connection: 'all',
+    is_group: false, // false = individual chats, true = group chats
   });
+  const [activeTab, setActiveTab] = useState<'chats' | 'groups'>('chats');
 
   // Keep latest loader for intervals / effects without stale closures
   const loadConversationsRef = useRef<() => void>(() => {});
@@ -150,6 +154,7 @@ const Chat = () => {
       if (filters.assigned !== 'all') filterParams.assigned = filters.assigned;
       if (filters.connection !== 'all') filterParams.connection = filters.connection;
       filterParams.archived = filters.archived;
+      filterParams.is_group = activeTab === 'groups' ? 'true' : 'false';
 
       const data = await getConversations(filterParams);
 
@@ -183,7 +188,7 @@ const Chat = () => {
     } catch (error) {
       console.error('Error loading conversations:', error);
     }
-  }, [getConversations, filters, selectedConversation]);
+  }, [getConversations, filters, selectedConversation, activeTab]);
 
   // Keep ref pointing to the latest loadConversations (used by intervals above)
   useEffect(() => {
@@ -428,27 +433,48 @@ const Chat = () => {
 
   return (
     <MainLayout>
-      <div className="h-[calc(100vh-120px)] flex rounded-lg border overflow-hidden bg-background shadow-lg">
-        {/* Conversation List - Left Panel */}
-        <div className="w-[350px] flex-shrink-0">
-          <ConversationList
-            conversations={conversations}
-            selectedId={selectedConversation?.id || null}
-            onSelect={handleSelectConversation}
-            tags={tags}
-            team={team}
-            loading={loading}
-            onRefresh={loadConversations}
-            filters={filters}
-            onFiltersChange={setFilters}
-            isAdmin={isAdmin}
-            connections={connections}
-            onNewConversation={() => setNewConversationOpen(true)}
-          />
+      <div className="h-[calc(100vh-120px)] flex flex-col rounded-lg border overflow-hidden bg-background shadow-lg">
+        {/* Tab Header */}
+        <div className="border-b px-4 py-2 bg-muted/30 flex-shrink-0">
+          <Tabs value={activeTab} onValueChange={(v) => {
+            setActiveTab(v as 'chats' | 'groups');
+            setSelectedConversation(null);
+            setMessages([]);
+          }}>
+            <TabsList className="grid w-[260px] grid-cols-2">
+              <TabsTrigger value="chats" className="flex items-center gap-2">
+                <MessageSquare className="h-4 w-4" />
+                Conversas
+              </TabsTrigger>
+              <TabsTrigger value="groups" className="flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Grupos
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
 
-        {/* Chat Area - Right Panel */}
-        <ChatArea
+        <div className="flex flex-1 overflow-hidden">
+          {/* Conversation List - Left Panel */}
+          <div className="w-[350px] flex-shrink-0">
+            <ConversationList
+              conversations={conversations}
+              selectedId={selectedConversation?.id || null}
+              onSelect={handleSelectConversation}
+              tags={tags}
+              team={team}
+              loading={loading}
+              onRefresh={loadConversations}
+              filters={filters}
+              onFiltersChange={setFilters}
+              isAdmin={isAdmin}
+              connections={connections}
+              onNewConversation={activeTab === 'chats' ? () => setNewConversationOpen(true) : undefined}
+            />
+          </div>
+
+          {/* Chat Area - Right Panel */}
+          <ChatArea
           conversation={selectedConversation}
           messages={messages}
           loading={loadingMessages}
@@ -480,6 +506,7 @@ const Chat = () => {
             }
           }}
         />
+        </div>
       </div>
 
       {/* New Conversation Dialog */}

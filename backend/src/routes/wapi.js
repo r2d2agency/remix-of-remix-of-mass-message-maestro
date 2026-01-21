@@ -710,22 +710,32 @@ async function handleIncomingMessage(connection, payload) {
     }
 
     // Check if this is a group message
-    const isGroup = String(chatId).includes('@g.us') || String(chatId).includes('-');
+    const isGroup = String(chatId).includes('@g.us') || (String(chatId).includes('-') && !String(chatId).match(/^\d+$/));
     
-    if (isGroup) {
-      console.log('[W-API] Skipping group message from:', chatId);
-      return; // Skip group messages for now - they should not create individual conversations
+    // Check if connection allows group messages
+    if (isGroup && !connection.show_groups) {
+      console.log('[W-API] Skipping group message (show_groups disabled):', chatId);
+      return;
     }
 
     // For individual chats, get the sender info
     const senderId = payload.sender?.id || payload.from || chatId;
     
-    // Normalize phone to JID format
-    const cleanPhone = String(chatId).replace(/\D/g, '').replace(/@.*$/, '');
-    const remoteJid = cleanPhone ? `${cleanPhone}@s.whatsapp.net` : null;
+    // Normalize to JID format
+    let remoteJid;
+    let cleanPhone = null;
     
-    if (!remoteJid || !cleanPhone) {
-      console.log('[W-API] Invalid phone format:', chatId);
+    if (isGroup) {
+      // Keep group JID as-is
+      remoteJid = String(chatId).includes('@') ? chatId : `${chatId}@g.us`;
+    } else {
+      // Individual chat - normalize phone
+      cleanPhone = String(chatId).replace(/\D/g, '').replace(/@.*$/, '');
+      remoteJid = cleanPhone ? `${cleanPhone}@s.whatsapp.net` : null;
+    }
+    
+    if (!remoteJid) {
+      console.log('[W-API] Invalid chat format:', chatId);
       return;
     }
 
@@ -738,15 +748,18 @@ async function handleIncomingMessage(connection, payload) {
     let conversationId;
     if (conversationResult.rows.length === 0) {
       // Create new conversation
-      const contactName = payload.sender?.pushName || payload.pushName || payload.name || payload.senderName || cleanPhone;
+      const contactName = isGroup 
+        ? (payload.chat?.name || payload.groupName || 'Grupo')
+        : (payload.sender?.pushName || payload.pushName || payload.name || payload.senderName || cleanPhone);
 
       const newConv = await query(
-        `INSERT INTO conversations (connection_id, remote_jid, contact_name, contact_phone, last_message_at, unread_count)
-         VALUES ($1, $2, $3, $4, NOW(), 1)
+        `INSERT INTO conversations (connection_id, remote_jid, contact_name, contact_phone, is_group, group_name, last_message_at, unread_count)
+         VALUES ($1, $2, $3, $4, $5, $6, NOW(), 1)
          RETURNING id`,
-        [connection.id, remoteJid, contactName, cleanPhone]
+        [connection.id, remoteJid, contactName, isGroup ? null : cleanPhone, isGroup, isGroup ? contactName : null]
       );
       conversationId = newConv.rows[0].id;
+      console.log('[W-API] Created new', isGroup ? 'group' : 'conversation:', conversationId);
     } else {
       conversationId = conversationResult.rows[0].id;
 

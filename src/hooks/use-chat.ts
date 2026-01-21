@@ -18,6 +18,8 @@ export interface Conversation {
   unread_count: number;
   is_archived: boolean;
   is_pinned: boolean;
+  is_group: boolean;
+  group_name: string | null;
   assigned_to: string | null;
   assigned_name: string | null;
   connection_name: string;

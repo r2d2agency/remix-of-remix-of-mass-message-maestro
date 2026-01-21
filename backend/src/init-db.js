@@ -185,6 +185,7 @@ DO $$ BEGIN
     ALTER TABLE connections ADD COLUMN IF NOT EXISTS provider VARCHAR(20) DEFAULT 'evolution';
     ALTER TABLE connections ADD COLUMN IF NOT EXISTS instance_id VARCHAR(255);
     ALTER TABLE connections ADD COLUMN IF NOT EXISTS wapi_token TEXT;
+    ALTER TABLE connections ADD COLUMN IF NOT EXISTS show_groups BOOLEAN DEFAULT false;
 EXCEPTION
     WHEN duplicate_column THEN null;
 END $$;
@@ -567,6 +568,8 @@ CREATE TABLE IF NOT EXISTS conversations (
 -- Add is_pinned column if not exists (for existing databases)
 DO $$ BEGIN
     ALTER TABLE conversations ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN DEFAULT false;
+    ALTER TABLE conversations ADD COLUMN IF NOT EXISTS is_group BOOLEAN DEFAULT false;
+    ALTER TABLE conversations ADD COLUMN IF NOT EXISTS group_name VARCHAR(255);
 EXCEPTION
     WHEN duplicate_column THEN null;
 END $$;

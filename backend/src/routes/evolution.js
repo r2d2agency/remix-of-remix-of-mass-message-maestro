@@ -1182,11 +1182,15 @@ async function handleMessageUpsert(connection, data) {
 
     const isGroup = typeof rawRemoteJid === 'string' && rawRemoteJid.includes('@g.us');
 
-    // Skip group messages - they should not create individual conversations
-    if (isGroup) {
-      console.log('Webhook: Skipping group message from:', rawRemoteJid);
+    // Check if connection allows group messages
+    if (isGroup && !connection.show_groups) {
+      console.log('Webhook: Skipping group message (show_groups disabled):', rawRemoteJid);
       return;
     }
+
+    // For group messages, extract participant info
+    const groupParticipant = isGroup ? (key.participant || data.participant || message.participant) : null;
+    const groupParticipantPhone = groupParticipant ? String(groupParticipant).replace(/@.*$/, '').replace(/\D/g, '') : null;
 
     // === EARLY CHECK: Skip messages that have no real content BEFORE creating conversation ===
     const msgContent = message.message || message;
@@ -1253,29 +1257,44 @@ async function handleMessageUpsert(connection, data) {
     console.log('Webhook: Processing message from', rawRemoteJid, '-> normalized:', remoteJid);
 
     // Find existing conversation by phone number (more flexible) - prioritize @s.whatsapp.net
-    let convResult = await query(
-      `SELECT * FROM conversations 
-       WHERE connection_id = $1 
-       AND (remote_jid = $2 OR contact_phone = $3)
-       ORDER BY 
-         CASE WHEN remote_jid LIKE '%@s.whatsapp.net' THEN 0 ELSE 1 END,
-         last_message_at DESC
-       LIMIT 1`,
-      [connection.id, remoteJid, contactPhone]
-    );
+    // For groups, search by the group JID directly
+    let convResult;
+    if (isGroup) {
+      convResult = await query(
+        `SELECT * FROM conversations 
+         WHERE connection_id = $1 AND remote_jid = $2
+         LIMIT 1`,
+        [connection.id, remoteJid]
+      );
+    } else {
+      convResult = await query(
+        `SELECT * FROM conversations 
+         WHERE connection_id = $1 
+         AND (remote_jid = $2 OR contact_phone = $3)
+         ORDER BY 
+           CASE WHEN remote_jid LIKE '%@s.whatsapp.net' THEN 0 ELSE 1 END,
+           last_message_at DESC
+         LIMIT 1`,
+        [connection.id, remoteJid, contactPhone]
+      );
+    }
 
     let conversationId;
 
     if (convResult.rows.length === 0) {
-      // Only create new conversation with normalized JID (never @lid)
+      // Create new conversation
+      // For groups, use group subject as name; for individuals, use pushName
+      const groupSubject = isGroup ? (data.groupMetadata?.subject || data.subject || message.groupMetadata?.subject || 'Grupo') : null;
+      const displayName = isGroup ? groupSubject : (pushName || contactPhone);
+      
       const newConv = await query(
-        `INSERT INTO conversations (connection_id, remote_jid, contact_name, contact_phone, last_message_at, unread_count)
-         VALUES ($1, $2, $3, $4, NOW(), $5)
+        `INSERT INTO conversations (connection_id, remote_jid, contact_name, contact_phone, is_group, group_name, last_message_at, unread_count)
+         VALUES ($1, $2, $3, $4, $5, $6, NOW(), $7)
          RETURNING id`,
-        [connection.id, remoteJid, pushName || contactPhone, contactPhone, fromMe ? 0 : 1]
+        [connection.id, remoteJid, displayName, isGroup ? null : contactPhone, isGroup, groupSubject, fromMe ? 0 : 1]
       );
       conversationId = newConv.rows[0].id;
-      console.log('Webhook: Created new conversation:', conversationId);
+      console.log('Webhook: Created new', isGroup ? 'group' : 'conversation:', conversationId);
     } else {
       conversationId = convResult.rows[0].id;
       
