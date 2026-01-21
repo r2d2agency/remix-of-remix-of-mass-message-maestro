@@ -606,6 +606,109 @@ export async function getGroupInfo(instanceId, token, groupJid) {
 }
 
 /**
+ * Get all groups from W-API
+ * Returns an array of group objects with jid and name
+ */
+export async function getGroups(instanceId, token) {
+  const encodedInstanceId = encodeURIComponent(instanceId || '');
+
+  try {
+    // Try different endpoints to get groups
+    const endpoints = [
+      `${W_API_BASE_URL}/group/fetch-all-groups?instanceId=${encodedInstanceId}`,
+      `${W_API_BASE_URL}/group/get-groups?instanceId=${encodedInstanceId}`,
+      `${W_API_BASE_URL}/group/list?instanceId=${encodedInstanceId}`,
+    ];
+
+    for (const url of endpoints) {
+      try {
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: getHeaders(token),
+        });
+
+        if (!response.ok) continue;
+
+        const responseText = await response.text();
+        let data;
+        try {
+          data = JSON.parse(responseText);
+        } catch {
+          continue;
+        }
+
+        // Parse response - could be array or wrapped
+        const groupsArray = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.data)
+            ? data.data
+            : Array.isArray(data?.result)
+              ? data.result
+              : Array.isArray(data?.groups)
+                ? data.groups
+                : [];
+
+        if (groupsArray.length > 0) {
+          console.log(`[W-API] Found ${groupsArray.length} groups via ${url}`);
+          
+          // Normalize group data
+          const groups = groupsArray.map(g => ({
+            jid: g.jid || g.id || g.groupId || '',
+            name: g.subject || g.name || g.groupName || g.title || '',
+            participants: g.participants?.length || g.size || 0,
+          })).filter(g => g.jid && g.jid.includes('@g.us'));
+
+          return { success: true, groups };
+        }
+      } catch (e) {
+        // Continue to next endpoint
+      }
+    }
+
+    // Fallback: try to get groups from chat list
+    const chatsResponse = await fetch(
+      `${W_API_BASE_URL}/chat/get-chats?instanceId=${encodedInstanceId}`,
+      {
+        method: 'GET',
+        headers: getHeaders(token),
+      }
+    );
+
+    if (chatsResponse.ok) {
+      const chatsData = await chatsResponse.json();
+      const chatsArray = Array.isArray(chatsData)
+        ? chatsData
+        : Array.isArray(chatsData?.data)
+          ? chatsData.data
+          : Array.isArray(chatsData?.result)
+            ? chatsData.result
+            : [];
+
+      const groups = chatsArray
+        .filter(c => {
+          const jid = c.jid || c.id || c.remoteJid || '';
+          return jid.includes('@g.us');
+        })
+        .map(g => ({
+          jid: g.jid || g.id || g.remoteJid || '',
+          name: g.name || g.subject || g.groupName || g.title || '',
+          participants: g.participants?.length || 0,
+        }));
+
+      if (groups.length > 0) {
+        console.log(`[W-API] Found ${groups.length} groups from chat list`);
+        return { success: true, groups };
+      }
+    }
+
+    return { success: false, error: 'Could not fetch groups', groups: [] };
+  } catch (error) {
+    console.error('W-API getGroups error:', error);
+    return { success: false, error: error.message, groups: [] };
+  }
+}
+
+/**
  * Get all chats from W-API (includes contacts with chat history)
  * Returns an array of chat objects with phone and name
  */

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
-import { getSendAttempts, clearSendAttempts, downloadMedia as wapiDownloadMedia, getChats as wapiGetChats, getGroupInfo as wapiGetGroupInfo } from '../lib/wapi-provider.js';
+import { getSendAttempts, clearSendAttempts, downloadMedia as wapiDownloadMedia, getChats as wapiGetChats, getGroupInfo as wapiGetGroupInfo, getGroups as wapiGetGroups } from '../lib/wapi-provider.js';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
@@ -814,6 +814,84 @@ router.post('/:connectionId/sync-group-name/:conversationId', authenticate, asyn
   } catch (error) {
     console.error('[W-API] sync-group-name error:', error);
     res.status(500).json({ error: 'Erro ao sincronizar nome do grupo' });
+  }
+});
+
+/**
+ * Sync all group names from W-API for a connection
+ * Updates all conversations that are groups but have no group_name
+ */
+router.post('/:connectionId/sync-all-groups', authenticate, async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+
+    const connection = await getAccessibleConnection(connectionId, req.userId);
+    if (!connection) return res.status(404).json({ error: 'Conexão não encontrada' });
+
+    if (connection.provider !== 'wapi') {
+      return res.status(400).json({ error: 'Esta função é apenas para conexões W-API' });
+    }
+
+    // Get all group conversations without names
+    const groupsResult = await query(
+      `SELECT id, remote_jid, group_name FROM conversations 
+       WHERE connection_id = $1 AND is_group = true AND (group_name IS NULL OR group_name = '' OR group_name = 'Grupo')`,
+      [connectionId]
+    );
+
+    if (groupsResult.rows.length === 0) {
+      return res.json({ success: true, updated: 0, message: 'Todos os grupos já têm nome' });
+    }
+
+    console.log(`[W-API] Syncing ${groupsResult.rows.length} groups without names`);
+
+    // Try to get all groups from W-API first
+    const groupsData = await wapiGetGroups(connection.instance_id, connection.wapi_token);
+    
+    let updated = 0;
+    const groupsMap = new Map();
+    
+    if (groupsData.success && groupsData.groups?.length > 0) {
+      // Build a map of JID -> name
+      for (const g of groupsData.groups) {
+        if (g.jid && g.name) {
+          groupsMap.set(g.jid, g.name);
+        }
+      }
+      console.log(`[W-API] Got ${groupsMap.size} group names from bulk fetch`);
+    }
+
+    // Update each group
+    for (const conv of groupsResult.rows) {
+      let groupName = groupsMap.get(conv.remote_jid);
+      
+      // If not found in bulk, try individual fetch
+      if (!groupName) {
+        const groupInfo = await wapiGetGroupInfo(connection.instance_id, connection.wapi_token, conv.remote_jid);
+        if (groupInfo.success && groupInfo.name) {
+          groupName = groupInfo.name;
+        }
+      }
+
+      if (groupName) {
+        await query(
+          `UPDATE conversations SET group_name = $1 WHERE id = $2`,
+          [groupName, conv.id]
+        );
+        updated++;
+        console.log(`[W-API] Updated group name: ${conv.remote_jid} -> ${groupName}`);
+      }
+    }
+
+    res.json({
+      success: true,
+      updated,
+      total: groupsResult.rows.length,
+      message: `${updated} de ${groupsResult.rows.length} grupos atualizados`
+    });
+  } catch (error) {
+    console.error('[W-API] sync-all-groups error:', error);
+    res.status(500).json({ error: 'Erro ao sincronizar nomes dos grupos' });
   }
 });
 

@@ -489,6 +489,19 @@ export const useChat = () => {
     }
   }, []);
 
+  // Sync all group names from W-API for a connection
+  const syncAllGroupNames = useCallback(async (connectionId: string): Promise<{ success: boolean; updated?: number; total?: number; message?: string }> => {
+    try {
+      const data = await api<{ success: boolean; updated?: number; total?: number; message?: string }>(`/api/wapi/${connectionId}/sync-all-groups`, {
+        method: 'POST',
+      });
+      return data;
+    } catch (err) {
+      console.error('Error syncing all group names:', err);
+      return { success: false };
+    }
+  }, []);
+
   // Get attendance counts for tabs
   const getAttendanceCounts = useCallback(async (isGroup: boolean): Promise<{ waiting: number; attending: number }> => {
     try {
@@ -543,6 +556,7 @@ export const useChat = () => {
     getScheduledCount,
     // Groups
     syncGroupName,
+    syncAllGroupNames,
     // Alerts
     getAlerts,
     markAlertsRead,

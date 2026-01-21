@@ -9,7 +9,8 @@ import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { chatEvents } from "@/lib/chat-events";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MessageSquare, Users, Bell } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { MessageSquare, Users, Bell, RefreshCw } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { useNotificationSound } from "@/hooks/use-notification-sound";
@@ -44,6 +45,7 @@ const Chat = () => {
     getTeam,
     syncChatHistory,
     syncGroupName,
+    syncAllGroupNames,
     startAlertsPolling,
     stopAlertsPolling,
     getAttendanceCounts,
@@ -62,6 +64,7 @@ const Chat = () => {
   const [sendingMessage, setSendingMessage] = useState(false);
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
   const [syncingHistory, setSyncingHistory] = useState(false);
+  const [syncingGroups, setSyncingGroups] = useState(false);
   const [newConversationOpen, setNewConversationOpen] = useState(false);
   const [attendanceCounts, setAttendanceCounts] = useState<{ waiting: number; attending: number }>({ waiting: 0, attending: 0 });
   const [filters, setFilters] = useState({
@@ -602,12 +605,48 @@ const Chat = () => {
     await handleSelectConversation(conversation);
   }, [handleSelectConversation]);
 
+  // Sync all group names for W-API connections
+  const handleSyncAllGroups = async () => {
+    setSyncingGroups(true);
+    try {
+      // Get all W-API connections
+      const wapiConnections = connections.filter(c => c.status === 'connected');
+      let totalUpdated = 0;
+      let totalGroups = 0;
+
+      for (const conn of wapiConnections) {
+        try {
+          const result = await syncAllGroupNames(conn.id);
+          if (result.success) {
+            totalUpdated += result.updated || 0;
+            totalGroups += result.total || 0;
+          }
+        } catch (e) {
+          console.error('Error syncing groups for connection:', conn.id, e);
+        }
+      }
+
+      if (totalUpdated > 0) {
+        toast.success(`${totalUpdated} grupos atualizados`);
+        loadConversations();
+      } else if (totalGroups === 0) {
+        toast.info('Nenhum grupo sem nome encontrado');
+      } else {
+        toast.info('Não foi possível obter nomes dos grupos');
+      }
+    } catch (error) {
+      toast.error('Erro ao sincronizar grupos');
+    } finally {
+      setSyncingGroups(false);
+    }
+  };
+
   return (
     <MainLayout>
       <div className="h-[calc(100vh-120px)] flex flex-col rounded-lg border overflow-hidden bg-background shadow-lg">
         {/* Tab Header - Hide on mobile when chat is open */}
         {(!isMobile || !selectedConversation) && (
-          <div className="border-b px-4 py-2 bg-muted/30 flex-shrink-0">
+          <div className="border-b px-4 py-2 bg-muted/30 flex-shrink-0 flex items-center justify-between">
              <Tabs value={activeTab} onValueChange={(v) => {
                 setActiveTab(v as 'chats' | 'groups');
                 selectedIdRef.current = null;
@@ -625,6 +664,21 @@ const Chat = () => {
                 </TabsTrigger>
               </TabsList>
             </Tabs>
+            
+            {/* Sync groups button - only show on groups tab */}
+            {activeTab === 'groups' && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleSyncAllGroups}
+                disabled={syncingGroups}
+                title="Sincronizar nomes dos grupos"
+                className="text-xs gap-1"
+              >
+                <RefreshCw className={cn("h-3.5 w-3.5", syncingGroups && "animate-spin")} />
+                {!isMobile && 'Sincronizar'}
+              </Button>
+            )}
           </div>
         )}
 
