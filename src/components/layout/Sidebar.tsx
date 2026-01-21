@@ -303,7 +303,8 @@ function SidebarContentComponent({ isExpanded, isSuperadmin, onNavigate }: Sideb
         )}
 
         {isExpanded && (
-          <div className="text-center">
+          <div className="text-center space-y-0.5">
+            <p className="text-xs font-medium text-primary">TNS R2D2</p>
             <p className="text-xs text-muted-foreground">Versão 1.0.0</p>
           </div>
         )}
