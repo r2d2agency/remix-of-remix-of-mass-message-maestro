@@ -358,6 +358,42 @@ router.patch('/:id/members/:userId', async (req, res) => {
   }
 });
 
+// Update user password (admin only)
+router.patch('/:id/members/:userId/password', async (req, res) => {
+  try {
+    const { id, userId } = req.params;
+    const { password } = req.body;
+
+    // Check if user is admin/owner
+    const memberCheck = await query(
+      `SELECT role FROM organization_members 
+       WHERE organization_id = $1 AND user_id = $2 AND role IN ('owner', 'admin')`,
+      [id, req.userId]
+    );
+    
+    if (memberCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Apenas admins podem alterar senhas' });
+    }
+
+    // Validate password
+    if (!password || password.length < 6) {
+      return res.status(400).json({ error: 'Senha deve ter pelo menos 6 caracteres' });
+    }
+
+    // Hash and update password
+    const hashedPassword = await bcrypt.hash(password, 10);
+    await query(
+      `UPDATE users SET password_hash = $1 WHERE id = $2`,
+      [hashedPassword, userId]
+    );
+
+    res.json({ success: true, message: 'Senha atualizada com sucesso' });
+  } catch (error) {
+    console.error('Update password error:', error);
+    res.status(500).json({ error: 'Erro ao atualizar senha' });
+  }
+});
+
 // Remove member from organization
 router.delete('/:id/members/:userId', async (req, res) => {
   try {

@@ -13,7 +13,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useOrganizations } from '@/hooks/use-organizations';
 import { useSuperadmin } from '@/hooks/use-superadmin';
 import { toast } from 'sonner';
-import { Building2, Plus, Users, Trash2, UserPlus, Crown, Shield, User, Briefcase, Loader2, Pencil, Link2, Settings } from 'lucide-react';
+import { Building2, Plus, Users, Trash2, UserPlus, Crown, Shield, User, Briefcase, Loader2, Pencil, Link2, Settings, KeyRound } from 'lucide-react';
 
 interface Organization {
   id: string;
@@ -84,6 +84,11 @@ export default function Organizacoes() {
   const [editingMember, setEditingMember] = useState<OrganizationMember | null>(null);
   const [editMemberConnectionIds, setEditMemberConnectionIds] = useState<string[]>([]);
 
+  // Edit password dialog
+  const [editPasswordDialogOpen, setEditPasswordDialogOpen] = useState(false);
+  const [editPasswordMember, setEditPasswordMember] = useState<OrganizationMember | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+
   const { 
     loading, 
     error,
@@ -94,7 +99,8 @@ export default function Organizacoes() {
     getConnections,
     addMember, 
     updateMember,
-    removeMember 
+    removeMember,
+    updateMemberPassword 
   } = useOrganizations();
 
   const { checkSuperadmin } = useSuperadmin();
@@ -236,6 +242,31 @@ export default function Organizacoes() {
     if (success) {
       toast.success('Membro removido!');
       loadMembers(selectedOrg.id);
+    } else if (error) {
+      toast.error(error);
+    }
+  };
+
+  const handleOpenEditPassword = (member: OrganizationMember) => {
+    setEditPasswordMember(member);
+    setNewPassword('');
+    setEditPasswordDialogOpen(true);
+  };
+
+  const handleUpdatePassword = async () => {
+    if (!selectedOrg || !editPasswordMember) return;
+    
+    if (!newPassword || newPassword.length < 6) {
+      toast.error('Senha deve ter pelo menos 6 caracteres');
+      return;
+    }
+
+    const success = await updateMemberPassword(selectedOrg.id, editPasswordMember.user_id, newPassword);
+    if (success) {
+      toast.success('Senha atualizada com sucesso!');
+      setEditPasswordDialogOpen(false);
+      setEditPasswordMember(null);
+      setNewPassword('');
     } else if (error) {
       toast.error(error);
     }
@@ -625,6 +656,14 @@ export default function Organizacoes() {
                                           >
                                             <Settings className="h-4 w-4" />
                                           </Button>
+                                          <Button 
+                                            variant="ghost" 
+                                            size="icon"
+                                            onClick={() => handleOpenEditPassword(member)}
+                                            title="Alterar senha"
+                                          >
+                                            <KeyRound className="h-4 w-4" />
+                                          </Button>
                                           <AlertDialog>
                                             <AlertDialogTrigger asChild>
                                               <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
@@ -728,6 +767,45 @@ export default function Organizacoes() {
                 Cancelar
               </Button>
               <Button onClick={handleUpdateMember} disabled={loading}>
+                {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Salvar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Password Dialog */}
+        <Dialog open={editPasswordDialogOpen} onOpenChange={(open) => {
+          if (!open) {
+            setEditPasswordDialogOpen(false);
+            setEditPasswordMember(null);
+            setNewPassword('');
+          }
+        }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Alterar Senha</DialogTitle>
+              <DialogDescription>
+                Defina uma nova senha para {editPasswordMember?.name}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="new-password">Nova Senha</Label>
+                <Input
+                  id="new-password"
+                  type="password"
+                  placeholder="Mínimo 6 caracteres"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditPasswordDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleUpdatePassword} disabled={loading}>
                 {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Salvar
               </Button>

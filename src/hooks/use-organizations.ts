@@ -234,6 +234,31 @@ export function useOrganizations() {
     }
   }, []);
 
+  const updateMemberPassword = useCallback(async (organizationId: string, userId: string, password: string): Promise<boolean> => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await fetch(`${API_URL}/api/organizations/${organizationId}/members/${userId}/password`, {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: JSON.stringify({ password })
+      });
+      
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Erro ao atualizar senha');
+      }
+      
+      return true;
+    } catch (err: any) {
+      setError(err.message);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   return {
     loading,
     error,
@@ -245,6 +270,7 @@ export function useOrganizations() {
     getConnections,
     addMember,
     updateMember,
-    removeMember
+    removeMember,
+    updateMemberPassword
   };
 }
