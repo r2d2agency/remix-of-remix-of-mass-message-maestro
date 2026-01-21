@@ -121,6 +121,16 @@ const Chat = () => {
     return unsubscribe;
   }, [selectedConversation, getMessages]);
 
+  // Listen for refresh-conversations event (from contact edit, etc.)
+  useEffect(() => {
+    const handleRefresh = () => {
+      loadConversationsRef.current();
+    };
+    
+    window.addEventListener('refresh-conversations', handleRefresh);
+    return () => window.removeEventListener('refresh-conversations', handleRefresh);
+  }, []);
+
   // Auto-refresh messages every 3 seconds when conversation is selected
   useEffect(() => {
     if (!selectedConversation) return;

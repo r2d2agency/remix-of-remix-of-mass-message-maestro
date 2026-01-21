@@ -84,6 +84,7 @@ import { useUpload } from "@/hooks/use-upload";
 import { useAudioRecorder } from "@/hooks/use-audio-recorder";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { api } from "@/lib/api";
 import { QuickRepliesPanel } from "./QuickRepliesPanel";
 import { NotesPanel } from "./NotesPanel";
 import { AudioWaveform } from "./AudioWaveform";
@@ -178,6 +179,9 @@ export function ChatArea({
   const [showScheduleDialog, setShowScheduleDialog] = useState(false);
   const [scheduledMessages, setScheduledMessages] = useState<ScheduledMessage[]>([]);
   const [schedulingMessage, setSchedulingMessage] = useState(false);
+  const [showEditContactDialog, setShowEditContactDialog] = useState(false);
+  const [editingContactName, setEditingContactName] = useState("");
+  const [savingContact, setSavingContact] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -439,6 +443,37 @@ export function ChatArea({
     setNewTagColor("#6366f1");
   };
 
+  const handleOpenEditContact = () => {
+    setEditingContactName(conversation?.contact_name || '');
+    setShowEditContactDialog(true);
+  };
+
+  const handleSaveContact = async () => {
+    if (!conversation || !editingContactName.trim()) return;
+    
+    setSavingContact(true);
+    try {
+      await api('/api/chat/contacts/by-phone', {
+        method: 'POST',
+        body: {
+          phone: conversation.contact_phone,
+          connection_id: conversation.connection_id,
+          name: editingContactName.trim(),
+        },
+      });
+      
+      toast.success('Contato salvo com sucesso');
+      setShowEditContactDialog(false);
+      
+      // Trigger a refresh of the conversation list to show updated name
+      window.dispatchEvent(new CustomEvent('refresh-conversations'));
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao salvar contato');
+    } finally {
+      setSavingContact(false);
+    }
+  };
+
   const getInitials = (name: string | null) => {
     if (!name) return '?';
     return name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase();
@@ -478,12 +513,17 @@ export function ChatArea({
             <h3 className="font-semibold">
               {conversation.contact_name || conversation.contact_phone || 'Desconhecido'}
             </h3>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <button
+              onClick={handleOpenEditContact}
+              className="flex items-center gap-2 text-xs text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+              title="Clique para editar o nome do contato"
+            >
               <Phone className="h-3 w-3" />
-              {conversation.contact_phone}
+              <span className="hover:underline">{conversation.contact_phone}</span>
+              <PenLine className="h-3 w-3 opacity-50" />
               <span className="opacity-50">•</span>
               <span>{conversation.connection_name}</span>
-            </div>
+            </button>
           </div>
         </div>
 
@@ -1355,6 +1395,46 @@ export function ChatArea({
             </Button>
             <Button onClick={handleCreateTag} disabled={!newTagName.trim()}>
               Criar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Contact Dialog */}
+      <Dialog open={showEditContactDialog} onOpenChange={setShowEditContactDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Contato</DialogTitle>
+            <DialogDescription>
+              Edite o nome do contato para {conversation?.contact_phone}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="contact-name">Nome</Label>
+              <Input
+                id="contact-name"
+                placeholder="Nome do contato"
+                value={editingContactName}
+                onChange={(e) => setEditingContactName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !savingContact) {
+                    handleSaveContact();
+                  }
+                }}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              O contato será vinculado à conexão: <strong>{conversation?.connection_name}</strong>
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditContactDialog(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveContact} disabled={savingContact || !editingContactName.trim()}>
+              {savingContact && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Salvar
             </Button>
           </DialogFooter>
         </DialogContent>

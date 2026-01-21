@@ -1761,6 +1761,47 @@ router.patch('/contacts/:id', authenticate, async (req, res) => {
   }
 });
 
+// Update or create contact by phone and connection_id (for inline editing from chat)
+router.post('/contacts/by-phone', authenticate, async (req, res) => {
+  try {
+    const { phone, connection_id, name } = req.body;
+    const connectionIds = await getUserConnections(req.userId);
+
+    if (!phone || !connection_id || !name) {
+      return res.status(400).json({ error: 'phone, connection_id e name são obrigatórios' });
+    }
+
+    // Verify connection belongs to user
+    if (!connectionIds.includes(connection_id)) {
+      return res.status(403).json({ error: 'Conexão não autorizada' });
+    }
+
+    // Upsert contact
+    const contactResult = await query(
+      `INSERT INTO chat_contacts (connection_id, phone, name, created_by, created_at, updated_at, is_deleted)
+       VALUES ($1, $2, $3, $4, NOW(), NOW(), false)
+       ON CONFLICT (connection_id, phone)
+       DO UPDATE SET name = $3, updated_at = NOW(), is_deleted = false
+       RETURNING *`,
+      [connection_id, phone, name.trim(), req.userId]
+    );
+
+    // Also update contact_name in all conversations with this phone
+    await query(
+      `UPDATE conversations
+       SET contact_name = $1, updated_at = NOW()
+       WHERE connection_id = $2
+         AND (contact_phone = $3 OR remote_jid LIKE $4 OR remote_jid LIKE $5)`,
+      [name.trim(), connection_id, phone, `${phone}@s.whatsapp.net`, `${phone}@%`]
+    );
+
+    res.json(contactResult.rows[0]);
+  } catch (error) {
+    console.error('Upsert chat contact error:', error);
+    res.status(500).json({ error: 'Erro ao salvar contato' });
+  }
+});
+
 // Delete contact from agenda (soft delete to prevent reappearing from conversation sync)
 router.delete('/contacts/:id', authenticate, async (req, res) => {
   try {
