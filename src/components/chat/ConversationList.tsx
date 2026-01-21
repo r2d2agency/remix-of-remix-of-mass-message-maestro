@@ -45,6 +45,8 @@ import {
   Plus,
   MessageSquarePlus,
   Phone,
+  CheckCircle,
+  Clock,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -68,6 +70,7 @@ interface ConversationListProps {
     archived: boolean;
     connection: string;
     is_group: boolean;
+    attendance_status: 'waiting' | 'attending';
   };
   onFiltersChange: (filters: {
     search: string;
@@ -76,11 +79,13 @@ interface ConversationListProps {
     archived: boolean;
     connection: string;
     is_group: boolean;
+    attendance_status: 'waiting' | 'attending';
   }) => void;
   isAdmin?: boolean;
   connections?: Connection[];
   onPinConversation?: (id: string, pinned: boolean) => void;
   onNewConversation?: () => void;
+  onAcceptConversation?: (id: string) => Promise<void>;
 }
 
 const getMessageTypeIcon = (type: string | null) => {
@@ -121,6 +126,7 @@ export function ConversationList({
   onFiltersChange,
   isAdmin = false,
   onNewConversation,
+  onAcceptConversation,
 }: ConversationListProps) {
   const [localSearch, setLocalSearch] = useState(filters.search);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -289,6 +295,34 @@ export function ConversationList({
           />
         </div>
 
+        {/* Attendance Status Tabs */}
+        <div className="flex gap-1 bg-muted/50 p-1 rounded-lg">
+          <button
+            onClick={() => onFiltersChange({ ...filters, attendance_status: 'attending' })}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
+              filters.attendance_status === 'attending'
+                ? "bg-background shadow-sm text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <CheckCircle className="h-3.5 w-3.5" />
+            Atendendo
+          </button>
+          <button
+            onClick={() => onFiltersChange({ ...filters, attendance_status: 'waiting' })}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
+              filters.attendance_status === 'waiting'
+                ? "bg-background shadow-sm text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Clock className="h-3.5 w-3.5" />
+            Aguardando
+          </button>
+        </div>
+
         {/* Filters */}
         <div className="flex gap-2">
           {/* Status filter */}
@@ -450,6 +484,22 @@ export function ConversationList({
                       <Badge className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0 min-w-[20px] justify-center">
                         {conv.unread_count}
                       </Badge>
+                    )}
+
+                    {/* Accept button for waiting conversations */}
+                    {filters.attendance_status === 'waiting' && onAcceptConversation && (
+                      <Button
+                        size="sm"
+                        variant="default"
+                        className="h-6 px-2 text-[10px]"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onAcceptConversation(conv.id);
+                        }}
+                      >
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Aceitar
+                      </Button>
                     )}
                   </div>
                 </div>

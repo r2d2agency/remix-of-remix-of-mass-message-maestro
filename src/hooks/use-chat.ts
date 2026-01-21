@@ -27,6 +27,10 @@ export interface Conversation {
   tags: ConversationTag[];
   last_message: string | null;
   last_message_type: string | null;
+  attendance_status: 'waiting' | 'attending';
+  accepted_at: string | null;
+  accepted_by: string | null;
+  accepted_by_name: string | null;
   created_at: string;
 }
 
@@ -196,6 +200,7 @@ export const useChat = () => {
     archived?: boolean;
     connection?: string;
     is_group?: boolean | string;
+    attendance_status?: 'waiting' | 'attending';
   }): Promise<Conversation[]> => {
     setLoading(true);
     setError(null);
@@ -210,6 +215,7 @@ export const useChat = () => {
       // Only append connection if it's a valid UUID (not 'all')
       if (filters?.connection && filters.connection !== 'all') params.append('connection', filters.connection);
       if (filters?.is_group !== undefined) params.append('is_group', String(filters.is_group));
+      if (filters?.attendance_status) params.append('attendance_status', filters.attendance_status);
       
       const url = `/api/chat/conversations${params.toString() ? `?${params}` : ''}`;
       const data = await api<Conversation[]>(url);
@@ -246,6 +252,16 @@ export const useChat = () => {
       method: 'POST',
       body: { pinned },
     });
+  }, []);
+
+  // Accept conversation (move to attending)
+  const acceptConversation = useCallback(async (id: string): Promise<void> => {
+    await api(`/api/chat/conversations/${id}/accept`, { method: 'POST' });
+  }, []);
+
+  // Release conversation (move back to waiting)
+  const releaseConversation = useCallback(async (id: string): Promise<void> => {
+    await api(`/api/chat/conversations/${id}/release`, { method: 'POST' });
   }, []);
 
   const getConversation = useCallback(async (id: string): Promise<Conversation & {
@@ -483,6 +499,8 @@ export const useChat = () => {
     markAsRead,
     transferConversation,
     pinConversation,
+    acceptConversation,
+    releaseConversation,
     // Connections
     getConnections,
     // Stats

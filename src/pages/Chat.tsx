@@ -28,6 +28,7 @@ const Chat = () => {
     markAsRead,
     transferConversation,
     pinConversation,
+    acceptConversation,
     getConnections,
     getMessages,
     sendMessage,
@@ -63,6 +64,7 @@ const Chat = () => {
     archived: false,
     connection: 'all',
     is_group: false, // false = individual chats, true = group chats
+    attendance_status: 'attending' as 'waiting' | 'attending',
   });
   const [activeTab, setActiveTab] = useState<'chats' | 'groups'>('chats');
 
@@ -172,6 +174,7 @@ const Chat = () => {
       if (filters.connection !== 'all') filterParams.connection = filters.connection;
       filterParams.archived = filters.archived;
       filterParams.is_group = activeTab === 'groups' ? 'true' : 'false';
+      filterParams.attendance_status = filters.attendance_status;
 
       const data = await getConversations(filterParams);
 
@@ -212,7 +215,7 @@ const Chat = () => {
       isLoadingConversationsRef.current = false;
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [getConversations, filters.search, filters.tag, filters.assigned, filters.connection, filters.archived, activeTab]);
+  }, [getConversations, filters.search, filters.tag, filters.assigned, filters.connection, filters.archived, filters.attendance_status, activeTab]);
 
   // Keep ref pointing to the latest loadConversations (used by intervals above)
   useEffect(() => {
@@ -224,7 +227,7 @@ const Chat = () => {
   useEffect(() => {
     loadConversations();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.search, filters.tag, filters.assigned, filters.connection, filters.archived, activeTab]);
+  }, [filters.search, filters.tag, filters.assigned, filters.connection, filters.archived, filters.attendance_status, activeTab]);
 
   const loadTags = async () => {
     try {
@@ -478,6 +481,16 @@ const Chat = () => {
     }
   };
 
+  const handleAcceptConversation = async (conversationId: string) => {
+    try {
+      await acceptConversation(conversationId);
+      loadConversations();
+      toast.success('Conversa aceita');
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao aceitar conversa');
+    }
+  };
+
   const handleNewConversationCreated = async (conversation: Conversation) => {
     // Keep it visible even if it has no messages yet
     stickyConversationRef.current = conversation;
@@ -548,6 +561,7 @@ const Chat = () => {
               isAdmin={isAdmin}
               connections={connections}
               onNewConversation={activeTab === 'chats' ? () => setNewConversationOpen(true) : undefined}
+              onAcceptConversation={handleAcceptConversation}
             />
           </div>
 

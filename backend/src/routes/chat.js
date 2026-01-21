@@ -108,7 +108,7 @@ router.get('/conversations', authenticate, async (req, res) => {
       return res.json([]);
     }
 
-    const { search, tag, assigned, archived, connection, includeEmpty, is_group } = req.query;
+    const { search, tag, assigned, archived, connection, includeEmpty, is_group, attendance_status } = req.query;
     
     let sql = `
       SELECT 
@@ -116,6 +116,7 @@ router.get('/conversations', authenticate, async (req, res) => {
         conn.name as connection_name,
         conn.phone_number as connection_phone,
         u.name as assigned_name,
+        ua.name as accepted_by_name,
         COALESCE(
           (SELECT json_agg(json_build_object('id', t.id, 'name', t.name, 'color', t.color))
            FROM conversation_tag_links ctl
@@ -128,6 +129,7 @@ router.get('/conversations', authenticate, async (req, res) => {
       FROM conversations conv
       JOIN connections conn ON conn.id = conv.connection_id
       LEFT JOIN users u ON u.id = conv.assigned_to
+      LEFT JOIN users ua ON ua.id = conv.accepted_by
       WHERE conv.connection_id = ANY($1)
     `;
     
@@ -189,6 +191,13 @@ router.get('/conversations', authenticate, async (req, res) => {
       sql += ` AND conv.assigned_to = $${paramIndex}`;
       params.push(assigned);
       paramIndex++;
+    }
+
+    // Filter by attendance status (waiting/attending)
+    if (attendance_status === 'waiting') {
+      sql += ` AND COALESCE(conv.attendance_status, 'waiting') = 'waiting'`;
+    } else if (attendance_status === 'attending') {
+      sql += ` AND conv.attendance_status = 'attending'`;
     }
 
     // Order by pinned first, then by last_message_at
@@ -432,6 +441,78 @@ router.post('/conversations/:id/pin', authenticate, async (req, res) => {
   } catch (error) {
     console.error('Pin conversation error:', error);
     res.status(500).json({ error: 'Erro ao fixar conversa' });
+  }
+});
+
+// Accept conversation (move from waiting to attending)
+router.post('/conversations/:id/accept', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const connectionIds = await getUserConnections(req.userId);
+
+    // Check if conversation belongs to user's connections
+    const check = await query(
+      `SELECT id, attendance_status FROM conversations WHERE id = $1 AND connection_id = ANY($2)`,
+      [id, connectionIds]
+    );
+
+    if (check.rows.length === 0) {
+      return res.status(404).json({ error: 'Conversa não encontrada' });
+    }
+
+    // Update to attending status
+    const result = await query(
+      `UPDATE conversations 
+       SET attendance_status = 'attending', 
+           accepted_at = NOW(), 
+           accepted_by = $1,
+           assigned_to = COALESCE(assigned_to, $1),
+           updated_at = NOW() 
+       WHERE id = $2 
+       RETURNING *`,
+      [req.userId, id]
+    );
+
+    res.json({ success: true, conversation: result.rows[0] });
+  } catch (error) {
+    console.error('Accept conversation error:', error);
+    res.status(500).json({ error: 'Erro ao aceitar conversa' });
+  }
+});
+
+// Release conversation (move back to waiting)
+router.post('/conversations/:id/release', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const connectionIds = await getUserConnections(req.userId);
+
+    // Check if conversation belongs to user's connections
+    const check = await query(
+      `SELECT id FROM conversations WHERE id = $1 AND connection_id = ANY($2)`,
+      [id, connectionIds]
+    );
+
+    if (check.rows.length === 0) {
+      return res.status(404).json({ error: 'Conversa não encontrada' });
+    }
+
+    // Update to waiting status
+    const result = await query(
+      `UPDATE conversations 
+       SET attendance_status = 'waiting', 
+           accepted_at = NULL, 
+           accepted_by = NULL,
+           assigned_to = NULL,
+           updated_at = NOW() 
+       WHERE id = $2 
+       RETURNING *`,
+      [id]
+    );
+
+    res.json({ success: true, conversation: result.rows[0] });
+  } catch (error) {
+    console.error('Release conversation error:', error);
+    res.status(500).json({ error: 'Erro ao liberar conversa' });
   }
 });
 
