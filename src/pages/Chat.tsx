@@ -87,7 +87,7 @@ const Chat = () => {
   const prevWaitingCountRef = useRef<number>(0);
 
   // Notification sound hook
-  const { notify, playSound } = useNotificationSound();
+  const { notify, settings, pushPermission } = useNotificationSound();
 
   // Load initial data and start alerts polling
   useEffect(() => {
@@ -112,24 +112,28 @@ const Chat = () => {
     // Check if waiting count increased (new conversation arrived)
     if (counts.waiting > prevWaitingCountRef.current && prevWaitingCountRef.current > 0) {
       const newCount = counts.waiting - prevWaitingCountRef.current;
+      const message = newCount === 1 
+        ? 'Nova conversa aguardando atendimento!' 
+        : `${newCount} novas conversas aguardando atendimento!`;
       
-      // Play sound and show toast notification
-      playSound();
-      toast.info(
-        newCount === 1 
-          ? '🔔 Nova conversa aguardando atendimento!' 
-          : `🔔 ${newCount} novas conversas aguardando atendimento!`,
-        {
-          duration: 5000,
-          icon: <Bell className="h-4 w-4 text-amber-500" />,
-        }
+      // Use notify() which handles both sound AND push notification
+      notify(
+        '🔔 Whatsale', 
+        message,
+        { playSound: true }
       );
+      
+      // Also show in-app toast
+      toast.info(`🔔 ${message}`, {
+        duration: 5000,
+        icon: <Bell className="h-4 w-4 text-amber-500" />,
+      });
     }
     
     // Update ref for next comparison
     prevWaitingCountRef.current = counts.waiting;
     setAttendanceCounts(counts);
-  }, [activeTab, getAttendanceCounts, playSound]);
+  }, [activeTab, getAttendanceCounts, notify]);
 
   const checkUserRole = async () => {
     try {
