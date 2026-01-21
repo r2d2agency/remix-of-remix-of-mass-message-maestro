@@ -1506,12 +1506,20 @@ async function handleMessageUpsert(connection, data) {
       ? new Date(parseInt(message.messageTimestamp) * 1000) 
       : new Date();
 
+    // Get sender info for group messages
+    const senderName = isGroup && !fromMe
+      ? (pushName || null)
+      : null;
+    const senderPhone = isGroup && !fromMe
+      ? groupParticipantPhone
+      : null;
+
     // Insert message - use ON CONFLICT to handle duplicates gracefully
     try {
       const insertResult = await query(
         `INSERT INTO chat_messages 
-          (conversation_id, message_id, from_me, content, message_type, media_url, media_mimetype, quoted_message_id, status, timestamp)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          (conversation_id, message_id, from_me, content, message_type, media_url, media_mimetype, quoted_message_id, sender_name, sender_phone, status, timestamp)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
          ON CONFLICT (message_id) WHERE message_id IS NOT NULL AND message_id NOT LIKE 'temp_%'
          DO UPDATE SET 
            media_url = COALESCE(EXCLUDED.media_url, chat_messages.media_url),
@@ -1527,6 +1535,8 @@ async function handleMessageUpsert(connection, data) {
           mediaUrl,
           mediaMimetype,
           quotedMessageId,
+          senderName,
+          senderPhone,
           fromMe ? 'sent' : 'received',
           timestamp
         ]

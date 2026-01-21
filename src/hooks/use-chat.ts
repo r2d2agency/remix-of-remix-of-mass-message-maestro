@@ -54,6 +54,7 @@ export interface ChatMessage {
   from_me: boolean;
   sender_id: string | null;
   sender_name: string | null;
+  sender_phone: string | null;
   content: string | null;
   message_type: string;
   media_url: string | null;

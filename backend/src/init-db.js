@@ -618,6 +618,14 @@ EXCEPTION
     WHEN duplicate_column THEN null;
 END $$;
 
+-- Add sender_name column for group messages (WhatsApp pushName)
+DO $$ BEGIN
+    ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS sender_name VARCHAR(255);
+    ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS sender_phone VARCHAR(50);
+EXCEPTION
+    WHEN duplicate_column THEN null;
+END $$;
+
 -- Add unique index on message_id to prevent duplicates (excludes temp_ messages)
 CREATE UNIQUE INDEX IF NOT EXISTS idx_chat_messages_message_id 
   ON chat_messages (message_id) 

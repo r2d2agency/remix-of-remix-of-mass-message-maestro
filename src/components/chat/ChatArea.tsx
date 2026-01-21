@@ -742,6 +742,18 @@ export function ChatArea({
                   isCurrentResult && "ring-2 ring-yellow-500 bg-yellow-50 dark:bg-yellow-900/30"
                 )}
               >
+                {/* Sender name for group messages */}
+                {conversation?.is_group && !msg.from_me && msg.sender_name && (
+                  <div className="text-xs font-semibold mb-1 text-primary">
+                    {msg.sender_name}
+                    {msg.sender_phone && (
+                      <span className="font-normal text-muted-foreground ml-1">
+                        ({msg.sender_phone.replace(/^(\d{2})(\d{4,5})(\d{4})$/, '($1) $2-$3')})
+                      </span>
+                    )}
+                  </div>
+                )}
+
                 {/* Quoted message */}
                 {msg.quoted_message_id && msg.quoted_content && (
                   <div className={cn(

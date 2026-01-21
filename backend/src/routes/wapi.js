@@ -830,11 +830,22 @@ async function handleIncomingMessage(connection, payload) {
       return;
     }
 
+    // Get sender info for group messages
+    const senderName = isGroup 
+      ? (payload.sender?.pushName || payload.pushName || payload.senderName || null)
+      : null;
+    const senderPhoneRaw = isGroup 
+      ? (payload.sender?.id || senderId)
+      : null;
+    const senderPhone = senderPhoneRaw 
+      ? String(senderPhoneRaw).replace(/@.*$/, '').replace(/\D/g, '')
+      : null;
+
     // Insert message into chat_messages table
     await query(
-      `INSERT INTO chat_messages (conversation_id, message_id, content, message_type, media_url, media_mimetype, wa_media_key, from_me, status, timestamp)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, false, 'received', NOW())`,
-      [conversationId, messageId, content, messageType, effectiveMediaUrl, effectiveMediaMimetype, waMediaKey]
+      `INSERT INTO chat_messages (conversation_id, message_id, content, message_type, media_url, media_mimetype, wa_media_key, from_me, sender_name, sender_phone, status, timestamp)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, false, $8, $9, 'received', NOW())`,
+      [conversationId, messageId, content, messageType, effectiveMediaUrl, effectiveMediaMimetype, waMediaKey, senderName, senderPhone]
     );
 
     console.log('[W-API] Message saved. Type:', messageType, 'MediaURL:', effectiveMediaUrl?.slice?.(0, 100));

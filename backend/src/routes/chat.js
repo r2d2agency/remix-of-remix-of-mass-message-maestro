@@ -641,11 +641,12 @@ router.get('/conversations/:id/messages', authenticate, async (req, res) => {
     let sql = `
       SELECT 
         m.*,
-        u.name as sender_name,
+        COALESCE(m.sender_name, u.name) as sender_name,
+        m.sender_phone,
         qm.content as quoted_content,
         qm.message_type as quoted_message_type,
         qm.from_me as quoted_from_me,
-        qu.name as quoted_sender_name
+        COALESCE(qm.sender_name, qu.name) as quoted_sender_name
       FROM chat_messages m
       LEFT JOIN users u ON u.id = m.sender_id
       LEFT JOIN chat_messages qm ON qm.id = m.quoted_message_id
