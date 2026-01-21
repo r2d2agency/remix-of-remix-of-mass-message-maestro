@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Plus, QrCode, RefreshCw, Plug, Unplug, Trash2, Phone, Loader2, Wifi, WifiOff, Send, Settings2, AlertTriangle, CheckCircle, Eye, Activity, Radio, Users } from "lucide-react";
+import { Plus, QrCode, RefreshCw, Plug, Unplug, Trash2, Phone, Loader2, Wifi, WifiOff, Send, Settings2, AlertTriangle, CheckCircle, Eye, Activity, Radio, Users, Download } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
@@ -65,6 +65,9 @@ const Conexao = () => {
 
   // W-API webhook config state
   const [configuringWapiWebhooks, setConfiguringWapiWebhooks] = useState<string | null>(null);
+  
+  // W-API contact sync state
+  const [syncingContacts, setSyncingContacts] = useState<string | null>(null);
 
   // Webhook viewer state (shows what the backend is actually receiving)
   const [webhookViewerOpen, setWebhookViewerOpen] = useState(false);
@@ -316,6 +319,44 @@ const handleGetQRCode = async (connection: Connection) => {
       toast.error(error?.message || 'Erro ao configurar webhooks');
     } finally {
       setConfiguringWapiWebhooks(null);
+    }
+  };
+
+  const handleSyncWapiContacts = async (connection: Connection) => {
+    const isWapi = connection.provider === 'wapi' || !!connection.instance_id;
+
+    if (!isWapi) {
+      toast.info('Esta ação é apenas para conexões W-API');
+      return;
+    }
+
+    if (connection.status !== 'connected') {
+      toast.warning('A conexão precisa estar conectada para sincronizar contatos');
+      return;
+    }
+
+    setSyncingContacts(connection.id);
+    try {
+      const result = await api<{ 
+        success: boolean; 
+        total: number; 
+        imported: number; 
+        updated: number; 
+        skipped: number;
+        error?: string;
+      }>(`/api/wapi/${connection.id}/sync-contacts`, { method: 'POST' });
+
+      if (result.success) {
+        toast.success(
+          `Sincronização concluída! ${result.imported} novos, ${result.updated} atualizados, ${result.skipped} ignorados (Total: ${result.total})`
+        );
+      } else {
+        toast.error(result.error || 'Erro ao sincronizar contatos');
+      }
+    } catch (error: any) {
+      toast.error(error?.message || 'Erro ao sincronizar contatos');
+    } finally {
+      setSyncingContacts(null);
     }
   };
 
@@ -692,6 +733,23 @@ const handleGetQRCode = async (connection: Connection) => {
                           <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
                           <Settings2 className="h-4 w-4" />
+                        )}
+                      </Button>
+                    )}
+                    
+                    {/* W-API: Sync contacts */}
+                    {(connection.provider === 'wapi' || !!connection.instance_id) && connection.status === 'connected' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleSyncWapiContacts(connection)}
+                        disabled={syncingContacts === connection.id}
+                        title="Sincronizar contatos do WhatsApp"
+                      >
+                        {syncingContacts === connection.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Download className="h-4 w-4" />
                         )}
                       </Button>
                     )}

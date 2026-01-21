@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
-import { getSendAttempts, clearSendAttempts, downloadMedia as wapiDownloadMedia } from '../lib/wapi-provider.js';
+import { getSendAttempts, clearSendAttempts, downloadMedia as wapiDownloadMedia, getChats as wapiGetChats } from '../lib/wapi-provider.js';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
@@ -595,6 +595,92 @@ router.post('/webhook', async (req, res) => {
     console.error('[W-API Webhook] Error:', error);
     // Always return 200 to prevent W-API from retrying
     res.status(200).json({ received: true, error: error.message });
+  }
+});
+
+/**
+ * Sync contacts from W-API getChats endpoint
+ * This fetches all conversations and imports contacts into chat_contacts
+ */
+router.post('/:connectionId/sync-contacts', authenticate, async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+    const userId = req.user?.id;
+
+    const connection = await getAccessibleConnection(connectionId, userId);
+    if (!connection) {
+      return res.status(404).json({ error: 'Conexão não encontrada' });
+    }
+
+    // Must be a W-API connection
+    if (!connection.instance_id || !connection.wapi_token) {
+      return res.status(400).json({ error: 'Esta conexão não é W-API' });
+    }
+
+    console.log(`[W-API] Starting contact sync for connection ${connectionId}`);
+
+    // Fetch chats from W-API
+    const result = await wapiGetChats(connection.instance_id, connection.wapi_token);
+
+    if (!result.success) {
+      console.error('[W-API] getChats failed:', result.error);
+      return res.status(500).json({ error: result.error || 'Erro ao buscar contatos da W-API' });
+    }
+
+    const contacts = result.contacts || [];
+    console.log(`[W-API] Fetched ${contacts.length} contacts from W-API`);
+
+    let imported = 0;
+    let updated = 0;
+    let skipped = 0;
+
+    for (const contact of contacts) {
+      try {
+        // Check if contact already exists
+        const existing = await query(
+          `SELECT id, name, is_deleted FROM chat_contacts WHERE connection_id = $1 AND phone = $2`,
+          [connectionId, contact.phone]
+        );
+
+        if (existing.rows.length > 0) {
+          const existingContact = existing.rows[0];
+          // Update if name changed or was deleted
+          if (existingContact.name !== contact.name || existingContact.is_deleted) {
+            await query(
+              `UPDATE chat_contacts SET name = $1, is_deleted = false, updated_at = NOW() WHERE id = $2`,
+              [contact.name || contact.phone, existingContact.id]
+            );
+            updated++;
+          } else {
+            skipped++;
+          }
+        } else {
+          // Insert new contact
+          await query(
+            `INSERT INTO chat_contacts (connection_id, phone, name, jid, profile_picture_url, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, NOW(), NOW())`,
+            [connectionId, contact.phone, contact.name || contact.phone, contact.jid || null, contact.profilePicture || null]
+          );
+          imported++;
+        }
+      } catch (err) {
+        console.error('[W-API] Error importing contact:', contact.phone, err.message);
+        skipped++;
+      }
+    }
+
+    console.log(`[W-API] Contact sync complete: imported=${imported}, updated=${updated}, skipped=${skipped}`);
+
+    res.json({
+      success: true,
+      total: contacts.length,
+      imported,
+      updated,
+      skipped,
+    });
+  } catch (error) {
+    console.error('[W-API] Contact sync error:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 

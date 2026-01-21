@@ -503,6 +503,114 @@ export async function checkNumber(instanceId, token, phone) {
 }
 
 /**
+ * Get all chats from W-API (includes contacts with chat history)
+ * Returns an array of chat objects with phone and name
+ */
+export async function getChats(instanceId, token) {
+  const encodedInstanceId = encodeURIComponent(instanceId || '');
+
+  try {
+    // W-API uses /chat/get-chats endpoint
+    const response = await fetch(
+      `${W_API_BASE_URL}/chat/get-chats?instanceId=${encodedInstanceId}`,
+      {
+        method: 'GET',
+        headers: getHeaders(token),
+      }
+    );
+
+    const responseText = await response.text();
+    console.log(
+      `[W-API] getChats for ${instanceId}: HTTP ${response.status}, Body length:`,
+      responseText.length
+    );
+
+    if (!response.ok) {
+      let errMsg = `HTTP ${response.status}`;
+      try {
+        const errData = JSON.parse(responseText);
+        errMsg = errData?.message || errData?.error || errMsg;
+      } catch {
+        // ignore
+      }
+      return { success: false, error: errMsg, chats: [] };
+    }
+
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch {
+      return { success: false, error: 'Invalid JSON response', chats: [] };
+    }
+
+    // W-API response can be in different formats
+    // data might be an array directly, or { data: [...] }, or { result: [...] }, or { chats: [...] }
+    const chatsArray = Array.isArray(data)
+      ? data
+      : Array.isArray(data?.data)
+        ? data.data
+        : Array.isArray(data?.result)
+          ? data.result
+          : Array.isArray(data?.chats)
+            ? data.chats
+            : [];
+
+    console.log(`[W-API] Found ${chatsArray.length} chats`);
+
+    // Parse and normalize the chats
+    const contacts = [];
+    for (const chat of chatsArray) {
+      // Skip groups
+      const jid = chat.jid || chat.id || chat.remoteJid || chat.from || chat.phone || '';
+      if (jid.includes('@g.us')) continue;
+
+      // Extract phone number from JID
+      let phone = jid.replace('@s.whatsapp.net', '').replace('@c.us', '').replace(/\D/g, '');
+      if (!phone) continue;
+
+      // Get name (various possible fields)
+      const name =
+        chat.name ||
+        chat.pushName ||
+        chat.notify ||
+        chat.verifiedName ||
+        chat.formattedName ||
+        chat.displayName ||
+        chat.contact?.name ||
+        chat.contact?.pushName ||
+        '';
+
+      // Get profile picture if available
+      const profilePicture =
+        chat.profilePicture ||
+        chat.profilePictureUrl ||
+        chat.imgUrl ||
+        chat.picture ||
+        chat.contact?.profilePictureUrl ||
+        null;
+
+      contacts.push({
+        phone,
+        name: name || phone,
+        jid,
+        profilePicture,
+      });
+    }
+
+    console.log(`[W-API] Parsed ${contacts.length} individual contacts from chats`);
+
+    return {
+      success: true,
+      contacts,
+      total: contacts.length,
+    };
+  } catch (error) {
+    console.error('[W-API] getChats error:', error);
+    return { success: false, error: error.message, chats: [] };
+  }
+}
+
+/**
  * Generic message sender that routes to the correct method based on type
  */
 export async function sendMessage(instanceId, token, phone, content, messageType, mediaUrl) {
