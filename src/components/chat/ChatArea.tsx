@@ -1091,114 +1091,118 @@ export function ChatArea({
           </Label>
         </div>
         
-        <div className={cn("flex items-end gap-2", isMobile && "gap-1.5")}>
-          {/* Hidden file input */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            className="hidden"
-            accept="image/*,video/*,audio/*,.pdf,.doc,.docx"
-            onChange={handleFileSelect}
-          />
+        {/* Hidden file input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="hidden"
+          accept="image/*,video/*,audio/*,.pdf,.doc,.docx"
+          onChange={handleFileSelect}
+        />
 
-          {/* Recording UI */}
-          {isRecording ? (
-            <>
-              {/* Cancel button */}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-10 w-10 flex-shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                onClick={cancelRecording}
-                title="Cancelar gravação"
-              >
-                <Trash2 className="h-5 w-5" />
-              </Button>
+        {/* Recording UI */}
+        {isRecording ? (
+          <div className="flex items-end gap-2">
+            {/* Cancel button */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-10 w-10 flex-shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+              onClick={cancelRecording}
+              title="Cancelar gravação"
+            >
+              <Trash2 className="h-5 w-5" />
+            </Button>
 
-              {/* Recording indicator with waveform */}
-              <div className="flex-1 flex items-center gap-3 px-4 py-2 bg-destructive/10 rounded-lg border border-destructive/30 overflow-hidden">
-                <div className="w-3 h-3 rounded-full bg-destructive animate-pulse flex-shrink-0" />
-                <div className="flex-1 flex items-center justify-center">
-                  <AudioWaveform levels={audioLevels} />
-                </div>
-                <span className="text-sm font-mono text-destructive/80 flex-shrink-0">
-                  {formatDuration(duration)}
-                </span>
+            {/* Recording indicator with waveform */}
+            <div className="flex-1 flex items-center gap-3 px-4 py-2 bg-destructive/10 rounded-lg border border-destructive/30 overflow-hidden">
+              <div className="w-3 h-3 rounded-full bg-destructive animate-pulse flex-shrink-0" />
+              <div className="flex-1 flex items-center justify-center">
+                <AudioWaveform levels={audioLevels} />
               </div>
+              <span className="text-sm font-mono text-destructive/80 flex-shrink-0">
+                {formatDuration(duration)}
+              </span>
+            </div>
 
-              {/* Stop/Send button */}
-              <Button
-                size="icon"
-                className="h-10 w-10 flex-shrink-0 bg-destructive hover:bg-destructive/90"
-                onClick={stopRecording}
-                title="Parar e enviar"
-              >
-                <Square className="h-4 w-4 fill-current" />
-              </Button>
-            </>
-          ) : audioBlob ? (
-            <>
-              {/* Cancel recorded audio */}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-10 w-10 flex-shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                onClick={clearAudio}
-                title="Descartar áudio"
-              >
-                <Trash2 className="h-5 w-5" />
-              </Button>
+            {/* Stop/Send button */}
+            <Button
+              size="icon"
+              className="h-10 w-10 flex-shrink-0 bg-destructive hover:bg-destructive/90"
+              onClick={stopRecording}
+              title="Parar e enviar"
+            >
+              <Square className="h-4 w-4 fill-current" />
+            </Button>
+          </div>
+        ) : audioBlob ? (
+          <div className="flex items-end gap-2">
+            {/* Cancel recorded audio */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-10 w-10 flex-shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+              onClick={clearAudio}
+              title="Descartar áudio"
+            >
+              <Trash2 className="h-5 w-5" />
+            </Button>
 
-              {/* Audio preview */}
-              <div className="flex-1 flex items-center gap-3 px-4 py-2 bg-primary/10 rounded-lg border border-primary/30">
-                <Mic className="h-5 w-5 text-primary" />
-                <span className="text-sm font-medium">
-                  Áudio gravado
-                </span>
-                <span className="text-sm font-mono text-muted-foreground">
-                  {formatDuration(duration)}
-                </span>
-              </div>
+            {/* Audio preview */}
+            <div className="flex-1 flex items-center gap-3 px-4 py-2 bg-primary/10 rounded-lg border border-primary/30">
+              <Mic className="h-5 w-5 text-primary" />
+              <span className="text-sm font-medium">
+                Áudio gravado
+              </span>
+              <span className="text-sm font-mono text-muted-foreground">
+                {formatDuration(duration)}
+              </span>
+            </div>
 
-              {/* Send audio button */}
-              <Button
-                size="icon"
-                className="h-10 w-10 flex-shrink-0"
-                onClick={handleSendAudio}
-                disabled={sending || isUploading}
-              >
-                {(sending || isUploading) ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  <Send className="h-5 w-5" />
-                )}
-              </Button>
-            </>
-          ) : (
-            <>
+            {/* Send audio button */}
+            <Button
+              size="icon"
+              className="h-10 w-10 flex-shrink-0"
+              onClick={handleSendAudio}
+              disabled={sending || isUploading}
+            >
+              {(sending || isUploading) ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <Send className="h-5 w-5" />
+              )}
+            </Button>
+          </div>
+        ) : (
+          <div className={cn(
+            "flex flex-col gap-2",
+            !isMobile && "flex-row items-end"
+          )}>
+            {/* Action buttons row */}
+            <div className="flex items-center gap-1">
               {/* Quick Replies button */}
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-10 w-10 flex-shrink-0"
+                className="h-9 w-9 flex-shrink-0"
                 onClick={() => setShowQuickReplies(!showQuickReplies)}
                 title="Respostas rápidas"
               >
-                <Zap className="h-5 w-5" />
+                <Zap className="h-4 w-4" />
               </Button>
 
               {/* Attachment button */}
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-10 w-10 flex-shrink-0"
+                className="h-9 w-9 flex-shrink-0"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isUploading || sending}
               >
                 {isUploading ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <Upload className="h-5 w-5" />
+                  <Upload className="h-4 w-4" />
                 )}
               </Button>
 
@@ -1206,11 +1210,11 @@ export function ChatArea({
               <Button
                 variant="ghost"
                 size="icon"
-                className={cn("h-10 w-10 flex-shrink-0", scheduledMessages.length > 0 && "text-primary")}
+                className={cn("h-9 w-9 flex-shrink-0 relative", scheduledMessages.length > 0 && "text-primary")}
                 onClick={() => setShowScheduleDialog(true)}
                 title="Agendar mensagem"
               >
-                <CalendarClock className="h-5 w-5" />
+                <CalendarClock className="h-4 w-4" />
                 {scheduledMessages.length > 0 && (
                   <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[10px] rounded-full w-4 h-4 flex items-center justify-center">
                     {scheduledMessages.length}
@@ -1225,7 +1229,10 @@ export function ChatArea({
                 onClose={() => setShowEmojiPicker(false)}
                 onEmojiSelect={handleEmojiSelect}
               />
+            </div>
 
+            {/* Text input + send button row */}
+            <div className="flex items-end gap-2 flex-1">
               {/* Message input with mentions */}
               <div className="relative flex-1">
                 <Textarea
@@ -1281,9 +1288,9 @@ export function ChatArea({
                   <Mic className="h-5 w-5" />
                 </Button>
               )}
-            </>
-          )}
-        </div>
+            </div>
+          </div>
+        )}
       </div>
       )}
 
