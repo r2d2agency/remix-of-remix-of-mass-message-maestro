@@ -1661,6 +1661,7 @@ router.get('/contacts', authenticate, async (req, res) => {
 
     // Auto-populate agenda with contacts from existing conversations
     // IMPORTANT: do not resurrect contacts that the user deleted (is_deleted=true)
+    // IMPORTANT: exclude group chats (JIDs ending with @g.us)
     try {
       await query(
         `INSERT INTO chat_contacts (connection_id, name, phone, jid, created_by, created_at, updated_at, is_deleted)
@@ -1677,6 +1678,7 @@ router.get('/contacts', authenticate, async (req, res) => {
          WHERE conv.connection_id = ANY($1)
            AND conv.contact_phone IS NOT NULL
            AND conv.contact_phone <> ''
+           AND (conv.remote_jid IS NULL OR conv.remote_jid NOT LIKE '%@g.us')
          ON CONFLICT (connection_id, phone)
          DO UPDATE SET
            name = COALESCE(NULLIF(EXCLUDED.name, ''), chat_contacts.name),
@@ -1708,6 +1710,7 @@ router.get('/contacts', authenticate, async (req, res) => {
       JOIN connections c ON c.id = cc.connection_id
       WHERE cc.connection_id = ANY($1)
         AND COALESCE(cc.is_deleted, false) = false
+        AND (cc.jid IS NULL OR cc.jid NOT LIKE '%@g.us')
     `;
 
     const params = [connectionIds];
