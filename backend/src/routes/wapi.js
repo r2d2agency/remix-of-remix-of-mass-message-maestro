@@ -571,11 +571,13 @@ router.post('/webhook', async (req, res) => {
 
     pushWebhookEvent({ connectionId: connection.id, instanceId, eventType, req, payload });
 
-    console.log('[W-API Webhook] Event type:', eventType, 'Instance:', instanceId);
+    console.log('[W-API Webhook] Event type:', eventType, 'Instance:', instanceId, 'fromMe:', payload.fromMe, 'chat.id:', payload.chat?.id);
 
     switch (eventType) {
       case 'message_received':
+        console.log('[W-API Webhook] Calling handleIncomingMessage...');
         await handleIncomingMessage(connection, payload);
+        console.log('[W-API Webhook] handleIncomingMessage completed');
         break;
       case 'message_sent':
         await handleOutgoingMessage(connection, payload);
@@ -1022,36 +1024,63 @@ async function handleIncomingMessage(connection, payload) {
     // Get or create conversation
     // First try by remote_jid, then fallback to contact_phone for individual chats
     // This handles cases where remote_jid format changes (@lid vs @s.whatsapp.net)
+    console.log('[W-API] Looking for conversation with remote_jid:', remoteJid, 'connection_id:', connection.id);
+    
     let conversationResult = await query(
-      `SELECT id FROM conversations WHERE connection_id = $1 AND remote_jid = $2`,
+      `SELECT id, remote_jid, contact_phone FROM conversations WHERE connection_id = $1 AND remote_jid = $2`,
       [connection.id, remoteJid]
     );
+
+    console.log('[W-API] JID search result:', conversationResult.rows.length > 0 ? conversationResult.rows[0] : 'NOT FOUND');
 
     // For individual chats, also try matching by phone number if no exact JID match
     if (conversationResult.rows.length === 0 && !isGroup && cleanPhone) {
       console.log('[W-API] No exact JID match, trying by phone:', cleanPhone);
       conversationResult = await query(
-        `SELECT id FROM conversations 
+        `SELECT id, remote_jid, contact_phone FROM conversations 
          WHERE connection_id = $1 
            AND contact_phone = $2 
-           AND is_group = false
+           AND COALESCE(is_group, false) = false
          ORDER BY last_message_at DESC
          LIMIT 1`,
         [connection.id, cleanPhone]
       );
       
+      console.log('[W-API] Phone search result:', conversationResult.rows.length > 0 ? conversationResult.rows[0] : 'NOT FOUND');
+      
       if (conversationResult.rows.length > 0) {
         // Update the remote_jid to the new format
-        console.log('[W-API] Found conversation by phone, updating remote_jid to:', remoteJid);
+        console.log('[W-API] Found conversation by phone, updating remote_jid from:', conversationResult.rows[0].remote_jid, 'to:', remoteJid);
         await query(
           `UPDATE conversations SET remote_jid = $1 WHERE id = $2`,
           [remoteJid, conversationResult.rows[0].id]
         );
+      } else {
+        // Also check if there's a conversation with a @lid version of this number
+        console.log('[W-API] Checking for @lid variant of phone...');
+        const lidResult = await query(
+          `SELECT id, remote_jid, contact_phone FROM conversations 
+           WHERE connection_id = $1 
+             AND (remote_jid LIKE $2 OR remote_jid LIKE $3)
+             AND COALESCE(is_group, false) = false
+           ORDER BY last_message_at DESC
+           LIMIT 1`,
+          [connection.id, `%${cleanPhone}@%`, `${cleanPhone}@%`]
+        );
+        
+        if (lidResult.rows.length > 0) {
+          console.log('[W-API] Found conversation with alternate JID format:', lidResult.rows[0].remote_jid);
+          conversationResult = lidResult;
+          await query(
+            `UPDATE conversations SET remote_jid = $1, contact_phone = COALESCE(contact_phone, $2) WHERE id = $3`,
+            [remoteJid, cleanPhone, conversationResult.rows[0].id]
+          );
+        }
       }
     }
 
     let conversationId;
-      if (conversationResult.rows.length === 0) {
+    if (conversationResult.rows.length === 0) {
       // Create new conversation
       // Try multiple sources for group name - W-API sends it in various ways
       const groupName = isGroup
@@ -1073,16 +1102,28 @@ async function handleIncomingMessage(connection, payload) {
         ? (groupName || 'Grupo')
         : (payload.sender?.pushName || payload.pushName || payload.name || payload.senderName || cleanPhone);
 
-      console.log('[W-API] Creating NEW conversation for:', { remoteJid, cleanPhone, contactName, isGroup });
+      console.log('[W-API] Creating NEW conversation for:', { 
+        remoteJid, 
+        cleanPhone, 
+        contactName, 
+        isGroup,
+        connectionId: connection.id 
+      });
 
-      const newConv = await query(
-        `INSERT INTO conversations (connection_id, remote_jid, contact_name, contact_phone, is_group, group_name, last_message_at, unread_count, attendance_status)
-         VALUES ($1, $2, $3, $4, $5, $6, NOW(), 1, 'waiting')
-         RETURNING id`,
-        [connection.id, remoteJid, contactName, isGroup ? null : cleanPhone, isGroup, isGroup ? groupName : null]
-      );
-      conversationId = newConv.rows[0].id;
-      console.log('[W-API] Created new', isGroup ? 'group' : 'conversation:', conversationId, isGroup ? `name: ${groupName}` : '', 'phone:', cleanPhone);
+      try {
+        const newConv = await query(
+          `INSERT INTO conversations (connection_id, remote_jid, contact_name, contact_phone, is_group, group_name, last_message_at, unread_count, attendance_status)
+           VALUES ($1, $2, $3, $4, $5, $6, NOW(), 1, 'waiting')
+           RETURNING id`,
+          [connection.id, remoteJid, contactName, isGroup ? null : cleanPhone, isGroup, isGroup ? groupName : null]
+        );
+        conversationId = newConv.rows[0].id;
+        console.log('[W-API] Created new', isGroup ? 'group' : 'conversation:', conversationId, isGroup ? `name: ${groupName}` : '', 'phone:', cleanPhone);
+      } catch (insertError) {
+        console.error('[W-API] ERROR creating conversation:', insertError.message);
+        console.error('[W-API] Insert params:', { connectionId: connection.id, remoteJid, contactName, cleanPhone, isGroup, groupName });
+        throw insertError;
+      }
       } else {
       conversationId = conversationResult.rows[0].id;
 
