@@ -558,31 +558,51 @@ export async function checkNumber(instanceId, token, phone) {
  */
 export async function getGroupInfo(instanceId, token, groupJid) {
   const encodedInstanceId = encodeURIComponent(instanceId || '');
-  const encodedGroupId = encodeURIComponent(groupJid?.replace('@g.us', '') || '');
+  const groupIdWithoutSuffix = groupJid?.replace('@g.us', '') || '';
+  const fullGroupJid = groupJid?.includes('@g.us') ? groupJid : `${groupJid}@g.us`;
 
   try {
-    // Try different W-API endpoints for group info
+    // Try different W-API endpoints for group info with multiple param formats
     const endpoints = [
-      `${W_API_BASE_URL}/group/metadata?instanceId=${encodedInstanceId}&groupId=${encodedGroupId}`,
-      `${W_API_BASE_URL}/group/get-group?instanceId=${encodedInstanceId}&groupId=${encodedGroupId}`,
-      `${W_API_BASE_URL}/group/info?instanceId=${encodedInstanceId}&groupId=${encodedGroupId}`,
+      // Try with groupId (no suffix)
+      `${W_API_BASE_URL}/group/metadata?instanceId=${encodedInstanceId}&groupId=${encodeURIComponent(groupIdWithoutSuffix)}`,
+      `${W_API_BASE_URL}/group/get-group?instanceId=${encodedInstanceId}&groupId=${encodeURIComponent(groupIdWithoutSuffix)}`,
+      `${W_API_BASE_URL}/group/info?instanceId=${encodedInstanceId}&groupId=${encodeURIComponent(groupIdWithoutSuffix)}`,
+      // Try with full JID
+      `${W_API_BASE_URL}/group/metadata?instanceId=${encodedInstanceId}&groupId=${encodeURIComponent(fullGroupJid)}`,
+      `${W_API_BASE_URL}/group/metadata?instanceId=${encodedInstanceId}&jid=${encodeURIComponent(fullGroupJid)}`,
+      `${W_API_BASE_URL}/group/get-group?instanceId=${encodedInstanceId}&jid=${encodeURIComponent(fullGroupJid)}`,
     ];
 
     for (const url of endpoints) {
       try {
+        console.log('[W-API] Trying group info endpoint:', url);
         const response = await fetch(url, {
           method: 'GET',
           headers: getHeaders(token),
         });
 
-        if (!response.ok) continue;
+        if (!response.ok) {
+          console.log('[W-API] Endpoint returned', response.status);
+          continue;
+        }
 
-        const data = await response.json();
+        const responseText = await response.text();
+        let data;
+        try {
+          data = JSON.parse(responseText);
+        } catch {
+          console.log('[W-API] Non-JSON response:', responseText.substring(0, 100));
+          continue;
+        }
+        
+        console.log('[W-API] Group info response:', JSON.stringify(data).substring(0, 300));
         
         // Extract group name from various possible response formats
-        const groupName = data?.subject || data?.name || data?.groupName || 
-                         data?.data?.subject || data?.data?.name ||
-                         data?.result?.subject || data?.result?.name || null;
+        const groupName = data?.subject || data?.name || data?.groupName || data?.title ||
+                         data?.data?.subject || data?.data?.name || data?.data?.groupName ||
+                         data?.result?.subject || data?.result?.name || data?.result?.groupName ||
+                         data?.response?.subject || data?.response?.name || null;
 
         if (groupName) {
           console.log('[W-API] Got group info for', groupJid, ':', groupName);
@@ -590,14 +610,16 @@ export async function getGroupInfo(instanceId, token, groupJid) {
             success: true,
             name: groupName,
             subject: groupName,
-            participants: data?.participants || data?.data?.participants || [],
+            participants: data?.participants || data?.data?.participants || data?.result?.participants || [],
           };
         }
       } catch (e) {
+        console.log('[W-API] Endpoint error:', e.message);
         // Continue to next endpoint
       }
     }
 
+    console.log('[W-API] Could not fetch group info for:', groupJid);
     return { success: false, error: 'Could not fetch group info' };
   } catch (error) {
     console.error('W-API getGroupInfo error:', error);
