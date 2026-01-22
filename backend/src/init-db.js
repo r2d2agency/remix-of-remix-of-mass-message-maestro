@@ -810,6 +810,17 @@ CREATE INDEX IF NOT EXISTS idx_chat_contacts_conn ON chat_contacts(connection_id
 CREATE INDEX IF NOT EXISTS idx_chat_contacts_phone ON chat_contacts(phone);
 `;
 
+// Step 12: Attendance Status
+const step12Attendance = `
+-- Attendance status columns for conversations
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS attendance_status VARCHAR(20) DEFAULT 'waiting';
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS accepted_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS accepted_by UUID REFERENCES users(id) ON DELETE SET NULL;
+
+-- Indexes for performance
+CREATE INDEX IF NOT EXISTS idx_conversations_attendance_status ON conversations(attendance_status);
+CREATE INDEX IF NOT EXISTS idx_conversations_accepted_by ON conversations(accepted_by);
+`;
 
 // Migration steps in order of execution
 const migrationSteps = [
@@ -824,6 +835,7 @@ const migrationSteps = [
   { name: 'Chat System', sql: step9Chat, critical: false },
   { name: 'System Settings', sql: step10Settings, critical: false },
   { name: 'Indexes', sql: step11Indexes, critical: false },
+  { name: 'Attendance Status', sql: step12Attendance, critical: false },
 ];
 
 export async function initDatabase() {
