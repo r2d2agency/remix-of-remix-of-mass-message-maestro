@@ -264,7 +264,64 @@ router.get('/conversations/user-avg-time', authenticate, async (req, res) => {
   }
 });
 
-// Get conversations with unread messages only
+// Global search across all messages
+router.get('/messages/search', authenticate, async (req, res) => {
+  try {
+    const connectionIds = await getUserConnections(req.userId);
+    
+    if (connectionIds.length === 0) {
+      return res.json({ results: [] });
+    }
+
+    const { q, limit = 50 } = req.query;
+    
+    if (!q || q.length < 2) {
+      return res.json({ results: [] });
+    }
+
+    const searchQuery = `%${q}%`;
+    const maxResults = Math.min(parseInt(limit) || 50, 100);
+
+    const result = await query(`
+      SELECT 
+        m.id as message_id,
+        m.conversation_id,
+        m.content,
+        m.timestamp,
+        m.is_from_me,
+        conv.contact_name,
+        conv.contact_phone,
+        conv.group_name,
+        conv.is_group
+      FROM chat_messages m
+      JOIN conversations conv ON conv.id = m.conversation_id
+      WHERE conv.connection_id = ANY($1)
+        AND m.content ILIKE $2
+        AND m.content IS NOT NULL
+        AND m.content != ''
+      ORDER BY m.timestamp DESC
+      LIMIT $3
+    `, [connectionIds, searchQuery, maxResults]);
+
+    res.json({
+      results: result.rows.map(row => ({
+        message_id: row.message_id,
+        conversation_id: row.conversation_id,
+        contact_name: row.contact_name,
+        contact_phone: row.contact_phone,
+        group_name: row.group_name,
+        is_group: row.is_group || false,
+        content: row.content,
+        timestamp: row.timestamp,
+        is_from_me: row.is_from_me || false,
+      }))
+    });
+  } catch (error) {
+    console.error('Global message search error:', error);
+    res.status(500).json({ error: 'Erro ao buscar mensagens' });
+  }
+});
+
 router.get('/conversations/unread', authenticate, async (req, res) => {
   try {
     const connectionIds = await getUserConnections(req.userId);

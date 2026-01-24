@@ -764,6 +764,21 @@ const Chat = () => {
                   await handleReopenConversation(id);
                 }}
                 attendanceCounts={attendanceCounts}
+                onGlobalSearchSelect={async (conversationId, messageId) => {
+                  try {
+                    const conv = await getConversation(conversationId);
+                    if (conv) {
+                      selectedIdRef.current = conv.id;
+                      setSelectedConversation(conv);
+                      // Load messages and scroll to the specific message if provided
+                      const msgs = await getMessages(conversationId);
+                      setMessages(msgs);
+                      // TODO: scroll to messageId if provided
+                    }
+                  } catch (error: any) {
+                    toast.error('Erro ao abrir conversa');
+                  }
+                }}
               />
             </div>
           )}

@@ -49,6 +49,7 @@ import {
   Clock,
   CheckCheck,
   RotateCcw,
+  SearchCode,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -58,6 +59,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { SwipeableConversationItem } from "./SwipeableConversationItem";
+import { GlobalSearchDialog } from "./GlobalSearchDialog";
 
 interface ConversationListProps {
   conversations: Conversation[];
@@ -95,6 +97,7 @@ interface ConversationListProps {
   attendanceCounts?: { waiting: number; attending: number; finished: number };
   onFinishConversation?: (id: string) => Promise<void>;
   onReopenConversation?: (id: string) => Promise<void>;
+  onGlobalSearchSelect?: (conversationId: string, messageId?: string) => void;
 }
 
 const getMessageTypeIcon = (type: string | null) => {
@@ -141,6 +144,7 @@ export function ConversationList({
   onFinishConversation,
   onReopenConversation,
   attendanceCounts,
+  onGlobalSearchSelect,
 }: ConversationListProps) {
   const isMobile = useIsMobile();
   const [localSearch, setLocalSearch] = useState(filters.search);
@@ -148,6 +152,7 @@ export function ConversationList({
   const [conversationToDelete, setConversationToDelete] = useState<Conversation | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [keepContact, setKeepContact] = useState(true);
+  const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
   const { toast } = useToast();
 
   // Debounce search
@@ -300,14 +305,27 @@ export function ConversationList({
         </div>
 
         {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar conversas..."
-            value={localSearch}
-            onChange={(e) => setLocalSearch(e.target.value)}
-            className="pl-9"
-          />
+        <div className="relative flex gap-1">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar conversas..."
+              value={localSearch}
+              onChange={(e) => setLocalSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          {onGlobalSearchSelect && (
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setGlobalSearchOpen(true)}
+              title="Buscar em todas as mensagens"
+              className="flex-shrink-0"
+            >
+              <SearchCode className="h-4 w-4" />
+            </Button>
+          )}
         </div>
 
         {/* Attendance Status Tabs - Icons with labels below */}
@@ -713,6 +731,15 @@ export function ConversationList({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Global Search Dialog */}
+      {onGlobalSearchSelect && (
+        <GlobalSearchDialog
+          open={globalSearchOpen}
+          onOpenChange={setGlobalSearchOpen}
+          onSelectResult={onGlobalSearchSelect}
+        />
+      )}
     </div>
   );
 }
