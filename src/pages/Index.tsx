@@ -213,7 +213,15 @@ const Index = () => {
             </div>
 
             {/* Chart */}
-            <AttendanceChart className="lg:col-span-2 animate-fade-in" connections={connections} />
+            <AttendanceChart 
+              className="lg:col-span-2 animate-fade-in" 
+              connections={connections}
+              currentCounts={{
+                waiting: stats.conversationsWaiting,
+                attending: stats.conversationsAttending,
+                finished: stats.conversationsFinished,
+              }}
+            />
           </div>
         </div>
 

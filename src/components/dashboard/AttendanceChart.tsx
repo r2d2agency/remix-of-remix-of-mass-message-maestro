@@ -36,6 +36,7 @@ interface Connection {
 interface AttendanceChartProps {
   className?: string;
   connections?: Connection[];
+  currentCounts?: { waiting: number; attending: number; finished: number };
 }
 
 const PRESETS = [
@@ -45,7 +46,7 @@ const PRESETS = [
   { label: '30 dias', days: 30 },
 ];
 
-export function AttendanceChart({ className, connections = [] }: AttendanceChartProps) {
+export function AttendanceChart({ className, connections = [], currentCounts }: AttendanceChartProps) {
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: subDays(new Date(), 6),
     to: new Date(),
@@ -107,7 +108,7 @@ export function AttendanceChart({ className, connections = [] }: AttendanceChart
       // Generate all days in the interval
       const allDays = eachDayOfInterval({ start: startDate, end: endDate });
       
-      const chartData: AttendanceData[] = allDays.map(day => {
+      let chartData: AttendanceData[] = allDays.map(day => {
         const dateStr = format(day, 'yyyy-MM-dd');
         const stats = statsMap.get(dateStr);
         
@@ -120,12 +121,33 @@ export function AttendanceChart({ className, connections = [] }: AttendanceChart
         };
       });
 
+      // If viewing "Hoje" and we have currentCounts from props, use them
+      // This ensures the chart matches the KPI cards on the left
+      if (days === 1 && currentCounts) {
+        chartData = chartData.map(d => ({
+          ...d,
+          aguardando: currentCounts.waiting,
+          atendendo: currentCounts.attending,
+          finalizados: currentCounts.finished,
+        }));
+      }
+
       setData(chartData);
-      setTotals({
-        aguardando: chartData.reduce((sum, d) => sum + d.aguardando, 0),
-        atendendo: chartData.reduce((sum, d) => sum + d.atendendo, 0),
-        finalizados: chartData.reduce((sum, d) => sum + d.finalizados, 0),
-      });
+      
+      // Use currentCounts for totals when viewing "Hoje"
+      if (days === 1 && currentCounts) {
+        setTotals({
+          aguardando: currentCounts.waiting,
+          atendendo: currentCounts.attending,
+          finalizados: currentCounts.finished,
+        });
+      } else {
+        setTotals({
+          aguardando: chartData.reduce((sum, d) => sum + d.aguardando, 0),
+          atendendo: chartData.reduce((sum, d) => sum + d.atendendo, 0),
+          finalizados: chartData.reduce((sum, d) => sum + d.finalizados, 0),
+        });
+      }
       setUserStats(avgTimeResponse.user_stats || []);
     } catch (error) {
       console.error('Error loading attendance chart:', error);
