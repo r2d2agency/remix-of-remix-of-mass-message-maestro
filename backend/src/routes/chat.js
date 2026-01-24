@@ -157,22 +157,23 @@ router.get('/conversations/attendance-stats', authenticate, async (req, res) => 
 
     try {
       // Get daily counts per status
-      // Use created_at as fallback if accepted_at not available
+      // Use last_message_at as the primary date for grouping (most reliable)
       const dateFilter = startDate 
-        ? `AND COALESCE(conv.accepted_at, conv.created_at) >= '${startDate}'::date`
-        : `AND COALESCE(conv.accepted_at, conv.created_at) >= NOW() - INTERVAL '${days} days'`;
+        ? `AND DATE(COALESCE(conv.last_message_at, conv.updated_at)) >= '${startDate}'::date`
+        : `AND COALESCE(conv.last_message_at, conv.updated_at) >= NOW() - INTERVAL '${days} days'`;
 
       const result = await query(`
         SELECT 
-          DATE(COALESCE(conv.accepted_at, conv.created_at)) as date,
+          DATE(COALESCE(conv.last_message_at, conv.updated_at)) as date,
           COUNT(*) FILTER (WHERE conv.attendance_status = 'waiting') as waiting,
           COUNT(*) FILTER (WHERE conv.attendance_status = 'attending' OR conv.attendance_status IS NULL) as attending,
           COUNT(*) FILTER (WHERE conv.attendance_status = 'finished') as finished
         FROM conversations conv
         WHERE conv.connection_id = ANY($1)
+          AND conv.is_archived = false
           ${dateFilter}
           ${groupFilter}
-        GROUP BY DATE(COALESCE(conv.accepted_at, conv.created_at))
+        GROUP BY DATE(COALESCE(conv.last_message_at, conv.updated_at))
         ORDER BY date ASC
       `, [connectionIds]);
 
