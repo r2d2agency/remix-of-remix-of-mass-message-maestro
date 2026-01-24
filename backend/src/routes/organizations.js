@@ -135,7 +135,7 @@ router.post('/', async (req, res) => {
 router.patch('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, logo_url } = req.body;
+    const { name, logo_url, modules_enabled } = req.body;
 
     // Check if user is admin/owner
     const memberCheck = await query(
@@ -148,20 +148,82 @@ router.patch('/:id', async (req, res) => {
       return res.status(403).json({ error: 'Apenas admins podem editar a organização' });
     }
 
+    // Build update query dynamically
+    const updates = [];
+    const values = [];
+    let paramIndex = 1;
+
+    if (name !== undefined) {
+      updates.push(`name = $${paramIndex++}`);
+      values.push(name);
+    }
+    if (logo_url !== undefined) {
+      updates.push(`logo_url = $${paramIndex++}`);
+      values.push(logo_url);
+    }
+    if (modules_enabled !== undefined) {
+      updates.push(`modules_enabled = $${paramIndex++}`);
+      values.push(JSON.stringify(modules_enabled));
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'Nenhum campo para atualizar' });
+    }
+
+    updates.push('updated_at = NOW()');
+    values.push(id);
+
     const result = await query(
       `UPDATE organizations 
-       SET name = COALESCE($1, name),
-           logo_url = COALESCE($2, logo_url),
-           updated_at = NOW()
-       WHERE id = $3
+       SET ${updates.join(', ')}
+       WHERE id = $${paramIndex}
        RETURNING *`,
-      [name, logo_url, id]
+      values
     );
 
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Update organization error:', error);
     res.status(500).json({ error: 'Erro ao atualizar organização' });
+  }
+});
+
+// Get organization modules settings
+router.get('/:id/modules', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Check if user is member
+    const memberCheck = await query(
+      `SELECT role FROM organization_members WHERE organization_id = $1 AND user_id = $2`,
+      [id, req.userId]
+    );
+    
+    if (memberCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+    
+    const result = await query(
+      `SELECT modules_enabled FROM organizations WHERE id = $1`,
+      [id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Organização não encontrada' });
+    }
+    
+    // Default modules if null
+    const defaultModules = {
+      campaigns: true,
+      billing: true,
+      groups: true,
+      scheduled_messages: true,
+    };
+    
+    res.json(result.rows[0].modules_enabled || defaultModules);
+  } catch (error) {
+    console.error('Get org modules error:', error);
+    res.status(500).json({ error: 'Erro ao buscar configurações' });
   }
 });
 

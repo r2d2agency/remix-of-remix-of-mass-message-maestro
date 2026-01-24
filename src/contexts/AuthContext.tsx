@@ -2,16 +2,27 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { authApi, setAuthToken, clearAuthToken, getAuthToken } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 
+interface ModulesEnabled {
+  campaigns: boolean;
+  billing: boolean;
+  groups: boolean;
+  scheduled_messages: boolean;
+}
+
 interface User {
   id: string;
   email: string;
   name: string;
+  role?: string;
+  organization_id?: string;
+  modules_enabled?: ModulesEnabled;
 }
 
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  modulesEnabled: ModulesEnabled;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string, planId?: string) => Promise<void>;
   logout: () => void;
@@ -23,6 +34,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+
+  const defaultModules: ModulesEnabled = {
+    campaigns: true,
+    billing: true,
+    groups: true,
+    scheduled_messages: true,
+  };
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -60,12 +78,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     toast({ title: 'Logout realizado' });
   };
 
+  const modulesEnabled = user?.modules_enabled || defaultModules;
+
   return (
     <AuthContext.Provider
       value={{
         user,
         isLoading,
         isAuthenticated: !!user,
+        modulesEnabled,
         login,
         register,
         logout,

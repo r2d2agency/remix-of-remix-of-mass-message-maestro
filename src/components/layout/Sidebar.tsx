@@ -31,12 +31,14 @@ interface NavItem {
   name: string;
   href: string;
   icon: any;
+  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages';
 }
 
 interface NavSection {
   title: string;
   icon: any;
   items: NavItem[];
+  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages';
 }
 
 const navSections: NavSection[] = [
@@ -45,7 +47,7 @@ const navSections: NavSection[] = [
     icon: MessagesSquare,
     items: [
       { name: "Chat", href: "/chat", icon: MessagesSquare },
-      { name: "Agendamentos", href: "/agendamentos", icon: Bell },
+      { name: "Agendamentos", href: "/agendamentos", icon: Bell, moduleKey: 'scheduled_messages' },
       { name: "Tags", href: "/tags", icon: Receipt },
       { name: "Contatos", href: "/contatos-chat", icon: Users },
     ],
@@ -53,6 +55,7 @@ const navSections: NavSection[] = [
   {
     title: "Disparos",
     icon: Send,
+    moduleKey: 'campaigns',
     items: [
       { name: "Listas", href: "/contatos", icon: Users },
       { name: "Mensagens", href: "/mensagens", icon: MessageSquare },
@@ -64,7 +67,7 @@ const navSections: NavSection[] = [
     title: "Configurações",
     icon: Settings,
     items: [
-      { name: "Cobrança", href: "/cobranca", icon: Receipt },
+      { name: "Cobrança", href: "/cobranca", icon: Receipt, moduleKey: 'billing' },
       { name: "Conexões", href: "/conexao", icon: Plug },
       { name: "Organizações", href: "/organizacoes", icon: Building2 },
     ],
@@ -80,9 +83,18 @@ interface SidebarContentProps {
 function SidebarContentComponent({ isExpanded, isSuperadmin, onNavigate }: SidebarContentProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { logout, user } = useAuth();
+  const { logout, user, modulesEnabled } = useAuth();
   const { branding } = useBranding();
   const [openSections, setOpenSections] = useState<string[]>(["Atendimento"]);
+
+  // Filter sections and items based on modules enabled
+  const filteredSections = navSections
+    .filter(section => !section.moduleKey || modulesEnabled[section.moduleKey])
+    .map(section => ({
+      ...section,
+      items: section.items.filter(item => !item.moduleKey || modulesEnabled[item.moduleKey])
+    }))
+    .filter(section => section.items.length > 0);
 
   const handleLogout = () => {
     logout();
@@ -173,7 +185,7 @@ function SidebarContentComponent({ isExpanded, isSuperadmin, onNavigate }: Sideb
         {renderNavItem({ name: "Dashboard", href: "/", icon: LayoutDashboard })}
 
         {/* Sections */}
-        {navSections.map((section) => {
+        {filteredSections.map((section) => {
           const isOpen = openSections.includes(section.title);
           const sectionActive = isSectionActive(section);
 

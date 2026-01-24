@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -13,7 +15,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useOrganizations } from '@/hooks/use-organizations';
 import { useSuperadmin } from '@/hooks/use-superadmin';
 import { toast } from 'sonner';
-import { Building2, Plus, Users, Trash2, UserPlus, Crown, Shield, User, Briefcase, Loader2, Pencil, Link2, Settings, KeyRound } from 'lucide-react';
+import { api } from '@/lib/api';
+import { Building2, Plus, Users, Trash2, UserPlus, Crown, Shield, User, Briefcase, Loader2, Pencil, Link2, Settings, KeyRound, Megaphone, Receipt, UsersRound, CalendarClock } from 'lucide-react';
 
 interface Organization {
   id: string;
@@ -89,6 +92,16 @@ export default function Organizacoes() {
   const [editPasswordMember, setEditPasswordMember] = useState<OrganizationMember | null>(null);
   const [newPassword, setNewPassword] = useState('');
 
+  // Modules settings
+  const [activeTab, setActiveTab] = useState('members');
+  const [modulesEnabled, setModulesEnabled] = useState({
+    campaigns: true,
+    billing: true,
+    groups: true,
+    scheduled_messages: true,
+  });
+  const [savingModules, setSavingModules] = useState(false);
+
   const { 
     loading, 
     error,
@@ -114,6 +127,7 @@ export default function Organizacoes() {
     if (selectedOrg) {
       loadMembers(selectedOrg.id);
       loadConnections(selectedOrg.id);
+      loadModules(selectedOrg.id);
     }
   }, [selectedOrg]);
 
@@ -137,6 +151,37 @@ export default function Organizacoes() {
   const loadConnections = async (orgId: string) => {
     const conns = await getConnections(orgId);
     setConnections(conns);
+  };
+
+  const loadModules = async (orgId: string) => {
+    try {
+      const modules = await api<Record<string, boolean>>(`/api/organizations/${orgId}/modules`);
+      setModulesEnabled({
+        campaigns: modules.campaigns ?? true,
+        billing: modules.billing ?? true,
+        groups: modules.groups ?? true,
+        scheduled_messages: modules.scheduled_messages ?? true,
+      });
+    } catch (error) {
+      console.error('Error loading modules:', error);
+    }
+  };
+
+  const handleSaveModules = async () => {
+    if (!selectedOrg) return;
+    
+    setSavingModules(true);
+    try {
+      await api(`/api/organizations/${selectedOrg.id}`, {
+        method: 'PATCH',
+        body: { modules_enabled: modulesEnabled },
+      });
+      toast.success('Configurações salvas!');
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao salvar configurações');
+    } finally {
+      setSavingModules(false);
+    }
   };
 
   const handleCreateOrg = async () => {
@@ -460,247 +505,369 @@ export default function Organizacoes() {
                   </CardHeader>
                 </Card>
 
-                {/* Members Section */}
-                <Card>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle className="flex items-center gap-2">
-                          <Users className="h-5 w-5" />
-                          Membros da Equipe
-                        </CardTitle>
-                        <CardDescription>
-                          {members.length} membro{members.length !== 1 ? 's' : ''} na organização
-                        </CardDescription>
-                      </div>
-                      {canManageOrg && (
-                        <Dialog open={createUserDialogOpen} onOpenChange={(open) => {
-                          if (!open) resetCreateUserDialog();
-                          else setCreateUserDialogOpen(true);
-                        }}>
-                          <DialogTrigger asChild>
-                            <Button size="sm">
-                              <UserPlus className="h-4 w-4 mr-2" />
-                              Criar Usuário
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent className="max-w-md">
-                            <DialogHeader>
-                              <DialogTitle>Criar Novo Usuário</DialogTitle>
-                              <DialogDescription>
-                                Crie um novo usuário que será automaticamente membro desta organização
-                              </DialogDescription>
-                            </DialogHeader>
-                            <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
-                              <div className="space-y-2">
-                                <Label>Nome *</Label>
-                                <Input
-                                  placeholder="Nome do usuário"
-                                  value={newMemberName}
-                                  onChange={(e) => setNewMemberName(e.target.value)}
-                                />
-                              </div>
-                              
-                              <div className="space-y-2">
-                                <Label>Email *</Label>
-                                <Input
-                                  type="email"
-                                  placeholder="usuario@email.com"
-                                  value={newMemberEmail}
-                                  onChange={(e) => setNewMemberEmail(e.target.value)}
-                                />
-                              </div>
-                              
-                              <div className="space-y-2">
-                                <Label>Senha *</Label>
-                                <Input
-                                  type="password"
-                                  placeholder="Mínimo 6 caracteres"
-                                  value={newMemberPassword}
-                                  onChange={(e) => setNewMemberPassword(e.target.value)}
-                                />
-                              </div>
-                              
-                              <div className="space-y-2">
-                                <Label>Função</Label>
-                                <Select value={newMemberRole} onValueChange={setNewMemberRole}>
-                                  <SelectTrigger>
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="admin">Admin - Gerencia tudo</SelectItem>
-                                    <SelectItem value="manager">Supervisor - Apenas visualização</SelectItem>
-                                    <SelectItem value="agent">Agente - Acesso básico</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
+                {/* Tabs for Members and Settings */}
+                <Tabs value={activeTab} onValueChange={setActiveTab}>
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="members" className="flex items-center gap-2">
+                      <Users className="h-4 w-4" />
+                      Membros
+                    </TabsTrigger>
+                    <TabsTrigger value="settings" className="flex items-center gap-2">
+                      <Settings className="h-4 w-4" />
+                      Configurações
+                    </TabsTrigger>
+                  </TabsList>
 
-                              {connections.length > 0 && (
-                                <div className="space-y-2">
-                                  <Label className="flex items-center gap-2">
-                                    <Link2 className="h-4 w-4" />
-                                    Conexões permitidas
-                                  </Label>
-                                  <p className="text-xs text-muted-foreground mb-2">
-                                    Selecione as conexões que este usuário pode acessar. Se nenhuma for selecionada, ele verá todas.
-                                  </p>
-                                  <div className="space-y-2 border rounded-md p-3 max-h-40 overflow-y-auto">
-                                    {connections.map((conn) => (
-                                      <div key={conn.id} className="flex items-center space-x-2">
-                                        <Checkbox
-                                          id={`conn-new-${conn.id}`}
-                                          checked={newMemberConnectionIds.includes(conn.id)}
-                                          onCheckedChange={() => toggleConnection(conn.id, newMemberConnectionIds, setNewMemberConnectionIds)}
-                                        />
-                                        <label
-                                          htmlFor={`conn-new-${conn.id}`}
-                                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
-                                        >
-                                          {conn.name}
-                                          {conn.phone_number && (
-                                            <span className="text-muted-foreground ml-2 text-xs">
-                                              ({conn.phone_number})
-                                            </span>
-                                          )}
-                                        </label>
+                  {/* Members Tab */}
+                  <TabsContent value="members">
+                    <Card>
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <CardTitle className="flex items-center gap-2">
+                              <Users className="h-5 w-5" />
+                              Membros da Equipe
+                            </CardTitle>
+                            <CardDescription>
+                              {members.length} membro{members.length !== 1 ? 's' : ''} na organização
+                            </CardDescription>
+                          </div>
+                          {canManageOrg && (
+                            <Dialog open={createUserDialogOpen} onOpenChange={(open) => {
+                              if (!open) resetCreateUserDialog();
+                              else setCreateUserDialogOpen(true);
+                            }}>
+                              <DialogTrigger asChild>
+                                <Button size="sm">
+                                  <UserPlus className="h-4 w-4 mr-2" />
+                                  Criar Usuário
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent className="max-w-md">
+                                <DialogHeader>
+                                  <DialogTitle>Criar Novo Usuário</DialogTitle>
+                                  <DialogDescription>
+                                    Crie um novo usuário que será automaticamente membro desta organização
+                                  </DialogDescription>
+                                </DialogHeader>
+                                <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
+                                  <div className="space-y-2">
+                                    <Label>Nome *</Label>
+                                    <Input
+                                      placeholder="Nome do usuário"
+                                      value={newMemberName}
+                                      onChange={(e) => setNewMemberName(e.target.value)}
+                                    />
+                                  </div>
+                                  
+                                  <div className="space-y-2">
+                                    <Label>Email *</Label>
+                                    <Input
+                                      type="email"
+                                      placeholder="usuario@email.com"
+                                      value={newMemberEmail}
+                                      onChange={(e) => setNewMemberEmail(e.target.value)}
+                                    />
+                                  </div>
+                                  
+                                  <div className="space-y-2">
+                                    <Label>Senha *</Label>
+                                    <Input
+                                      type="password"
+                                      placeholder="Mínimo 6 caracteres"
+                                      value={newMemberPassword}
+                                      onChange={(e) => setNewMemberPassword(e.target.value)}
+                                    />
+                                  </div>
+                                  
+                                  <div className="space-y-2">
+                                    <Label>Função</Label>
+                                    <Select value={newMemberRole} onValueChange={setNewMemberRole}>
+                                      <SelectTrigger>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="admin">Admin - Gerencia tudo</SelectItem>
+                                        <SelectItem value="manager">Supervisor - Apenas visualização</SelectItem>
+                                        <SelectItem value="agent">Agente - Acesso básico</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+
+                                  {connections.length > 0 && (
+                                    <div className="space-y-2">
+                                      <Label className="flex items-center gap-2">
+                                        <Link2 className="h-4 w-4" />
+                                        Conexões permitidas
+                                      </Label>
+                                      <p className="text-xs text-muted-foreground mb-2">
+                                        Selecione as conexões que este usuário pode acessar. Se nenhuma for selecionada, ele verá todas.
+                                      </p>
+                                      <div className="space-y-2 border rounded-md p-3 max-h-40 overflow-y-auto">
+                                        {connections.map((conn) => (
+                                          <div key={conn.id} className="flex items-center space-x-2">
+                                            <Checkbox
+                                              id={`conn-new-${conn.id}`}
+                                              checked={newMemberConnectionIds.includes(conn.id)}
+                                              onCheckedChange={() => toggleConnection(conn.id, newMemberConnectionIds, setNewMemberConnectionIds)}
+                                            />
+                                            <label
+                                              htmlFor={`conn-new-${conn.id}`}
+                                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
+                                            >
+                                              {conn.name}
+                                              {conn.phone_number && (
+                                                <span className="text-muted-foreground ml-2 text-xs">
+                                                  ({conn.phone_number})
+                                                </span>
+                                              )}
+                                            </label>
+                                          </div>
+                                        ))}
                                       </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                            <DialogFooter>
-                              <Button variant="outline" onClick={resetCreateUserDialog}>
-                                Cancelar
-                              </Button>
-                              <Button onClick={handleCreateUser} disabled={loading}>
-                                {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                                Criar Usuário
-                              </Button>
-                            </DialogFooter>
-                          </DialogContent>
-                        </Dialog>
-                      )}
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    {loadingMembers ? (
-                      <div className="flex items-center justify-center py-8">
-                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                      </div>
-                    ) : (
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Usuário</TableHead>
-                            <TableHead>Função</TableHead>
-                            <TableHead>Conexões</TableHead>
-                            <TableHead>Desde</TableHead>
-                            {canManageOrg && <TableHead className="w-[120px]">Ações</TableHead>}
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {members.map((member) => {
-                            const RoleIcon = roleLabels[member.role].icon;
-                            const assignedConns = member.assigned_connections || [];
-                            return (
-                              <TableRow key={member.id}>
-                                <TableCell>
-                                  <div className="flex items-center gap-3">
-                                    <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center">
-                                      <User className="h-4 w-4" />
-                                    </div>
-                                    <div>
-                                      <p className="font-medium">{member.name}</p>
-                                      <p className="text-sm text-muted-foreground">{member.email}</p>
-                                    </div>
-                                  </div>
-                                </TableCell>
-                                <TableCell>
-                                  <Badge variant="secondary" className={`${roleLabels[member.role].color} text-white`}>
-                                    <RoleIcon className="h-3 w-3 mr-1" />
-                                    {roleLabels[member.role].label}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell>
-                                  {assignedConns.length === 0 ? (
-                                    <span className="text-muted-foreground text-sm">Todas</span>
-                                  ) : (
-                                    <div className="flex flex-wrap gap-1">
-                                      {assignedConns.slice(0, 2).map((c) => (
-                                        <Badge key={c.id} variant="outline" className="text-xs">
-                                          {c.name}
-                                        </Badge>
-                                      ))}
-                                      {assignedConns.length > 2 && (
-                                        <Badge variant="outline" className="text-xs">
-                                          +{assignedConns.length - 2}
-                                        </Badge>
-                                      )}
                                     </div>
                                   )}
-                                </TableCell>
-                                <TableCell className="text-muted-foreground">
-                                  {new Date(member.created_at).toLocaleDateString('pt-BR')}
-                                </TableCell>
-                                {canManageOrg && (
-                                  <TableCell>
-                                    <div className="flex items-center gap-1">
-                                      {member.role !== 'owner' && (
-                                        <>
-                                          <Button 
-                                            variant="ghost" 
-                                            size="icon"
-                                            onClick={() => handleOpenEditMember(member)}
-                                            title="Gerenciar conexões"
-                                          >
-                                            <Settings className="h-4 w-4" />
-                                          </Button>
-                                          <Button 
-                                            variant="ghost" 
-                                            size="icon"
-                                            onClick={() => handleOpenEditPassword(member)}
-                                            title="Alterar senha"
-                                          >
-                                            <KeyRound className="h-4 w-4" />
-                                          </Button>
-                                          <AlertDialog>
-                                            <AlertDialogTrigger asChild>
-                                              <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
-                                                <Trash2 className="h-4 w-4" />
-                                              </Button>
-                                            </AlertDialogTrigger>
-                                            <AlertDialogContent>
-                                              <AlertDialogHeader>
-                                                <AlertDialogTitle>Remover membro?</AlertDialogTitle>
-                                                <AlertDialogDescription>
-                                                  {member.name} será removido da organização e perderá acesso a todos os recursos.
-                                                </AlertDialogDescription>
-                                              </AlertDialogHeader>
-                                              <AlertDialogFooter>
-                                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                                <AlertDialogAction
-                                                  onClick={() => handleRemoveMember(member.user_id)}
-                                                  className="bg-destructive hover:bg-destructive/90"
-                                                >
-                                                  Remover
-                                                </AlertDialogAction>
-                                              </AlertDialogFooter>
-                                            </AlertDialogContent>
-                                          </AlertDialog>
-                                        </>
-                                      )}
-                                    </div>
-                                  </TableCell>
-                                )}
+                                </div>
+                                <DialogFooter>
+                                  <Button variant="outline" onClick={resetCreateUserDialog}>
+                                    Cancelar
+                                  </Button>
+                                  <Button onClick={handleCreateUser} disabled={loading}>
+                                    {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                                    Criar Usuário
+                                  </Button>
+                                </DialogFooter>
+                              </DialogContent>
+                            </Dialog>
+                          )}
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        {loadingMembers ? (
+                          <div className="flex items-center justify-center py-8">
+                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                          </div>
+                        ) : (
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Usuário</TableHead>
+                                <TableHead>Função</TableHead>
+                                <TableHead>Conexões</TableHead>
+                                <TableHead>Desde</TableHead>
+                                {canManageOrg && <TableHead className="w-[120px]">Ações</TableHead>}
                               </TableRow>
-                            );
-                          })}
-                        </TableBody>
-                      </Table>
-                    )}
-                  </CardContent>
-                </Card>
+                            </TableHeader>
+                            <TableBody>
+                              {members.map((member) => {
+                                const RoleIcon = roleLabels[member.role].icon;
+                                const assignedConns = member.assigned_connections || [];
+                                return (
+                                  <TableRow key={member.id}>
+                                    <TableCell>
+                                      <div className="flex items-center gap-3">
+                                        <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center">
+                                          <User className="h-4 w-4" />
+                                        </div>
+                                        <div>
+                                          <p className="font-medium">{member.name}</p>
+                                          <p className="text-sm text-muted-foreground">{member.email}</p>
+                                        </div>
+                                      </div>
+                                    </TableCell>
+                                    <TableCell>
+                                      <Badge variant="secondary" className={`${roleLabels[member.role].color} text-white`}>
+                                        <RoleIcon className="h-3 w-3 mr-1" />
+                                        {roleLabels[member.role].label}
+                                      </Badge>
+                                    </TableCell>
+                                    <TableCell>
+                                      {assignedConns.length === 0 ? (
+                                        <span className="text-muted-foreground text-sm">Todas</span>
+                                      ) : (
+                                        <div className="flex flex-wrap gap-1">
+                                          {assignedConns.slice(0, 2).map((c) => (
+                                            <Badge key={c.id} variant="outline" className="text-xs">
+                                              {c.name}
+                                            </Badge>
+                                          ))}
+                                          {assignedConns.length > 2 && (
+                                            <Badge variant="outline" className="text-xs">
+                                              +{assignedConns.length - 2}
+                                            </Badge>
+                                          )}
+                                        </div>
+                                      )}
+                                    </TableCell>
+                                    <TableCell className="text-muted-foreground">
+                                      {new Date(member.created_at).toLocaleDateString('pt-BR')}
+                                    </TableCell>
+                                    {canManageOrg && (
+                                      <TableCell>
+                                        <div className="flex items-center gap-1">
+                                          {member.role !== 'owner' && (
+                                            <>
+                                              <Button 
+                                                variant="ghost" 
+                                                size="icon"
+                                                onClick={() => handleOpenEditMember(member)}
+                                                title="Gerenciar conexões"
+                                              >
+                                                <Settings className="h-4 w-4" />
+                                              </Button>
+                                              <Button 
+                                                variant="ghost" 
+                                                size="icon"
+                                                onClick={() => handleOpenEditPassword(member)}
+                                                title="Alterar senha"
+                                              >
+                                                <KeyRound className="h-4 w-4" />
+                                              </Button>
+                                              <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                  <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
+                                                    <Trash2 className="h-4 w-4" />
+                                                  </Button>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                  <AlertDialogHeader>
+                                                    <AlertDialogTitle>Remover membro?</AlertDialogTitle>
+                                                    <AlertDialogDescription>
+                                                      {member.name} será removido da organização e perderá acesso a todos os recursos.
+                                                    </AlertDialogDescription>
+                                                  </AlertDialogHeader>
+                                                  <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                    <AlertDialogAction
+                                                      onClick={() => handleRemoveMember(member.user_id)}
+                                                      className="bg-destructive hover:bg-destructive/90"
+                                                    >
+                                                      Remover
+                                                    </AlertDialogAction>
+                                                  </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                              </AlertDialog>
+                                            </>
+                                          )}
+                                        </div>
+                                      </TableCell>
+                                    )}
+                                  </TableRow>
+                                );
+                              })}
+                            </TableBody>
+                          </Table>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
+                  {/* Settings Tab */}
+                  <TabsContent value="settings">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Settings className="h-5 w-5" />
+                          Módulos Habilitados
+                        </CardTitle>
+                        <CardDescription>
+                          Ative ou desative funcionalidades para esta organização
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-6">
+                        {/* Campaigns */}
+                        <div className="flex items-center justify-between rounded-lg border p-4">
+                          <div className="flex items-center gap-4">
+                            <div className="h-10 w-10 rounded-lg bg-orange-500/10 flex items-center justify-center">
+                              <Megaphone className="h-5 w-5 text-orange-500" />
+                            </div>
+                            <div>
+                              <p className="font-medium">Campanhas</p>
+                              <p className="text-sm text-muted-foreground">
+                                Disparo em massa para listas de contatos
+                              </p>
+                            </div>
+                          </div>
+                          <Switch
+                            checked={modulesEnabled.campaigns}
+                            onCheckedChange={(checked) => setModulesEnabled(prev => ({ ...prev, campaigns: checked }))}
+                            disabled={!canManageOrg}
+                          />
+                        </div>
+
+                        {/* Billing (Asaas) */}
+                        <div className="flex items-center justify-between rounded-lg border p-4">
+                          <div className="flex items-center gap-4">
+                            <div className="h-10 w-10 rounded-lg bg-green-500/10 flex items-center justify-center">
+                              <Receipt className="h-5 w-5 text-green-500" />
+                            </div>
+                            <div>
+                              <p className="font-medium">Cobranças (Asaas)</p>
+                              <p className="text-sm text-muted-foreground">
+                                Integração com Asaas para lembretes de pagamento
+                              </p>
+                            </div>
+                          </div>
+                          <Switch
+                            checked={modulesEnabled.billing}
+                            onCheckedChange={(checked) => setModulesEnabled(prev => ({ ...prev, billing: checked }))}
+                            disabled={!canManageOrg}
+                          />
+                        </div>
+
+                        {/* Groups */}
+                        <div className="flex items-center justify-between rounded-lg border p-4">
+                          <div className="flex items-center gap-4">
+                            <div className="h-10 w-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                              <UsersRound className="h-5 w-5 text-blue-500" />
+                            </div>
+                            <div>
+                              <p className="font-medium">Grupos WhatsApp</p>
+                              <p className="text-sm text-muted-foreground">
+                                Atendimento e gestão de grupos
+                              </p>
+                            </div>
+                          </div>
+                          <Switch
+                            checked={modulesEnabled.groups}
+                            onCheckedChange={(checked) => setModulesEnabled(prev => ({ ...prev, groups: checked }))}
+                            disabled={!canManageOrg}
+                          />
+                        </div>
+
+                        {/* Scheduled Messages */}
+                        <div className="flex items-center justify-between rounded-lg border p-4">
+                          <div className="flex items-center gap-4">
+                            <div className="h-10 w-10 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                              <CalendarClock className="h-5 w-5 text-purple-500" />
+                            </div>
+                            <div>
+                              <p className="font-medium">Mensagens Agendadas</p>
+                              <p className="text-sm text-muted-foreground">
+                                Agendar envio de mensagens para data/hora específica
+                              </p>
+                            </div>
+                          </div>
+                          <Switch
+                            checked={modulesEnabled.scheduled_messages}
+                            onCheckedChange={(checked) => setModulesEnabled(prev => ({ ...prev, scheduled_messages: checked }))}
+                            disabled={!canManageOrg}
+                          />
+                        </div>
+
+                        {/* Save Button */}
+                        {canManageOrg && (
+                          <div className="flex justify-end pt-4">
+                            <Button onClick={handleSaveModules} disabled={savingModules}>
+                              {savingModules && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                              Salvar Configurações
+                            </Button>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+                </Tabs>
               </>
             ) : (
               <Card>
