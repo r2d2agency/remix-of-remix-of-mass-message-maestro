@@ -583,13 +583,14 @@ router.post('/conversations/:id/release', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'Conversa não encontrada' });
     }
 
-    // Update to waiting status
+    // Update to waiting status and unarchive if archived
     const result = await query(
       `UPDATE conversations 
        SET attendance_status = 'waiting', 
            accepted_at = NULL, 
            accepted_by = NULL,
            assigned_to = NULL,
+           is_archived = false,
            updated_at = NOW() 
        WHERE id = $1 
        RETURNING *`,
