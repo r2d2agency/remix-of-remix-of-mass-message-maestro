@@ -76,6 +76,8 @@ import {
   CalendarClock,
   Users,
   Undo2,
+  AlertCircle,
+  RotateCcw,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -131,7 +133,9 @@ const messageStatusIcon = (status: string) => {
     case 'read':
       return <CheckCheck className="h-3 w-3 text-blue-500" />;
     case 'pending':
-      return <Clock className="h-3 w-3 text-muted-foreground" />;
+      return <Clock className="h-3 w-3 text-muted-foreground animate-pulse" />;
+    case 'failed':
+      return <AlertCircle className="h-3 w-3 text-destructive" />;
     default:
       return null;
   }
@@ -932,7 +936,8 @@ export function ChatArea({
                     : "message-received",
                   msg.message_type === 'system' && "!bg-accent !text-accent-foreground text-center max-w-full text-xs italic",
                   isSearchResult && "ring-2 ring-yellow-400",
-                  isCurrentResult && "ring-2 ring-yellow-500 bg-yellow-50 dark:bg-yellow-900/30"
+                  isCurrentResult && "ring-2 ring-yellow-500 bg-yellow-50 dark:bg-yellow-900/30",
+                  msg.status === 'failed' && "ring-2 ring-destructive bg-destructive/10"
                 )}
               >
                 {/* Sender name for group messages */}
@@ -1089,6 +1094,37 @@ export function ChatArea({
                   </span>
                   {msg.from_me && messageStatusIcon(msg.status)}
                 </div>
+
+                {/* Failed message indicator with retry */}
+                {msg.status === 'failed' && msg.from_me && (
+                  <div className="flex items-center justify-end gap-2 mt-2 pt-2 border-t border-destructive/30">
+                    <span className="text-[10px] text-destructive font-medium">
+                      Falha no envio
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-5 px-2 text-[10px] text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={async () => {
+                        try {
+                          await onSendMessage(
+                            msg.content || '',
+                            msg.message_type,
+                            msg.media_url || undefined,
+                            msg.quoted_message_id || undefined,
+                            msg.media_mimetype || undefined
+                          );
+                          toast.success("Mensagem reenviada!");
+                        } catch (error) {
+                          toast.error("Falha ao reenviar");
+                        }
+                      }}
+                    >
+                      <RotateCcw className="h-3 w-3 mr-1" />
+                      Reenviar
+                    </Button>
+                  </div>
+                )}
               </div>
 
               {/* Reply button - right side for sent messages */}
