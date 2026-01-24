@@ -170,12 +170,13 @@ router.get('/me', async (req, res) => {
       return res.status(404).json({ error: 'Usuário não encontrado' });
     }
 
-    // Role is stored in organization_members (multi-tenant)
-    const roleResult = await query(
-      `SELECT role
-       FROM organization_members
-       WHERE user_id = $1
-       ORDER BY CASE role
+    // Role and organization info (multi-tenant)
+    const orgResult = await query(
+      `SELECT om.role, o.id as organization_id, o.modules_enabled
+       FROM organization_members om
+       JOIN organizations o ON o.id = om.organization_id
+       WHERE om.user_id = $1
+       ORDER BY CASE om.role
          WHEN 'owner' THEN 1
          WHEN 'admin' THEN 2
          WHEN 'manager' THEN 3
@@ -186,9 +187,26 @@ router.get('/me', async (req, res) => {
       [decoded.userId]
     );
 
-    const role = roleResult.rows[0]?.role || null;
+    const role = orgResult.rows[0]?.role || null;
+    const organizationId = orgResult.rows[0]?.organization_id || null;
+    
+    // Default modules if null
+    const defaultModules = {
+      campaigns: true,
+      billing: true,
+      groups: true,
+      scheduled_messages: true,
+    };
+    const modulesEnabled = orgResult.rows[0]?.modules_enabled || defaultModules;
 
-    res.json({ user: { ...result.rows[0], role } });
+    res.json({ 
+      user: { 
+        ...result.rows[0], 
+        role,
+        organization_id: organizationId,
+        modules_enabled: modulesEnabled,
+      } 
+    });
   } catch (error) {
     res.status(401).json({ error: 'Token inválido' });
   }

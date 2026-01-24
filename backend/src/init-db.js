@@ -109,11 +109,19 @@ CREATE TABLE IF NOT EXISTS organizations (
 -- Add plan columns if not exists (for existing databases)
 DO $$ BEGIN
     ALTER TABLE organizations ADD COLUMN IF NOT EXISTS plan_id UUID REFERENCES plans(id) ON DELETE SET NULL;
+EXCEPTION WHEN duplicate_column THEN null; END $$;
+
+DO $$ BEGIN
     ALTER TABLE organizations ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP WITH TIME ZONE;
+EXCEPTION WHEN duplicate_column THEN null; END $$;
+
+DO $$ BEGIN
     ALTER TABLE organizations ADD COLUMN IF NOT EXISTS asaas_customer_id VARCHAR(100);
-EXCEPTION
-    WHEN duplicate_column THEN null;
-END $$;
+EXCEPTION WHEN duplicate_column THEN null; END $$;
+
+DO $$ BEGIN
+    ALTER TABLE organizations ADD COLUMN IF NOT EXISTS modules_enabled JSONB DEFAULT '{"campaigns": true, "billing": true, "groups": true, "scheduled_messages": true}'::jsonb;
+EXCEPTION WHEN duplicate_column THEN null; END $$;
 `;
 
 // ============================================
