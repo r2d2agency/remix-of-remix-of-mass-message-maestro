@@ -3,8 +3,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { Loader2, TrendingUp, CalendarIcon, Clock } from 'lucide-react';
+import { Loader2, TrendingUp, CalendarIcon, Clock, Smartphone } from 'lucide-react';
 import { api } from '@/lib/api';
 import { format, subDays, startOfDay, eachDayOfInterval, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -26,8 +27,15 @@ interface UserAvgTime {
   total_finished: number;
 }
 
+interface Connection {
+  id: string;
+  name: string;
+  status?: string;
+}
+
 interface AttendanceChartProps {
   className?: string;
+  connections?: Connection[];
 }
 
 const PRESETS = [
@@ -37,11 +45,12 @@ const PRESETS = [
   { label: '30 dias', days: 30 },
 ];
 
-export function AttendanceChart({ className }: AttendanceChartProps) {
+export function AttendanceChart({ className, connections = [] }: AttendanceChartProps) {
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: subDays(new Date(), 6),
     to: new Date(),
   });
+  const [selectedConnection, setSelectedConnection] = useState<string>('all');
   const [data, setData] = useState<AttendanceData[]>([]);
   const [userStats, setUserStats] = useState<UserAvgTime[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,7 +60,7 @@ export function AttendanceChart({ className }: AttendanceChartProps) {
     if (dateRange?.from) {
       loadData();
     }
-  }, [dateRange]);
+  }, [dateRange, selectedConnection]);
 
   const loadData = async () => {
     if (!dateRange?.from) return;
@@ -62,6 +71,15 @@ export function AttendanceChart({ className }: AttendanceChartProps) {
       const startDate = dateRange.from;
       const days = differenceInDays(endDate, startDate) + 1;
 
+      // Build query params
+      const params = new URLSearchParams({
+        days: String(days),
+        start_date: format(startDate, 'yyyy-MM-dd'),
+      });
+      if (selectedConnection !== 'all') {
+        params.append('connection_id', selectedConnection);
+      }
+
       // Get attendance stats per day from API
       const [statsResponse, avgTimeResponse] = await Promise.all([
         api<{
@@ -71,8 +89,8 @@ export function AttendanceChart({ className }: AttendanceChartProps) {
             attending: number;
             finished: number;
           }>;
-        }>(`/api/chat/conversations/attendance-stats?days=${days}&start_date=${format(startDate, 'yyyy-MM-dd')}`).catch(() => ({ daily_stats: [] })),
-        api<{ user_stats: UserAvgTime[] }>(`/api/chat/conversations/user-avg-time?days=${days}`).catch(() => ({ user_stats: [] })),
+        }>(`/api/chat/conversations/attendance-stats?${params.toString()}`).catch(() => ({ daily_stats: [] })),
+        api<{ user_stats: UserAvgTime[] }>(`/api/chat/conversations/user-avg-time?${params.toString()}`).catch(() => ({ user_stats: [] })),
       ]);
 
       // Create a map for quick lookup
@@ -161,7 +179,25 @@ export function AttendanceChart({ className }: AttendanceChartProps) {
           </div>
           
           {/* Period Selector */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Connection filter */}
+            {connections.length > 1 && (
+              <Select value={selectedConnection} onValueChange={setSelectedConnection}>
+                <SelectTrigger className="h-7 text-xs w-[130px]">
+                  <Smartphone className="h-3 w-3 mr-1" />
+                  <SelectValue placeholder="Conexão" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  {connections.map((conn) => (
+                    <SelectItem key={conn.id} value={conn.id}>
+                      {conn.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            
             {/* Preset buttons */}
             <div className="hidden sm:flex gap-1">
               {PRESETS.map((preset) => (

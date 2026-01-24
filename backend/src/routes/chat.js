@@ -133,7 +133,7 @@ router.get('/conversations/attendance-counts', authenticate, async (req, res) =>
 // Get daily attendance stats for charts
 router.get('/conversations/attendance-stats', authenticate, async (req, res) => {
   try {
-    const connectionIds = await getUserConnections(req.userId);
+    let connectionIds = await getUserConnections(req.userId);
     
     if (connectionIds.length === 0) {
       return res.json({ daily_stats: [] });
@@ -141,7 +141,12 @@ router.get('/conversations/attendance-stats', authenticate, async (req, res) => 
 
     const days = parseInt(req.query.days) || 7;
     const startDate = req.query.start_date || null;
-    const { is_group } = req.query;
+    const { is_group, connection_id } = req.query;
+
+    // Filter by specific connection if provided
+    if (connection_id && connectionIds.includes(connection_id)) {
+      connectionIds = [connection_id];
+    }
 
     let groupFilter = '';
     if (is_group === 'true') {
@@ -197,13 +202,19 @@ router.get('/conversations/attendance-stats', authenticate, async (req, res) => 
 // Get average attendance time per user
 router.get('/conversations/user-avg-time', authenticate, async (req, res) => {
   try {
-    const connectionIds = await getUserConnections(req.userId);
+    let connectionIds = await getUserConnections(req.userId);
     
     if (connectionIds.length === 0) {
       return res.json({ user_stats: [] });
     }
 
     const days = parseInt(req.query.days) || 7;
+    const { connection_id } = req.query;
+
+    // Filter by specific connection if provided
+    if (connection_id && connectionIds.includes(connection_id)) {
+      connectionIds = [connection_id];
+    }
 
     try {
       // Calculate average time from accepted_at to when status changed to finished
