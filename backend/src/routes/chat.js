@@ -130,6 +130,63 @@ router.get('/conversations/attendance-counts', authenticate, async (req, res) =>
   }
 });
 
+// Get daily attendance stats for charts
+router.get('/conversations/attendance-stats', authenticate, async (req, res) => {
+  try {
+    const connectionIds = await getUserConnections(req.userId);
+    
+    if (connectionIds.length === 0) {
+      return res.json({ daily_stats: [] });
+    }
+
+    const days = parseInt(req.query.days) || 7;
+    const { is_group } = req.query;
+
+    let groupFilter = '';
+    if (is_group === 'true') {
+      groupFilter = ` AND COALESCE(conv.is_group, false) = true`;
+    } else if (is_group === 'false') {
+      groupFilter = ` AND COALESCE(conv.is_group, false) = false`;
+    }
+
+    try {
+      // Get daily counts of accepted and finished conversations
+      const result = await query(`
+        SELECT 
+          DATE(conv.accepted_at) as date,
+          COUNT(*) FILTER (WHERE conv.accepted_at IS NOT NULL) as accepted,
+          COUNT(*) FILTER (WHERE conv.attendance_status = 'finished') as finished
+        FROM conversations conv
+        WHERE conv.connection_id = ANY($1)
+          AND conv.accepted_at IS NOT NULL
+          AND conv.accepted_at >= NOW() - INTERVAL '${days} days'
+          ${groupFilter}
+        GROUP BY DATE(conv.accepted_at)
+        ORDER BY date ASC
+      `, [connectionIds]);
+
+      res.json({
+        daily_stats: result.rows.map(row => ({
+          date: row.date,
+          accepted: parseInt(row.accepted || 0),
+          finished: parseInt(row.finished || 0)
+        }))
+      });
+    } catch (dbError) {
+      // Fallback if columns don't exist
+      const message = String(dbError?.message || '');
+      if (/accepted_at|attendance_status/i.test(message)) {
+        res.json({ daily_stats: [] });
+      } else {
+        throw dbError;
+      }
+    }
+  } catch (error) {
+    console.error('Get attendance stats error:', error);
+    res.status(500).json({ error: 'Erro ao buscar estatísticas' });
+  }
+});
+
 // Get conversations with unread messages only
 router.get('/conversations/unread', authenticate, async (req, res) => {
   try {
