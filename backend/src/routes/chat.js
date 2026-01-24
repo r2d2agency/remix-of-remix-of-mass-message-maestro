@@ -660,14 +660,13 @@ router.post('/conversations/:id/reopen', authenticate, async (req, res) => {
     }
 
     // Update to waiting status (back to queue for chatbot flow)
+    // Don't use finished_at/finished_by columns - may not exist yet
     const result = await query(
       `UPDATE conversations 
        SET attendance_status = 'waiting', 
            accepted_at = NULL, 
            accepted_by = NULL,
            assigned_to = NULL,
-           finished_at = NULL,
-           finished_by = NULL,
            is_archived = false,
            updated_at = NOW() 
        WHERE id = $1 

@@ -310,8 +310,8 @@ export function ConversationList({
           />
         </div>
 
-        {/* Attendance Status Tabs */}
-        <div className="flex gap-1 bg-muted/50 p-1 rounded-lg">
+        {/* Attendance Status Tabs - Icon only to save space */}
+        <div className="flex gap-0.5 bg-muted/50 p-0.5 rounded-lg">
           <button
             onClick={() => onFiltersChange({ ...filters, attendance_status: 'attending' })}
             className={cn(
@@ -320,9 +320,9 @@ export function ConversationList({
                 ? "bg-background shadow-sm text-foreground"
                 : "text-muted-foreground hover:text-foreground"
             )}
+            title="Atendendo"
           >
-            <CheckCircle className="h-3 w-3" />
-            <span className="hidden sm:inline">Atendendo</span>
+            <CheckCircle className="h-3.5 w-3.5 flex-shrink-0" />
             {attendanceCounts && attendanceCounts.attending > 0 && (
               <Badge variant="secondary" className="h-4 min-w-4 px-1 text-[10px] font-semibold">
                 {attendanceCounts.attending}
@@ -337,9 +337,9 @@ export function ConversationList({
                 ? "bg-background shadow-sm text-foreground"
                 : "text-muted-foreground hover:text-foreground"
             )}
+            title="Aguardando"
           >
-            <Clock className="h-3 w-3" />
-            <span className="hidden sm:inline">Aguardando</span>
+            <Clock className="h-3.5 w-3.5 flex-shrink-0" />
             {attendanceCounts && attendanceCounts.waiting > 0 && (
               <Badge variant="destructive" className="h-4 min-w-4 px-1 text-[10px] font-semibold animate-pulse">
                 {attendanceCounts.waiting}
@@ -354,9 +354,9 @@ export function ConversationList({
                 ? "bg-background shadow-sm text-foreground"
                 : "text-muted-foreground hover:text-foreground"
             )}
+            title="Finalizados"
           >
-            <CheckCheck className="h-3 w-3" />
-            <span className="hidden sm:inline">Finalizados</span>
+            <CheckCheck className="h-3.5 w-3.5 flex-shrink-0" />
             {attendanceCounts && attendanceCounts.finished > 0 && (
               <Badge variant="outline" className="h-4 min-w-4 px-1 text-[10px] font-semibold border-green-500 text-green-600">
                 {attendanceCounts.finished}
