@@ -36,11 +36,13 @@ import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
   Save, Plus, MessageSquare, List, FormInput, GitBranch, 
-  Zap, ArrowRightLeft, Sparkles, Square, Loader2, Trash2, X
+  Zap, ArrowRightLeft, Sparkles, Square, Loader2, Trash2, X,
+  Play, PanelRightOpen, PanelRightClose
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { nodeTypes, FlowNodeData } from './FlowNodes';
 import { useChatbots, Chatbot, ChatbotFlow } from '@/hooks/use-chatbots';
+import { FlowSimulator } from './FlowSimulator';
 
 interface FlowEditorDialogProps {
   open: boolean;
@@ -68,6 +70,7 @@ function FlowEditorContent({ chatbot, onClose }: { chatbot: Chatbot; onClose: ()
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showSimulator, setShowSimulator] = useState(false);
   
   // Node editing state
   const [editingNode, setEditingNode] = useState<Node<FlowNodeData> | null>(null);
@@ -380,7 +383,15 @@ function FlowEditorContent({ chatbot, onClose }: { chatbot: Chatbot; onClose: ()
             }}
           />
           <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
-          <Panel position="top-right">
+          <Panel position="top-right" className="flex gap-2">
+            <Button 
+              onClick={() => setShowSimulator(!showSimulator)} 
+              variant={showSimulator ? "secondary" : "outline"}
+              size="sm"
+            >
+              {showSimulator ? <PanelRightClose className="h-4 w-4 mr-2" /> : <Play className="h-4 w-4 mr-2" />}
+              {showSimulator ? "Fechar Teste" : "Testar Fluxo"}
+            </Button>
             <Button onClick={handleSave} disabled={saving} variant="gradient">
               {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
               Salvar Fluxo
@@ -388,6 +399,18 @@ function FlowEditorContent({ chatbot, onClose }: { chatbot: Chatbot; onClose: ()
           </Panel>
         </ReactFlow>
       </div>
+
+      {/* Simulator Panel */}
+      {showSimulator && (
+        <div className="w-96 border-l bg-background">
+          <FlowSimulator
+            nodes={nodes}
+            edges={edges}
+            chatbotName={chatbot.name}
+            welcomeMessage={chatbot.welcome_message || undefined}
+          />
+        </div>
+      )}
 
       {/* Node Editor Dialog */}
       <Dialog open={!!editingNode} onOpenChange={() => setEditingNode(null)}>
