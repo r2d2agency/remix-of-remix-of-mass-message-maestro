@@ -310,58 +310,64 @@ export function ConversationList({
           />
         </div>
 
-        {/* Attendance Status Tabs - Icon only to save space */}
-        <div className="flex gap-0.5 bg-muted/50 p-0.5 rounded-lg">
+        {/* Attendance Status Tabs - Icons with labels below */}
+        <div className="flex gap-1 bg-muted/50 p-1 rounded-lg">
           <button
             onClick={() => onFiltersChange({ ...filters, attendance_status: 'attending' })}
             className={cn(
-              "flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-md text-xs font-medium transition-colors",
+              "flex-1 flex flex-col items-center justify-center gap-0.5 px-2 py-2 rounded-md text-xs font-medium transition-colors",
               filters.attendance_status === 'attending'
                 ? "bg-background shadow-sm text-foreground"
                 : "text-muted-foreground hover:text-foreground"
             )}
-            title="Atendendo"
           >
-            <CheckCircle className="h-3.5 w-3.5 flex-shrink-0" />
-            {attendanceCounts && attendanceCounts.attending > 0 && (
-              <Badge variant="secondary" className="h-4 min-w-4 px-1 text-[10px] font-semibold">
-                {attendanceCounts.attending}
-              </Badge>
-            )}
+            <div className="relative">
+              <CheckCircle className="h-4 w-4" />
+              {attendanceCounts && attendanceCounts.attending > 0 && (
+                <Badge variant="secondary" className="absolute -top-2 -right-3 h-4 min-w-4 px-1 text-[9px] font-bold">
+                  {attendanceCounts.attending}
+                </Badge>
+              )}
+            </div>
+            <span className="text-[10px] mt-1">Atendendo</span>
           </button>
           <button
             onClick={() => onFiltersChange({ ...filters, attendance_status: 'waiting' })}
             className={cn(
-              "flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-md text-xs font-medium transition-colors",
+              "flex-1 flex flex-col items-center justify-center gap-0.5 px-2 py-2 rounded-md text-xs font-medium transition-colors",
               filters.attendance_status === 'waiting'
                 ? "bg-background shadow-sm text-foreground"
                 : "text-muted-foreground hover:text-foreground"
             )}
-            title="Aguardando"
           >
-            <Clock className="h-3.5 w-3.5 flex-shrink-0" />
-            {attendanceCounts && attendanceCounts.waiting > 0 && (
-              <Badge variant="destructive" className="h-4 min-w-4 px-1 text-[10px] font-semibold animate-pulse">
-                {attendanceCounts.waiting}
-              </Badge>
-            )}
+            <div className="relative">
+              <Clock className="h-4 w-4" />
+              {attendanceCounts && attendanceCounts.waiting > 0 && (
+                <Badge variant="destructive" className="absolute -top-2 -right-3 h-4 min-w-4 px-1 text-[9px] font-bold animate-pulse">
+                  {attendanceCounts.waiting}
+                </Badge>
+              )}
+            </div>
+            <span className="text-[10px] mt-1">Aguardando</span>
           </button>
           <button
             onClick={() => onFiltersChange({ ...filters, attendance_status: 'finished' })}
             className={cn(
-              "flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-md text-xs font-medium transition-colors",
+              "flex-1 flex flex-col items-center justify-center gap-0.5 px-2 py-2 rounded-md text-xs font-medium transition-colors",
               filters.attendance_status === 'finished'
                 ? "bg-background shadow-sm text-foreground"
                 : "text-muted-foreground hover:text-foreground"
             )}
-            title="Finalizados"
           >
-            <CheckCheck className="h-3.5 w-3.5 flex-shrink-0" />
-            {attendanceCounts && attendanceCounts.finished > 0 && (
-              <Badge variant="outline" className="h-4 min-w-4 px-1 text-[10px] font-semibold border-green-500 text-green-600">
-                {attendanceCounts.finished}
-              </Badge>
-            )}
+            <div className="relative">
+              <CheckCheck className="h-4 w-4" />
+              {attendanceCounts && attendanceCounts.finished > 0 && (
+                <Badge variant="outline" className="absolute -top-2 -right-3 h-4 min-w-4 px-1 text-[9px] font-bold border-green-500 text-green-600">
+                  {attendanceCounts.finished}
+                </Badge>
+              )}
+            </div>
+            <span className="text-[10px] mt-1">Finalizados</span>
           </button>
         </div>
 

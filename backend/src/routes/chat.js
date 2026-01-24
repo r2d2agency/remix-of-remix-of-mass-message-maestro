@@ -140,6 +140,7 @@ router.get('/conversations/attendance-stats', authenticate, async (req, res) => 
     }
 
     const days = parseInt(req.query.days) || 7;
+    const startDate = req.query.start_date || null;
     const { is_group } = req.query;
 
     let groupFilter = '';
@@ -150,25 +151,31 @@ router.get('/conversations/attendance-stats', authenticate, async (req, res) => 
     }
 
     try {
-      // Get daily counts of accepted and finished conversations
+      // Get daily counts per status
+      // Use created_at as fallback if accepted_at not available
+      const dateFilter = startDate 
+        ? `AND COALESCE(conv.accepted_at, conv.created_at) >= '${startDate}'::date`
+        : `AND COALESCE(conv.accepted_at, conv.created_at) >= NOW() - INTERVAL '${days} days'`;
+
       const result = await query(`
         SELECT 
-          DATE(conv.accepted_at) as date,
-          COUNT(*) FILTER (WHERE conv.accepted_at IS NOT NULL) as accepted,
+          DATE(COALESCE(conv.accepted_at, conv.created_at)) as date,
+          COUNT(*) FILTER (WHERE conv.attendance_status = 'waiting') as waiting,
+          COUNT(*) FILTER (WHERE conv.attendance_status = 'attending' OR conv.attendance_status IS NULL) as attending,
           COUNT(*) FILTER (WHERE conv.attendance_status = 'finished') as finished
         FROM conversations conv
         WHERE conv.connection_id = ANY($1)
-          AND conv.accepted_at IS NOT NULL
-          AND conv.accepted_at >= NOW() - INTERVAL '${days} days'
+          ${dateFilter}
           ${groupFilter}
-        GROUP BY DATE(conv.accepted_at)
+        GROUP BY DATE(COALESCE(conv.accepted_at, conv.created_at))
         ORDER BY date ASC
       `, [connectionIds]);
 
       res.json({
         daily_stats: result.rows.map(row => ({
           date: row.date,
-          accepted: parseInt(row.accepted || 0),
+          waiting: parseInt(row.waiting || 0),
+          attending: parseInt(row.attending || 0),
           finished: parseInt(row.finished || 0)
         }))
       });
@@ -184,6 +191,64 @@ router.get('/conversations/attendance-stats', authenticate, async (req, res) => 
   } catch (error) {
     console.error('Get attendance stats error:', error);
     res.status(500).json({ error: 'Erro ao buscar estatísticas' });
+  }
+});
+
+// Get average attendance time per user
+router.get('/conversations/user-avg-time', authenticate, async (req, res) => {
+  try {
+    const connectionIds = await getUserConnections(req.userId);
+    
+    if (connectionIds.length === 0) {
+      return res.json({ user_stats: [] });
+    }
+
+    const days = parseInt(req.query.days) || 7;
+
+    try {
+      // Calculate average time from accepted_at to when status changed to finished
+      // Uses updated_at as proxy for finish time if finished_at column doesn't exist
+      const result = await query(`
+        SELECT 
+          u.id as user_id,
+          u.name as user_name,
+          COUNT(*) as total_finished,
+          COALESCE(
+            AVG(
+              EXTRACT(EPOCH FROM (conv.updated_at - conv.accepted_at)) / 60
+            ),
+            0
+          ) as avg_minutes
+        FROM conversations conv
+        JOIN users u ON u.id = conv.accepted_by
+        WHERE conv.connection_id = ANY($1)
+          AND conv.attendance_status = 'finished'
+          AND conv.accepted_at IS NOT NULL
+          AND conv.accepted_at >= NOW() - INTERVAL '${days} days'
+        GROUP BY u.id, u.name
+        ORDER BY avg_minutes ASC
+      `, [connectionIds]);
+
+      res.json({
+        user_stats: result.rows.map(row => ({
+          user_id: row.user_id,
+          user_name: row.user_name,
+          total_finished: parseInt(row.total_finished || 0),
+          avg_minutes: parseFloat(row.avg_minutes || 0)
+        }))
+      });
+    } catch (dbError) {
+      // Fallback if columns don't exist
+      const message = String(dbError?.message || '');
+      if (/accepted_at|attendance_status|accepted_by/i.test(message)) {
+        res.json({ user_stats: [] });
+      } else {
+        throw dbError;
+      }
+    }
+  } catch (error) {
+    console.error('Get user avg time error:', error);
+    res.status(500).json({ error: 'Erro ao buscar tempo médio' });
   }
 });
 
