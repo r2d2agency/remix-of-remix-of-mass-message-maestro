@@ -2,6 +2,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
+  Bot,
   Building2,
   ChevronDown,
   LayoutDashboard,
@@ -47,6 +48,7 @@ const navSections: NavSection[] = [
     icon: MessagesSquare,
     items: [
       { name: "Chat", href: "/chat", icon: MessagesSquare },
+      { name: "Chatbots", href: "/chatbots", icon: Bot },
       { name: "Agendamentos", href: "/agendamentos", icon: Bell, moduleKey: 'scheduled_messages' },
       { name: "Tags", href: "/tags", icon: Receipt },
       { name: "Contatos", href: "/contatos-chat", icon: Users },

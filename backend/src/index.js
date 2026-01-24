@@ -18,6 +18,7 @@ import evolutionRoutes from './routes/evolution.js';
 import wapiRoutes from './routes/wapi.js';
 import chatRoutes from './routes/chat.js';
 import quickRepliesRoutes from './routes/quick-replies.js';
+import chatbotsRoutes from './routes/chatbots.js';
 import { initDatabase } from './init-db.js';
 import { executeNotifications } from './scheduler.js';
 import { executeCampaignMessages } from './campaign-scheduler.js';
@@ -144,6 +145,7 @@ app.use('/api/evolution', evolutionRoutes);
 app.use('/api/wapi', wapiRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/quick-replies', quickRepliesRoutes);
+app.use('/api/chatbots', chatbotsRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
