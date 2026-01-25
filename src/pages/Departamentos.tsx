@@ -33,13 +33,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface OrgUser {
   id: string;
@@ -87,6 +81,8 @@ const Departamentos = () => {
   const [membersOpen, setMembersOpen] = useState(false);
   const [membersDepartment, setMembersDepartment] = useState<Department | null>(null);
   const [members, setMembers] = useState<DepartmentMember[]>([]);
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [addingMembers, setAddingMembers] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [departmentToDelete, setDepartmentToDelete] = useState<Department | null>(null);
   
@@ -221,21 +217,42 @@ const Departamentos = () => {
     setMembersDepartment(dept);
     setLoadingMembers(true);
     setMembersOpen(true);
+    setSelectedUserIds([]);
     
     const data = await getMembers(dept.id);
     setMembers(data);
     setLoadingMembers(false);
   };
 
-  const handleAddMember = async (userId: string) => {
-    if (!membersDepartment) return;
+  const toggleUserSelection = (userId: string) => {
+    setSelectedUserIds(prev => 
+      prev.includes(userId) 
+        ? prev.filter(id => id !== userId)
+        : [...prev, userId]
+    );
+  };
+
+  const handleAddSelectedMembers = async () => {
+    if (!membersDepartment || selectedUserIds.length === 0) return;
     
-    const result = await addMember(membersDepartment.id, userId);
-    if (result) {
-      setMembers(prev => [...prev, result]);
-      toast.success('Membro adicionado');
+    setAddingMembers(true);
+    let addedCount = 0;
+    
+    for (const userId of selectedUserIds) {
+      const result = await addMember(membersDepartment.id, userId);
+      if (result) {
+        setMembers(prev => [...prev, result]);
+        addedCount++;
+      }
+    }
+    
+    if (addedCount > 0) {
+      toast.success(`${addedCount} membro(s) adicionado(s)`);
       loadDepartments();
     }
+    
+    setSelectedUserIds([]);
+    setAddingMembers(false);
   };
 
   const handleRemoveMember = async (userId: string) => {
@@ -667,28 +684,51 @@ const Departamentos = () => {
             </div>
           ) : (
             <div className="space-y-4">
-              {/* Add Member */}
+              {/* Add Members */}
               {availableUsers.length > 0 && (
-                <div className="space-y-2">
-                  <Label>Adicionar membro</Label>
-                  <Select onValueChange={handleAddMember}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione um usuário..." />
-                    </SelectTrigger>
-                    <SelectContent>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label>Adicionar membros</Label>
+                    {selectedUserIds.length > 0 && (
+                      <Button 
+                        size="sm" 
+                        onClick={handleAddSelectedMembers}
+                        disabled={addingMembers}
+                        variant="gradient"
+                      >
+                        {addingMembers ? (
+                          <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                        ) : (
+                          <UserPlus className="h-4 w-4 mr-1" />
+                        )}
+                        Adicionar ({selectedUserIds.length})
+                      </Button>
+                    )}
+                  </div>
+                  <ScrollArea className="h-[150px] border rounded-lg p-2">
+                    <div className="space-y-1">
                       {availableUsers.map(user => (
-                        <SelectItem key={user.id} value={user.id}>
-                          <div className="flex items-center gap-2">
-                            <Avatar className="h-6 w-6">
-                              <AvatarImage src={user.avatar_url || undefined} />
-                              <AvatarFallback>{user.name?.charAt(0)}</AvatarFallback>
-                            </Avatar>
-                            {user.name}
+                        <div 
+                          key={user.id}
+                          className="flex items-center gap-3 p-2 rounded-md hover:bg-muted cursor-pointer"
+                          onClick={() => toggleUserSelection(user.id)}
+                        >
+                          <Checkbox 
+                            checked={selectedUserIds.includes(user.id)}
+                            onCheckedChange={() => toggleUserSelection(user.id)}
+                          />
+                          <Avatar className="h-7 w-7">
+                            <AvatarImage src={user.avatar_url || undefined} />
+                            <AvatarFallback>{user.name?.charAt(0)}</AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{user.name}</p>
+                            <p className="text-xs text-muted-foreground truncate">{user.email}</p>
                           </div>
-                        </SelectItem>
+                        </div>
                       ))}
-                    </SelectContent>
-                  </Select>
+                    </div>
+                  </ScrollArea>
                 </div>
               )}
 
