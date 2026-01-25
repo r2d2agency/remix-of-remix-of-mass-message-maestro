@@ -41,7 +41,7 @@ router.get('/', async (req, res) => {
       `SELECT 
         c.*,
         conn.name as connection_name,
-        conn.phone as connection_phone,
+         conn.phone_number as connection_phone,
         u.name as created_by_name
        FROM chatbots c
        LEFT JOIN connections conn ON c.connection_id = conn.id
