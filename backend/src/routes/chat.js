@@ -75,6 +75,17 @@ router.get('/conversations/attendance-counts', authenticate, async (req, res) =>
 
     const { is_group } = req.query;
 
+    // Get user's role and department membership for visibility
+    const userOrg = await getUserOrganization(req.userId);
+    const isAdminOrSupervisor = userOrg && ['owner', 'admin', 'manager'].includes(userOrg.role);
+    
+    const userDeptsResult = await query(
+      `SELECT department_id, role FROM department_members WHERE user_id = $1`,
+      [req.userId]
+    );
+    const userDepartmentIds = userDeptsResult.rows.map(r => r.department_id);
+    const isSupervisorInAnyDept = userDeptsResult.rows.some(r => r.role === 'supervisor');
+
     let groupFilter = '';
     if (is_group === 'true') {
       groupFilter = ` AND COALESCE(conv.is_group, false) = true`;
@@ -82,11 +93,31 @@ router.get('/conversations/attendance-counts', authenticate, async (req, res) =>
       groupFilter = ` AND COALESCE(conv.is_group, false) = false`;
     }
 
-    // Try to get counts with attendance_status column
-    // NULL = legacy (counts as attending for backward compat)
-    // 'waiting' = new queue system
-    // 'attending' = accepted/in progress
-    // 'finished' = completed/finalized
+    // Build visibility filter based on user role
+    let visibilityFilter = '';
+    const params = [connectionIds];
+    let paramIndex = 2;
+
+    if (!isAdminOrSupervisor && !isSupervisorInAnyDept) {
+      if (userDepartmentIds.length > 0) {
+        visibilityFilter = ` AND (
+          conv.assigned_to = $${paramIndex}
+          OR conv.department_id = ANY($${paramIndex + 1}::uuid[])
+          OR (conv.department_id IS NULL AND conv.attendance_status = 'waiting')
+        )`;
+        params.push(req.userId);
+        params.push(userDepartmentIds);
+        paramIndex += 2;
+      } else {
+        visibilityFilter = ` AND (
+          conv.assigned_to = $${paramIndex}
+          OR (conv.department_id IS NULL AND conv.attendance_status = 'waiting')
+        )`;
+        params.push(req.userId);
+        paramIndex++;
+      }
+    }
+
     try {
       const result = await query(`
         SELECT 
@@ -98,7 +129,8 @@ router.get('/conversations/attendance-counts', authenticate, async (req, res) =>
           AND conv.is_archived = false
           AND EXISTS (SELECT 1 FROM chat_messages cm WHERE cm.conversation_id = conv.id)
           ${groupFilter}
-      `, [connectionIds]);
+          ${visibilityFilter}
+      `, params);
 
       res.json({
         waiting: parseInt(result.rows[0]?.waiting || 0),
@@ -106,7 +138,6 @@ router.get('/conversations/attendance-counts', authenticate, async (req, res) =>
         finished: parseInt(result.rows[0]?.finished || 0)
       });
     } catch (dbError) {
-      // Fallback if attendance_status column doesn't exist
       const message = String(dbError?.message || '');
       if (/attendance_status/i.test(message)) {
         const result = await query(`
@@ -367,24 +398,24 @@ router.get('/conversations', authenticate, async (req, res) => {
 
     const { search, tag, assigned, archived, connection, includeEmpty, is_group, attendance_status, department } = req.query;
 
-    // Get user's departments to filter
-    let userDepartmentIds = [];
-    if (department && department !== 'all') {
-      // Check if user belongs to the specified department
-      const deptCheck = await query(
-        `SELECT department_id FROM department_members WHERE user_id = $1 AND department_id = $2`,
-        [req.userId, department]
-      );
-      if (deptCheck.rows.length > 0) {
-        userDepartmentIds = [department];
-      }
-    } else if (department === 'my') {
-      // Get all departments the user belongs to
-      const userDepts = await query(
-        `SELECT department_id FROM department_members WHERE user_id = $1`,
-        [req.userId]
-      );
-      userDepartmentIds = userDepts.rows.map(r => r.department_id);
+    // Get user's role and department membership
+    const userOrg = await getUserOrganization(req.userId);
+    const isAdminOrSupervisor = userOrg && ['owner', 'admin', 'manager'].includes(userOrg.role);
+    
+    // Get all departments the user belongs to
+    const userDeptsResult = await query(
+      `SELECT department_id, role FROM department_members WHERE user_id = $1`,
+      [req.userId]
+    );
+    const userDepartmentIds = userDeptsResult.rows.map(r => r.department_id);
+    const isSupervisorInAnyDept = userDeptsResult.rows.some(r => r.role === 'supervisor');
+
+    // Determine which department(s) to filter by
+    let filterDepartmentIds = null;
+    if (department === 'my') {
+      filterDepartmentIds = userDepartmentIds;
+    } else if (department && department !== 'all') {
+      filterDepartmentIds = [department];
     }
 
     const buildQuery = (supportsAttendance = true, supportsDepartment = true) => {
@@ -427,7 +458,6 @@ router.get('/conversations', authenticate, async (req, res) => {
       } else if (is_group === 'false') {
         sql += ` AND COALESCE(conv.is_group, false) = false`;
       }
-      // If is_group is not specified, show all (for backward compatibility)
 
       // Filter by archived status
       if (archived === 'true') {
@@ -473,26 +503,54 @@ router.get('/conversations', authenticate, async (req, res) => {
         paramIndex++;
       }
 
-      // Filter by attendance status (waiting/attending/finished)
-      // Note: NULL = legacy (show in attending for backward compat), 'waiting' = in queue, 'attending' = accepted, 'finished' = completed
+      // Filter by attendance status
       if (supportsAttendance) {
         if (attendance_status === 'waiting') {
-          // Only show explicit 'waiting' status (new queue system)
           sql += ` AND conv.attendance_status = 'waiting'`;
         } else if (attendance_status === 'attending') {
-          // Show 'attending' + NULL (legacy conversations before queue system)
           sql += ` AND (conv.attendance_status = 'attending' OR conv.attendance_status IS NULL)`;
         } else if (attendance_status === 'finished') {
-          // Only show explicit 'finished' status (completed conversations)
           sql += ` AND conv.attendance_status = 'finished'`;
         }
-      // If no filter, show all
       }
 
-      // Filter by department
-      if (supportsDepartment && userDepartmentIds.length > 0) {
+      // ========================================
+      // DEPARTMENT-BASED VISIBILITY FILTER
+      // ========================================
+      // Logic:
+      // 1. If assigned_to = current user -> can see (my conversation)
+      // 2. If department_id is in user's departments -> can see
+      // 3. If department_id IS NULL AND attendance_status = 'waiting' -> can see (general queue)
+      // 4. If department_id IS NULL AND attendance_status != 'waiting' -> only admin/supervisor can see
+      // 5. Admin/Supervisor/Owner can see everything
+      
+      if (supportsDepartment && !isAdminOrSupervisor && !isSupervisorInAnyDept) {
+        // Non-admin users: apply visibility restrictions
+        if (userDepartmentIds.length > 0) {
+          // User has departments: can see their department conversations + assigned to them + waiting without department
+          sql += ` AND (
+            conv.assigned_to = $${paramIndex}
+            OR conv.department_id = ANY($${paramIndex + 1}::uuid[])
+            OR (conv.department_id IS NULL AND conv.attendance_status = 'waiting')
+          )`;
+          params.push(req.userId);
+          params.push(userDepartmentIds);
+          paramIndex += 2;
+        } else {
+          // User has no departments: can only see assigned to them + waiting without department
+          sql += ` AND (
+            conv.assigned_to = $${paramIndex}
+            OR (conv.department_id IS NULL AND conv.attendance_status = 'waiting')
+          )`;
+          params.push(req.userId);
+          paramIndex++;
+        }
+      }
+
+      // Additional filter by specific department (when user explicitly selects one)
+      if (supportsDepartment && filterDepartmentIds && filterDepartmentIds.length > 0) {
         sql += ` AND conv.department_id = ANY($${paramIndex}::uuid[])`;
-        params.push(userDepartmentIds);
+        params.push(filterDepartmentIds);
         paramIndex++;
       }
 
@@ -507,14 +565,11 @@ router.get('/conversations', authenticate, async (req, res) => {
       const { sql, params } = buildQuery(true, true);
       result = await query(sql, params);
     } catch (error) {
-      // Backward compatible fallback when DB migration wasn't applied yet.
-      // Common failures: missing columns attendance_status / accepted_by / accepted_at / department_id.
       const message = String(error?.message || '');
       const missingAttendanceColumns = /attendance_status|accepted_by|accepted_at/i.test(message);
       const missingDepartmentColumn = /department_id/i.test(message);
       
       if (missingDepartmentColumn) {
-        // Try without department filter
         const { sql, params } = buildQuery(true, false);
         result = await query(sql, params);
       } else if (missingAttendanceColumns) {
