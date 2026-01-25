@@ -6,6 +6,17 @@ const router = Router();
 
 router.use(authenticate);
 
+// Resiliência: se o schema de departamentos ainda não foi criado/propagado,
+// não derrubar o app com 500 em endpoints de listagem usados no UI.
+function isDepartmentsSchemaMissing(error) {
+  const code = error?.code;
+  if (!code) return false;
+  // 42P01 = undefined_table, 42703 = undefined_column
+  if (!['42P01', '42703'].includes(code)) return false;
+  const msg = String(error?.message || '');
+  return /\bdepartments\b|\bdepartment_members\b|\bdepartment_id\b/i.test(msg);
+}
+
 // Helper para obter organização do usuário
 async function getUserOrganization(userId) {
   const result = await query(
@@ -51,6 +62,10 @@ router.get('/', async (req, res) => {
 
     res.json(result.rows);
   } catch (error) {
+    if (isDepartmentsSchemaMissing(error)) {
+      console.warn('Schema de departamentos ausente; retornando lista vazia:', error.message);
+      return res.json([]);
+    }
     console.error('Erro ao listar departamentos:', error);
     res.status(500).json({ error: 'Erro ao listar departamentos' });
   }
@@ -428,6 +443,10 @@ router.get('/user/my-departments', async (req, res) => {
 
     res.json(result.rows);
   } catch (error) {
+    if (isDepartmentsSchemaMissing(error)) {
+      console.warn('Schema de departamentos ausente (my-departments); retornando lista vazia:', error.message);
+      return res.json([]);
+    }
     console.error('Erro ao listar meus departamentos:', error);
     res.status(500).json({ error: 'Erro ao listar departamentos' });
   }
