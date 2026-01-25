@@ -537,14 +537,14 @@ export default function Admin() {
                     Novo Plano
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-lg">
-                  <DialogHeader>
+                <DialogContent className="sm:max-w-lg max-h-[90vh] flex flex-col">
+                  <DialogHeader className="shrink-0">
                     <DialogTitle>Criar Plano</DialogTitle>
                     <DialogDescription>
                       Configure os limites e recursos do plano
                     </DialogDescription>
                   </DialogHeader>
-                  <div className="grid gap-4 py-4">
+                  <div className="grid gap-4 py-4 overflow-y-auto flex-1 pr-2">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label>Nome *</Label>
@@ -1281,12 +1281,12 @@ export default function Admin() {
 
       {/* Edit Plan Dialog */}
       <Dialog open={editPlanDialogOpen} onOpenChange={setEditPlanDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] flex flex-col">
+          <DialogHeader className="shrink-0">
             <DialogTitle>Editar Plano</DialogTitle>
           </DialogHeader>
           {editingPlan && (
-            <div className="grid gap-4 py-4">
+            <div className="grid gap-4 py-4 overflow-y-auto flex-1 pr-2">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Nome</Label>

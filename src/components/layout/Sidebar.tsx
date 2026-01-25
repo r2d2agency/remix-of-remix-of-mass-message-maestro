@@ -5,6 +5,7 @@ import {
   Bot,
   Building2,
   ChevronDown,
+  GitBranch,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -49,6 +50,7 @@ const navSections: NavSection[] = [
     items: [
       { name: "Chat", href: "/chat", icon: MessagesSquare },
       { name: "Chatbots", href: "/chatbots", icon: Bot, moduleKey: 'chatbots' },
+      { name: "Fluxos", href: "/fluxos", icon: GitBranch, moduleKey: 'chatbots' },
       { name: "Departamentos", href: "/departamentos", icon: Users },
       { name: "Agendamentos", href: "/agendamentos", icon: Bell, moduleKey: 'scheduled_messages' },
       { name: "Tags", href: "/tags", icon: Receipt },
