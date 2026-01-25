@@ -1214,24 +1214,21 @@ CREATE TABLE IF NOT EXISTS departments (
 
   name VARCHAR(100) NOT NULL,
   description TEXT,
-  color VARCHAR(7) DEFAULT '#6366f1', -- Cor hex para identificação visual
-  icon VARCHAR(50) DEFAULT 'users', -- Nome do ícone lucide
+  color VARCHAR(7) DEFAULT '#6366f1',
+  icon VARCHAR(50) DEFAULT 'users',
 
   is_active BOOLEAN DEFAULT true,
 
-  -- Configurações de atendimento
-  max_concurrent_chats INTEGER DEFAULT 5, -- Máximo de atendimentos simultâneos por agente
-  auto_assign BOOLEAN DEFAULT false, -- Atribuição automática de chats
+  max_concurrent_chats INTEGER DEFAULT 5,
+  auto_assign BOOLEAN DEFAULT false,
 
-  -- Horário de funcionamento do departamento
   business_hours_enabled BOOLEAN DEFAULT false,
   business_hours_start TIME DEFAULT '08:00',
   business_hours_end TIME DEFAULT '18:00',
   business_days INTEGER[] DEFAULT ARRAY[1,2,3,4,5],
 
-  -- Mensagens automáticas
-  welcome_message TEXT, -- Mensagem ao entrar na fila
-  offline_message TEXT, -- Mensagem fora do horário
+  welcome_message TEXT,
+  offline_message TEXT,
   queue_message TEXT DEFAULT 'Você está na fila de espera. Em breve um atendente irá te atender.',
 
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -1250,10 +1247,8 @@ CREATE TABLE IF NOT EXISTS department_members (
   department_id UUID NOT NULL REFERENCES departments(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 
-  -- Papel do usuário no departamento
   role VARCHAR(20) DEFAULT 'agent' CHECK (role IN ('supervisor', 'agent')),
 
-  -- Status de disponibilidade
   is_available BOOLEAN DEFAULT true,
   current_chats INTEGER DEFAULT 0,
 
@@ -1266,16 +1261,6 @@ CREATE TABLE IF NOT EXISTS department_members (
 CREATE INDEX IF NOT EXISTS idx_department_members_department ON department_members(department_id);
 CREATE INDEX IF NOT EXISTS idx_department_members_user ON department_members(user_id);
 CREATE INDEX IF NOT EXISTS idx_department_members_available ON department_members(is_available);
-
--- Adicionar coluna de departamento na tabela de conversas (se não existir)
-DO $$ BEGIN
-  ALTER TABLE conversations ADD COLUMN IF NOT EXISTS department_id UUID REFERENCES departments(id) ON DELETE SET NULL;
-EXCEPTION
-  WHEN undefined_table THEN null;
-END $$;
-
--- Índice para buscar conversas por departamento
-CREATE INDEX IF NOT EXISTS idx_conversations_department ON conversations(department_id);
 
 -- Trigger para updated_at
 CREATE OR REPLACE FUNCTION update_department_updated_at()
@@ -1291,22 +1276,20 @@ CREATE TRIGGER trigger_departments_updated_at
   BEFORE UPDATE ON departments
   FOR EACH ROW
   EXECUTE FUNCTION update_department_updated_at();
+`;
 
--- View para estatísticas de departamento
-CREATE OR REPLACE VIEW department_stats AS
-SELECT 
-  d.id as department_id,
-  d.name,
-  d.organization_id,
-  COUNT(DISTINCT dm.user_id) as total_members,
-  COUNT(DISTINCT dm.user_id) FILTER (WHERE dm.is_available = true) as available_members,
-  COALESCE(SUM(dm.current_chats), 0) as total_active_chats,
-  COUNT(DISTINCT c.id) FILTER (WHERE c.status = 'pending') as pending_chats,
-  COUNT(DISTINCT c.id) FILTER (WHERE c.status = 'active') as active_chats
-FROM departments d
-LEFT JOIN department_members dm ON d.id = dm.department_id
-LEFT JOIN conversations c ON d.id = c.department_id AND c.status IN ('pending', 'active')
-GROUP BY d.id, d.name, d.organization_id;
+// Step 17b: Add department_id to conversations (separate step to avoid dependency issues)
+const step17bDepartmentConversations = `
+-- Adicionar coluna de departamento na tabela de conversas (se não existir)
+DO $$ BEGIN
+  ALTER TABLE conversations ADD COLUMN IF NOT EXISTS department_id UUID REFERENCES departments(id) ON DELETE SET NULL;
+EXCEPTION
+  WHEN undefined_table THEN null;
+  WHEN undefined_column THEN null;
+END $$;
+
+-- Índice para buscar conversas por departamento
+CREATE INDEX IF NOT EXISTS idx_conversations_department ON conversations(department_id);
 `;
 
 // Migration steps in order of execution
@@ -1324,6 +1307,7 @@ const migrationSteps = [
   { name: 'Indexes', sql: step11Indexes, critical: false },
   { name: 'Attendance Status', sql: step12Attendance, critical: false },
   { name: 'Departments / Queues', sql: step17Departments, critical: false },
+  { name: 'Departments Conversations Link', sql: step17bDepartmentConversations, critical: false },
   { name: 'Chatbots System', sql: step13Chatbots, critical: false },
   { name: 'Chatbot Permissions', sql: step14ChatbotPermissions, critical: false },
   { name: 'Chatbot Team & Keywords', sql: step15ChatbotTeamKeywords, critical: false },
