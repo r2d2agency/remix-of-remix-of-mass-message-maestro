@@ -77,6 +77,7 @@ const Chat = () => {
     connection: 'all',
     is_group: false, // false = individual chats, true = group chats
     attendance_status: 'attending' as 'waiting' | 'attending' | 'finished',
+    department: 'all',
   });
   const [activeTab, setActiveTab] = useState<'chats' | 'groups'>('chats');
 

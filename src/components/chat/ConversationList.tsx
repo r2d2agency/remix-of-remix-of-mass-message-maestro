@@ -51,11 +51,13 @@ import {
   RotateCcw,
   SearchCode,
   Users,
+  Building2,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { Conversation, ConversationTag, TeamMember, Connection } from "@/hooks/use-chat";
+import { Department } from "@/hooks/use-departments";
 import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -78,6 +80,7 @@ interface ConversationListProps {
     connection: string;
     is_group: boolean;
     attendance_status: 'waiting' | 'attending' | 'finished';
+    department: string;
   };
   onFiltersChange: (filters: {
     search: string;
@@ -87,6 +90,7 @@ interface ConversationListProps {
     connection: string;
     is_group: boolean;
     attendance_status: 'waiting' | 'attending' | 'finished';
+    department: string;
   }) => void;
   isAdmin?: boolean;
   connections?: Connection[];
@@ -155,7 +159,21 @@ export function ConversationList({
   const [keepContact, setKeepContact] = useState(true);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
   const [profilePictures, setProfilePictures] = useState<Record<string, string>>({});
+  const [myDepartments, setMyDepartments] = useState<Department[]>([]);
   const { toast } = useToast();
+
+  // Load user's departments
+  useEffect(() => {
+    const loadMyDepartments = async () => {
+      try {
+        const data = await api<Department[]>('/api/departments/user/my-departments');
+        setMyDepartments(data);
+      } catch (error) {
+        console.debug('Failed to load departments:', error);
+      }
+    };
+    loadMyDepartments();
+  }, []);
 
   // Debounce search
   useEffect(() => {
@@ -475,6 +493,34 @@ export function ConversationList({
               ))}
             </SelectContent>
           </Select>
+
+          {/* Department filter - only show if user belongs to departments */}
+          {myDepartments.length > 0 && (
+            <Select
+              value={filters.department}
+              onValueChange={(v) => onFiltersChange({ ...filters, department: v })}
+            >
+              <SelectTrigger className="flex-1 h-8 text-xs">
+                <Building2 className="h-3 w-3 mr-1" />
+                <SelectValue placeholder="Depto" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="my">Meus deptos</SelectItem>
+                {myDepartments.map(dept => (
+                  <SelectItem key={dept.id} value={dept.id}>
+                    <div className="flex items-center gap-2">
+                      <div 
+                        className="w-2 h-2 rounded-full" 
+                        style={{ backgroundColor: dept.color || '#6b7280' }}
+                      />
+                      {dept.name}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
 
           {/* Archive toggle */}
           <Button

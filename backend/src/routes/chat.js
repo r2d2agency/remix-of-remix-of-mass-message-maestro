@@ -365,9 +365,29 @@ router.get('/conversations', authenticate, async (req, res) => {
       return res.json([]);
     }
 
-    const { search, tag, assigned, archived, connection, includeEmpty, is_group, attendance_status } = req.query;
+    const { search, tag, assigned, archived, connection, includeEmpty, is_group, attendance_status, department } = req.query;
 
-    const buildQuery = (supportsAttendance = true) => {
+    // Get user's departments to filter
+    let userDepartmentIds = [];
+    if (department && department !== 'all') {
+      // Check if user belongs to the specified department
+      const deptCheck = await query(
+        `SELECT department_id FROM department_members WHERE user_id = $1 AND department_id = $2`,
+        [req.userId, department]
+      );
+      if (deptCheck.rows.length > 0) {
+        userDepartmentIds = [department];
+      }
+    } else if (department === 'my') {
+      // Get all departments the user belongs to
+      const userDepts = await query(
+        `SELECT department_id FROM department_members WHERE user_id = $1`,
+        [req.userId]
+      );
+      userDepartmentIds = userDepts.rows.map(r => r.department_id);
+    }
+
+    const buildQuery = (supportsAttendance = true, supportsDepartment = true) => {
       let sql = `
         SELECT 
           conv.*,
@@ -464,7 +484,14 @@ router.get('/conversations', authenticate, async (req, res) => {
           // Only show explicit 'finished' status (completed conversations)
           sql += ` AND conv.attendance_status = 'finished'`;
         }
-        // If no filter, show all
+      // If no filter, show all
+      }
+
+      // Filter by department
+      if (supportsDepartment && userDepartmentIds.length > 0) {
+        sql += ` AND conv.department_id = ANY($${paramIndex}::uuid[])`;
+        params.push(userDepartmentIds);
+        paramIndex++;
       }
 
       // Order by pinned first, then by last_message_at
@@ -475,17 +502,25 @@ router.get('/conversations', authenticate, async (req, res) => {
 
     let result;
     try {
-      const { sql, params } = buildQuery(true);
+      const { sql, params } = buildQuery(true, true);
       result = await query(sql, params);
     } catch (error) {
       // Backward compatible fallback when DB migration wasn't applied yet.
-      // Common failures: missing columns attendance_status / accepted_by / accepted_at.
+      // Common failures: missing columns attendance_status / accepted_by / accepted_at / department_id.
       const message = String(error?.message || '');
       const missingAttendanceColumns = /attendance_status|accepted_by|accepted_at/i.test(message);
-      if (!missingAttendanceColumns) throw error;
-
-      const { sql, params } = buildQuery(false);
-      result = await query(sql, params);
+      const missingDepartmentColumn = /department_id/i.test(message);
+      
+      if (missingDepartmentColumn) {
+        // Try without department filter
+        const { sql, params } = buildQuery(true, false);
+        result = await query(sql, params);
+      } else if (missingAttendanceColumns) {
+        const { sql, params } = buildQuery(false, true);
+        result = await query(sql, params);
+      } else {
+        throw error;
+      }
     }
 
     res.json(result.rows);

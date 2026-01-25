@@ -201,6 +201,7 @@ export const useChat = () => {
     connection?: string;
     is_group?: boolean | string;
     attendance_status?: 'waiting' | 'attending';
+    department?: string;
   }): Promise<Conversation[]> => {
     setLoading(true);
     setError(null);
@@ -216,6 +217,8 @@ export const useChat = () => {
       if (filters?.connection && filters.connection !== 'all') params.append('connection', filters.connection);
       if (filters?.is_group !== undefined) params.append('is_group', String(filters.is_group));
       if (filters?.attendance_status) params.append('attendance_status', filters.attendance_status);
+      // Only append department if it's a specific value (not 'all')
+      if (filters?.department && filters.department !== 'all') params.append('department', filters.department);
       const url = `/api/chat/conversations${params.toString() ? `?${params}` : ''}`;
       const data = await api<Conversation[]>(url);
       return data;
