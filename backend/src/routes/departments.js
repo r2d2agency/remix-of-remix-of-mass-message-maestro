@@ -291,7 +291,7 @@ router.get('/:id/members', async (req, res) => {
         dm.*,
         u.name as user_name,
         u.email as user_email,
-        u.avatar_url
+         NULL::text as avatar_url
        FROM department_members dm
        JOIN users u ON dm.user_id = u.id
        WHERE dm.department_id = $1
@@ -358,7 +358,7 @@ router.post('/:id/members', async (req, res) => {
         dm.*,
         u.name as user_name,
         u.email as user_email,
-        u.avatar_url
+        NULL::text as avatar_url
        FROM department_members dm
        JOIN users u ON dm.user_id = u.id
        WHERE dm.id = $1`,
