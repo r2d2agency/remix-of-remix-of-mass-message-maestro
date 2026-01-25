@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Node } from 'reactflow';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,9 +20,11 @@ import { Slider } from '@/components/ui/slider';
 import { 
   X, Plus, Trash2, GripVertical, MessageSquare, List, 
   FormInput, GitBranch, Zap, ArrowRightLeft, Sparkles, 
-  Clock, Webhook, Image, FileText, Video, Mic
+  Clock, Webhook, Image, FileText, Video, Mic, Upload, Loader2
 } from 'lucide-react';
 import { FlowNodeData } from '@/components/chatbots/FlowNodes';
+import { useUpload } from '@/hooks/use-upload';
+import { toast } from 'sonner';
 
 interface NodeEditorPanelProps {
   node: Node<FlowNodeData>;
@@ -163,6 +165,41 @@ export function NodeEditorPanel({ node, onSave, onClose }: NodeEditorPanelProps)
 
 // ============ Message Node Editor ============
 function MessageNodeEditor({ content, onChange }: { content: Record<string, any>; onChange: (c: Record<string, any>) => void }) {
+  const { uploadFile, isUploading } = useUpload();
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
+  const audioInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileUpload = async (file: File, mediaType: 'image' | 'video' | 'audio') => {
+    try {
+      const url = await uploadFile(file);
+      if (url) {
+        onChange({ ...content, media_url: url, media_type: mediaType });
+        toast.success('Arquivo enviado com sucesso!');
+      }
+    } catch (error) {
+      toast.error('Erro ao enviar arquivo');
+    }
+  };
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleFileUpload(file, 'image');
+    e.target.value = '';
+  };
+
+  const handleVideoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleFileUpload(file, 'video');
+    e.target.value = '';
+  };
+
+  const handleAudioSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleFileUpload(file, 'audio');
+    e.target.value = '';
+  };
+
   return (
     <Tabs defaultValue="text" className="w-full">
       <TabsList className="grid w-full grid-cols-4">
@@ -196,13 +233,44 @@ function MessageNodeEditor({ content, onChange }: { content: Record<string, any>
       </TabsContent>
 
       <TabsContent value="image" className="space-y-3 mt-3">
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleImageSelect}
+        />
         <div className="space-y-2">
-          <Label>URL da Imagem</Label>
-          <Input
-            value={content.media_url || ''}
-            onChange={(e) => onChange({ ...content, media_url: e.target.value, media_type: 'image' })}
-            placeholder="https://..."
-          />
+          <Label>Imagem</Label>
+          <div className="flex gap-2">
+            <Input
+              value={content.media_url || ''}
+              onChange={(e) => onChange({ ...content, media_url: e.target.value, media_type: 'image' })}
+              placeholder="https://... ou faça upload"
+              className="flex-1"
+            />
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => imageInputRef.current?.click()}
+              disabled={isUploading}
+            >
+              {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+            </Button>
+          </div>
+          {content.media_url && content.media_type === 'image' && (
+            <div className="relative mt-2 rounded-lg overflow-hidden border">
+              <img src={content.media_url} alt="Preview" className="w-full h-32 object-cover" />
+              <Button
+                variant="destructive"
+                size="icon"
+                className="absolute top-2 right-2 h-6 w-6"
+                onClick={() => onChange({ ...content, media_url: '', media_type: 'text' })}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+          )}
         </div>
         <div className="space-y-2">
           <Label>Legenda (opcional)</Label>
@@ -216,13 +284,45 @@ function MessageNodeEditor({ content, onChange }: { content: Record<string, any>
       </TabsContent>
 
       <TabsContent value="video" className="space-y-3 mt-3">
+        <input
+          ref={videoInputRef}
+          type="file"
+          accept="video/*"
+          className="hidden"
+          onChange={handleVideoSelect}
+        />
         <div className="space-y-2">
-          <Label>URL do Vídeo</Label>
-          <Input
-            value={content.media_url || ''}
-            onChange={(e) => onChange({ ...content, media_url: e.target.value, media_type: 'video' })}
-            placeholder="https://..."
-          />
+          <Label>Vídeo</Label>
+          <div className="flex gap-2">
+            <Input
+              value={content.media_url || ''}
+              onChange={(e) => onChange({ ...content, media_url: e.target.value, media_type: 'video' })}
+              placeholder="https://... ou faça upload"
+              className="flex-1"
+            />
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => videoInputRef.current?.click()}
+              disabled={isUploading}
+            >
+              {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+            </Button>
+          </div>
+          {content.media_url && content.media_type === 'video' && (
+            <div className="relative mt-2 rounded-lg overflow-hidden border bg-muted p-3 flex items-center gap-2">
+              <Video className="h-5 w-5 text-muted-foreground" />
+              <span className="text-sm truncate flex-1">{content.media_url}</span>
+              <Button
+                variant="destructive"
+                size="icon"
+                className="h-6 w-6"
+                onClick={() => onChange({ ...content, media_url: '', media_type: 'text' })}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+          )}
         </div>
         <div className="space-y-2">
           <Label>Legenda (opcional)</Label>
@@ -235,13 +335,45 @@ function MessageNodeEditor({ content, onChange }: { content: Record<string, any>
       </TabsContent>
 
       <TabsContent value="audio" className="space-y-3 mt-3">
+        <input
+          ref={audioInputRef}
+          type="file"
+          accept="audio/*"
+          className="hidden"
+          onChange={handleAudioSelect}
+        />
         <div className="space-y-2">
-          <Label>URL do Áudio</Label>
-          <Input
-            value={content.media_url || ''}
-            onChange={(e) => onChange({ ...content, media_url: e.target.value, media_type: 'audio' })}
-            placeholder="https://..."
-          />
+          <Label>Áudio</Label>
+          <div className="flex gap-2">
+            <Input
+              value={content.media_url || ''}
+              onChange={(e) => onChange({ ...content, media_url: e.target.value, media_type: 'audio' })}
+              placeholder="https://... ou faça upload"
+              className="flex-1"
+            />
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => audioInputRef.current?.click()}
+              disabled={isUploading}
+            >
+              {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+            </Button>
+          </div>
+          {content.media_url && content.media_type === 'audio' && (
+            <div className="relative mt-2 rounded-lg overflow-hidden border bg-muted p-3 flex items-center gap-2">
+              <Mic className="h-5 w-5 text-muted-foreground" />
+              <span className="text-sm truncate flex-1">{content.media_url}</span>
+              <Button
+                variant="destructive"
+                size="icon"
+                className="h-6 w-6"
+                onClick={() => onChange({ ...content, media_url: '', media_type: 'text' })}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+          )}
         </div>
       </TabsContent>
     </Tabs>

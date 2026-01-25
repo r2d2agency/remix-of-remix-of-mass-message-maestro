@@ -23,12 +23,14 @@ import { Badge } from '@/components/ui/badge';
 import { 
   Save, Plus, MessageSquare, List, FormInput, GitBranch, 
   Zap, ArrowRightLeft, Sparkles, Square, Loader2, X,
-  Clock, Webhook, Undo2, Redo2
+  Clock, Webhook, Undo2, Play
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { nodeTypes, FlowNodeData } from '@/components/chatbots/FlowNodes';
 import { useFlows, Flow } from '@/hooks/use-flows';
 import { NodeEditorPanel } from './NodeEditorPanel';
+import { FlowSimulator } from '@/components/chatbots/FlowSimulator';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 
 interface FlowEditorFullscreenProps {
   open: boolean;
@@ -61,6 +63,7 @@ function FlowEditorContent({ flow, onClose }: { flow: Flow; onClose: () => void 
   const [editingNode, setEditingNode] = useState<Node<FlowNodeData> | null>(null);
   const [draggedType, setDraggedType] = useState<string | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
+  const [showSimulator, setShowSimulator] = useState(false);
 
   useEffect(() => {
     loadCanvas();
@@ -327,6 +330,14 @@ function FlowEditorContent({ flow, onClose }: { flow: Flow; onClose: () => void 
           <MiniMap className="!bg-card !border" nodeStrokeWidth={3} />
           <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
           <Panel position="top-right" className="flex gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowSimulator(true)}
+              className="bg-background/80 backdrop-blur"
+            >
+              <Play className="h-4 w-4 mr-2" />
+              Testar Fluxo
+            </Button>
             <Button variant="outline" onClick={loadCanvas} disabled={saving}>
               <Undo2 className="h-4 w-4 mr-2" />
               Reverter
@@ -347,6 +358,23 @@ function FlowEditorContent({ flow, onClose }: { flow: Flow; onClose: () => void 
           onClose={() => setEditingNode(null)}
         />
       )}
+
+      {/* Flow Simulator Sheet */}
+      <Sheet open={showSimulator} onOpenChange={setShowSimulator}>
+        <SheetContent className="w-[400px] sm:w-[540px] p-0" side="right">
+          <SheetHeader className="sr-only">
+            <SheetTitle>Simulador de Fluxo</SheetTitle>
+            <SheetDescription>Teste o fluxo interagindo como um usuário</SheetDescription>
+          </SheetHeader>
+          <div className="h-full">
+            <FlowSimulator
+              nodes={nodes}
+              edges={edges}
+              chatbotName={flow.name}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
