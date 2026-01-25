@@ -367,12 +367,29 @@ router.post('/:id/members', async (req, res) => {
 
     res.status(201).json(member.rows[0]);
   } catch (error) {
+    console.error('Erro ao adicionar membro - detalhes:', {
+      message: error.message,
+      code: error.code,
+      detail: error.detail,
+      table: error.table,
+      constraint: error.constraint
+    });
+    
     if (isDepartmentsSchemaMissing(error)) {
-      console.warn('Schema de departamentos ausente (add member):', error.message);
-      return res.status(503).json({ error: 'Módulo de Departamentos não está disponível (schema não instalado)' });
+      return res.status(503).json({ error: 'Módulo de Departamentos não está disponível. Execute o deploy para criar as tabelas.' });
     }
-    console.error('Erro ao adicionar membro:', error);
-    res.status(500).json({ error: 'Erro ao adicionar membro' });
+    
+    // Constraint violation (duplicate)
+    if (error.code === '23505') {
+      return res.status(409).json({ error: 'Usuário já é membro deste departamento' });
+    }
+    
+    // Foreign key violation
+    if (error.code === '23503') {
+      return res.status(400).json({ error: 'Usuário ou departamento inválido' });
+    }
+    
+    res.status(500).json({ error: error.message || 'Erro ao adicionar membro' });
   }
 });
 
