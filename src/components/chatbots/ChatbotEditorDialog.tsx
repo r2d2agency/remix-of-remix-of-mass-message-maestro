@@ -29,6 +29,7 @@ import {
 import { toast } from "sonner";
 import { useChatbots, Chatbot, AIProvider, ChatbotMode, ChatbotType, MenuOption, AIModels } from "@/hooks/use-chatbots";
 import { useDepartments, Department } from "@/hooks/use-departments";
+import { useFlows, Flow } from "@/hooks/use-flows";
 import { api } from "@/lib/api";
 
 interface Connection {
@@ -57,12 +58,13 @@ const DAYS_OF_WEEK = [
 export function ChatbotEditorDialog({ open, chatbot, onClose }: ChatbotEditorDialogProps) {
   const { createChatbot, updateChatbot, getAIModels, loading } = useChatbots();
   const { getDepartments } = useDepartments();
+  const { getFlows } = useFlows();
   const [connections, setConnections] = useState<Connection[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [flows, setFlows] = useState<Flow[]>([]);
   const [aiModels, setAIModels] = useState<AIModels>({ gemini: [], openai: [] });
   const [showApiKey, setShowApiKey] = useState(false);
   const [saving, setSaving] = useState(false);
-
   // Form state
   const [formData, setFormData] = useState({
     name: '',
@@ -89,6 +91,8 @@ export function ChatbotEditorDialog({ open, chatbot, onClose }: ChatbotEditorDia
     menu_message: 'Olá! Escolha uma opção:\n\n1️⃣ Comercial\n2️⃣ Financeiro\n3️⃣ Suporte\n0️⃣ Falar com atendente',
     menu_options: [] as MenuOption[],
     invalid_option_message: 'Opção inválida. Por favor, digite um número válido.',
+    // Fluxo visual
+    linked_flow_id: '' as string,
   });
 
   useEffect(() => {
@@ -96,6 +100,7 @@ export function ChatbotEditorDialog({ open, chatbot, onClose }: ChatbotEditorDia
       loadConnections();
       loadAIModels();
       loadDepartments();
+      loadFlows();
       
       if (chatbot) {
         setFormData({
@@ -122,6 +127,7 @@ export function ChatbotEditorDialog({ open, chatbot, onClose }: ChatbotEditorDia
           menu_message: chatbot.menu_message || 'Olá! Escolha uma opção:\n\n1️⃣ Comercial\n2️⃣ Financeiro\n3️⃣ Suporte\n0️⃣ Falar com atendente',
           menu_options: chatbot.menu_options || [],
           invalid_option_message: chatbot.invalid_option_message || 'Opção inválida. Por favor, digite um número válido.',
+          linked_flow_id: (chatbot as any).linked_flow_id || '',
         });
       } else {
         // Reset form for new chatbot
@@ -149,6 +155,7 @@ export function ChatbotEditorDialog({ open, chatbot, onClose }: ChatbotEditorDia
           menu_message: 'Olá! Escolha uma opção:\n\n1️⃣ Comercial\n2️⃣ Financeiro\n3️⃣ Suporte\n0️⃣ Falar com atendente',
           menu_options: [],
           invalid_option_message: 'Opção inválida. Por favor, digite um número válido.',
+          linked_flow_id: '',
         });
       }
     }
@@ -173,6 +180,11 @@ export function ChatbotEditorDialog({ open, chatbot, onClose }: ChatbotEditorDia
     setDepartments(data);
   };
 
+  const loadFlows = async () => {
+    const data = await getFlows();
+    setFlows(data.filter(f => f.is_active));
+  };
+
   const handleSave = async () => {
     if (!formData.name.trim()) {
       toast.error('Nome é obrigatório');
@@ -189,6 +201,7 @@ export function ChatbotEditorDialog({ open, chatbot, onClose }: ChatbotEditorDia
         ai_system_prompt: formData.ai_system_prompt || null,
         welcome_message: formData.welcome_message || null,
         description: formData.description || null,
+        linked_flow_id: formData.linked_flow_id || null,
       };
 
       let result;
@@ -349,6 +362,41 @@ export function ChatbotEditorDialog({ open, chatbot, onClose }: ChatbotEditorDia
                 {formData.chatbot_type === 'hybrid' && 'Combina menu tradicional com respostas de IA'}
               </p>
             </div>
+
+            {/* Seletor de Fluxo - aparece apenas quando tipo é 'flow' */}
+            {formData.chatbot_type === 'flow' && (
+              <div className="space-y-2">
+                <Label>Fluxo Visual</Label>
+                <Select
+                  value={formData.linked_flow_id || "none"}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, linked_flow_id: value === "none" ? "" : value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um fluxo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum fluxo selecionado</SelectItem>
+                    {flows.map((flow) => (
+                      <SelectItem key={flow.id} value={flow.id}>
+                        <div className="flex items-center gap-2">
+                          <Zap className="h-4 w-4 text-primary" />
+                          {flow.name}
+                          {flow.trigger_enabled && (
+                            <Badge variant="outline" className="text-xs ml-1">
+                              Gatilho ativo
+                            </Badge>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Selecione o fluxo visual que será executado por este chatbot.
+                  {flows.length === 0 && " Você ainda não tem fluxos ativos. Crie um na página Fluxos."}
+                </p>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label>Modo de Operação</Label>

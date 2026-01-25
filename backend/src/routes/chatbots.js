@@ -125,7 +125,8 @@ router.post('/', async (req, res) => {
       typing_delay_ms,
       menu_message,
       menu_options,
-      invalid_option_message
+      invalid_option_message,
+      linked_flow_id
     } = req.body;
 
     if (!name) {
@@ -138,9 +139,9 @@ router.post('/', async (req, res) => {
         business_hours_start, business_hours_end, business_days, timezone,
         ai_provider, ai_model, ai_api_key, ai_system_prompt, ai_temperature, ai_max_tokens,
         welcome_message, fallback_message, transfer_after_failures, typing_delay_ms,
-        menu_message, menu_options, invalid_option_message,
+        menu_message, menu_options, invalid_option_message, linked_flow_id,
         created_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
       RETURNING *`,
       [
         org.organization_id,
@@ -166,6 +167,7 @@ router.post('/', async (req, res) => {
         menu_message || null,
         menu_options ? JSON.stringify(menu_options) : '[]',
         invalid_option_message || 'Opção inválida. Por favor, digite um número válido.',
+        linked_flow_id || null,
         req.userId
       ]
     );
@@ -214,7 +216,7 @@ router.patch('/:id', async (req, res) => {
       'business_hours_start', 'business_hours_end', 'business_days', 'timezone',
       'ai_provider', 'ai_model', 'ai_api_key', 'ai_system_prompt', 'ai_temperature', 'ai_max_tokens',
       'welcome_message', 'fallback_message', 'transfer_after_failures', 'typing_delay_ms',
-      'menu_message', 'menu_options', 'invalid_option_message'
+      'menu_message', 'menu_options', 'invalid_option_message', 'linked_flow_id'
     ];
 
     for (const field of allowedFields) {

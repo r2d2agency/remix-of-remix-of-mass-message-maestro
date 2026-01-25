@@ -53,6 +53,8 @@ export interface Chatbot {
   menu_options?: MenuOption[];
   menu_message?: string;
   invalid_option_message?: string;
+  // Fluxo visual vinculado
+  linked_flow_id?: string | null;
 }
 
 export interface ChatbotFlow {
