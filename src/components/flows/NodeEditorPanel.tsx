@@ -20,7 +20,7 @@ import { Slider } from '@/components/ui/slider';
 import { 
   X, Plus, Trash2, GripVertical, MessageSquare, List, 
   FormInput, GitBranch, Zap, ArrowRightLeft, Sparkles, 
-  Clock, Webhook, Image, FileText, Video, Mic, Upload, Loader2
+  Clock, Webhook, Image, Images, FileText, Video, Mic, Upload, Loader2
 } from 'lucide-react';
 import { FlowNodeData } from '@/components/chatbots/FlowNodes';
 import { useUpload } from '@/hooks/use-upload';
@@ -169,6 +169,11 @@ function MessageNodeEditor({ content, onChange }: { content: Record<string, any>
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingGallery, setUploadingGallery] = useState(0);
+
+  const MAX_GALLERY_IMAGES = 10;
+  const galleryImages: { url: string; fileName?: string }[] = content.gallery_images || [];
 
   const handleFileUpload = async (file: File, mediaType: 'image' | 'video' | 'audio') => {
     try {
@@ -200,11 +205,66 @@ function MessageNodeEditor({ content, onChange }: { content: Record<string, any>
     e.target.value = '';
   };
 
+  const handleGallerySelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const availableSlots = MAX_GALLERY_IMAGES - galleryImages.length;
+    const filesToUpload = Array.from(files).slice(0, availableSlots);
+
+    if (files.length > availableSlots) {
+      toast.warning(`Limite de ${MAX_GALLERY_IMAGES} imagens. ${files.length - availableSlots} ignorado(s).`);
+    }
+
+    setUploadingGallery(filesToUpload.length);
+    const newImages: { url: string; fileName: string }[] = [];
+
+    for (const file of filesToUpload) {
+      try {
+        const url = await uploadFile(file);
+        if (url) {
+          newImages.push({ url, fileName: file.name });
+        }
+      } catch (error) {
+        toast.error(`Erro ao enviar ${file.name}`);
+      }
+    }
+
+    if (newImages.length > 0) {
+      onChange({ 
+        ...content, 
+        gallery_images: [...galleryImages, ...newImages],
+        media_type: 'gallery'
+      });
+      toast.success(`${newImages.length} imagem(ns) adicionada(s)!`);
+    }
+
+    setUploadingGallery(0);
+    e.target.value = '';
+  };
+
+  const removeGalleryImage = (index: number) => {
+    const updated = galleryImages.filter((_, i) => i !== index);
+    onChange({ 
+      ...content, 
+      gallery_images: updated,
+      media_type: updated.length > 0 ? 'gallery' : 'text'
+    });
+  };
+
   return (
-    <Tabs defaultValue="text" className="w-full">
-      <TabsList className="grid w-full grid-cols-4">
+    <Tabs defaultValue={content.media_type === 'gallery' ? 'gallery' : 'text'} className="w-full">
+      <TabsList className="grid w-full grid-cols-5">
         <TabsTrigger value="text" className="text-xs"><FileText className="h-3 w-3" /></TabsTrigger>
         <TabsTrigger value="image" className="text-xs"><Image className="h-3 w-3" /></TabsTrigger>
+        <TabsTrigger value="gallery" className="text-xs relative">
+          <Images className="h-3 w-3" />
+          {galleryImages.length > 0 && (
+            <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[8px] rounded-full w-3 h-3 flex items-center justify-center">
+              {galleryImages.length}
+            </span>
+          )}
+        </TabsTrigger>
         <TabsTrigger value="video" className="text-xs"><Video className="h-3 w-3" /></TabsTrigger>
         <TabsTrigger value="audio" className="text-xs"><Mic className="h-3 w-3" /></TabsTrigger>
       </TabsList>
@@ -278,6 +338,105 @@ function MessageNodeEditor({ content, onChange }: { content: Record<string, any>
             value={content.caption || ''}
             onChange={(e) => onChange({ ...content, caption: e.target.value })}
             placeholder="Descrição da imagem..."
+            rows={2}
+          />
+        </div>
+      </TabsContent>
+
+      <TabsContent value="gallery" className="space-y-3 mt-3">
+        <input
+          ref={galleryInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/gif,image/webp"
+          multiple
+          className="hidden"
+          onChange={handleGallerySelect}
+        />
+        
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label className="flex items-center gap-2">
+              <Images className="h-4 w-4 text-teal-500" />
+              Galeria de Imagens
+            </Label>
+            <span className="text-xs text-muted-foreground">
+              {galleryImages.length}/{MAX_GALLERY_IMAGES}
+            </span>
+          </div>
+          
+          <p className="text-xs text-muted-foreground">
+            Envie até {MAX_GALLERY_IMAGES} imagens em sequência (delay de 1.5s entre cada)
+          </p>
+        </div>
+
+        {/* Gallery Grid */}
+        {galleryImages.length > 0 && (
+          <div className="grid grid-cols-3 gap-2">
+            {galleryImages.map((img, idx) => (
+              <div 
+                key={idx} 
+                className="relative aspect-square rounded-lg overflow-hidden bg-muted group"
+              >
+                <img
+                  src={img.url}
+                  alt={img.fileName || `Imagem ${idx + 1}`}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.src = "/placeholder.svg";
+                  }}
+                />
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  className="absolute top-1 right-1 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={() => removeGalleryImage(idx)}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+                <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[9px] px-1 py-0.5 truncate">
+                  {idx + 1}. {img.fileName || 'Imagem'}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Upload Button */}
+        {galleryImages.length < MAX_GALLERY_IMAGES && (
+          <Button 
+            variant="outline" 
+            className="w-full border-dashed h-16 flex flex-col gap-1"
+            onClick={() => galleryInputRef.current?.click()}
+            disabled={isUploading || uploadingGallery > 0}
+          >
+            {uploadingGallery > 0 ? (
+              <>
+                <Loader2 className="h-5 w-5 animate-spin" />
+                <span className="text-xs">Enviando {uploadingGallery} imagem(ns)...</span>
+              </>
+            ) : (
+              <>
+                <Upload className="h-5 w-5" />
+                <span className="text-xs">
+                  {galleryImages.length === 0 
+                    ? `Selecione até ${MAX_GALLERY_IMAGES} imagens` 
+                    : `Adicionar mais (${MAX_GALLERY_IMAGES - galleryImages.length} restantes)`
+                  }
+                </span>
+              </>
+            )}
+          </Button>
+        )}
+
+        {/* Caption */}
+        <div className="space-y-2">
+          <Label className="text-xs text-muted-foreground">
+            Legenda (enviada com a primeira imagem)
+          </Label>
+          <Textarea
+            value={content.caption || ''}
+            onChange={(e) => onChange({ ...content, caption: e.target.value })}
+            placeholder="Adicione uma legenda..."
             rows={2}
           />
         </div>
