@@ -395,6 +395,7 @@ router.get('/conversations', authenticate, async (req, res) => {
           conn.phone_number as connection_phone,
           u.name as assigned_name,
           ${supportsAttendance ? 'ua.name as accepted_by_name,' : ''}
+          ${supportsDepartment ? 'd.name as department_name,' : ''}
           COALESCE(
             (SELECT json_agg(json_build_object('id', t.id, 'name', t.name, 'color', t.color))
              FROM conversation_tag_links ctl
@@ -408,6 +409,7 @@ router.get('/conversations', authenticate, async (req, res) => {
         JOIN connections conn ON conn.id = conv.connection_id
         LEFT JOIN users u ON u.id = conv.assigned_to
         ${supportsAttendance ? 'LEFT JOIN users ua ON ua.id = conv.accepted_by' : ''}
+        ${supportsDepartment ? 'LEFT JOIN departments d ON d.id = conv.department_id' : ''}
         WHERE conv.connection_id = ANY($1)
       `;
 
@@ -904,6 +906,69 @@ router.post('/conversations/:id/reopen', authenticate, async (req, res) => {
   } catch (error) {
     console.error('Reopen conversation error:', error);
     res.status(500).json({ error: 'Erro ao reabrir conversa' });
+  }
+});
+
+// Update conversation department
+router.patch('/conversations/:id/department', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { department_id } = req.body;
+    const connectionIds = await getUserConnections(req.userId);
+
+    // Check if conversation belongs to user's connections
+    const check = await query(
+      `SELECT id FROM conversations WHERE id = $1 AND connection_id = ANY($2)`,
+      [id, connectionIds]
+    );
+
+    if (check.rows.length === 0) {
+      return res.status(404).json({ error: 'Conversa não encontrada' });
+    }
+
+    const result = await query(
+      `UPDATE conversations 
+       SET department_id = $1, updated_at = NOW() 
+       WHERE id = $2 
+       RETURNING *`,
+      [department_id || null, id]
+    );
+
+    res.json({ success: true, conversation: result.rows[0] });
+  } catch (error) {
+    console.error('Update department error:', error);
+    res.status(500).json({ error: 'Erro ao atualizar departamento' });
+  }
+});
+
+// Remove conversation department
+router.delete('/conversations/:id/department', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const connectionIds = await getUserConnections(req.userId);
+
+    // Check if conversation belongs to user's connections
+    const check = await query(
+      `SELECT id FROM conversations WHERE id = $1 AND connection_id = ANY($2)`,
+      [id, connectionIds]
+    );
+
+    if (check.rows.length === 0) {
+      return res.status(404).json({ error: 'Conversa não encontrada' });
+    }
+
+    const result = await query(
+      `UPDATE conversations 
+       SET department_id = NULL, updated_at = NOW() 
+       WHERE id = $1 
+       RETURNING *`,
+      [id]
+    );
+
+    res.json({ success: true, conversation: result.rows[0] });
+  } catch (error) {
+    console.error('Remove department error:', error);
+    res.status(500).json({ error: 'Erro ao remover departamento' });
   }
 });
 

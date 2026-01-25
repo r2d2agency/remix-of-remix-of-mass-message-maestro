@@ -79,6 +79,7 @@ import {
   AlertCircle,
   RotateCcw,
   Bot,
+  Building2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -86,6 +87,7 @@ import { cn } from "@/lib/utils";
 import { resolveMediaUrl } from "@/lib/media";
 import { ChatMessage, Conversation, ConversationTag, TeamMember, ConversationNote } from "@/hooks/use-chat";
 import { useChat } from "@/hooks/use-chat";
+import { useDepartments, Department } from "@/hooks/use-departments";
 import { useUpload } from "@/hooks/use-upload";
 import { useAudioRecorder } from "@/hooks/use-audio-recorder";
 import { useAuth } from "@/contexts/AuthContext";
@@ -125,6 +127,7 @@ interface ChatAreaProps {
   onReleaseConversation?: () => Promise<void>;
   onFinishConversation?: () => Promise<void>;
   onReopenConversation?: () => Promise<void>;
+  onDepartmentChange?: (departmentId: string | null) => void;
   isMobile?: boolean;
   onMobileBack?: () => void;
 }
@@ -170,11 +173,19 @@ export function ChatArea({
   onReleaseConversation,
   onFinishConversation,
   onReopenConversation,
+  onDepartmentChange,
   isMobile = false,
   onMobileBack,
 }: ChatAreaProps) {
   // Manager (Supervisor) = apenas visualização
   const isViewOnly = userRole === 'manager';
+  
+  // Departments
+  const { getDepartments, transferToDepartment } = useDepartments();
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [showDepartmentDialog, setShowDepartmentDialog] = useState(false);
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState<string>("");
+  const [savingDepartment, setSavingDepartment] = useState(false);
   const [messageText, setMessageText] = useState("");
   const [showTransferDialog, setShowTransferDialog] = useState(false);
   const [transferTo, setTransferTo] = useState<string>("");
@@ -254,6 +265,15 @@ export function ChatArea({
       setNotesCount(0);
     }
   }, [conversation?.id, showNotes]);
+
+  // Load departments when dialog opens
+  useEffect(() => {
+    if (showDepartmentDialog) {
+      getDepartments().then(setDepartments);
+      // Set current department if exists
+      setSelectedDepartmentId(conversation?.department_id || "");
+    }
+  }, [showDepartmentDialog, getDepartments, conversation?.department_id]);
 
   // Fetch profile picture for current conversation
   useEffect(() => {
@@ -550,6 +570,40 @@ export function ChatArea({
     setTransferTo("");
     setTransferNote("");
     toast.success("Conversa transferida!");
+  };
+
+  const handleSaveDepartment = async () => {
+    if (!conversation?.id) return;
+    
+    setSavingDepartment(true);
+    try {
+      const deptId = selectedDepartmentId === "__none__" ? null : (selectedDepartmentId || null);
+      
+      if (deptId) {
+        const success = await transferToDepartment(conversation.id, deptId);
+        if (success) {
+          toast.success("Departamento atribuído!");
+          onDepartmentChange?.(deptId);
+        } else {
+          toast.error("Erro ao atribuir departamento");
+        }
+      } else {
+        // Remove department - call API directly
+        await api(`/api/chat/conversations/${conversation.id}/department`, {
+          method: 'DELETE',
+          auth: true,
+        });
+        toast.success("Departamento removido");
+        onDepartmentChange?.(null);
+      }
+      
+      setShowDepartmentDialog(false);
+    } catch (error) {
+      console.error('Error saving department:', error);
+      toast.error("Erro ao salvar departamento");
+    } finally {
+      setSavingDepartment(false);
+    }
   };
 
   const handleCreateTag = () => {
@@ -895,6 +949,15 @@ export function ChatArea({
                   <DropdownMenuItem onClick={() => setShowTransferDialog(true)}>
                     <ArrowLeftRight className="h-4 w-4 mr-2" />
                     Transferir atendimento
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setShowDepartmentDialog(true)}>
+                    <Building2 className="h-4 w-4 mr-2" />
+                    Atribuir departamento
+                    {conversation.department_name && (
+                      <Badge variant="secondary" className="ml-auto text-[10px] h-5 px-1.5">
+                        {conversation.department_name}
+                      </Badge>
+                    )}
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={onArchive}>
                     <Archive className="h-4 w-4 mr-2" />
@@ -1578,6 +1641,59 @@ export function ChatArea({
             </Button>
             <Button onClick={handleTransfer}>
               Transferir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Department Dialog */}
+      <Dialog open={showDepartmentDialog} onOpenChange={setShowDepartmentDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              Atribuir Departamento
+            </DialogTitle>
+            <DialogDescription>
+              Selecione o departamento/fila para esta conversa.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Select value={selectedDepartmentId} onValueChange={setSelectedDepartmentId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione um departamento" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">
+                  <span className="text-muted-foreground">Nenhum departamento</span>
+                </SelectItem>
+                {departments.filter(d => d.is_active).map(dept => (
+                  <SelectItem key={dept.id} value={dept.id}>
+                    <div className="flex items-center gap-2">
+                      <div 
+                        className="w-3 h-3 rounded-full" 
+                        style={{ backgroundColor: dept.color }}
+                      />
+                      {dept.name}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            
+            {departments.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                Nenhum departamento cadastrado. Acesse o menu Departamentos para criar.
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDepartmentDialog(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveDepartment} disabled={savingDepartment}>
+              {savingDepartment && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Salvar
             </Button>
           </DialogFooter>
         </DialogContent>

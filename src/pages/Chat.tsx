@@ -821,6 +821,7 @@ const Chat = () => {
               onReleaseConversation={handleReleaseConversation}
               onFinishConversation={() => handleFinishConversation()}
               onReopenConversation={() => handleReopenConversation()}
+              onDepartmentChange={() => loadConversations()}
               isMobile={isMobile}
               onMobileBack={handleMobileBack}
             />

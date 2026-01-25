@@ -31,6 +31,8 @@ export interface Conversation {
   accepted_at: string | null;
   accepted_by: string | null;
   accepted_by_name: string | null;
+  department_id: string | null;
+  department_name: string | null;
   created_at: string;
 }
 
