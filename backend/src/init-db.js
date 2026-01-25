@@ -1100,6 +1100,105 @@ CREATE INDEX IF NOT EXISTS idx_conversation_flows_chatbot ON conversation_flows(
 CREATE INDEX IF NOT EXISTS idx_conversation_flows_status ON conversation_flows(status);
 `;
 
+// Step 16: Independent Flows System
+const step16IndependentFlows = `
+-- Fluxos independentes (separados dos chatbots)
+CREATE TABLE IF NOT EXISTS flows (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
+  
+  -- Ativação por palavra-chave
+  trigger_enabled BOOLEAN DEFAULT false,
+  trigger_keywords TEXT[] DEFAULT '{}',
+  trigger_match_mode VARCHAR(20) DEFAULT 'exact' CHECK (trigger_match_mode IN ('exact', 'contains', 'starts_with')),
+  
+  -- Status
+  is_active BOOLEAN DEFAULT true,
+  is_draft BOOLEAN DEFAULT true,
+  
+  -- Conexões vinculadas
+  connection_ids UUID[] DEFAULT '{}',
+  
+  -- Metadata
+  version INTEGER DEFAULT 1,
+  last_edited_by UUID REFERENCES users(id),
+  
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_flows_organization ON flows(organization_id);
+CREATE INDEX IF NOT EXISTS idx_flows_active ON flows(is_active);
+CREATE INDEX IF NOT EXISTS idx_flows_trigger_keywords ON flows USING GIN(trigger_keywords);
+
+-- Nós do fluxo
+CREATE TABLE IF NOT EXISTS flow_nodes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  flow_id UUID NOT NULL REFERENCES flows(id) ON DELETE CASCADE,
+  
+  node_id VARCHAR(100) NOT NULL,
+  node_type VARCHAR(50) NOT NULL,
+  name VARCHAR(255),
+  
+  position_x INTEGER DEFAULT 0,
+  position_y INTEGER DEFAULT 0,
+  
+  content JSONB DEFAULT '{}',
+  
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  
+  UNIQUE(flow_id, node_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_flow_nodes_flow ON flow_nodes(flow_id);
+
+-- Arestas do fluxo (conexões entre nós)
+CREATE TABLE IF NOT EXISTS flow_edges (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  flow_id UUID NOT NULL REFERENCES flows(id) ON DELETE CASCADE,
+  
+  edge_id VARCHAR(100) NOT NULL,
+  source_node_id VARCHAR(100) NOT NULL,
+  target_node_id VARCHAR(100) NOT NULL,
+  source_handle VARCHAR(50),
+  target_handle VARCHAR(50),
+  
+  label VARCHAR(255),
+  edge_type VARCHAR(50) DEFAULT 'default',
+  
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  
+  UNIQUE(flow_id, edge_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_flow_edges_flow ON flow_edges(flow_id);
+
+-- Histórico de versões do fluxo
+CREATE TABLE IF NOT EXISTS flow_versions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  flow_id UUID NOT NULL REFERENCES flows(id) ON DELETE CASCADE,
+  version INTEGER NOT NULL,
+  
+  nodes_data JSONB NOT NULL,
+  edges_data JSONB NOT NULL,
+  
+  created_by UUID REFERENCES users(id),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  
+  UNIQUE(flow_id, version)
+);
+
+CREATE INDEX IF NOT EXISTS idx_flow_versions_flow ON flow_versions(flow_id);
+
+-- Vincular chatbot a um fluxo
+ALTER TABLE chatbots ADD COLUMN IF NOT EXISTS linked_flow_id UUID REFERENCES flows(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_chatbots_linked_flow ON chatbots(linked_flow_id);
+`;
+
 // Migration steps in order of execution
 const migrationSteps = [
   { name: 'Enums', sql: step1Enums, critical: true },
@@ -1117,6 +1216,7 @@ const migrationSteps = [
   { name: 'Chatbots System', sql: step13Chatbots, critical: false },
   { name: 'Chatbot Permissions', sql: step14ChatbotPermissions, critical: false },
   { name: 'Chatbot Team & Keywords', sql: step15ChatbotTeamKeywords, critical: false },
+  { name: 'Independent Flows', sql: step16IndependentFlows, critical: false },
 ];
 
 export async function initDatabase() {

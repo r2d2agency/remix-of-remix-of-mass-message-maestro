@@ -20,6 +20,7 @@ import chatRoutes from './routes/chat.js';
 import quickRepliesRoutes from './routes/quick-replies.js';
 import chatbotsRoutes from './routes/chatbots.js';
 import departmentsRoutes from './routes/departments.js';
+import flowsRoutes from './routes/flows.js';
 import { initDatabase } from './init-db.js';
 import { executeNotifications } from './scheduler.js';
 import { executeCampaignMessages } from './campaign-scheduler.js';
@@ -148,6 +149,7 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/quick-replies', quickRepliesRoutes);
 app.use('/api/chatbots', chatbotsRoutes);
 app.use('/api/departments', departmentsRoutes);
+app.use('/api/flows', flowsRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
