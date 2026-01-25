@@ -157,6 +157,36 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Credenciais inválidas' });
     }
 
+    // Get role and organization info
+    const orgResult = await query(
+      `SELECT om.role, o.id as organization_id, o.modules_enabled
+       FROM organization_members om
+       JOIN organizations o ON o.id = om.organization_id
+       WHERE om.user_id = $1
+       ORDER BY CASE om.role
+         WHEN 'owner' THEN 1
+         WHEN 'admin' THEN 2
+         WHEN 'manager' THEN 3
+         WHEN 'agent' THEN 4
+         ELSE 5
+       END
+       LIMIT 1`,
+      [user.id]
+    );
+
+    const role = orgResult.rows[0]?.role || null;
+    const organizationId = orgResult.rows[0]?.organization_id || null;
+    
+    // Default modules if null
+    const defaultModules = {
+      campaigns: true,
+      billing: true,
+      groups: true,
+      scheduled_messages: true,
+      chatbots: true,
+    };
+    const modulesEnabled = orgResult.rows[0]?.modules_enabled || defaultModules;
+
     // Generate token
     const token = jwt.sign(
       { userId: user.id, email: user.email },
@@ -165,7 +195,14 @@ router.post('/login', async (req, res) => {
     );
 
     res.json({
-      user: { id: user.id, email: user.email, name: user.name },
+      user: { 
+        id: user.id, 
+        email: user.email, 
+        name: user.name,
+        role,
+        organization_id: organizationId,
+        modules_enabled: modulesEnabled,
+      },
       token
     });
   } catch (error) {
