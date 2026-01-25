@@ -86,13 +86,19 @@ router.get('/', async (req, res) => {
 // Buscar chatbot por ID
 router.get('/:id', async (req, res) => {
   try {
+    // Verificar se parece um UUID válido
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(req.params.id)) {
+      return res.status(400).json({ error: 'ID inválido' });
+    }
+
     const org = await getUserOrganization(req.userId);
     if (!org) {
       return res.status(403).json({ error: 'Usuário não pertence a uma organização' });
     }
 
     const result = await query(
-      `SELECT c.*, conn.name as connection_name
+      `SELECT c.*, conn.name as connection_name, conn.phone_number as connection_phone
        FROM chatbots c
        LEFT JOIN connections conn ON c.connection_id = conn.id
        WHERE c.id = $1 AND c.organization_id = $2`,
@@ -110,7 +116,7 @@ router.get('/:id', async (req, res) => {
     res.json(chatbot);
   } catch (error) {
     console.error('Erro ao buscar chatbot:', error);
-    res.status(500).json({ error: 'Erro ao buscar chatbot' });
+    res.status(500).json({ error: 'Erro ao buscar chatbot', details: error.message });
   }
 });
 
@@ -592,7 +598,7 @@ router.get('/:id/connections', async (req, res) => {
 
     // Verificar se chatbot pertence à organização
     const chatbot = await query(
-      'SELECT id FROM chatbots WHERE id = $1 AND organization_id = $2',
+      'SELECT id, connection_id FROM chatbots WHERE id = $1 AND organization_id = $2',
       [req.params.id, org.organization_id]
     );
 
@@ -600,19 +606,41 @@ router.get('/:id/connections', async (req, res) => {
       return res.status(404).json({ error: 'Chatbot não encontrado' });
     }
 
-    const result = await query(
-      `SELECT cc.*, c.name as connection_name, c.phone as connection_phone, c.status as connection_status
-       FROM chatbot_connections cc
-       JOIN connections c ON cc.connection_id = c.id
-       WHERE cc.chatbot_id = $1
-       ORDER BY c.name`,
-      [req.params.id]
-    );
-
-    res.json(result.rows);
+    // Tentar buscar da tabela chatbot_connections (pode não existir)
+    try {
+      const result = await query(
+        `SELECT cc.*, c.name as connection_name, c.phone_number as connection_phone, c.status as connection_status
+         FROM chatbot_connections cc
+         JOIN connections c ON cc.connection_id = c.id
+         WHERE cc.chatbot_id = $1
+         ORDER BY c.name`,
+        [req.params.id]
+      );
+      res.json(result.rows);
+    } catch (e) {
+      // Tabela não existe - retornar conexão principal se existir
+      console.log('chatbot_connections table may not exist, using fallback');
+      if (chatbot.rows[0].connection_id) {
+        const conn = await query(
+          'SELECT id, name, phone_number, status FROM connections WHERE id = $1',
+          [chatbot.rows[0].connection_id]
+        );
+        if (conn.rows.length > 0) {
+          res.json([{
+            chatbot_id: req.params.id,
+            connection_id: conn.rows[0].id,
+            connection_name: conn.rows[0].name,
+            connection_phone: conn.rows[0].phone_number,
+            connection_status: conn.rows[0].status
+          }]);
+          return;
+        }
+      }
+      res.json([]);
+    }
   } catch (error) {
     console.error('Erro ao listar conexões do chatbot:', error);
-    res.status(500).json({ error: 'Erro ao listar conexões' });
+    res.status(500).json({ error: 'Erro ao listar conexões', details: error.message });
   }
 });
 
@@ -639,30 +667,56 @@ router.put('/:id/connections', async (req, res) => {
       return res.status(404).json({ error: 'Chatbot não encontrado' });
     }
 
-    // Remover conexões antigas
-    await query('DELETE FROM chatbot_connections WHERE chatbot_id = $1', [req.params.id]);
+    // Tentar usar tabela chatbot_connections
+    try {
+      // Remover conexões antigas
+      await query('DELETE FROM chatbot_connections WHERE chatbot_id = $1', [req.params.id]);
 
-    // Adicionar novas conexões
-    for (const connectionId of connection_ids) {
-      await query(
-        'INSERT INTO chatbot_connections (chatbot_id, connection_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-        [req.params.id, connectionId]
+      // Adicionar novas conexões
+      for (const connectionId of connection_ids) {
+        await query(
+          'INSERT INTO chatbot_connections (chatbot_id, connection_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+          [req.params.id, connectionId]
+        );
+      }
+
+      // Retornar conexões atualizadas
+      const result = await query(
+        `SELECT cc.*, c.name as connection_name, c.phone_number as connection_phone
+         FROM chatbot_connections cc
+         JOIN connections c ON cc.connection_id = c.id
+         WHERE cc.chatbot_id = $1`,
+        [req.params.id]
       );
+
+      res.json(result.rows);
+    } catch (e) {
+      // Tabela não existe - usar connection_id direto no chatbot
+      console.log('chatbot_connections table may not exist, using fallback');
+      const mainConnection = connection_ids.length > 0 ? connection_ids[0] : null;
+      await query(
+        'UPDATE chatbots SET connection_id = $1 WHERE id = $2',
+        [mainConnection, req.params.id]
+      );
+      
+      if (mainConnection) {
+        const conn = await query(
+          'SELECT id, name, phone_number FROM connections WHERE id = $1',
+          [mainConnection]
+        );
+        res.json(conn.rows.map(c => ({
+          chatbot_id: req.params.id,
+          connection_id: c.id,
+          connection_name: c.name,
+          connection_phone: c.phone_number
+        })));
+      } else {
+        res.json([]);
+      }
     }
-
-    // Retornar conexões atualizadas
-    const result = await query(
-      `SELECT cc.*, c.name as connection_name, c.phone as connection_phone
-       FROM chatbot_connections cc
-       JOIN connections c ON cc.connection_id = c.id
-       WHERE cc.chatbot_id = $1`,
-      [req.params.id]
-    );
-
-    res.json(result.rows);
   } catch (error) {
     console.error('Erro ao atualizar conexões:', error);
-    res.status(500).json({ error: 'Erro ao atualizar conexões' });
+    res.status(500).json({ error: 'Erro ao atualizar conexões', details: error.message });
   }
 });
 
@@ -923,7 +977,7 @@ router.get('/org/connections', async (req, res) => {
     }
 
     const result = await query(
-      `SELECT c.id, c.name, c.phone, c.status
+      `SELECT c.id, c.name, c.phone_number as phone, c.status
        FROM connections c
        WHERE c.organization_id = $1
        ORDER BY c.name`,
@@ -933,7 +987,7 @@ router.get('/org/connections', async (req, res) => {
     res.json(result.rows);
   } catch (error) {
     console.error('Erro ao listar conexões:', error);
-    res.status(500).json({ error: 'Erro ao listar conexões' });
+    res.status(500).json({ error: 'Erro ao listar conexões', details: error.message });
   }
 });
 
