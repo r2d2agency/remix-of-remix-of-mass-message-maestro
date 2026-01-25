@@ -641,15 +641,23 @@ export function ConversationList({
                     {/* Tags and Department row */}
                     <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                       {/* Department badge */}
-                      {conv.department_name && (
-                        <Badge
-                          variant="secondary"
-                          className="text-[10px] px-1.5 py-0 bg-primary/10 text-primary"
-                        >
-                          <Building2 className="h-2.5 w-2.5 mr-0.5" />
-                          {conv.department_name}
-                        </Badge>
-                      )}
+                      {conv.department_name && (() => {
+                        const deptColor = allDepartments.find(d => d.id === conv.department_id)?.color || '#6b7280';
+                        return (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] px-1.5 py-0"
+                            style={{ 
+                              borderColor: deptColor, 
+                              color: deptColor,
+                              backgroundColor: `${deptColor}15`
+                            }}
+                          >
+                            <Building2 className="h-2.5 w-2.5 mr-0.5" />
+                            {conv.department_name}
+                          </Badge>
+                        );
+                      })()}
                       
                       {/* Tags */}
                       {conv.tags.slice(0, 2).map(tag => (
