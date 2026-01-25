@@ -152,9 +152,10 @@ export function FlowSimulator({
         break;
 
       case "input":
-        const prompt = replaceVariables(content.prompt as string || "Digite sua resposta:");
+        // Check both 'text' and 'prompt' fields for compatibility
+        const promptText = content.text as string || content.prompt as string || "Digite sua resposta:";
         const variable = content.variable as string || "resposta";
-        addMessage("bot", prompt, nodeId, "input");
+        addMessage("bot", replaceVariables(promptText), nodeId, "input");
         setState((s) => ({
           ...s,
           currentNodeId: nodeId,
@@ -275,9 +276,14 @@ export function FlowSimulator({
 
   const replaceVariables = (text: string): string => {
     if (!text) return text;
-    return text.replace(/\{\{(\w+)\}\}/g, (match, varName) => {
-      return state.variables[varName] || match;
-    });
+    // Support both {{var}} and {var} syntax
+    return text
+      .replace(/\{\{(\w+)\}\}/g, (match, varName) => {
+        return state.variables[varName] || match;
+      })
+      .replace(/\{(\w+)\}/g, (match, varName) => {
+        return state.variables[varName] || match;
+      });
   };
 
   const startSimulation = () => {
