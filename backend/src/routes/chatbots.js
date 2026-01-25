@@ -152,101 +152,76 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Nome é obrigatório' });
     }
 
-    // Verificar se a coluna linked_flow_id existe
-    let hasLinkedFlowId = true;
+    // Verificar colunas disponíveis na tabela chatbots
+    let availableColumns = [];
     try {
-      await query(`SELECT linked_flow_id FROM chatbots LIMIT 0`);
+      const colsResult = await query(`
+        SELECT column_name FROM information_schema.columns 
+        WHERE table_name = 'chatbots'
+      `);
+      availableColumns = colsResult.rows.map(r => r.column_name);
     } catch (e) {
-      hasLinkedFlowId = false;
-      console.log('Coluna linked_flow_id não existe ainda - criando...');
-      try {
-        await query(`ALTER TABLE chatbots ADD COLUMN IF NOT EXISTS linked_flow_id UUID REFERENCES flows(id) ON DELETE SET NULL`);
-        hasLinkedFlowId = true;
-      } catch (alterErr) {
-        console.log('Não foi possível criar linked_flow_id:', alterErr.message);
+      console.log('Erro ao verificar colunas:', e.message);
+    }
+
+    // Construir INSERT dinâmico baseado nas colunas disponíveis
+    const fieldMap = {
+      organization_id: org.organization_id,
+      connection_id: connection_id || null,
+      name: name,
+      description: description || null,
+      is_active: false,
+      mode: mode || 'always',
+      business_hours_start: business_hours_start || '08:00',
+      business_hours_end: business_hours_end || '18:00',
+      business_days: business_days || [1, 2, 3, 4, 5],
+      timezone: timezone || 'America/Sao_Paulo',
+      ai_provider: ai_provider || 'none',
+      ai_model: ai_model || null,
+      ai_api_key: ai_api_key || null,
+      ai_system_prompt: ai_system_prompt || null,
+      ai_temperature: ai_temperature || 0.7,
+      ai_max_tokens: ai_max_tokens || 500,
+      welcome_message: welcome_message || null,
+      fallback_message: fallback_message || 'Desculpe, não entendi. Vou transferir você para um atendente.',
+      transfer_after_failures: transfer_after_failures || 3,
+      typing_delay_ms: typing_delay_ms || 1500,
+      created_by: req.userId
+    };
+
+    // Adicionar campos opcionais se existirem na tabela
+    if (availableColumns.includes('chatbot_type')) {
+      fieldMap.chatbot_type = chatbot_type || 'traditional';
+    }
+    if (availableColumns.includes('menu_message')) {
+      fieldMap.menu_message = menu_message || null;
+    }
+    if (availableColumns.includes('menu_options')) {
+      fieldMap.menu_options = menu_options ? JSON.stringify(menu_options) : '[]';
+    }
+    if (availableColumns.includes('invalid_option_message')) {
+      fieldMap.invalid_option_message = invalid_option_message || 'Opção inválida. Por favor, digite um número válido.';
+    }
+    if (availableColumns.includes('linked_flow_id')) {
+      fieldMap.linked_flow_id = linked_flow_id || null;
+    }
+
+    // Filtrar apenas colunas que existem
+    const finalFields = {};
+    for (const [key, value] of Object.entries(fieldMap)) {
+      if (availableColumns.length === 0 || availableColumns.includes(key)) {
+        finalFields[key] = value;
       }
     }
 
-    let result;
-    if (hasLinkedFlowId) {
-      result = await query(
-        `INSERT INTO chatbots (
-          organization_id, connection_id, name, description, chatbot_type, mode,
-          business_hours_start, business_hours_end, business_days, timezone,
-          ai_provider, ai_model, ai_api_key, ai_system_prompt, ai_temperature, ai_max_tokens,
-          welcome_message, fallback_message, transfer_after_failures, typing_delay_ms,
-          menu_message, menu_options, invalid_option_message, linked_flow_id,
-          created_by
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
-        RETURNING *`,
-        [
-          org.organization_id,
-          connection_id || null,
-          name,
-          description || null,
-          chatbot_type || 'flow',
-          mode || 'always',
-          business_hours_start || '08:00',
-          business_hours_end || '18:00',
-          business_days || [1, 2, 3, 4, 5],
-          timezone || 'America/Sao_Paulo',
-          ai_provider || 'none',
-          ai_model || null,
-          ai_api_key || null,
-          ai_system_prompt || null,
-          ai_temperature || 0.7,
-          ai_max_tokens || 500,
-          welcome_message || null,
-          fallback_message || 'Desculpe, não entendi. Vou transferir você para um atendente.',
-          transfer_after_failures || 3,
-          typing_delay_ms || 1500,
-          menu_message || null,
-          menu_options ? JSON.stringify(menu_options) : '[]',
-          invalid_option_message || 'Opção inválida. Por favor, digite um número válido.',
-          linked_flow_id || null,
-          req.userId
-        ]
-      );
-    } else {
-      // Fallback sem linked_flow_id
-      result = await query(
-        `INSERT INTO chatbots (
-          organization_id, connection_id, name, description, chatbot_type, mode,
-          business_hours_start, business_hours_end, business_days, timezone,
-          ai_provider, ai_model, ai_api_key, ai_system_prompt, ai_temperature, ai_max_tokens,
-          welcome_message, fallback_message, transfer_after_failures, typing_delay_ms,
-          menu_message, menu_options, invalid_option_message,
-          created_by
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
-        RETURNING *`,
-        [
-          org.organization_id,
-          connection_id || null,
-          name,
-          description || null,
-          chatbot_type || 'flow',
-          mode || 'always',
-          business_hours_start || '08:00',
-          business_hours_end || '18:00',
-          business_days || [1, 2, 3, 4, 5],
-          timezone || 'America/Sao_Paulo',
-          ai_provider || 'none',
-          ai_model || null,
-          ai_api_key || null,
-          ai_system_prompt || null,
-          ai_temperature || 0.7,
-          ai_max_tokens || 500,
-          welcome_message || null,
-          fallback_message || 'Desculpe, não entendi. Vou transferir você para um atendente.',
-          transfer_after_failures || 3,
-          typing_delay_ms || 1500,
-          menu_message || null,
-          menu_options ? JSON.stringify(menu_options) : '[]',
-          invalid_option_message || 'Opção inválida. Por favor, digite um número válido.',
-          req.userId
-        ]
-      );
-    }
+    const columns = Object.keys(finalFields);
+    const values = Object.values(finalFields);
+    const placeholders = columns.map((_, i) => `$${i + 1}`);
+
+    const result = await query(
+      `INSERT INTO chatbots (${columns.join(', ')}) VALUES (${placeholders.join(', ')}) RETURNING *`,
+      values
+    );
 
     // Criar nó inicial do fluxo (com resiliência)
     try {
