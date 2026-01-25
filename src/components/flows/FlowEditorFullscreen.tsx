@@ -17,19 +17,18 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
 import { 
   Save, Plus, MessageSquare, List, FormInput, GitBranch, 
-  Zap, ArrowRightLeft, Sparkles, Square, Loader2, Trash2, X,
-  Play, Clock, Webhook
+  Zap, ArrowRightLeft, Sparkles, Square, Loader2, X,
+  Clock, Webhook, Undo2, Redo2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { nodeTypes, FlowNodeData } from '@/components/chatbots/FlowNodes';
 import { useFlows, Flow } from '@/hooks/use-flows';
+import { NodeEditorPanel } from './NodeEditorPanel';
 
 interface FlowEditorFullscreenProps {
   open: boolean;
@@ -38,16 +37,16 @@ interface FlowEditorFullscreenProps {
 }
 
 const nodeTypeOptions = [
-  { type: 'message', label: 'Mensagem', icon: MessageSquare, description: 'Envia uma mensagem' },
-  { type: 'menu', label: 'Menu', icon: List, description: 'Opções para escolher' },
-  { type: 'input', label: 'Entrada', icon: FormInput, description: 'Coleta informação' },
-  { type: 'condition', label: 'Condição', icon: GitBranch, description: 'Ramifica baseado em condição' },
-  { type: 'action', label: 'Ação', icon: Zap, description: 'Executa uma ação' },
-  { type: 'transfer', label: 'Transferir', icon: ArrowRightLeft, description: 'Transfere para atendente' },
-  { type: 'ai_response', label: 'IA', icon: Sparkles, description: 'Resposta com IA' },
-  { type: 'delay', label: 'Delay', icon: Clock, description: 'Aguarda X segundos' },
-  { type: 'webhook', label: 'Webhook', icon: Webhook, description: 'Chama API externa' },
-  { type: 'end', label: 'Fim', icon: Square, description: 'Encerra o fluxo' },
+  { type: 'message', label: 'Mensagem', icon: MessageSquare, description: 'Envia uma mensagem', color: 'bg-blue-500' },
+  { type: 'menu', label: 'Menu', icon: List, description: 'Opções para escolher', color: 'bg-purple-500' },
+  { type: 'input', label: 'Entrada', icon: FormInput, description: 'Coleta informação', color: 'bg-green-500' },
+  { type: 'condition', label: 'Condição', icon: GitBranch, description: 'Ramifica baseado em condição', color: 'bg-amber-500' },
+  { type: 'action', label: 'Ação', icon: Zap, description: 'Executa uma ação', color: 'bg-orange-500' },
+  { type: 'transfer', label: 'Transferir', icon: ArrowRightLeft, description: 'Transfere para atendente', color: 'bg-pink-500' },
+  { type: 'ai_response', label: 'IA', icon: Sparkles, description: 'Resposta com IA', color: 'bg-violet-500' },
+  { type: 'delay', label: 'Delay', icon: Clock, description: 'Aguarda X segundos', color: 'bg-cyan-500' },
+  { type: 'webhook', label: 'Webhook', icon: Webhook, description: 'Chama API externa', color: 'bg-rose-500' },
+  { type: 'end', label: 'Fim', icon: Square, description: 'Encerra o fluxo', color: 'bg-slate-500' },
 ];
 
 function FlowEditorContent({ flow, onClose }: { flow: Flow; onClose: () => void }) {
@@ -60,12 +59,19 @@ function FlowEditorContent({ flow, onClose }: { flow: Flow; onClose: () => void 
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [editingNode, setEditingNode] = useState<Node<FlowNodeData> | null>(null);
-  const [nodeContent, setNodeContent] = useState<Record<string, any>>({});
   const [draggedType, setDraggedType] = useState<string | null>(null);
+  const [hasChanges, setHasChanges] = useState(false);
 
   useEffect(() => {
     loadCanvas();
   }, [flow.id]);
+
+  // Mark as changed when nodes/edges change
+  useEffect(() => {
+    if (!loading) {
+      setHasChanges(true);
+    }
+  }, [nodes, edges]);
 
   const loadCanvas = async () => {
     setLoading(true);
@@ -106,13 +112,13 @@ function FlowEditorContent({ flow, onClose }: { flow: Flow; onClose: () => void 
       setEdges(edgesData);
     }
     setLoading(false);
+    setHasChanges(false);
   };
 
   const handleEditNode = useCallback((nodeId: string) => {
     const node = nodes.find((n) => n.id === nodeId);
-    if (node) {
+    if (node && node.type !== 'start') {
       setEditingNode(node);
-      setNodeContent(node.data.content || {});
     }
   }, [nodes]);
 
@@ -123,7 +129,10 @@ function FlowEditorContent({ flow, onClose }: { flow: Flow; onClose: () => void 
     }
     setNodes((nds) => nds.filter((n) => n.id !== nodeId));
     setEdges((eds) => eds.filter((e) => e.source !== nodeId && e.target !== nodeId));
-  }, [setNodes, setEdges]);
+    if (editingNode?.id === nodeId) {
+      setEditingNode(null);
+    }
+  }, [setNodes, setEdges, editingNode]);
 
   const onConnect = useCallback((params: Connection) => {
     setEdges((eds) => addEdge({
@@ -168,22 +177,32 @@ function FlowEditorContent({ flow, onClose }: { flow: Flow; onClose: () => void 
 
       setNodes((nds) => nds.concat(newNode));
       setDraggedType(null);
+      
+      // Auto-open editor for new node
+      setTimeout(() => {
+        setEditingNode(newNode);
+      }, 100);
     },
     [draggedType, project, setNodes, handleEditNode, handleDeleteNode]
   );
 
-  const saveNodeContent = () => {
+  const handleSaveNodeContent = (content: Record<string, any>) => {
     if (!editingNode) return;
     setNodes((nds) =>
       nds.map((n) =>
         n.id === editingNode.id
-          ? { ...n, data: { ...n.data, label: nodeContent.label || n.data.label, content: nodeContent } }
+          ? { ...n, data: { ...n.data, label: content.label || n.data.label, content } }
           : n
       )
     );
     setEditingNode(null);
-    setNodeContent({});
   };
+
+  const handleNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
+    if (node.type !== 'start') {
+      handleEditNode(node.id);
+    }
+  }, [handleEditNode]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -207,6 +226,7 @@ function FlowEditorContent({ flow, onClose }: { flow: Flow; onClose: () => void 
       }));
 
       await saveCanvas(flow.id, { nodes: nodesData, edges: edgesData });
+      setHasChanges(false);
       toast.success('Fluxo salvo com sucesso!');
     } catch (error) {
       toast.error('Erro ao salvar fluxo');
@@ -218,47 +238,66 @@ function FlowEditorContent({ flow, onClose }: { flow: Flow; onClose: () => void 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Carregando fluxo...</p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="flex h-screen bg-background">
-      {/* Sidebar */}
-      <div className="w-64 border-r bg-card p-4 flex flex-col">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-semibold text-lg truncate">{flow.name}</h2>
-          <Button variant="ghost" size="icon" onClick={onClose}>
-            <X className="h-4 w-4" />
-          </Button>
+      {/* Sidebar - Node Palette */}
+      <div className="w-64 border-r bg-card flex flex-col">
+        <div className="p-4 border-b bg-muted/30">
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="font-semibold text-lg truncate">{flow.name}</h2>
+            <Button variant="ghost" size="icon" onClick={onClose}>
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="flex items-center gap-2">
+            {flow.is_active && <Badge variant="default" className="text-xs">Ativo</Badge>}
+            {hasChanges && <Badge variant="outline" className="text-xs">Alterações não salvas</Badge>}
+          </div>
         </div>
-        <h3 className="font-medium mb-3 flex items-center gap-2 text-sm">
-          <Plus className="h-4 w-4" />
-          Arraste para adicionar
-        </h3>
+        
+        <div className="p-3 border-b">
+          <h3 className="font-medium text-sm flex items-center gap-2 text-muted-foreground">
+            <Plus className="h-4 w-4" />
+            Arraste para adicionar
+          </h3>
+        </div>
+        
         <ScrollArea className="flex-1">
-          <div className="space-y-2 pr-2">
+          <div className="p-3 space-y-2">
             {nodeTypeOptions.map((opt) => (
               <Card
                 key={opt.type}
-                className="cursor-grab active:cursor-grabbing hover:border-primary transition-all hover:shadow-md"
+                className="cursor-grab active:cursor-grabbing hover:border-primary transition-all hover:shadow-md group"
                 draggable
                 onDragStart={(e) => onDragStart(e, opt.type)}
               >
                 <CardContent className="p-3 flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-primary/10">
-                    <opt.icon className="h-4 w-4 text-primary" />
+                  <div className={`p-2 rounded-lg ${opt.color} text-white transition-transform group-hover:scale-110`}>
+                    <opt.icon className="h-4 w-4" />
                   </div>
-                  <div>
+                  <div className="overflow-hidden">
                     <p className="font-medium text-sm">{opt.label}</p>
-                    <p className="text-xs text-muted-foreground">{opt.description}</p>
+                    <p className="text-xs text-muted-foreground truncate">{opt.description}</p>
                   </div>
                 </CardContent>
               </Card>
             ))}
           </div>
         </ScrollArea>
+
+        <div className="p-3 border-t bg-muted/30">
+          <p className="text-xs text-muted-foreground text-center">
+            {nodes.length} nós • {edges.length} conexões
+          </p>
+        </div>
       </div>
 
       {/* Canvas */}
@@ -271,6 +310,7 @@ function FlowEditorContent({ flow, onClose }: { flow: Flow; onClose: () => void 
           onConnect={onConnect}
           onDragOver={onDragOver}
           onDrop={onDrop}
+          onNodeClick={handleNodeClick}
           nodeTypes={nodeTypes}
           fitView
           snapToGrid
@@ -278,10 +318,14 @@ function FlowEditorContent({ flow, onClose }: { flow: Flow; onClose: () => void 
           className="bg-background"
         >
           <Controls className="!bg-card !border !shadow-lg" />
-          <MiniMap className="!bg-card !border" />
+          <MiniMap className="!bg-card !border" nodeStrokeWidth={3} />
           <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
           <Panel position="top-right" className="flex gap-2">
-            <Button onClick={handleSave} disabled={saving}>
+            <Button variant="outline" onClick={loadCanvas} disabled={saving}>
+              <Undo2 className="h-4 w-4 mr-2" />
+              Reverter
+            </Button>
+            <Button onClick={handleSave} disabled={saving || !hasChanges}>
               {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
               Salvar Fluxo
             </Button>
@@ -289,38 +333,13 @@ function FlowEditorContent({ flow, onClose }: { flow: Flow; onClose: () => void 
         </ReactFlow>
       </div>
 
-      {/* Node Editor */}
+      {/* Node Editor Panel */}
       {editingNode && (
-        <div className="w-80 border-l bg-card p-4">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold">Editar Nó</h3>
-            <Button variant="ghost" size="icon" onClick={() => setEditingNode(null)}>
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Nome</Label>
-              <Input
-                value={nodeContent.label || editingNode.data.label || ''}
-                onChange={(e) => setNodeContent({ ...nodeContent, label: e.target.value })}
-              />
-            </div>
-            {editingNode.type === 'message' && (
-              <div className="space-y-2">
-                <Label>Mensagem</Label>
-                <Textarea
-                  value={nodeContent.text || ''}
-                  onChange={(e) => setNodeContent({ ...nodeContent, text: e.target.value })}
-                  rows={4}
-                />
-              </div>
-            )}
-            <Button onClick={saveNodeContent} className="w-full">
-              Aplicar
-            </Button>
-          </div>
-        </div>
+        <NodeEditorPanel
+          node={editingNode}
+          onSave={handleSaveNodeContent}
+          onClose={() => setEditingNode(null)}
+        />
       )}
     </div>
   );
