@@ -36,13 +36,13 @@ router.get('/', async (req, res) => {
       return res.status(403).json({ error: 'Usuário não pertence a uma organização' });
     }
 
+    // Query mais resiliente - não depende de chatbot_sessions existir
     const result = await query(
       `SELECT 
         c.*,
         conn.name as connection_name,
         conn.phone as connection_phone,
-        u.name as created_by_name,
-        (SELECT COUNT(*) FROM chatbot_sessions cs WHERE cs.chatbot_id = c.id AND cs.is_active = true) as active_sessions
+        u.name as created_by_name
        FROM chatbots c
        LEFT JOIN connections conn ON c.connection_id = conn.id
        LEFT JOIN users u ON c.created_by = u.id
@@ -51,16 +51,35 @@ router.get('/', async (req, res) => {
       [org.organization_id]
     );
 
+    // Tentar buscar sessões ativas separadamente (não falha se tabela não existir)
+    let sessionsMap = {};
+    try {
+      const sessionsResult = await query(
+        `SELECT chatbot_id, COUNT(*) as count 
+         FROM chatbot_sessions 
+         WHERE is_active = true 
+         GROUP BY chatbot_id`
+      );
+      sessionsMap = sessionsResult.rows.reduce((acc, row) => {
+        acc[row.chatbot_id] = parseInt(row.count);
+        return acc;
+      }, {});
+    } catch (e) {
+      // Tabela chatbot_sessions pode não existir ainda
+      console.log('chatbot_sessions table may not exist yet');
+    }
+
     // Remover API keys do retorno
     const chatbots = result.rows.map(bot => ({
       ...bot,
-      ai_api_key: bot.ai_api_key ? '••••••••' : null
+      ai_api_key: bot.ai_api_key ? '••••••••' : null,
+      active_sessions: sessionsMap[bot.id] || 0
     }));
 
     res.json(chatbots);
   } catch (error) {
     console.error('Erro ao listar chatbots:', error);
-    res.status(500).json({ error: 'Erro ao listar chatbots' });
+    res.status(500).json({ error: 'Erro ao listar chatbots', details: error.message });
   }
 });
 

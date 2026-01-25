@@ -242,25 +242,12 @@ router.get('/:id/members', async (req, res) => {
       return res.status(403).json({ error: 'Acesso negado' });
     }
 
+    // Query básica que não depende de tabelas que podem não existir
     const result = await query(
       `SELECT 
         om.*, 
         u.name, 
-        u.email,
-        COALESCE(
-          (SELECT json_agg(json_build_object('id', c.id, 'name', c.name))
-           FROM connection_members cm
-           JOIN connections c ON c.id = cm.connection_id
-           WHERE cm.user_id = om.user_id AND c.organization_id = $1
-          ), '[]'::json
-        ) as assigned_connections,
-        COALESCE(
-          (SELECT json_agg(json_build_object('id', d.id, 'name', d.name, 'role', dm.role))
-           FROM department_members dm
-           JOIN departments d ON d.id = dm.department_id
-           WHERE dm.user_id = om.user_id AND d.organization_id = $1
-          ), '[]'::json
-        ) as assigned_departments
+        u.email
        FROM organization_members om
        JOIN users u ON u.id = om.user_id
        WHERE om.organization_id = $1
@@ -268,10 +255,55 @@ router.get('/:id/members', async (req, res) => {
       [id]
     );
 
-    res.json(result.rows);
+    // Tentar buscar conexões atribuídas (não falha se tabela não existir)
+    let connectionAssignments = {};
+    try {
+      const connResult = await query(
+        `SELECT cm.user_id, json_agg(json_build_object('id', c.id, 'name', c.name)) as connections
+         FROM connection_members cm
+         JOIN connections c ON c.id = cm.connection_id
+         WHERE c.organization_id = $1
+         GROUP BY cm.user_id`,
+        [id]
+      );
+      connectionAssignments = connResult.rows.reduce((acc, row) => {
+        acc[row.user_id] = row.connections;
+        return acc;
+      }, {});
+    } catch (e) {
+      console.log('connection_members table may not exist:', e.message);
+    }
+
+    // Tentar buscar departamentos atribuídos (não falha se tabela não existir)
+    let departmentAssignments = {};
+    try {
+      const deptResult = await query(
+        `SELECT dm.user_id, json_agg(json_build_object('id', d.id, 'name', d.name, 'role', dm.role)) as departments
+         FROM department_members dm
+         JOIN departments d ON d.id = dm.department_id
+         WHERE d.organization_id = $1
+         GROUP BY dm.user_id`,
+        [id]
+      );
+      departmentAssignments = deptResult.rows.reduce((acc, row) => {
+        acc[row.user_id] = row.departments;
+        return acc;
+      }, {});
+    } catch (e) {
+      console.log('department_members table may not exist:', e.message);
+    }
+
+    // Montar resposta com assignments opcionais
+    const members = result.rows.map(member => ({
+      ...member,
+      assigned_connections: connectionAssignments[member.user_id] || [],
+      assigned_departments: departmentAssignments[member.user_id] || []
+    }));
+
+    res.json(members);
   } catch (error) {
     console.error('List members error:', error);
-    res.status(500).json({ error: 'Erro ao listar membros' });
+    res.status(500).json({ error: 'Erro ao listar membros', details: error.message });
   }
 });
 
@@ -474,18 +506,23 @@ router.get('/:id/departments', async (req, res) => {
       return res.status(403).json({ error: 'Acesso negado' });
     }
     
-    const result = await query(
-      `SELECT id, name, color, icon, is_active
-       FROM departments 
-       WHERE organization_id = $1 
-       ORDER BY name`,
-      [id]
-    );
-    
-    res.json(result.rows);
+    // Tentar buscar departamentos (não falha se tabela não existir)
+    try {
+      const result = await query(
+        `SELECT id, name, color, icon, is_active
+         FROM departments 
+         WHERE organization_id = $1 
+         ORDER BY name`,
+        [id]
+      );
+      res.json(result.rows);
+    } catch (e) {
+      console.log('departments table may not exist:', e.message);
+      res.json([]);
+    }
   } catch (error) {
     console.error('Get org departments error:', error);
-    res.status(500).json({ error: 'Erro ao buscar departamentos' });
+    res.status(500).json({ error: 'Erro ao buscar departamentos', details: error.message });
   }
 });
 
