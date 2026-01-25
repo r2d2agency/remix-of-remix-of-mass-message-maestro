@@ -554,8 +554,6 @@ router.post('/transfer/:conversationId', async (req, res) => {
     const result = await query(
       `UPDATE conversations 
        SET department_id = $1, 
-           assigned_to = NULL, 
-           status = 'pending',
            updated_at = NOW()
        WHERE id = $2
        RETURNING *`,
