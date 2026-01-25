@@ -230,6 +230,7 @@ const Chat = () => {
       if (filters.tag !== 'all') filterParams.tag = filters.tag;
       if (filters.assigned !== 'all') filterParams.assigned = filters.assigned;
       if (filters.connection !== 'all') filterParams.connection = filters.connection;
+      if (filters.department !== 'all') filterParams.department = filters.department;
       filterParams.archived = filters.archived;
       filterParams.is_group = activeTab === 'groups' ? 'true' : 'false';
       filterParams.attendance_status = filters.attendance_status;
@@ -276,7 +277,7 @@ const Chat = () => {
       isLoadingConversationsRef.current = false;
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [getConversations, filters.search, filters.tag, filters.assigned, filters.connection, filters.archived, filters.attendance_status, activeTab, loadAttendanceCounts]);
+  }, [getConversations, filters.search, filters.tag, filters.assigned, filters.connection, filters.archived, filters.attendance_status, filters.department, activeTab, loadAttendanceCounts]);
 
   // Keep ref pointing to the latest loadConversations (used by intervals above)
   useEffect(() => {
@@ -288,7 +289,7 @@ const Chat = () => {
   useEffect(() => {
     loadConversations();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.search, filters.tag, filters.assigned, filters.connection, filters.archived, filters.attendance_status, activeTab]);
+  }, [filters.search, filters.tag, filters.assigned, filters.connection, filters.archived, filters.attendance_status, filters.department, activeTab]);
 
   const loadTags = async () => {
     try {
