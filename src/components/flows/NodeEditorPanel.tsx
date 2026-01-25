@@ -673,6 +673,28 @@ function ConditionNodeEditor({ content, onChange }: { content: Record<string, an
 
 // ============ Action Node Editor ============
 function ActionNodeEditor({ content, onChange }: { content: Record<string, any>; onChange: (c: Record<string, any>) => void }) {
+  const [tags, setTags] = useState<Array<{ id: string; name: string; color: string }>>([]);
+  const [loadingTags, setLoadingTags] = useState(false);
+
+  useEffect(() => {
+    if (content.action_type === 'add_tag' || content.action_type === 'remove_tag') {
+      loadTags();
+    }
+  }, [content.action_type]);
+
+  const loadTags = async () => {
+    setLoadingTags(true);
+    try {
+      const { api } = await import('@/lib/api');
+      const data = await api<Array<{ id: string; name: string; color: string }>>('/api/chat/tags/with-count');
+      setTags(data);
+    } catch (error) {
+      console.error('Error loading tags:', error);
+    } finally {
+      setLoadingTags(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="space-y-2">
@@ -717,12 +739,46 @@ function ActionNodeEditor({ content, onChange }: { content: Record<string, any>;
 
       {(content.action_type === 'add_tag' || content.action_type === 'remove_tag') && (
         <div className="space-y-2">
-          <Label>Tag</Label>
-          <Input
-            value={content.tag || ''}
-            onChange={(e) => onChange({ ...content, tag: e.target.value })}
-            placeholder="Nome da tag"
-          />
+          <Label>{content.action_type === 'add_tag' ? 'Adicionar Tag' : 'Remover Tag'}</Label>
+          {loadingTags ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground p-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Carregando tags...
+            </div>
+          ) : tags.length === 0 ? (
+            <div className="text-sm text-muted-foreground p-3 bg-muted rounded-lg">
+              Nenhuma tag encontrada. Crie tags na página de Tags primeiro.
+            </div>
+          ) : (
+            <Select
+              value={content.tag_id || ''}
+              onValueChange={(v) => {
+                const selectedTag = tags.find(t => t.id === v);
+                onChange({ 
+                  ...content, 
+                  tag_id: v, 
+                  tag: selectedTag?.name || '' 
+                });
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione uma tag" />
+              </SelectTrigger>
+              <SelectContent>
+                {tags.map((tag) => (
+                  <SelectItem key={tag.id} value={tag.id}>
+                    <div className="flex items-center gap-2">
+                      <div 
+                        className="w-3 h-3 rounded-full" 
+                        style={{ backgroundColor: tag.color }}
+                      />
+                      {tag.name}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
       )}
 
