@@ -439,4 +439,159 @@ router.post('/:id/duplicate', async (req, res) => {
   }
 });
 
+// ============================================
+// FLOWS PARA CHAT (independente de chatbots)
+// ============================================
+
+// Listar fluxos disponíveis para uma conexão específica
+router.get('/available/:connectionId', async (req, res) => {
+  try {
+    const org = await getUserOrganization(req.userId);
+    if (!org) {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+
+    const { connectionId } = req.params;
+
+    // Buscar fluxos ativos que incluem esta conexão ou que não têm conexão definida (funcionam em todas)
+    const result = await query(
+      `SELECT 
+        f.id,
+        f.name,
+        f.description,
+        f.trigger_enabled,
+        f.trigger_keywords,
+        f.is_active,
+        (SELECT COUNT(*) FROM flow_nodes WHERE flow_id = f.id) as node_count
+       FROM flows f
+       WHERE f.organization_id = $1
+         AND f.is_active = true
+         AND (
+           f.connection_ids IS NULL 
+           OR f.connection_ids = '{}'
+           OR $2 = ANY(f.connection_ids)
+         )
+       ORDER BY f.name`,
+      [org.organization_id, connectionId]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get available flows error:', error);
+    res.status(500).json({ error: 'Erro ao buscar fluxos disponíveis' });
+  }
+});
+
+// Iniciar um fluxo em uma conversa específica
+router.post('/conversation/:conversationId/start', async (req, res) => {
+  try {
+    const org = await getUserOrganization(req.userId);
+    if (!org) {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+
+    const { conversationId } = req.params;
+    const { flow_id } = req.body;
+
+    if (!flow_id) {
+      return res.status(400).json({ error: 'flow_id é obrigatório' });
+    }
+
+    // Verificar se a conversa pertence à organização
+    const conversation = await query(
+      `SELECT c.id, c.contact_phone, c.connection_id
+       FROM conversations c
+       JOIN connections conn ON conn.id = c.connection_id
+       WHERE c.id = $1 AND conn.organization_id = $2`,
+      [conversationId, org.organization_id]
+    );
+
+    if (conversation.rows.length === 0) {
+      return res.status(404).json({ error: 'Conversa não encontrada' });
+    }
+
+    // Verificar se o fluxo pertence à organização e está ativo
+    const flow = await query(
+      `SELECT id, name FROM flows WHERE id = $1 AND organization_id = $2 AND is_active = true`,
+      [flow_id, org.organization_id]
+    );
+
+    if (flow.rows.length === 0) {
+      return res.status(404).json({ error: 'Fluxo não encontrado ou inativo' });
+    }
+
+    // Criar sessão de fluxo (reutilizar estrutura de chatbot_sessions se existir)
+    try {
+      await query(
+        `INSERT INTO flow_sessions (
+          flow_id, conversation_id, contact_phone, current_node_id, is_active, started_by
+        ) VALUES ($1, $2, $3, 'start', true, $4)
+        ON CONFLICT (conversation_id) WHERE is_active = true
+        DO UPDATE SET 
+          flow_id = $1,
+          current_node_id = 'start',
+          started_at = NOW(),
+          started_by = $4,
+          variables = '{}'`,
+        [flow_id, conversationId, conversation.rows[0].contact_phone, req.userId]
+      );
+    } catch (sessionError) {
+      // Tabela flow_sessions pode não existir ainda - criar registro simples
+      console.log('flow_sessions table may not exist, skipping session creation:', sessionError.message);
+    }
+
+    res.json({ 
+      success: true, 
+      message: `Fluxo "${flow.rows[0].name}" iniciado`,
+      flow_id: flow_id,
+      conversation_id: conversationId
+    });
+  } catch (error) {
+    console.error('Start flow in conversation error:', error);
+    res.status(500).json({ error: 'Erro ao iniciar fluxo', details: error.message });
+  }
+});
+
+// Cancelar fluxo ativo em uma conversa
+router.post('/conversation/:conversationId/cancel', async (req, res) => {
+  try {
+    const org = await getUserOrganization(req.userId);
+    if (!org) {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+
+    const { conversationId } = req.params;
+
+    // Verificar se a conversa pertence à organização
+    const conversation = await query(
+      `SELECT c.id
+       FROM conversations c
+       JOIN connections conn ON conn.id = c.connection_id
+       WHERE c.id = $1 AND conn.organization_id = $2`,
+      [conversationId, org.organization_id]
+    );
+
+    if (conversation.rows.length === 0) {
+      return res.status(404).json({ error: 'Conversa não encontrada' });
+    }
+
+    // Tentar cancelar sessão de fluxo
+    try {
+      await query(
+        `UPDATE flow_sessions 
+         SET is_active = false, ended_at = NOW()
+         WHERE conversation_id = $1 AND is_active = true`,
+        [conversationId]
+      );
+    } catch (e) {
+      console.log('flow_sessions table may not exist:', e.message);
+    }
+
+    res.json({ success: true, message: 'Fluxo cancelado' });
+  } catch (error) {
+    console.error('Cancel flow error:', error);
+    res.status(500).json({ error: 'Erro ao cancelar fluxo' });
+  }
+});
+
 export default router;

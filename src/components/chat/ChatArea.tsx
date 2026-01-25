@@ -1448,6 +1448,17 @@ export function ChatArea({
           )}>
             {/* Action buttons row */}
             <div className="flex items-center gap-1">
+              {/* Start Flow button */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 flex-shrink-0"
+                onClick={() => setShowStartFlowDialog(true)}
+                title="Iniciar fluxo"
+              >
+                <Zap className="h-4 w-4 text-primary" />
+              </Button>
+
               {/* Quick Replies button */}
               <Button
                 variant="ghost"
@@ -1456,7 +1467,7 @@ export function ChatArea({
                 onClick={() => setShowQuickReplies(!showQuickReplies)}
                 title="Respostas rápidas"
               >
-                <Zap className="h-4 w-4" />
+                <Reply className="h-4 w-4" />
               </Button>
 
               {/* Attachment button */}
