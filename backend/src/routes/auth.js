@@ -75,11 +75,36 @@ router.post('/register', async (req, res) => {
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + trialDays);
 
-      // Create organization
+      // Get plan modules for organization
+      const planModulesResult = await query(
+        `SELECT has_campaigns, has_asaas_integration, has_whatsapp_groups, has_scheduled_messages, has_chatbots FROM plans WHERE id = $1`,
+        [selectedPlan.id]
+      );
+      
+      let modulesEnabled = {
+        campaigns: true,
+        billing: true,
+        groups: true,
+        scheduled_messages: true,
+        chatbots: true
+      };
+      
+      if (planModulesResult.rows.length > 0) {
+        const plan = planModulesResult.rows[0];
+        modulesEnabled = {
+          campaigns: plan.has_campaigns ?? true,
+          billing: plan.has_asaas_integration ?? true,
+          groups: plan.has_whatsapp_groups ?? true,
+          scheduled_messages: plan.has_scheduled_messages ?? true,
+          chatbots: plan.has_chatbots ?? true
+        };
+      }
+
+      // Create organization with modules from plan
       const orgResult = await query(
-        `INSERT INTO organizations (name, slug, plan_id, expires_at) 
-         VALUES ($1, $2, $3, $4) RETURNING id`,
-        [name, slug, selectedPlan.id, expiresAt.toISOString()]
+        `INSERT INTO organizations (name, slug, plan_id, expires_at, modules_enabled) 
+         VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+        [name, slug, selectedPlan.id, expiresAt.toISOString(), JSON.stringify(modulesEnabled)]
       );
 
       const orgId = orgResult.rows[0].id;
@@ -196,6 +221,7 @@ router.get('/me', async (req, res) => {
       billing: true,
       groups: true,
       scheduled_messages: true,
+      chatbots: true,
     };
     const modulesEnabled = orgResult.rows[0]?.modules_enabled || defaultModules;
 

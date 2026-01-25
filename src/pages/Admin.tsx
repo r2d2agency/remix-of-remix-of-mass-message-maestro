@@ -19,7 +19,7 @@ import { useAdminSettings } from '@/hooks/use-branding';
 import { useUpload } from '@/hooks/use-upload';
 import { BrandingTab } from '@/components/admin/BrandingTab';
 import { toast } from 'sonner';
-import { Shield, Building2, Users, Plus, Trash2, Loader2, Pencil, Crown, Image, Package, CalendarIcon, UserPlus, Eye, MessageSquare, Receipt, Wifi, Upload, Palette } from 'lucide-react';
+import { Shield, Building2, Users, Plus, Trash2, Loader2, Pencil, Crown, Image, Package, CalendarIcon, UserPlus, Eye, MessageSquare, Receipt, Wifi, Upload, Palette, Bot, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -45,6 +45,8 @@ interface Plan {
   has_chat: boolean;
   has_whatsapp_groups: boolean;
   has_campaigns: boolean;
+  has_chatbots: boolean;
+  has_scheduled_messages: boolean;
   price: number;
   billing_period: string;
   is_active: boolean;
@@ -116,6 +118,8 @@ export default function Admin() {
   const [newPlanChat, setNewPlanChat] = useState(true);
   const [newPlanGroups, setNewPlanGroups] = useState(false);
   const [newPlanCampaigns, setNewPlanCampaigns] = useState(true);
+  const [newPlanChatbots, setNewPlanChatbots] = useState(true);
+  const [newPlanScheduled, setNewPlanScheduled] = useState(true);
   const [newPlanPeriod, setNewPlanPeriod] = useState('monthly');
   const [newPlanVisibleOnSignup, setNewPlanVisibleOnSignup] = useState(false);
   const [newPlanTrialDays, setNewPlanTrialDays] = useState('3');
@@ -223,6 +227,8 @@ export default function Admin() {
       has_chat: newPlanChat,
       has_whatsapp_groups: newPlanGroups,
       has_campaigns: newPlanCampaigns,
+      has_chatbots: newPlanChatbots,
+      has_scheduled_messages: newPlanScheduled,
       price: parseFloat(newPlanPrice) || 0,
       billing_period: newPlanPeriod,
       visible_on_signup: newPlanVisibleOnSignup,
@@ -251,6 +257,8 @@ export default function Admin() {
     setNewPlanChat(true);
     setNewPlanGroups(false);
     setNewPlanCampaigns(true);
+    setNewPlanChatbots(true);
+    setNewPlanScheduled(true);
     setNewPlanPeriod('monthly');
     setNewPlanVisibleOnSignup(false);
     setNewPlanTrialDays('3');
@@ -270,6 +278,8 @@ export default function Admin() {
       has_chat: editingPlan.has_chat,
       has_whatsapp_groups: editingPlan.has_whatsapp_groups,
       has_campaigns: editingPlan.has_campaigns,
+      has_chatbots: editingPlan.has_chatbots,
+      has_scheduled_messages: editingPlan.has_scheduled_messages,
       price: editingPlan.price,
       billing_period: editingPlan.billing_period,
       is_active: editingPlan.is_active,
@@ -671,6 +681,28 @@ export default function Admin() {
                           onCheckedChange={setNewPlanCampaigns}
                         />
                       </div>
+                      <div className="flex items-center justify-between rounded-lg border p-3">
+                        <div className="flex items-center gap-2">
+                          <Bot className="h-4 w-4 text-muted-foreground" />
+                          <Label htmlFor="chatbots-switch">Chatbots</Label>
+                        </div>
+                        <Switch
+                          id="chatbots-switch"
+                          checked={newPlanChatbots}
+                          onCheckedChange={setNewPlanChatbots}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between rounded-lg border p-3">
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-4 w-4 text-muted-foreground" />
+                          <Label htmlFor="scheduled-switch">Agendamentos</Label>
+                        </div>
+                        <Switch
+                          id="scheduled-switch"
+                          checked={newPlanScheduled}
+                          onCheckedChange={setNewPlanScheduled}
+                        />
+                      </div>
                     </div>
                     <div className="border-t pt-4 space-y-4">
                       <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 p-3">
@@ -780,6 +812,12 @@ export default function Admin() {
                         )}
                         {plan.has_campaigns && (
                           <Badge variant="secondary" className="text-xs">Campanhas</Badge>
+                        )}
+                        {plan.has_chatbots && (
+                          <Badge variant="secondary" className="text-xs">Chatbots</Badge>
+                        )}
+                        {plan.has_scheduled_messages && (
+                          <Badge variant="secondary" className="text-xs">Agendamentos</Badge>
                         )}
                       </div>
                       <div className="flex items-center justify-between pt-2 border-t">
@@ -1359,6 +1397,22 @@ export default function Admin() {
                     id="edit-campaigns"
                     checked={editingPlan.has_campaigns}
                     onCheckedChange={(v) => setEditingPlan({ ...editingPlan, has_campaigns: v })}
+                  />
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <Label htmlFor="edit-chatbots">Chatbots</Label>
+                  <Switch
+                    id="edit-chatbots"
+                    checked={editingPlan.has_chatbots}
+                    onCheckedChange={(v) => setEditingPlan({ ...editingPlan, has_chatbots: v })}
+                  />
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <Label htmlFor="edit-scheduled">Agendamentos</Label>
+                  <Switch
+                    id="edit-scheduled"
+                    checked={editingPlan.has_scheduled_messages}
+                    onCheckedChange={(v) => setEditingPlan({ ...editingPlan, has_scheduled_messages: v })}
                   />
                 </div>
                 <div className="flex items-center justify-between rounded-lg border p-3">

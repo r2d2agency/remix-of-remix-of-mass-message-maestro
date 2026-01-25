@@ -98,6 +98,8 @@ router.post('/plans', requireSuperadmin, async (req, res) => {
       has_chat,
       has_whatsapp_groups,
       has_campaigns,
+      has_chatbots,
+      has_scheduled_messages,
       price, 
       billing_period,
       visible_on_signup,
@@ -109,8 +111,8 @@ router.post('/plans', requireSuperadmin, async (req, res) => {
     }
 
     const result = await query(
-      `INSERT INTO plans (name, description, max_connections, max_monthly_messages, max_users, max_supervisors, has_asaas_integration, has_chat, has_whatsapp_groups, has_campaigns, price, billing_period, visible_on_signup, trial_days)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`,
+      `INSERT INTO plans (name, description, max_connections, max_monthly_messages, max_users, max_supervisors, has_asaas_integration, has_chat, has_whatsapp_groups, has_campaigns, has_chatbots, has_scheduled_messages, price, billing_period, visible_on_signup, trial_days)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
       [
         name, 
         description, 
@@ -122,6 +124,8 @@ router.post('/plans', requireSuperadmin, async (req, res) => {
         has_chat !== false,
         has_whatsapp_groups || false,
         has_campaigns !== false,
+        has_chatbots !== false,
+        has_scheduled_messages !== false,
         price || 0, 
         billing_period || 'monthly',
         visible_on_signup || false,
@@ -151,6 +155,8 @@ router.patch('/plans/:id', requireSuperadmin, async (req, res) => {
       has_chat, 
       has_whatsapp_groups,
       has_campaigns,
+      has_chatbots,
+      has_scheduled_messages,
       price, 
       billing_period, 
       is_active,
@@ -170,15 +176,17 @@ router.patch('/plans/:id', requireSuperadmin, async (req, res) => {
            has_chat = COALESCE($8, has_chat),
            has_whatsapp_groups = COALESCE($9, has_whatsapp_groups),
            has_campaigns = COALESCE($10, has_campaigns),
-           price = COALESCE($11, price),
-           billing_period = COALESCE($12, billing_period),
-           is_active = COALESCE($13, is_active),
-           visible_on_signup = COALESCE($14, visible_on_signup),
-           trial_days = COALESCE($15, trial_days),
+           has_chatbots = COALESCE($11, has_chatbots),
+           has_scheduled_messages = COALESCE($12, has_scheduled_messages),
+           price = COALESCE($13, price),
+           billing_period = COALESCE($14, billing_period),
+           is_active = COALESCE($15, is_active),
+           visible_on_signup = COALESCE($16, visible_on_signup),
+           trial_days = COALESCE($17, trial_days),
            updated_at = NOW()
-       WHERE id = $16
+       WHERE id = $18
        RETURNING *`,
-      [name, description, max_connections, max_monthly_messages, max_users, max_supervisors, has_asaas_integration, has_chat, has_whatsapp_groups, has_campaigns, price, billing_period, is_active, visible_on_signup, trial_days, id]
+      [name, description, max_connections, max_monthly_messages, max_users, max_supervisors, has_asaas_integration, has_chat, has_whatsapp_groups, has_campaigns, has_chatbots, has_scheduled_messages, price, billing_period, is_active, visible_on_signup, trial_days, id]
     );
 
     if (result.rows.length === 0) {
@@ -317,11 +325,37 @@ router.post('/organizations', requireSuperadmin, async (req, res) => {
       ownerId = userResult.rows[0].id;
     }
 
-    // Create organization
+    // Get plan modules if plan_id provided
+    let modulesEnabled = {
+      campaigns: true,
+      billing: true,
+      groups: true,
+      scheduled_messages: true,
+      chatbots: true
+    };
+
+    if (plan_id) {
+      const planResult = await query(
+        `SELECT has_campaigns, has_asaas_integration, has_whatsapp_groups, has_scheduled_messages, has_chatbots FROM plans WHERE id = $1`,
+        [plan_id]
+      );
+      if (planResult.rows.length > 0) {
+        const plan = planResult.rows[0];
+        modulesEnabled = {
+          campaigns: plan.has_campaigns ?? true,
+          billing: plan.has_asaas_integration ?? true,
+          groups: plan.has_whatsapp_groups ?? true,
+          scheduled_messages: plan.has_scheduled_messages ?? true,
+          chatbots: plan.has_chatbots ?? true
+        };
+      }
+    }
+
+    // Create organization with modules from plan
     const orgResult = await query(
-      `INSERT INTO organizations (name, slug, logo_url, plan_id, expires_at)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [name, slug, logo_url || null, plan_id || null, expires_at || null]
+      `INSERT INTO organizations (name, slug, logo_url, plan_id, expires_at, modules_enabled)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [name, slug, logo_url || null, plan_id || null, expires_at || null, JSON.stringify(modulesEnabled)]
     );
 
     const org = orgResult.rows[0];
@@ -347,7 +381,26 @@ router.post('/organizations', requireSuperadmin, async (req, res) => {
 router.patch('/organizations/:id', requireSuperadmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, logo_url, plan_id, expires_at } = req.body;
+    const { name, logo_url, plan_id, expires_at, sync_modules } = req.body;
+
+    // If plan_id changed and sync_modules is true, update modules_enabled from plan
+    let modulesEnabled = null;
+    if (plan_id && sync_modules !== false) {
+      const planResult = await query(
+        `SELECT has_campaigns, has_asaas_integration, has_whatsapp_groups, has_scheduled_messages, has_chatbots FROM plans WHERE id = $1`,
+        [plan_id]
+      );
+      if (planResult.rows.length > 0) {
+        const plan = planResult.rows[0];
+        modulesEnabled = {
+          campaigns: plan.has_campaigns ?? true,
+          billing: plan.has_asaas_integration ?? true,
+          groups: plan.has_whatsapp_groups ?? true,
+          scheduled_messages: plan.has_scheduled_messages ?? true,
+          chatbots: plan.has_chatbots ?? true
+        };
+      }
+    }
 
     const result = await query(
       `UPDATE organizations 
@@ -355,10 +408,11 @@ router.patch('/organizations/:id', requireSuperadmin, async (req, res) => {
            logo_url = COALESCE($2, logo_url),
            plan_id = COALESCE($3, plan_id),
            expires_at = COALESCE($4, expires_at),
+           modules_enabled = COALESCE($5, modules_enabled),
            updated_at = NOW()
-       WHERE id = $5
+       WHERE id = $6
        RETURNING *`,
-      [name, logo_url, plan_id, expires_at, id]
+      [name, logo_url, plan_id, expires_at, modulesEnabled ? JSON.stringify(modulesEnabled) : null, id]
     );
 
     if (result.rows.length === 0) {

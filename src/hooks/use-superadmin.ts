@@ -21,6 +21,8 @@ interface Plan {
   has_chat: boolean;
   has_whatsapp_groups: boolean;
   has_campaigns: boolean;
+  has_chatbots: boolean;
+  has_scheduled_messages: boolean;
   price: number;
   billing_period: string;
   is_active: boolean;
@@ -98,6 +100,8 @@ export function useSuperadmin() {
     has_chat: boolean;
     has_whatsapp_groups: boolean;
     has_campaigns: boolean;
+    has_chatbots: boolean;
+    has_scheduled_messages: boolean;
     price: number;
     billing_period: string;
     visible_on_signup?: boolean;

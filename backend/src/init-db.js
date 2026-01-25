@@ -69,6 +69,8 @@ CREATE TABLE IF NOT EXISTS plans (
     has_chat BOOLEAN DEFAULT true,
     has_whatsapp_groups BOOLEAN DEFAULT false,
     has_campaigns BOOLEAN DEFAULT true,
+    has_chatbots BOOLEAN DEFAULT true,
+    has_scheduled_messages BOOLEAN DEFAULT true,
     price DECIMAL(10, 2) NOT NULL DEFAULT 0,
     billing_period VARCHAR(20) DEFAULT 'monthly',
     is_active BOOLEAN DEFAULT true,
@@ -82,6 +84,8 @@ DO $$ BEGIN
     ALTER TABLE plans ADD COLUMN IF NOT EXISTS max_supervisors INTEGER NOT NULL DEFAULT 1;
     ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_whatsapp_groups BOOLEAN DEFAULT false;
     ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_campaigns BOOLEAN DEFAULT true;
+    ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_chatbots BOOLEAN DEFAULT true;
+    ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_scheduled_messages BOOLEAN DEFAULT true;
     ALTER TABLE plans ADD COLUMN IF NOT EXISTS visible_on_signup BOOLEAN DEFAULT false;
     ALTER TABLE plans ADD COLUMN IF NOT EXISTS trial_days INTEGER DEFAULT 3;
 EXCEPTION
@@ -120,7 +124,7 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_column THEN null; END $$;
 
 DO $$ BEGIN
-    ALTER TABLE organizations ADD COLUMN IF NOT EXISTS modules_enabled JSONB DEFAULT '{"campaigns": true, "billing": true, "groups": true, "scheduled_messages": true}'::jsonb;
+    ALTER TABLE organizations ADD COLUMN IF NOT EXISTS modules_enabled JSONB DEFAULT '{"campaigns": true, "billing": true, "groups": true, "scheduled_messages": true, "chatbots": true}'::jsonb;
 EXCEPTION WHEN duplicate_column THEN null; END $$;
 `;
 
