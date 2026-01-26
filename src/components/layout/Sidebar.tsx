@@ -2,6 +2,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
+  BarChart3,
   Bot,
   Briefcase,
   Building2,
@@ -70,6 +71,7 @@ const navSections: NavSection[] = [
       { name: "Negociações", href: "/crm/negociacoes", icon: Kanban },
       { name: "Empresas", href: "/crm/empresas", icon: Building2 },
       { name: "Tarefas", href: "/crm/tarefas", icon: ClipboardList },
+      { name: "Relatórios", href: "/crm/relatorios", icon: BarChart3 },
       { name: "Configurações", href: "/crm/configuracoes", icon: Settings, adminOnly: true },
     ],
   },

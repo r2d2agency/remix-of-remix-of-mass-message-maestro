@@ -1325,4 +1325,222 @@ router.delete('/config/custom-fields/:id', async (req, res) => {
   }
 });
 
+// ============================================
+// CRM REPORTS
+// ============================================
+
+// Get sales report data
+router.get('/reports/sales', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org) return res.status(403).json({ error: 'No organization' });
+
+    const { start_date, end_date, funnel_id, group_by = 'day' } = req.query;
+    
+    // Default to last 30 days
+    const endDate = end_date || new Date().toISOString().split('T')[0];
+    const startDate = start_date || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+    // Get deals by period
+    let dateFormat;
+    switch (group_by) {
+      case 'week': dateFormat = 'IYYY-IW'; break;
+      case 'month': dateFormat = 'YYYY-MM'; break;
+      default: dateFormat = 'YYYY-MM-DD';
+    }
+
+    let funnelFilter = '';
+    const params = [org.organization_id, startDate, endDate];
+    if (funnel_id && funnel_id !== 'all') {
+      funnelFilter = ' AND d.funnel_id = $4';
+      params.push(funnel_id);
+    }
+
+    // Timeline data
+    const timelineResult = await query(
+      `SELECT 
+         TO_CHAR(d.created_at, '${dateFormat}') as period,
+         COUNT(*) FILTER (WHERE d.status = 'open') as open_count,
+         COUNT(*) FILTER (WHERE d.status = 'won') as won_count,
+         COUNT(*) FILTER (WHERE d.status = 'lost') as lost_count,
+         COALESCE(SUM(d.value) FILTER (WHERE d.status = 'won'), 0) as won_value,
+         COALESCE(SUM(d.value) FILTER (WHERE d.status = 'lost'), 0) as lost_value,
+         COALESCE(SUM(d.value) FILTER (WHERE d.status = 'open'), 0) as open_value
+       FROM crm_deals d
+       WHERE d.organization_id = $1
+         AND d.created_at >= $2::date
+         AND d.created_at <= ($3::date + interval '1 day')
+         ${funnelFilter}
+       GROUP BY period
+       ORDER BY period`,
+      params
+    );
+
+    // Summary by status
+    const summaryResult = await query(
+      `SELECT 
+         d.status,
+         COUNT(*) as count,
+         COALESCE(SUM(d.value), 0) as total_value,
+         COALESCE(AVG(d.value), 0) as avg_value
+       FROM crm_deals d
+       WHERE d.organization_id = $1
+         AND d.created_at >= $2::date
+         AND d.created_at <= ($3::date + interval '1 day')
+         ${funnelFilter}
+       GROUP BY d.status`,
+      params
+    );
+
+    // By funnel
+    const byFunnelResult = await query(
+      `SELECT 
+         f.id as funnel_id,
+         f.name as funnel_name,
+         f.color as funnel_color,
+         COUNT(*) FILTER (WHERE d.status = 'open') as open_count,
+         COUNT(*) FILTER (WHERE d.status = 'won') as won_count,
+         COUNT(*) FILTER (WHERE d.status = 'lost') as lost_count,
+         COALESCE(SUM(d.value) FILTER (WHERE d.status = 'won'), 0) as won_value
+       FROM crm_funnels f
+       LEFT JOIN crm_deals d ON d.funnel_id = f.id 
+         AND d.created_at >= $2::date
+         AND d.created_at <= ($3::date + interval '1 day')
+       WHERE f.organization_id = $1
+       GROUP BY f.id, f.name, f.color
+       ORDER BY won_value DESC`,
+      [org.organization_id, startDate, endDate]
+    );
+
+    // By owner (top performers)
+    const byOwnerResult = await query(
+      `SELECT 
+         u.id as user_id,
+         u.name as user_name,
+         COUNT(*) FILTER (WHERE d.status = 'won') as won_count,
+         COALESCE(SUM(d.value) FILTER (WHERE d.status = 'won'), 0) as won_value,
+         COUNT(*) as total_deals
+       FROM crm_deals d
+       JOIN users u ON u.id = d.owner_id
+       WHERE d.organization_id = $1
+         AND d.created_at >= $2::date
+         AND d.created_at <= ($3::date + interval '1 day')
+         ${funnelFilter}
+       GROUP BY u.id, u.name
+       ORDER BY won_value DESC
+       LIMIT 10`,
+      params
+    );
+
+    // Win rate calculation
+    const summary = {
+      open: { count: 0, value: 0 },
+      won: { count: 0, value: 0 },
+      lost: { count: 0, value: 0 },
+    };
+    
+    summaryResult.rows.forEach(row => {
+      if (summary[row.status]) {
+        summary[row.status] = {
+          count: parseInt(row.count),
+          value: parseFloat(row.total_value),
+        };
+      }
+    });
+
+    const totalClosed = summary.won.count + summary.lost.count;
+    const winRate = totalClosed > 0 ? (summary.won.count / totalClosed * 100) : 0;
+
+    res.json({
+      timeline: timelineResult.rows.map(row => ({
+        period: row.period,
+        open: parseInt(row.open_count),
+        won: parseInt(row.won_count),
+        lost: parseInt(row.lost_count),
+        wonValue: parseFloat(row.won_value),
+        lostValue: parseFloat(row.lost_value),
+        openValue: parseFloat(row.open_value),
+      })),
+      summary: {
+        ...summary,
+        winRate: parseFloat(winRate.toFixed(1)),
+        totalValue: summary.open.value + summary.won.value + summary.lost.value,
+      },
+      byFunnel: byFunnelResult.rows.map(row => ({
+        funnelId: row.funnel_id,
+        funnelName: row.funnel_name,
+        funnelColor: row.funnel_color,
+        open: parseInt(row.open_count),
+        won: parseInt(row.won_count),
+        lost: parseInt(row.lost_count),
+        wonValue: parseFloat(row.won_value),
+      })),
+      byOwner: byOwnerResult.rows.map(row => ({
+        userId: row.user_id,
+        userName: row.user_name,
+        wonCount: parseInt(row.won_count),
+        wonValue: parseFloat(row.won_value),
+        totalDeals: parseInt(row.total_deals),
+      })),
+    });
+  } catch (error) {
+    if (error.code === '42P01') {
+      return res.json({ timeline: [], summary: { open: { count: 0, value: 0 }, won: { count: 0, value: 0 }, lost: { count: 0, value: 0 }, winRate: 0, totalValue: 0 }, byFunnel: [], byOwner: [] });
+    }
+    console.error('Error fetching sales report:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get conversion funnel data
+router.get('/reports/conversion', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org) return res.status(403).json({ error: 'No organization' });
+
+    const { funnel_id, start_date, end_date } = req.query;
+    
+    if (!funnel_id) {
+      return res.status(400).json({ error: 'funnel_id is required' });
+    }
+
+    const endDate = end_date || new Date().toISOString().split('T')[0];
+    const startDate = start_date || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+    // Get stages with deal counts
+    const result = await query(
+      `SELECT 
+         s.id as stage_id,
+         s.name as stage_name,
+         s.color as stage_color,
+         s.position,
+         s.is_final,
+         COUNT(d.id) as deal_count,
+         COALESCE(SUM(d.value), 0) as total_value
+       FROM crm_stages s
+       LEFT JOIN crm_deals d ON d.stage_id = s.id 
+         AND d.created_at >= $2::date
+         AND d.created_at <= ($3::date + interval '1 day')
+       WHERE s.funnel_id = $1
+       GROUP BY s.id, s.name, s.color, s.position, s.is_final
+       ORDER BY s.position`,
+      [funnel_id, startDate, endDate]
+    );
+
+    res.json(result.rows.map(row => ({
+      stageId: row.stage_id,
+      stageName: row.stage_name,
+      stageColor: row.stage_color,
+      position: row.position,
+      isFinal: row.is_final,
+      dealCount: parseInt(row.deal_count),
+      totalValue: parseFloat(row.total_value),
+    })));
+  } catch (error) {
+    if (error.code === '42P01') return res.json([]);
+    console.error('Error fetching conversion report:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
