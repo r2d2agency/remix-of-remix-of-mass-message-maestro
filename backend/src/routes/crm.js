@@ -866,19 +866,83 @@ router.post('/deals/:id/move', async (req, res) => {
 // Add contact to deal
 router.post('/deals/:id/contacts', async (req, res) => {
   try {
+    const org = await getUserOrg(req.userId);
+    if (!org) return res.status(403).json({ error: 'No organization' });
+
     const { contact_id, role, is_primary } = req.body;
+    
+    // Try to find in chat_contacts first (agenda)
+    let finalContactId = contact_id;
+    const chatContact = await query(
+      `SELECT cc.*, c.organization_id 
+       FROM chat_contacts cc 
+       JOIN connections c ON c.id = cc.connection_id 
+       WHERE cc.id = $1 AND c.organization_id = $2`,
+      [contact_id, org.organization_id]
+    );
+    
+    if (chatContact.rows.length > 0) {
+      // Contact is from chat agenda, we need to create/find in contacts table
+      const cc = chatContact.rows[0];
+      
+      // Try to find existing contact by phone
+      const existingContact = await query(
+        `SELECT c.id FROM contacts c 
+         JOIN contact_lists cl ON cl.id = c.list_id 
+         WHERE c.phone = $1 AND cl.organization_id = $2 
+         LIMIT 1`,
+        [cc.phone, org.organization_id]
+      );
+      
+      if (existingContact.rows.length > 0) {
+        finalContactId = existingContact.rows[0].id;
+      } else {
+        // Create contact in a default CRM list
+        // First, ensure there's a CRM contacts list
+        let crmList = await query(
+          `SELECT id FROM contact_lists WHERE organization_id = $1 AND name = 'CRM Contacts' LIMIT 1`,
+          [org.organization_id]
+        );
+        
+        if (crmList.rows.length === 0) {
+          crmList = await query(
+            `INSERT INTO contact_lists (organization_id, user_id, name) VALUES ($1, $2, 'CRM Contacts') RETURNING id`,
+            [org.organization_id, req.userId]
+          );
+        }
+        
+        const newContact = await query(
+          `INSERT INTO contacts (list_id, name, phone, organization_id) 
+           VALUES ($1, $2, $3, $4) RETURNING id`,
+          [crmList.rows[0].id, cc.name || cc.phone, cc.phone, org.organization_id]
+        );
+        finalContactId = newContact.rows[0].id;
+      }
+    } else {
+      // Validate contact exists in contacts table
+      const contactCheck = await query(
+        `SELECT c.id FROM contacts c 
+         JOIN contact_lists cl ON cl.id = c.list_id 
+         WHERE c.id = $1 AND cl.organization_id = $2`,
+        [contact_id, org.organization_id]
+      );
+      
+      if (contactCheck.rows.length === 0) {
+        return res.status(404).json({ error: 'Contact not found' });
+      }
+    }
     
     const result = await query(
       `INSERT INTO crm_deal_contacts (deal_id, contact_id, role, is_primary)
        VALUES ($1, $2, $3, $4)
        ON CONFLICT (deal_id, contact_id) DO UPDATE SET role = $3, is_primary = $4
        RETURNING *`,
-      [req.params.id, contact_id, role, is_primary || false]
+      [req.params.id, finalContactId, role, is_primary || false]
     );
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error adding contact to deal:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: error.message, details: error.detail });
   }
 });
 
