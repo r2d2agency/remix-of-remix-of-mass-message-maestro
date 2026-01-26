@@ -2,21 +2,24 @@ import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { CompanyDialog } from "@/components/crm/CompanyDialog";
+import { CompanyImportDialog } from "@/components/crm/CompanyImportDialog";
 import { useCRMCompanies, useCRMCompanyMutations, CRMCompany } from "@/hooks/use-crm";
-import { Plus, Search, MoreHorizontal, Building2, Phone, Mail, Trash2, Edit, Loader2 } from "lucide-react";
+import { Plus, Search, MoreHorizontal, Building2, Phone, Mail, Trash2, Edit, Loader2, FileSpreadsheet } from "lucide-react";
 import { format, parseISO } from "date-fns";
 
 export default function CRMEmpresas() {
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [editingCompany, setEditingCompany] = useState<CRMCompany | null>(null);
 
   const { data: companies, isLoading } = useCRMCompanies(search);
+  const { importCompanies } = useCRMCompanyMutations();
   const { deleteCompany } = useCRMCompanyMutations();
 
   const handleEdit = (company: CRMCompany) => {
@@ -44,10 +47,16 @@ export default function CRMEmpresas() {
             <h1 className="text-2xl font-bold">Empresas</h1>
             <p className="text-muted-foreground">Gerencie sua base de empresas</p>
           </div>
-          <Button onClick={handleNew}>
-            <Plus className="h-4 w-4 mr-2" />
-            Nova Empresa
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => setImportDialogOpen(true)}>
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              Importar Excel
+            </Button>
+            <Button onClick={handleNew}>
+              <Plus className="h-4 w-4 mr-2" />
+              Nova Empresa
           </Button>
+          </div>
         </div>
 
         {/* Search */}
@@ -175,6 +184,14 @@ export default function CRMEmpresas() {
         company={editingCompany}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
+      />
+
+      <CompanyImportDialog
+        open={importDialogOpen}
+        onOpenChange={setImportDialogOpen}
+        onImport={async (companies) => {
+          await importCompanies.mutateAsync(companies);
+        }}
       />
     </MainLayout>
   );
