@@ -80,6 +80,7 @@ import {
   RotateCcw,
   Bot,
   Building2,
+  Briefcase,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -103,6 +104,7 @@ import { MentionSuggestions, useMentions } from "./MentionSuggestions";
 import { ScheduleMessageDialog } from "./ScheduleMessageDialog";
 import { ScheduledMessage } from "@/hooks/use-chat";
 import { StartFlowDialog } from "./StartFlowDialog";
+import { DealLinkDialog } from "./DealLinkDialog";
 interface ChatAreaProps {
   conversation: Conversation | null;
   messages: ChatMessage[];
@@ -219,6 +221,7 @@ export function ChatArea({
   const [savingContact, setSavingContact] = useState(false);
   const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(null);
   const [showStartFlowDialog, setShowStartFlowDialog] = useState(false);
+  const [showDealDialog, setShowDealDialog] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -942,6 +945,10 @@ export function ChatArea({
               {!isViewOnly && (
                 <>
                   <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setShowDealDialog(true)}>
+                    <Briefcase className="h-4 w-4 mr-2" />
+                    Negociações (CRM)
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setShowStartFlowDialog(true)}>
                     <Bot className="h-4 w-4 mr-2" />
                     Iniciar fluxo de chatbot
@@ -1886,6 +1893,16 @@ export function ChatArea({
         <NotesPanel
           conversationId={conversation.id}
           onClose={() => setShowNotes(false)}
+        />
+      )}
+
+      {/* Deal Link Dialog */}
+      {conversation && (
+        <DealLinkDialog
+          open={showDealDialog}
+          onOpenChange={setShowDealDialog}
+          contactName={conversation.contact_name}
+          contactPhone={conversation.contact_phone}
         />
       )}
     </div>
