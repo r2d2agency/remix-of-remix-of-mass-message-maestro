@@ -65,6 +65,9 @@ export function useCRMTaskTypeMutations() {
       queryClient.invalidateQueries({ queryKey: ["crm-task-types"] });
       toast({ title: "Tipo de tarefa criado" });
     },
+    onError: (error: any) => {
+      toast({ title: "Erro ao criar tipo", description: error.message, variant: "destructive" });
+    },
   });
 
   const updateTaskType = useMutation({
@@ -75,6 +78,9 @@ export function useCRMTaskTypeMutations() {
       queryClient.invalidateQueries({ queryKey: ["crm-task-types"] });
       toast({ title: "Tipo de tarefa atualizado" });
     },
+    onError: (error: any) => {
+      toast({ title: "Erro ao atualizar tipo", description: error.message, variant: "destructive" });
+    },
   });
 
   const deleteTaskType = useMutation({
@@ -84,6 +90,9 @@ export function useCRMTaskTypeMutations() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["crm-task-types"] });
       toast({ title: "Tipo de tarefa excluído" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Erro ao excluir tipo", description: error.message, variant: "destructive" });
     },
   });
 
