@@ -866,14 +866,15 @@ router.post('/deals/:id/move', async (req, res) => {
 
 // Add contact to deal
 router.post('/deals/:id/contacts', async (req, res) => {
+  let contact_id, role, is_primary, finalContactId;
   try {
     const org = await getUserOrg(req.userId);
     if (!org) return res.status(403).json({ error: 'No organization' });
 
-    const { contact_id, role, is_primary } = req.body;
+    ({ contact_id, role, is_primary } = req.body);
     
     // Try to find in chat_contacts first (agenda)
-    let finalContactId = contact_id;
+    finalContactId = contact_id;
     const chatContact = await query(
       `SELECT cc.*, c.organization_id 
        FROM chat_contacts cc 
