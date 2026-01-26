@@ -7,9 +7,13 @@ import { DealDetailDialog } from "@/components/crm/DealDetailDialog";
 import { DealFormDialog } from "@/components/crm/DealFormDialog";
 import { FunnelEditorDialog } from "@/components/crm/FunnelEditorDialog";
 import { useCRMFunnels, useCRMFunnel, useCRMDeals, useCRMGroups, useCRMGroupMembers, CRMDeal, CRMFunnel } from "@/hooks/use-crm";
-import { Plus, Settings, Loader2, Filter, User, Users, ArrowUpDown } from "lucide-react";
+import { Plus, Settings, Loader2, Filter, User, Users, ArrowUpDown, CalendarIcon, X } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { parseISO } from "date-fns";
+import { parseISO, format, startOfDay, endOfDay, isWithinInterval } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
 
 export default function CRMNegociacoes() {
   const { user } = useAuth();
@@ -24,7 +28,9 @@ export default function CRMNegociacoes() {
   const [ownerFilter, setOwnerFilter] = useState<string>("all"); // "all" | "mine" | user_id
   const [groupFilter, setGroupFilter] = useState<string>("all"); // "all" | group_id
   const [sortOrder, setSortOrder] = useState<string>("recent"); // "recent" | "oldest" | "last_activity"
-
+  const [dateFilterType, setDateFilterType] = useState<string>("created"); // "created" | "last_activity"
+  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
+  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const { data: funnels, isLoading: loadingFunnels } = useCRMFunnels();
   const { data: groups } = useCRMGroups();
   
@@ -78,13 +84,34 @@ export default function CRMNegociacoes() {
         filtered = filtered.filter(d => d.group_id === groupFilter);
       }
       
+      // Filter by date range
+      if (startDate || endDate) {
+        filtered = filtered.filter(d => {
+          const dateToCheck = dateFilterType === "last_activity" 
+            ? parseISO(d.last_activity_at) 
+            : parseISO(d.created_at);
+          
+          if (startDate && endDate) {
+            return isWithinInterval(dateToCheck, {
+              start: startOfDay(startDate),
+              end: endOfDay(endDate)
+            });
+          } else if (startDate) {
+            return dateToCheck >= startOfDay(startDate);
+          } else if (endDate) {
+            return dateToCheck <= endOfDay(endDate);
+          }
+          return true;
+        });
+      }
+      
       // Apply sorting
       filtered = sortDeals(filtered);
       
       acc[stageId] = filtered;
       return acc;
     }, {} as Record<string, CRMDeal[]>);
-  }, [dealsByStage, ownerFilter, groupFilter, sortOrder, user?.id]);
+  }, [dealsByStage, ownerFilter, groupFilter, sortOrder, user?.id, startDate, endDate, dateFilterType]);
 
   const handleDealClick = (deal: CRMDeal) => {
     setSelectedDeal(deal);
@@ -207,7 +234,82 @@ export default function CRMNegociacoes() {
               </SelectContent>
             </Select>
 
-            {(ownerFilter !== "all" || groupFilter !== "all" || sortOrder !== "recent") && (
+            {/* Date Filter */}
+            <div className="flex items-center gap-2">
+              <Select value={dateFilterType} onValueChange={setDateFilterType}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue placeholder="Filtrar por" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="created">Criação</SelectItem>
+                  <SelectItem value="last_activity">Última atividade</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-[130px] justify-start text-left font-normal",
+                      !startDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="h-4 w-4 mr-2" />
+                    {startDate ? format(startDate, "dd/MM/yy") : "Data início"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 z-50" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={startDate}
+                    onSelect={setStartDate}
+                    locale={ptBR}
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-[130px] justify-start text-left font-normal",
+                      !endDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="h-4 w-4 mr-2" />
+                    {endDate ? format(endDate, "dd/MM/yy") : "Data fim"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 z-50" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={endDate}
+                    onSelect={setEndDate}
+                    locale={ptBR}
+                    disabled={(date) => startDate ? date < startDate : false}
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+
+              {(startDate || endDate) && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    setStartDate(undefined);
+                    setEndDate(undefined);
+                  }}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+
+            {(ownerFilter !== "all" || groupFilter !== "all" || sortOrder !== "recent" || startDate || endDate) && (
               <Button 
                 variant="ghost" 
                 size="sm"
@@ -215,6 +317,8 @@ export default function CRMNegociacoes() {
                   setOwnerFilter("all");
                   setGroupFilter("all");
                   setSortOrder("recent");
+                  setStartDate(undefined);
+                  setEndDate(undefined);
                 }}
               >
                 Limpar filtros
