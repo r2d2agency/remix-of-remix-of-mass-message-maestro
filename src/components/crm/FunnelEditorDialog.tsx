@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -195,13 +195,13 @@ export function FunnelEditorDialog({ funnel, open, onOpenChange }: FunnelEditorD
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+      <DialogContent className="max-w-2xl h-[85vh] flex flex-col" aria-describedby={undefined}>
         <DialogHeader className="flex-shrink-0">
           <DialogTitle>{funnel ? "Editar Funil" : "Novo Funil"}</DialogTitle>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto min-h-0">
-          <div className="space-y-4 pr-4 pb-2">
+        <div className="flex-1 overflow-y-auto pr-2" style={{ maxHeight: 'calc(85vh - 130px)' }}>
+          <div className="space-y-4 pb-2">
             {/* Basic info */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
