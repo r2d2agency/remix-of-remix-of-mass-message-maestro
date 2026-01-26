@@ -1,9 +1,9 @@
 import express from 'express';
 import { query } from '../db.js';
-import { authMiddleware } from '../middleware/auth.js';
+import { authenticate } from '../middleware/auth.js';
 
 const router = express.Router();
-router.use(authMiddleware);
+router.use(authenticate);
 
 // Helper: Get user's organization
 async function getUserOrg(userId) {
