@@ -912,9 +912,9 @@ router.post('/deals/:id/contacts', async (req, res) => {
         }
         
         const newContact = await query(
-          `INSERT INTO contacts (list_id, name, phone, organization_id) 
-           VALUES ($1, $2, $3, $4) RETURNING id`,
-          [crmList.rows[0].id, cc.name || cc.phone, cc.phone, org.organization_id]
+          `INSERT INTO contacts (list_id, name, phone) 
+           VALUES ($1, $2, $3) RETURNING id`,
+          [crmList.rows[0].id, cc.name || cc.phone, cc.phone]
         );
         finalContactId = newContact.rows[0].id;
       }
