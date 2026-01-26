@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { useCRMFunnels, useCRMCompanies, useCRMDealMutations, CRMDeal, CRMFunnel } from "@/hooks/use-crm";
+import { useCRMFunnels, useCRMFunnel, useCRMCompanies, useCRMDealMutations, CRMDeal, CRMFunnel, CRMStage } from "@/hooks/use-crm";
 import { Building2, Plus, Search, Briefcase, DollarSign, User, Phone, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -43,24 +43,25 @@ export function DealLinkDialog({
   const [selectedStageId, setSelectedStageId] = useState<string>("");
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>("");
   const [companySearch, setCompanySearch] = useState("");
-  const [showCompanySearch, setShowCompanySearch] = useState(false);
 
   const { data: funnels, isLoading: loadingFunnels } = useCRMFunnels();
+  const { data: selectedFunnelData } = useCRMFunnel(selectedFunnelId || null);
   const { data: companies } = useCRMCompanies(companySearch);
   const { createDeal } = useCRMDealMutations();
 
-  const selectedFunnel = funnels?.find(f => f.id === selectedFunnelId);
-  const stages = selectedFunnel?.stages || [];
+  // Get stages from the fetched funnel data
+  const stages: CRMStage[] = selectedFunnelData?.stages || [];
 
-  // Auto-select first funnel and stage
+  // Auto-select first stage when funnel data loads
+  useEffect(() => {
+    if (selectedFunnelData?.stages?.length && !selectedStageId) {
+      setSelectedStageId(selectedFunnelData.stages[0].id || "");
+    }
+  }, [selectedFunnelData, selectedStageId]);
+
   const handleFunnelChange = (funnelId: string) => {
     setSelectedFunnelId(funnelId);
-    const funnel = funnels?.find(f => f.id === funnelId);
-    if (funnel?.stages?.length) {
-      setSelectedStageId(funnel.stages[0].id || "");
-    } else {
-      setSelectedStageId("");
-    }
+    setSelectedStageId(""); // Reset stage when funnel changes
   };
 
   const handleCreateDeal = async () => {
@@ -239,14 +240,15 @@ export function DealLinkDialog({
               <div className="space-y-2">
                 <Label>Etapa *</Label>
                 <Select 
-                  value={selectedStageId} 
-                  onValueChange={setSelectedStageId}
-                  disabled={!selectedFunnelId}
+                  value={selectedStageId || "none"} 
+                  onValueChange={(v) => setSelectedStageId(v === "none" ? "" : v)}
+                  disabled={!selectedFunnelId || stages.length === 0}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione..." />
+                    <SelectValue placeholder={stages.length === 0 && selectedFunnelId ? "Carregando..." : "Selecione..."} />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="z-[200]">
+                    <SelectItem value="none" disabled>Selecione uma etapa</SelectItem>
                     {stages.map((stage) => (
                       <SelectItem key={stage.id} value={stage.id!}>
                         <div className="flex items-center gap-2">
