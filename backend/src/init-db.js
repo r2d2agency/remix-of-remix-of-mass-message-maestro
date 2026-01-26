@@ -1357,6 +1357,7 @@ CREATE INDEX IF NOT EXISTS idx_crm_tasks_deal ON crm_tasks(deal_id);
 CREATE INDEX IF NOT EXISTS idx_crm_tasks_assigned ON crm_tasks(assigned_to);
 CREATE INDEX IF NOT EXISTS idx_crm_tasks_due ON crm_tasks(due_date);
 CREATE INDEX IF NOT EXISTS idx_crm_tasks_status ON crm_tasks(status);
+`;
 
 // Step 17: Departments / Queues System (depends on organizations, users, conversations)
 // NOTE: This was previously defined only in a standalone SQL file, but not executed
