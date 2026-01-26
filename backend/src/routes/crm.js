@@ -1075,10 +1075,13 @@ router.put('/config/task-types/:id', async (req, res) => {
            is_active = COALESCE($4, is_active),
            position = COALESCE($5, position),
            updated_at = NOW()
-       WHERE id = $6 AND (organization_id = $7 OR is_global = false)
+       WHERE id = $6 AND organization_id = $7 AND is_global = false
        RETURNING *`,
       [name, icon, color, is_active, position, req.params.id, org.organization_id]
     );
+    if (!result.rows[0]) {
+      return res.status(400).json({ error: 'Não é possível editar tipos globais' });
+    }
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error updating task type:', error);

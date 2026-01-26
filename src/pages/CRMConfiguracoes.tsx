@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { api } from "@/lib/api";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -97,12 +98,15 @@ export default function CRMConfiguracoes() {
 
   // Groups
   const { data: groups, isLoading: loadingGroups } = useCRMGroups();
-  const { createGroup, updateGroup, deleteGroup } = useCRMGroupMutations();
+  const { createGroup, updateGroup, deleteGroup, addMember, removeMember } = useCRMGroupMutations();
   const [groupDialog, setGroupDialog] = useState(false);
   const [editingGroup, setEditingGroup] = useState<any>(null);
   const [groupForm, setGroupForm] = useState({ name: "", description: "" });
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const { data: groupMembers } = useCRMGroupMembers(selectedGroupId);
+  const [membersDialogOpen, setMembersDialogOpen] = useState(false);
+  const [orgMembers, setOrgMembers] = useState<Array<{ user_id: string; name: string; email: string }>>([]);
+  const [loadingOrgMembers, setLoadingOrgMembers] = useState(false);
 
   // Custom Fields
   const { data: customFields, isLoading: loadingFields } = useCRMCustomFields();
@@ -192,6 +196,36 @@ export default function CRMConfiguracoes() {
       createGroup.mutate(groupForm);
     }
     setGroupDialog(false);
+  };
+
+  const openMembersDialog = async (group: any) => {
+    setSelectedGroupId(group.id);
+    setEditingGroup(group);
+    setMembersDialogOpen(true);
+    
+    // Load org members
+    setLoadingOrgMembers(true);
+    try {
+      const orgs = await api<any[]>('/api/organizations');
+      if (orgs.length > 0) {
+        const members = await api<any[]>(`/api/organizations/${orgs[0].id}/members`);
+        setOrgMembers(members);
+      }
+    } catch (error) {
+      console.error('Error loading org members:', error);
+    } finally {
+      setLoadingOrgMembers(false);
+    }
+  };
+
+  const handleAddMember = (userId: string, isSupervisor: boolean = false) => {
+    if (!selectedGroupId) return;
+    addMember.mutate({ groupId: selectedGroupId, userId, isSupervisor });
+  };
+
+  const handleRemoveMember = (userId: string) => {
+    if (!selectedGroupId) return;
+    removeMember.mutate({ groupId: selectedGroupId, userId });
   };
 
   // Custom Field handlers
@@ -501,7 +535,16 @@ export default function CRMConfiguracoes() {
                               <Button
                                 variant="ghost"
                                 size="icon"
+                                onClick={() => openMembersDialog(group)}
+                                title="Gerenciar membros"
+                              >
+                                <Users className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
                                 onClick={() => openGroupDialog(group)}
+                                title="Editar grupo"
                               >
                                 <Edit className="h-4 w-4" />
                               </Button>
@@ -510,6 +553,7 @@ export default function CRMConfiguracoes() {
                                 size="icon"
                                 onClick={() => deleteGroup.mutate(group.id)}
                                 className="text-destructive hover:text-destructive"
+                                title="Excluir grupo"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -768,6 +812,110 @@ export default function CRMConfiguracoes() {
             </Button>
             <Button onClick={saveGroup} disabled={!groupForm.name.trim()}>
               Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Group Members Dialog */}
+      <Dialog open={membersDialogOpen} onOpenChange={setMembersDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Membros do Grupo: {editingGroup?.name}</DialogTitle>
+            <DialogDescription>
+              Adicione ou remova membros deste grupo
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Current Members */}
+            <div>
+              <Label className="mb-2 block">Membros atuais</Label>
+              {groupMembers?.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-2">Nenhum membro adicionado</p>
+              ) : (
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {groupMembers?.map((member) => (
+                    <div key={member.user_id} className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-medium text-sm">
+                          {member.name?.[0]?.toUpperCase() || '?'}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">{member.name}</p>
+                          <p className="text-xs text-muted-foreground">{member.email}</p>
+                        </div>
+                        {member.is_supervisor && (
+                          <Badge variant="outline" className="ml-2">Supervisor</Badge>
+                        )}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleRemoveMember(member.user_id)}
+                        className="text-destructive hover:text-destructive h-8 w-8"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Add Members */}
+            <div>
+              <Label className="mb-2 block">Adicionar membro</Label>
+              {loadingOrgMembers ? (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <ScrollArea className="max-h-48">
+                  <div className="space-y-2">
+                    {orgMembers
+                      .filter(m => !groupMembers?.some(gm => gm.user_id === m.user_id))
+                      .map((member) => (
+                        <div key={member.user_id} className="flex items-center justify-between p-2 rounded-lg border">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground font-medium text-sm">
+                              {member.name?.[0]?.toUpperCase() || '?'}
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium">{member.name}</p>
+                              <p className="text-xs text-muted-foreground">{member.email}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleAddMember(member.user_id, true)}
+                            >
+                              + Supervisor
+                            </Button>
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={() => handleAddMember(member.user_id, false)}
+                            >
+                              + Membro
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    {orgMembers.filter(m => !groupMembers?.some(gm => gm.user_id === m.user_id)).length === 0 && (
+                      <p className="text-sm text-muted-foreground py-2 text-center">
+                        Todos os usuários já foram adicionados
+                      </p>
+                    )}
+                  </div>
+                </ScrollArea>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMembersDialogOpen(false)}>
+              Fechar
             </Button>
           </DialogFooter>
         </DialogContent>
