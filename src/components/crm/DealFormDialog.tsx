@@ -153,12 +153,12 @@ export function DealFormDialog({ funnel, open, onOpenChange }: DealFormDialogPro
 
             <div className="space-y-2">
               <Label>Grupo</Label>
-              <Select value={groupId} onValueChange={setGroupId}>
+              <Select value={groupId || "none"} onValueChange={(val) => setGroupId(val === "none" ? "" : val)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione um grupo (opcional)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Nenhum</SelectItem>
+                  <SelectItem value="none">Nenhum</SelectItem>
                   {groups?.map((group) => (
                     <SelectItem key={group.id} value={group.id}>
                       {group.name}

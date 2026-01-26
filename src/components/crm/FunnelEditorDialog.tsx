@@ -6,7 +6,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { CRMFunnel, CRMStage, useCRMFunnelMutations } from "@/hooks/use-crm";
 import { Plus, Trash2, GripVertical } from "lucide-react";
 import { DndContext, closestCenter, DragEndEvent } from "@dnd-kit/core";
@@ -201,9 +200,8 @@ export function FunnelEditorDialog({ funnel, open, onOpenChange }: FunnelEditorD
           <DialogTitle>{funnel ? "Editar Funil" : "Novo Funil"}</DialogTitle>
         </DialogHeader>
 
-        <div className="flex-1 overflow-hidden">
-          <ScrollArea className="h-full">
-            <div className="space-y-4 pr-4">
+        <div className="flex-1 overflow-y-auto min-h-0">
+          <div className="space-y-4 pr-4 pb-2">
             {/* Basic info */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -272,7 +270,6 @@ export function FunnelEditorDialog({ funnel, open, onOpenChange }: FunnelEditorD
               </DndContext>
             </div>
           </div>
-          </ScrollArea>
         </div>
 
         <DialogFooter className="flex-shrink-0 border-t pt-4">
