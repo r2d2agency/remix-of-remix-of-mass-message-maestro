@@ -196,13 +196,13 @@ export function FunnelEditorDialog({ funnel, open, onOpenChange }: FunnelEditorD
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
-        <DialogHeader>
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>{funnel ? "Editar Funil" : "Novo Funil"}</DialogTitle>
         </DialogHeader>
 
-        <ScrollArea className="flex-1">
-          <div className="space-y-4 p-1">
+        <ScrollArea className="flex-1 min-h-0 max-h-[calc(90vh-140px)]">
+          <div className="space-y-4 p-1 pr-4">
             {/* Basic info */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -273,7 +273,7 @@ export function FunnelEditorDialog({ funnel, open, onOpenChange }: FunnelEditorD
           </div>
         </ScrollArea>
 
-        <DialogFooter>
+        <DialogFooter className="flex-shrink-0 border-t pt-4">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
