@@ -593,10 +593,9 @@ router.get('/funnels/:funnelId/deals', async (req, res) => {
         s.inactivity_color,
         g.name as group_name,
         (SELECT COUNT(*) FROM crm_tasks WHERE deal_id = d.id AND status = 'pending') as pending_tasks,
-        (SELECT json_agg(json_build_object('id', ct.id, 'name', cnt.name, 'phone', cnt.phone, 'is_primary', dc.is_primary))
+        (SELECT json_agg(json_build_object('id', dc.contact_id, 'name', cnt.name, 'phone', cnt.phone, 'is_primary', dc.is_primary))
          FROM crm_deal_contacts dc
          JOIN contacts cnt ON cnt.id = dc.contact_id
-         LEFT JOIN crm_tasks ct ON ct.deal_id = d.id
          WHERE dc.deal_id = d.id) as contacts
        FROM crm_deals d
        LEFT JOIN crm_companies c ON c.id = d.company_id
