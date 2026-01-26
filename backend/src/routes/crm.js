@@ -598,7 +598,7 @@ router.get('/funnels/:funnelId/deals', async (req, res) => {
          LEFT JOIN crm_tasks ct ON ct.deal_id = d.id
          WHERE dc.deal_id = d.id) as contacts
        FROM crm_deals d
-       JOIN crm_companies c ON c.id = d.company_id
+       LEFT JOIN crm_companies c ON c.id = d.company_id
        LEFT JOIN users u ON u.id = d.owner_id
        LEFT JOIN crm_stages s ON s.id = d.stage_id
        LEFT JOIN crm_user_groups g ON g.id = d.group_id
@@ -637,7 +637,7 @@ router.get('/deals/:id', async (req, res) => {
         s.name as stage_name,
         g.name as group_name
        FROM crm_deals d
-       JOIN crm_companies c ON c.id = d.company_id
+       LEFT JOIN crm_companies c ON c.id = d.company_id
        LEFT JOIN users u ON u.id = d.owner_id
        LEFT JOIN crm_funnels f ON f.id = d.funnel_id
        LEFT JOIN crm_stages s ON s.id = d.stage_id
@@ -699,18 +699,18 @@ router.post('/deals', async (req, res) => {
     if (!org) return res.status(403).json({ error: 'No organization' });
 
     const { funnel_id, stage_id, company_id, title, value, probability, expected_close_date, 
-            description, tags, owner_id, group_id, contact_ids } = req.body;
+            description, tags, owner_id, group_id, contact_ids, contact_name, contact_phone } = req.body;
     
     const result = await query(
       `INSERT INTO crm_deals (organization_id, funnel_id, stage_id, company_id, title, value, probability, 
        expected_close_date, description, tags, owner_id, group_id, created_by)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
-      [org.organization_id, funnel_id, stage_id, company_id, title, value || 0, probability || 50,
+      [org.organization_id, funnel_id, stage_id, company_id || null, title, value || 0, probability || 50,
        expected_close_date, description, tags || [], owner_id || req.userId, group_id, req.userId]
     );
     const deal = result.rows[0];
 
-    // Add contacts
+    // Add contacts by ID
     if (contact_ids && contact_ids.length > 0) {
       for (let i = 0; i < contact_ids.length; i++) {
         await query(
@@ -718,6 +718,38 @@ router.post('/deals', async (req, res) => {
           [deal.id, contact_ids[i], i === 0]
         );
       }
+    }
+    
+    // If contact_phone is provided, find or create contact and link
+    if (contact_phone) {
+      // Normalize phone
+      const normalizedPhone = contact_phone.replace(/\D/g, '');
+      
+      // Try to find existing contact
+      let contactResult = await query(
+        `SELECT id FROM contacts WHERE phone LIKE $1 AND organization_id = $2 LIMIT 1`,
+        [`%${normalizedPhone.slice(-9)}%`, org.organization_id]
+      );
+      
+      let contactId;
+      if (contactResult.rows.length > 0) {
+        contactId = contactResult.rows[0].id;
+      } else {
+        // Create new contact
+        const newContact = await query(
+          `INSERT INTO contacts (organization_id, name, phone, created_at) 
+           VALUES ($1, $2, $3, NOW()) RETURNING id`,
+          [org.organization_id, contact_name || contact_phone, normalizedPhone]
+        );
+        contactId = newContact.rows[0].id;
+      }
+      
+      // Link contact to deal
+      await query(
+        `INSERT INTO crm_deal_contacts (deal_id, contact_id, is_primary) 
+         VALUES ($1, $2, true) ON CONFLICT DO NOTHING`,
+        [deal.id, contactId]
+      );
     }
 
     // Log history
