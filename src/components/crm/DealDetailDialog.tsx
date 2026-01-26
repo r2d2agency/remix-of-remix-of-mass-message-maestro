@@ -12,7 +12,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { CRMDeal, CRMTask, CRMStage, useCRMDeal, useCRMDealMutations, useCRMTaskMutations, useCRMFunnel, useCRMCompanies } from "@/hooks/use-crm";
-import { Building2, User, Phone, Calendar as CalendarIcon, Clock, CheckCircle, Plus, Trash2, Paperclip, MessageSquare, ChevronRight, Edit2, Save, X, FileText, Image, Loader2, Upload, Search } from "lucide-react";
+import { useContacts, Contact, ContactList } from "@/hooks/use-contacts";
+import { Building2, User, Phone, Calendar as CalendarIcon, Clock, CheckCircle, Plus, Trash2, Paperclip, MessageSquare, ChevronRight, Edit2, Save, X, FileText, Image, Loader2, Upload, Search, UserPlus } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -58,12 +59,34 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
   const [companySearchOpen, setCompanySearchOpen] = useState(false);
   const [companySearch, setCompanySearch] = useState("");
 
+  // Contact states
+  const [contactLists, setContactLists] = useState<ContactList[]>([]);
+  const [selectedListId, setSelectedListId] = useState<string | null>(null);
+  const [listContacts, setListContacts] = useState<Contact[]>([]);
+  const [contactSearchOpen, setContactSearchOpen] = useState(false);
+  const [contactSearch, setContactSearch] = useState("");
+
   const { data: fullDeal, isLoading } = useCRMDeal(deal?.id || null);
   const { data: funnelData } = useCRMFunnel(deal?.funnel_id || null);
   const { data: companies } = useCRMCompanies(companySearch);
-  const { updateDeal, moveDeal } = useCRMDealMutations();
+  const { updateDeal, moveDeal, addContact, removeContact } = useCRMDealMutations();
   const { createTask, completeTask, deleteTask } = useCRMTaskMutations();
   const { uploadFile, isUploading } = useUpload();
+  const contactsApi = useContacts();
+
+  // Load contact lists
+  useEffect(() => {
+    if (open) {
+      contactsApi.getLists().then(setContactLists).catch(console.error);
+    }
+  }, [open]);
+
+  // Load contacts when list is selected
+  useEffect(() => {
+    if (selectedListId) {
+      contactsApi.getContacts(selectedListId).then(setListContacts).catch(console.error);
+    }
+  }, [selectedListId]);
 
   const currentDeal = fullDeal || deal;
   const stages = funnelData?.stages || [];
@@ -575,16 +598,102 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
             </TabsContent>
 
             <TabsContent value="contacts" className="m-0">
+              {/* Add contact section */}
               <Card className="p-4 mb-4">
                 <h4 className="font-medium mb-3 flex items-center gap-2">
-                  <Plus className="h-4 w-4" />
+                  <UserPlus className="h-4 w-4" />
                   Vincular Contato
                 </h4>
-                <p className="text-sm text-muted-foreground">
-                  Os contatos são vinculados através da empresa. Acesse os dados da empresa para gerenciar contatos.
-                </p>
+                
+                <div className="space-y-3">
+                  {/* Select contact list */}
+                  <div className="space-y-2">
+                    <Label className="text-sm">Lista de Contatos</Label>
+                    <Select
+                      value={selectedListId || "none"}
+                      onValueChange={(v) => setSelectedListId(v === "none" ? null : v)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione uma lista" />
+                      </SelectTrigger>
+                      <SelectContent className="z-[200]">
+                        <SelectItem value="none">Selecione...</SelectItem>
+                        {contactLists.map((list) => (
+                          <SelectItem key={list.id} value={list.id}>
+                            {list.name} ({list.contact_count} contatos)
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Search and select contacts */}
+                  {selectedListId && (
+                    <Popover open={contactSearchOpen} onOpenChange={setContactSearchOpen}>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className="w-full justify-start">
+                          <Search className="h-4 w-4 mr-2" />
+                          Buscar contato na lista...
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[350px] p-0 z-[200]" align="start">
+                        <Command>
+                          <CommandInput
+                            placeholder="Buscar por nome ou telefone..."
+                            value={contactSearch}
+                            onValueChange={setContactSearch}
+                          />
+                          <CommandList>
+                            <CommandEmpty>Nenhum contato encontrado.</CommandEmpty>
+                            <CommandGroup>
+                              {listContacts
+                                .filter((c) => {
+                                  const search = contactSearch.toLowerCase();
+                                  return (
+                                    c.name.toLowerCase().includes(search) ||
+                                    c.phone.includes(search)
+                                  );
+                                })
+                                .filter((c) => !fullDeal?.contacts?.some((dc: any) => dc.phone === c.phone))
+                                .slice(0, 10)
+                                .map((contact) => (
+                                  <CommandItem
+                                    key={contact.id}
+                                    value={`${contact.name} ${contact.phone}`}
+                                    onSelect={() => {
+                                      addContact.mutate({
+                                        dealId: deal.id,
+                                        contactId: contact.id,
+                                        isPrimary: !fullDeal?.contacts?.length,
+                                      });
+                                      setContactSearchOpen(false);
+                                      setContactSearch("");
+                                      toast.success("Contato vinculado!");
+                                    }}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+                                        <User className="h-4 w-4" />
+                                      </div>
+                                      <div>
+                                        <p className="font-medium">{contact.name}</p>
+                                        <p className="text-xs text-muted-foreground">
+                                          {contact.phone}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </CommandItem>
+                                ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  )}
+                </div>
               </Card>
 
+              {/* Contact list */}
               <div className="space-y-2">
                 {fullDeal?.contacts?.map((contact: any) => (
                   <Card key={contact.id} className="p-3">
@@ -606,23 +715,36 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
                           </p>
                         </div>
                       </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          onOpenChange(false);
-                          navigate(`/chat?phone=${contact.phone}`);
-                        }}
-                      >
-                        <MessageSquare className="h-4 w-4 mr-2" />
-                        Chat
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            onOpenChange(false);
+                            navigate(`/chat?phone=${contact.phone}`);
+                          }}
+                        >
+                          <MessageSquare className="h-4 w-4 mr-1" />
+                          Chat
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          onClick={() => {
+                            removeContact.mutate({ dealId: deal.id, contactId: contact.id });
+                            toast.success("Contato removido!");
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   </Card>
                 ))}
                 {(!fullDeal?.contacts || fullDeal.contacts.length === 0) && (
                   <p className="text-center text-muted-foreground py-8">
-                    Nenhum contato vinculado
+                    Nenhum contato vinculado. Selecione uma lista e busque contatos acima.
                   </p>
                 )}
               </div>
