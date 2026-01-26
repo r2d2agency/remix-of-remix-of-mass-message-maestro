@@ -6,9 +6,20 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { CRMCompany, useCRMCompanyMutations } from "@/hooks/use-crm";
 import { useCRMSegments } from "@/hooks/use-crm-config";
-import { Tag } from "lucide-react";
+import { Tag, User, Plus, Trash2, Phone } from "lucide-react";
+
+interface CompanyContact {
+  id?: string;
+  name: string;
+  phone: string;
+  email?: string;
+  role?: string;
+  is_primary?: boolean;
+}
 
 interface CompanyDialogProps {
   company: CRMCompany | null;
@@ -31,6 +42,9 @@ export function CompanyDialog({ company, open, onOpenChange }: CompanyDialogProp
     segment_id: "",
   });
 
+  const [contacts, setContacts] = useState<CompanyContact[]>([]);
+  const [newContact, setNewContact] = useState({ name: "", phone: "", email: "", role: "" });
+
   const { createCompany, updateCompany } = useCRMCompanyMutations();
   const { data: segments } = useCRMSegments();
 
@@ -49,6 +63,8 @@ export function CompanyDialog({ company, open, onOpenChange }: CompanyDialogProp
         notes: company.notes || "",
         segment_id: company.segment_id || "",
       });
+      // TODO: Load existing contacts from API
+      setContacts([]);
     } else {
       setFormData({
         name: "",
@@ -63,6 +79,7 @@ export function CompanyDialog({ company, open, onOpenChange }: CompanyDialogProp
         notes: "",
         segment_id: "",
       });
+      setContacts([]);
     }
   }, [company, open]);
 
@@ -70,22 +87,54 @@ export function CompanyDialog({ company, open, onOpenChange }: CompanyDialogProp
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
+  const handleAddContact = () => {
+    if (!newContact.name.trim() || !newContact.phone.trim()) return;
+    
+    setContacts((prev) => [
+      ...prev,
+      {
+        ...newContact,
+        id: crypto.randomUUID(),
+        is_primary: prev.length === 0, // First contact is primary
+      },
+    ]);
+    setNewContact({ name: "", phone: "", email: "", role: "" });
+  };
+
+  const handleRemoveContact = (id: string) => {
+    setContacts((prev) => {
+      const filtered = prev.filter((c) => c.id !== id);
+      // If we removed the primary, make first one primary
+      if (filtered.length > 0 && !filtered.some((c) => c.is_primary)) {
+        filtered[0].is_primary = true;
+      }
+      return filtered;
+    });
+  };
+
+  const handleSetPrimary = (id: string) => {
+    setContacts((prev) =>
+      prev.map((c) => ({ ...c, is_primary: c.id === id }))
+    );
+  };
+
   const handleSave = () => {
     const data = {
       ...formData,
       segment_id: formData.segment_id || undefined,
+      contacts: contacts.length > 0 ? contacts : undefined,
     };
     if (company) {
-      updateCompany.mutate({ id: company.id, ...data });
+      updateCompany.mutate({ id: company.id, ...data } as any);
     } else {
-      createCompany.mutate(data);
+      createCompany.mutate(data as any);
     }
     onOpenChange(false);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col overflow-hidden" aria-describedby={undefined}>
         <DialogHeader className="flex-shrink-0">
           <DialogTitle>{company ? "Editar Empresa" : "Nova Empresa"}</DialogTitle>
         </DialogHeader>
@@ -108,7 +157,7 @@ export function CompanyDialog({ company, open, onOpenChange }: CompanyDialogProp
                 Segmento
               </Label>
               <Select
-                value={formData.segment_id}
+                value={formData.segment_id || "none"}
                 onValueChange={(value) => handleChange("segment_id", value === "none" ? "" : value)}
               >
                 <SelectTrigger>
@@ -205,6 +254,93 @@ export function CompanyDialog({ company, open, onOpenChange }: CompanyDialogProp
                   placeholder="00000-000"
                 />
               </div>
+            </div>
+
+            {/* Contacts Section */}
+            <div className="space-y-3 border-t pt-4">
+              <Label className="flex items-center gap-2 text-base">
+                <User className="h-4 w-4" />
+                Contatos da Empresa
+              </Label>
+
+              {/* Add Contact Form */}
+              <Card className="p-3">
+                <div className="grid grid-cols-4 gap-2">
+                  <Input
+                    value={newContact.name}
+                    onChange={(e) => setNewContact((p) => ({ ...p, name: e.target.value }))}
+                    placeholder="Nome"
+                  />
+                  <Input
+                    value={newContact.phone}
+                    onChange={(e) => setNewContact((p) => ({ ...p, phone: e.target.value }))}
+                    placeholder="Telefone"
+                  />
+                  <Input
+                    value={newContact.role}
+                    onChange={(e) => setNewContact((p) => ({ ...p, role: e.target.value }))}
+                    placeholder="Cargo"
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={handleAddContact}
+                    disabled={!newContact.name.trim() || !newContact.phone.trim()}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              </Card>
+
+              {/* Contacts List */}
+              {contacts.length > 0 && (
+                <div className="space-y-2">
+                  {contacts.map((contact) => (
+                    <Card key={contact.id} className="p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                            <User className="h-4 w-4 text-primary" />
+                          </div>
+                          <div>
+                            <p className="font-medium text-sm flex items-center gap-2">
+                              {contact.name}
+                              {contact.is_primary && (
+                                <Badge variant="secondary" className="text-[10px]">Principal</Badge>
+                              )}
+                              {contact.role && (
+                                <span className="text-muted-foreground font-normal">• {contact.role}</span>
+                              )}
+                            </p>
+                            <p className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Phone className="h-3 w-3" />
+                              {contact.phone}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {!contact.is_primary && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleSetPrimary(contact.id!)}
+                            >
+                              Definir principal
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            onClick={() => handleRemoveContact(contact.id!)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="space-y-2">

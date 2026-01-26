@@ -6,8 +6,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { CRMFunnel, CRMStage, CRMCompany, useCRMDealMutations, useCRMCompanies, useCRMFunnel, useCRMGroups } from "@/hooks/use-crm";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CRMFunnel, useCRMDealMutations, useCRMCompanies, useCRMFunnel, useCRMGroups } from "@/hooks/use-crm";
 import { Slider } from "@/components/ui/slider";
+import { Building2, User, Plus } from "lucide-react";
 
 interface DealFormDialogProps {
   funnel: CRMFunnel | null;
@@ -24,6 +26,11 @@ export function DealFormDialog({ funnel, open, onOpenChange }: DealFormDialogPro
   const [expectedCloseDate, setExpectedCloseDate] = useState("");
   const [description, setDescription] = useState("");
   const [groupId, setGroupId] = useState("");
+  
+  // Contact mode (when no company)
+  const [mode, setMode] = useState<"company" | "contact">("company");
+  const [contactName, setContactName] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
 
   const { data: companies } = useCRMCompanies();
   const { data: funnelData } = useCRMFunnel(funnel?.id || null);
@@ -41,21 +48,33 @@ export function DealFormDialog({ funnel, open, onOpenChange }: DealFormDialogPro
   }, [open, funnelData]);
 
   const handleSave = () => {
-    if (!funnel || !title.trim() || !companyId || !stageId) return;
+    if (!funnel || !title.trim() || !stageId) return;
+    
+    // Require either company or contact
+    if (mode === "company" && !companyId) return;
+    if (mode === "contact" && (!contactName.trim() || !contactPhone.trim())) return;
 
     createDeal.mutate({
       funnel_id: funnel.id,
       stage_id: stageId,
-      company_id: companyId,
+      company_id: mode === "company" ? companyId : undefined,
       title,
       value: Number(value) || 0,
       probability,
       expected_close_date: expectedCloseDate || undefined,
       description,
       group_id: groupId || undefined,
-    });
+      // For contact-only mode, we'll pass contact info
+      contact_name: mode === "contact" ? contactName : undefined,
+      contact_phone: mode === "contact" ? contactPhone : undefined,
+    } as any);
 
     // Reset form
+    resetForm();
+    onOpenChange(false);
+  };
+
+  const resetForm = () => {
     setTitle("");
     setCompanyId("");
     setValue("");
@@ -63,12 +82,21 @@ export function DealFormDialog({ funnel, open, onOpenChange }: DealFormDialogPro
     setExpectedCloseDate("");
     setDescription("");
     setGroupId("");
-    onOpenChange(false);
+    setContactName("");
+    setContactPhone("");
+    setMode("company");
+  };
+
+  const isValid = () => {
+    if (!title.trim() || !stageId) return false;
+    if (mode === "company") return !!companyId;
+    if (mode === "contact") return !!contactName.trim() && !!contactPhone.trim();
+    return false;
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] flex flex-col">
+      <DialogContent className="max-w-lg max-h-[90vh] flex flex-col" aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle>Nova Negociação</DialogTitle>
         </DialogHeader>
@@ -84,20 +112,49 @@ export function DealFormDialog({ funnel, open, onOpenChange }: DealFormDialogPro
               />
             </div>
 
+            {/* Company or Contact Selection */}
             <div className="space-y-2">
-              <Label>Empresa *</Label>
-              <Select value={companyId} onValueChange={setCompanyId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione uma empresa" />
-                </SelectTrigger>
-                <SelectContent>
-                  {companies?.map((company) => (
-                    <SelectItem key={company.id} value={company.id}>
-                      {company.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Vincular a *</Label>
+              <Tabs value={mode} onValueChange={(v) => setMode(v as "company" | "contact")}>
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="company" className="flex items-center gap-2">
+                    <Building2 className="h-4 w-4" />
+                    Empresa
+                  </TabsTrigger>
+                  <TabsTrigger value="contact" className="flex items-center gap-2">
+                    <User className="h-4 w-4" />
+                    Contato
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="company" className="mt-3">
+                  <Select value={companyId} onValueChange={setCompanyId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione uma empresa" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {companies?.map((company) => (
+                        <SelectItem key={company.id} value={company.id}>
+                          {company.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </TabsContent>
+
+                <TabsContent value="contact" className="mt-3 space-y-3">
+                  <Input
+                    value={contactName}
+                    onChange={(e) => setContactName(e.target.value)}
+                    placeholder="Nome do contato"
+                  />
+                  <Input
+                    value={contactPhone}
+                    onChange={(e) => setContactPhone(e.target.value)}
+                    placeholder="Telefone (WhatsApp)"
+                  />
+                </TabsContent>
+              </Tabs>
             </div>
 
             <div className="space-y-2">
@@ -186,7 +243,7 @@ export function DealFormDialog({ funnel, open, onOpenChange }: DealFormDialogPro
           </Button>
           <Button 
             onClick={handleSave} 
-            disabled={!title.trim() || !companyId || !stageId}
+            disabled={!isValid()}
           >
             Criar Negociação
           </Button>

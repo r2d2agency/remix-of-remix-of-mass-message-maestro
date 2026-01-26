@@ -160,26 +160,29 @@ export default function CRMTarefas() {
                   const isOverdue = task.due_date && isPast(parseISO(task.due_date)) && task.status === "pending";
                   const isDueToday = task.due_date && isToday(parseISO(task.due_date));
 
-                  return (
-                    <div 
-                      key={task.id} 
-                      className={cn(
-                        "flex items-center gap-4 p-4 hover:bg-muted/50 transition-colors",
-                        isOverdue && "bg-red-50"
-                      )}
-                    >
-                      {/* Complete button */}
-                      <button
-                        onClick={() => task.status === "pending" && handleComplete(task.id)}
+                    return (
+                      <div 
+                        key={task.id} 
                         className={cn(
-                          "w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors",
-                          task.status === "completed" 
-                            ? "bg-green-500 border-green-500 text-white" 
-                            : "border-muted-foreground hover:border-primary hover:bg-primary/10"
+                          "flex items-center gap-4 p-4 hover:bg-muted/50 transition-colors",
+                          isOverdue && task.status === "pending" && "bg-red-50 dark:bg-red-900/10",
+                          task.status === "completed" && "bg-green-50 dark:bg-green-900/10"
                         )}
                       >
-                        {task.status === "completed" && <CheckCircle className="h-4 w-4" />}
-                      </button>
+                        {/* Complete button */}
+                        <button
+                          onClick={() => task.status === "pending" && handleComplete(task.id)}
+                          className={cn(
+                            "w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors",
+                            task.status === "completed" 
+                              ? "bg-green-500 border-green-500 text-white" 
+                              : isOverdue 
+                                ? "border-red-500 hover:border-red-600 hover:bg-red-50"
+                                : "border-muted-foreground hover:border-primary hover:bg-primary/10"
+                          )}
+                        >
+                          {task.status === "completed" && <CheckCircle className="h-4 w-4" />}
+                        </button>
 
                       {/* Task info */}
                       <div 
