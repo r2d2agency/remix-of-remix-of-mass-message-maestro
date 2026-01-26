@@ -42,6 +42,21 @@ export default function CRMNegociacoes() {
   const currentFunnel = funnels?.find((f) => f.id === currentFunnelId) || null;
   const canManage = user?.role && ['owner', 'admin', 'manager'].includes(user.role);
 
+  // Debug logs
+  console.log("🔍 Debug Kanban:", {
+    funnels,
+    funnelsCount: funnels?.length,
+    selectedFunnelId,
+    currentFunnelId,
+    currentFunnel,
+    funnelData,
+    stages: funnelData?.stages,
+    stagesCount: funnelData?.stages?.length,
+    dealsByStage,
+    loadingFunnels,
+    loadingDeals
+  });
+
   // Apply filters to deals
   const filteredDealsByStage = dealsByStage ? Object.entries(dealsByStage).reduce((acc, [stageId, deals]) => {
     let filtered = deals as CRMDeal[];
