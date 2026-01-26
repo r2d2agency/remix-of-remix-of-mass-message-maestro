@@ -1527,6 +1527,27 @@ END $$;
 CREATE INDEX IF NOT EXISTS idx_conversations_department ON conversations(department_id);
 `;
 
+// Step 20: CRM Migrations (additional columns)
+const step20CRMMigrations = `
+-- Add has_crm to plans table
+DO $$ BEGIN
+  ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_crm BOOLEAN DEFAULT true;
+EXCEPTION
+  WHEN duplicate_column THEN null;
+END $$;
+
+-- Add segment_id to crm_companies (linking company to a segment)
+DO $$ BEGIN
+  ALTER TABLE crm_companies ADD COLUMN IF NOT EXISTS segment_id UUID REFERENCES crm_segments(id) ON DELETE SET NULL;
+EXCEPTION
+  WHEN duplicate_column THEN null;
+  WHEN undefined_table THEN null;
+END $$;
+
+-- Index for segment lookup on companies
+CREATE INDEX IF NOT EXISTS idx_crm_companies_segment ON crm_companies(segment_id);
+`;
+
 // Migration steps in order of execution
 const migrationSteps = [
   { name: 'Enums', sql: step1Enums, critical: true },
@@ -1549,6 +1570,7 @@ const migrationSteps = [
   { name: 'Independent Flows', sql: step16IndependentFlows, critical: false },
   { name: 'CRM System', sql: step18CRM, critical: false },
   { name: 'CRM Config', sql: step19CRMConfig, critical: false },
+  { name: 'CRM Migrations', sql: step20CRMMigrations, critical: false },
 ];
 
 export async function initDatabase() {
