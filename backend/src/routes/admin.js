@@ -100,6 +100,7 @@ router.post('/plans', requireSuperadmin, async (req, res) => {
       has_campaigns,
       has_chatbots,
       has_scheduled_messages,
+      has_crm,
       price, 
       billing_period,
       visible_on_signup,
@@ -111,22 +112,23 @@ router.post('/plans', requireSuperadmin, async (req, res) => {
     }
 
     const result = await query(
-      `INSERT INTO plans (name, description, max_connections, max_monthly_messages, max_users, max_supervisors, has_asaas_integration, has_chat, has_whatsapp_groups, has_campaigns, has_chatbots, has_scheduled_messages, price, billing_period, visible_on_signup, trial_days)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
+      `INSERT INTO plans (name, description, max_connections, max_monthly_messages, max_users, max_supervisors, has_asaas_integration, has_chat, has_whatsapp_groups, has_campaigns, has_chatbots, has_scheduled_messages, has_crm, price, billing_period, visible_on_signup, trial_days)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING *`,
       [
-        name, 
-        description, 
-        max_connections || 1, 
-        max_monthly_messages || 1000, 
+        name,
+        description,
+        max_connections || 1,
+        max_monthly_messages || 1000,
         max_users || 5,
         max_supervisors || 1,
-        has_asaas_integration || false, 
+        has_asaas_integration || false,
         has_chat !== false,
         has_whatsapp_groups || false,
         has_campaigns !== false,
         has_chatbots !== false,
         has_scheduled_messages !== false,
-        price || 0, 
+        has_crm !== false,
+        price || 0,
         billing_period || 'monthly',
         visible_on_signup || false,
         trial_days || 3
@@ -157,6 +159,7 @@ router.patch('/plans/:id', requireSuperadmin, async (req, res) => {
       has_campaigns,
       has_chatbots,
       has_scheduled_messages,
+      has_crm,
       price, 
       billing_period, 
       is_active,
@@ -178,15 +181,36 @@ router.patch('/plans/:id', requireSuperadmin, async (req, res) => {
            has_campaigns = COALESCE($10, has_campaigns),
            has_chatbots = COALESCE($11, has_chatbots),
            has_scheduled_messages = COALESCE($12, has_scheduled_messages),
-           price = COALESCE($13, price),
-           billing_period = COALESCE($14, billing_period),
-           is_active = COALESCE($15, is_active),
-           visible_on_signup = COALESCE($16, visible_on_signup),
-           trial_days = COALESCE($17, trial_days),
+           has_crm = COALESCE($13, has_crm),
+           price = COALESCE($14, price),
+           billing_period = COALESCE($15, billing_period),
+           is_active = COALESCE($16, is_active),
+           visible_on_signup = COALESCE($17, visible_on_signup),
+           trial_days = COALESCE($18, trial_days),
            updated_at = NOW()
-       WHERE id = $18
+       WHERE id = $19
        RETURNING *`,
-      [name, description, max_connections, max_monthly_messages, max_users, max_supervisors, has_asaas_integration, has_chat, has_whatsapp_groups, has_campaigns, has_chatbots, has_scheduled_messages, price, billing_period, is_active, visible_on_signup, trial_days, id]
+      [
+        name,
+        description,
+        max_connections,
+        max_monthly_messages,
+        max_users,
+        max_supervisors,
+        has_asaas_integration,
+        has_chat,
+        has_whatsapp_groups,
+        has_campaigns,
+        has_chatbots,
+        has_scheduled_messages,
+        has_crm,
+        price,
+        billing_period,
+        is_active,
+        visible_on_signup,
+        trial_days,
+        id,
+      ]
     );
 
     if (result.rows.length === 0) {
@@ -496,12 +520,13 @@ router.post('/organizations', requireSuperadmin, async (req, res) => {
       groups: true,
       scheduled_messages: true,
       chatbots: true,
-      chat: true
+      chat: true,
+      crm: true,
     };
 
     if (plan_id) {
       const planResult = await query(
-        `SELECT has_campaigns, has_asaas_integration, has_whatsapp_groups, has_scheduled_messages, has_chatbots, has_chat FROM plans WHERE id = $1`,
+        `SELECT has_campaigns, has_asaas_integration, has_whatsapp_groups, has_scheduled_messages, has_chatbots, has_chat, has_crm FROM plans WHERE id = $1`,
         [plan_id]
       );
       if (planResult.rows.length > 0) {
@@ -512,7 +537,8 @@ router.post('/organizations', requireSuperadmin, async (req, res) => {
           groups: plan.has_whatsapp_groups ?? true,
           scheduled_messages: plan.has_scheduled_messages ?? true,
           chatbots: plan.has_chatbots ?? true,
-          chat: plan.has_chat ?? true
+          chat: plan.has_chat ?? true,
+          crm: plan.has_crm ?? true,
         };
       }
     }
@@ -553,7 +579,7 @@ router.patch('/organizations/:id', requireSuperadmin, async (req, res) => {
     let modulesEnabled = null;
     if (plan_id && sync_modules !== false) {
       const planResult = await query(
-        `SELECT has_campaigns, has_asaas_integration, has_whatsapp_groups, has_scheduled_messages, has_chatbots, has_chat FROM plans WHERE id = $1`,
+        `SELECT has_campaigns, has_asaas_integration, has_whatsapp_groups, has_scheduled_messages, has_chatbots, has_chat, has_crm FROM plans WHERE id = $1`,
         [plan_id]
       );
       if (planResult.rows.length > 0) {
@@ -564,7 +590,8 @@ router.patch('/organizations/:id', requireSuperadmin, async (req, res) => {
           groups: plan.has_whatsapp_groups ?? true,
           scheduled_messages: plan.has_scheduled_messages ?? true,
           chatbots: plan.has_chatbots ?? true,
-          chat: plan.has_chat ?? true
+          chat: plan.has_chat ?? true,
+          crm: plan.has_crm ?? true,
         };
       }
     }
