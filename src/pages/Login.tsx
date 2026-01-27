@@ -42,7 +42,8 @@ const Login = () => {
 
     setIsLoading(true);
     try {
-      await login(email, password);
+      // Use validated+trimmed values
+      await login(result.data.email, result.data.password);
       navigate('/');
     } catch (error) {
       toast({

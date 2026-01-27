@@ -98,7 +98,8 @@ const Cadastro = () => {
 
     setIsLoading(true);
     try {
-      await register(email, password, name, selectedPlan || undefined);
+      // Use validated+trimmed values
+      await register(result.data.email, result.data.password, result.data.name, selectedPlan || undefined);
       navigate('/');
     } catch (error) {
       toast({

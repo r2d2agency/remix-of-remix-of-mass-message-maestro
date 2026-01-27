@@ -26,14 +26,21 @@ router.get('/plans', async (req, res) => {
 // Register
 router.post('/register', async (req, res) => {
   try {
-    const { email, password, name, plan_id } = req.body;
+    let { email, password, name, plan_id } = req.body;
+
+    // Normalize inputs (prevents trailing spaces and case issues that block login)
+    email = typeof email === 'string' ? email.trim() : email;
+    name = typeof name === 'string' ? name.trim() : name;
 
     if (!email || !password || !name) {
       return res.status(400).json({ error: 'Todos os campos são obrigatórios' });
     }
 
-    // Check if user exists
-    const existing = await query('SELECT id FROM users WHERE email = $1', [email]);
+    // Check if user exists (case-insensitive + trim)
+    const existing = await query(
+      'SELECT id FROM users WHERE lower(trim(email)) = lower(trim($1)) LIMIT 1',
+      [email]
+    );
     if (existing.rows.length > 0) {
       return res.status(400).json({ error: 'Email já cadastrado' });
     }
@@ -137,7 +144,10 @@ router.post('/register', async (req, res) => {
 // Login
 router.post('/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    let { email, password } = req.body;
+
+    // Normalize inputs
+    email = typeof email === 'string' ? email.trim() : email;
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email e senha são obrigatórios' });
@@ -145,7 +155,7 @@ router.post('/login', async (req, res) => {
 
     // Find user
     const result = await query(
-      'SELECT id, email, name, password_hash, is_superadmin FROM users WHERE email = $1',
+      'SELECT id, email, name, password_hash, is_superadmin FROM users WHERE lower(trim(email)) = lower(trim($1)) LIMIT 1',
       [email]
     );
 
