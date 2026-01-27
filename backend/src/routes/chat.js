@@ -685,10 +685,15 @@ router.get('/conversations/by-phone/:phone', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'Nenhuma conexão encontrada' });
     }
     
-    // Normalize phone - remove non-digits
-    const normalizedPhone = phone.replace(/\D/g, '');
+    // Normalize phone - keep only digits
+    const normalizedPhone = String(phone || '').replace(/\D/g, '');
+    const needle = normalizedPhone.length > 11 ? normalizedPhone.slice(-11) : normalizedPhone;
+
+    if (!needle) {
+      return res.status(400).json({ error: 'Telefone inválido' });
+    }
     
-    // Search by phone in contact_phone or remote_jid
+    // Search by phone in contact_phone or remote_jid (normalized to digits on the DB side)
     const result = await query(
       `SELECT 
         conv.*,
@@ -707,12 +712,12 @@ router.get('/conversations/by-phone/:phone', authenticate, async (req, res) => {
       LEFT JOIN users u ON u.id = conv.assigned_to
       WHERE conv.connection_id = ANY($1)
         AND (
-          conv.contact_phone LIKE '%' || $2 || '%'
-          OR conv.remote_jid LIKE '%' || $2 || '%'
+          regexp_replace(COALESCE(conv.contact_phone, ''), '\\D', '', 'g') LIKE '%' || $2 || '%'
+          OR regexp_replace(COALESCE(conv.remote_jid, ''), '\\D', '', 'g') LIKE '%' || $2 || '%'
         )
       ORDER BY conv.last_message_at DESC NULLS LAST
       LIMIT 1`,
-      [connectionIds, normalizedPhone.slice(-9)]
+      [connectionIds, needle]
     );
 
     if (result.rows.length === 0) {

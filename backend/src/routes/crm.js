@@ -18,6 +18,28 @@ async function getUserOrg(userId) {
   return result.rows[0];
 }
 
+// Helper: Deals currently require company_id (DB constraint). When UI treats company as optional,
+// we create/reuse a single default company per organization.
+async function ensureDefaultCompanyId(organizationId, createdByUserId) {
+  const existing = await query(
+    `SELECT id FROM crm_companies
+     WHERE organization_id = $1 AND name = 'Sem empresa'
+     ORDER BY created_at ASC
+     LIMIT 1`,
+    [organizationId]
+  );
+
+  if (existing.rows[0]?.id) return existing.rows[0].id;
+
+  const created = await query(
+    `INSERT INTO crm_companies (organization_id, name, created_by)
+     VALUES ($1, 'Sem empresa', $2)
+     RETURNING id`,
+    [organizationId, createdByUserId]
+  );
+  return created.rows[0].id;
+}
+
 // Helper: Check if user can manage CRM (admin/owner/manager)
 function canManage(role) {
   return ['owner', 'admin', 'manager'].includes(role);
@@ -700,12 +722,18 @@ router.post('/deals', async (req, res) => {
 
     const { funnel_id, stage_id, company_id, title, value, probability, expected_close_date, 
             description, tags, owner_id, group_id, contact_ids, contact_name, contact_phone } = req.body;
+
+    if (!funnel_id || !stage_id || !title) {
+      return res.status(400).json({ error: 'Campos obrigatórios: funil, etapa e título' });
+    }
+
+    const resolvedCompanyId = company_id || (await ensureDefaultCompanyId(org.organization_id, req.userId));
     
     const result = await query(
       `INSERT INTO crm_deals (organization_id, funnel_id, stage_id, company_id, title, value, probability, 
        expected_close_date, description, tags, owner_id, group_id, created_by)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
-      [org.organization_id, funnel_id, stage_id, company_id || null, title, value || 0, probability || 50,
+      [org.organization_id, funnel_id, stage_id, resolvedCompanyId, title, value || 0, probability || 50,
        expected_close_date, description, tags || [], owner_id || req.userId, group_id, req.userId]
     );
     const deal = result.rows[0];
