@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,12 +7,15 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Slider } from "@/components/ui/slider";
-import { Settings, Shield, Bell, Save, Sun, Moon, Monitor, Volume2, VolumeX, BellRing, Smartphone } from "lucide-react";
+import { Settings, Shield, Bell, Save, Sun, Moon, Monitor, Volume2, VolumeX, BellRing, Smartphone, User, Lock, Loader2 } from "lucide-react";
 import { useTheme, Theme } from "@/hooks/use-theme";
 import { useNotificationSound, NOTIFICATION_SOUNDS, NotificationSoundId } from "@/hooks/use-notification-sound";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
+import { api } from "@/lib/api";
 
 const Configuracoes = () => {
+  const { user } = useAuth();
   const { theme, setTheme } = useTheme();
   const {
     settings: notifSettings,
@@ -21,6 +25,62 @@ const Configuracoes = () => {
     previewSound,
     isPushSupported,
   } = useNotificationSound();
+
+  // Profile state
+  const [displayName, setDisplayName] = useState(user?.name || "");
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+
+  // Password state
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+
+  const handleUpdateProfile = async () => {
+    const trimmedName = displayName.trim();
+    if (!trimmedName || trimmedName.length < 2) {
+      toast.error("Nome deve ter pelo menos 2 caracteres");
+      return;
+    }
+    
+    setIsUpdatingProfile(true);
+    try {
+      await api("/api/auth/profile", { method: "PUT", body: { name: trimmedName } });
+      toast.success("Nome atualizado com sucesso! Faça login novamente para ver as mudanças.");
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao atualizar perfil");
+    } finally {
+      setIsUpdatingProfile(false);
+    }
+  };
+
+  const handleUpdatePassword = async () => {
+    if (!currentPassword || !newPassword) {
+      toast.error("Preencha todos os campos de senha");
+      return;
+    }
+    if (newPassword.length < 6) {
+      toast.error("Nova senha deve ter pelo menos 6 caracteres");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error("As senhas não conferem");
+      return;
+    }
+    
+    setIsUpdatingPassword(true);
+    try {
+      await api("/api/auth/password", { method: "PUT", body: { currentPassword, newPassword } });
+      toast.success("Senha alterada com sucesso!");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao alterar senha");
+    } finally {
+      setIsUpdatingPassword(false);
+    }
+  };
 
   const handleRequestPush = async () => {
     const granted = await requestPushPermission();
@@ -43,6 +103,113 @@ const Configuracoes = () => {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
+          {/* Profile Settings */}
+          <Card className="animate-fade-in shadow-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <User className="h-5 w-5 text-primary" />
+                Perfil
+              </CardTitle>
+              <CardDescription>
+                Seu nome de exibição no sistema
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="displayName">Nome de exibição</Label>
+                <Input
+                  id="displayName"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="Seu nome"
+                  maxLength={100}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Este nome aparece nas mensagens enviadas e na assinatura
+                </p>
+              </div>
+              <Button
+                onClick={handleUpdateProfile}
+                disabled={isUpdatingProfile || displayName.trim() === user?.name}
+                className="w-full"
+              >
+                {isUpdatingProfile ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Salvando...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4 mr-2" />
+                    Salvar Nome
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Password Settings */}
+          <Card className="animate-fade-in shadow-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Lock className="h-5 w-5 text-primary" />
+                Alterar Senha
+              </CardTitle>
+              <CardDescription>
+                Atualize sua senha de acesso
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="currentPassword">Senha atual</Label>
+                <Input
+                  id="currentPassword"
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  placeholder="••••••••"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="newPassword">Nova senha</Label>
+                <Input
+                  id="newPassword"
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="••••••••"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Confirmar nova senha</Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="••••••••"
+                />
+              </div>
+              <Button
+                onClick={handleUpdatePassword}
+                disabled={isUpdatingPassword || !currentPassword || !newPassword}
+                className="w-full"
+              >
+                {isUpdatingPassword ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Alterando...
+                  </>
+                ) : (
+                  <>
+                    <Lock className="h-4 w-4 mr-2" />
+                    Alterar Senha
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+
           {/* Appearance Settings */}
           <Card className="animate-fade-in shadow-card">
             <CardHeader>
