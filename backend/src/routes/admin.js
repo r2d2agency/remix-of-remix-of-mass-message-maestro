@@ -229,10 +229,11 @@ router.post('/plans/sync-all', requireSuperadmin, async (req, res) => {
   try {
     // Get all plans with their modules
     const plansResult = await query(
-      `SELECT id, has_campaigns, has_asaas_integration, has_whatsapp_groups, has_scheduled_messages, has_chatbots, has_chat, has_crm FROM plans`
+      `SELECT id, name, has_campaigns, has_asaas_integration, has_whatsapp_groups, has_scheduled_messages, has_chatbots, has_chat, has_crm FROM plans`
     );
 
     let syncedCount = 0;
+    const syncDetails = [];
 
     for (const plan of plansResult.rows) {
       const modulesEnabled = {
@@ -245,17 +246,27 @@ router.post('/plans/sync-all', requireSuperadmin, async (req, res) => {
         crm: plan.has_crm ?? true,
       };
 
+      console.log(`[sync-all] Plan "${plan.name}" (${plan.id}) modules:`, modulesEnabled);
+
       // Update all organizations using this plan
       const updateResult = await query(
-        `UPDATE organizations SET modules_enabled = $1, updated_at = NOW() WHERE plan_id = $2`,
+        `UPDATE organizations SET modules_enabled = $1, updated_at = NOW() WHERE plan_id = $2 RETURNING id, name`,
         [JSON.stringify(modulesEnabled), plan.id]
       );
+
+      if (updateResult.rowCount > 0) {
+        syncDetails.push({
+          plan: plan.name,
+          organizations: updateResult.rows.map(o => o.name),
+          modules: modulesEnabled
+        });
+      }
 
       syncedCount += updateResult.rowCount || 0;
     }
 
-    console.log(`Synced modules for ${syncedCount} organizations`);
-    res.json({ success: true, synced_organizations: syncedCount });
+    console.log(`[sync-all] Synced modules for ${syncedCount} organizations:`, JSON.stringify(syncDetails, null, 2));
+    res.json({ success: true, synced_organizations: syncedCount, details: syncDetails });
   } catch (error) {
     console.error('Sync all plans error:', error);
     res.status(500).json({ error: 'Erro ao sincronizar planos' });

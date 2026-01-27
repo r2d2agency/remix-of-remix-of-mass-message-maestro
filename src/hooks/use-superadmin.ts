@@ -190,7 +190,7 @@ export function useSuperadmin() {
     }
   }, []);
 
-  const syncAllPlansToOrganizations = useCallback(async (): Promise<{ synced_organizations: number } | null> => {
+  const syncAllPlansToOrganizations = useCallback(async (): Promise<{ synced_organizations: number; details?: any[] } | null> => {
     setLoading(true);
     setError(null);
     

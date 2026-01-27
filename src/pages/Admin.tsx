@@ -376,7 +376,15 @@ export default function Admin() {
   const handleSyncAllPlans = async () => {
     const result = await syncAllPlansToOrganizations();
     if (result) {
-      toast.success(`Módulos sincronizados para ${result.synced_organizations} organizações!`);
+      // Log details for debugging
+      console.log('[sync-all] Result:', result);
+      if (result.details && result.details.length > 0) {
+        const detailsText = result.details.map((d: any) => 
+          `${d.plan}: ${d.organizations.join(', ')} (CRM: ${d.modules.crm ? 'ON' : 'OFF'})`
+        ).join('\n');
+        console.log('[sync-all] Details:\n', detailsText);
+      }
+      toast.success(`Módulos sincronizados para ${result.synced_organizations} organizações! Os usuários precisam fazer logout/login para ver as mudanças.`);
       loadData();
     } else if (error) {
       toast.error(error);
