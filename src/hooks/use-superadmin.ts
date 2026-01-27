@@ -222,6 +222,30 @@ export function useSuperadmin() {
     }
   }, []);
 
+  const deleteUser = useCallback(async (userId: string): Promise<boolean> => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await fetch(`${API_URL}/api/admin/users/${userId}`, {
+        method: 'DELETE',
+        headers: getHeaders()
+      });
+      
+      if (!response.ok) {
+        const res = await response.json();
+        throw new Error(res.error || 'Erro ao excluir usuário');
+      }
+      
+      return true;
+    } catch (err: any) {
+      setError(err.message);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   // ============================================
   // ORGANIZATIONS
   // ============================================
@@ -440,6 +464,7 @@ export function useSuperadmin() {
     // Users
     getAllUsers,
     setSuperadmin,
+    deleteUser,
     // Organizations
     getAllOrganizations,
     createOrganization,

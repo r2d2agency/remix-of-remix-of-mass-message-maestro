@@ -164,6 +164,7 @@ export default function Admin() {
     updatePlan,
     deletePlan,
     setSuperadmin,
+    deleteUser,
     getOrganizationMembers,
     createOrganizationUser,
     updateMemberRole,
@@ -467,6 +468,16 @@ export default function Admin() {
     const success = await setSuperadmin(userId, !currentValue);
     if (success) {
       toast.success(!currentValue ? 'Superadmin ativado!' : 'Superadmin removido!');
+      loadData();
+    } else if (error) {
+      toast.error(error);
+    }
+  };
+
+  const handleDeleteUser = async (userId: string, userEmail: string) => {
+    const success = await deleteUser(userId);
+    if (success) {
+      toast.success(`Usuário ${userEmail} excluído com sucesso!`);
       loadData();
     } else if (error) {
       toast.error(error);
@@ -1173,6 +1184,7 @@ export default function Admin() {
                         <TableHead>Email</TableHead>
                         <TableHead>Superadmin</TableHead>
                         <TableHead>Cadastrado em</TableHead>
+                        <TableHead className="w-[100px]">Ações</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1195,6 +1207,41 @@ export default function Admin() {
                           </TableCell>
                           <TableCell className="text-muted-foreground">
                             {new Date(user.created_at).toLocaleDateString('pt-BR')}
+                          </TableCell>
+                          <TableCell>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Excluir Usuário</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Tem certeza que deseja excluir o usuário <strong>{user.email}</strong>?
+                                    <br /><br />
+                                    Esta ação irá:
+                                    <ul className="list-disc list-inside mt-2 space-y-1">
+                                      <li>Remover o usuário de todas as organizações</li>
+                                      <li>Liberar o email para uso em novas contas</li>
+                                      <li>Excluir permanentemente todos os dados do usuário</li>
+                                    </ul>
+                                    <br />
+                                    <strong className="text-destructive">Esta ação não pode ser desfeita.</strong>
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    onClick={() => handleDeleteUser(user.id, user.email)}
+                                  >
+                                    Excluir Usuário
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
                           </TableCell>
                         </TableRow>
                       ))}
