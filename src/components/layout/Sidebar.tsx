@@ -22,6 +22,7 @@ import {
   Send,
   Settings,
   Shield,
+  User,
   Users,
   UserPlus,
   Zap,
@@ -92,11 +93,17 @@ const navSections: NavSection[] = [
     ],
   },
   {
-    title: "Configurações",
-    icon: Settings,
-    adminOnly: true, // Entire section is admin-only
+    title: "Minha Conta",
+    icon: User,
     items: [
       { name: "Ajustes", href: "/configuracoes", icon: Settings },
+    ],
+  },
+  {
+    title: "Administração",
+    icon: Shield,
+    adminOnly: true, // Entire section is admin-only
+    items: [
       { name: "Cobrança", href: "/cobranca", icon: Receipt, moduleKey: 'billing' },
       { name: "Conexões", href: "/conexao", icon: Plug },
       { name: "Organizações", href: "/organizacoes", icon: Building2 },
