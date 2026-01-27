@@ -603,8 +603,21 @@ export async function sendDocument(instanceId, token, phone, documentUrl, filena
   let effectiveDocumentUrl = documentUrl;
   try {
     const u = new URL(documentUrl);
-    const pathHasExt = /\.[a-z0-9]{2,10}$/i.test(u.pathname);
-    if (!pathHasExt && u.pathname.startsWith('/uploads/')) {
+    const wantedExt = (String(filenameWithExt).match(/\.([a-z0-9]{2,10})$/i)?.[1] || '').toLowerCase();
+    const currentExt = (String(u.pathname).match(/\.([a-z0-9]{2,10})$/i)?.[1] || '').toLowerCase();
+    const pathHasExt = Boolean(currentExt);
+
+    // We re-serve our own uploads with a friendlier filename when:
+    // - the URL has no extension, OR
+    // - the stored file ends with .bin/.tmp (common when browser sends octet-stream), OR
+    // - the extension differs from the intended filename extension.
+    const shouldReseaveWithExt =
+      !pathHasExt ||
+      currentExt === 'bin' ||
+      currentExt === 'tmp' ||
+      (wantedExt && currentExt && currentExt !== wantedExt);
+
+    if (shouldReseaveWithExt && u.pathname.startsWith('/uploads/')) {
       const stored = u.pathname.split('/').pop();
       if (stored) {
         effectiveDocumentUrl = `${u.origin}/api/uploads/public/${encodeURIComponent(stored)}/${encodeURIComponent(filenameWithExt)}`;
