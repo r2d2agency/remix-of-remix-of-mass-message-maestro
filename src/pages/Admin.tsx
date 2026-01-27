@@ -19,11 +19,17 @@ import { useAdminSettings } from '@/hooks/use-branding';
 import { useUpload } from '@/hooks/use-upload';
 import { BrandingTab } from '@/components/admin/BrandingTab';
 import { toast } from 'sonner';
-import { Shield, Building2, Users, Plus, Trash2, Loader2, Pencil, Crown, Image, Package, CalendarIcon, UserPlus, Eye, MessageSquare, Receipt, Wifi, Upload, Palette, Bot, Clock, Briefcase } from 'lucide-react';
+import { Shield, Building2, Users, Plus, Trash2, Loader2, Pencil, Crown, Image, Package, CalendarIcon, UserPlus, Eye, MessageSquare, Receipt, Wifi, Upload, Palette, Bot, Clock, Briefcase, Search, AlertTriangle, Mail } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+
+interface UserOrganization {
+  org_id: string;
+  org_name: string;
+  role: string;
+}
 
 interface User {
   id: string;
@@ -31,6 +37,8 @@ interface User {
   name: string;
   is_superadmin: boolean;
   created_at: string;
+  organizations?: UserOrganization[];
+  is_orphan?: boolean;
 }
 
 interface Plan {
@@ -86,6 +94,17 @@ export default function Admin() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSuperadmin, setIsSuperadmin] = useState(false);
+  
+  // User search and filter
+  const [userSearch, setUserSearch] = useState('');
+  const [showOrphansOnly, setShowOrphansOnly] = useState(false);
+  const [searchingUsers, setSearchingUsers] = useState(false);
+  
+  // Delete by email dialog
+  const [deleteByEmailDialogOpen, setDeleteByEmailDialogOpen] = useState(false);
+  const [emailToDelete, setEmailToDelete] = useState('');
+  const [emailSearchResult, setEmailSearchResult] = useState<User | null>(null);
+  const [searchingEmail, setSearchingEmail] = useState(false);
   
   // Create org dialog
   const [createOrgDialogOpen, setCreateOrgDialogOpen] = useState(false);
@@ -165,6 +184,8 @@ export default function Admin() {
     deletePlan,
     setSuperadmin,
     deleteUser,
+    searchUserByEmail,
+    deleteUserByEmail,
     getOrganizationMembers,
     createOrganizationUser,
     updateMemberRole,
@@ -191,7 +212,7 @@ export default function Admin() {
   const loadData = async () => {
     setLoading(true);
     const [usersData, orgsData, plansData] = await Promise.all([
-      getAllUsers(),
+      getAllUsers({ search: userSearch, orphansOnly: showOrphansOnly }),
       getAllOrganizations(),
       getAllPlans()
     ]);
@@ -199,6 +220,44 @@ export default function Admin() {
     setOrganizations(orgsData);
     setPlans(plansData);
     setLoading(false);
+  };
+
+  // Reload users with search/filter
+  const reloadUsers = async () => {
+    setSearchingUsers(true);
+    const usersData = await getAllUsers({ search: userSearch, orphansOnly: showOrphansOnly });
+    setUsers(usersData);
+    setSearchingUsers(false);
+  };
+
+  // Search user by email for deletion
+  const handleSearchEmailForDelete = async () => {
+    if (!emailToDelete.trim()) {
+      toast.error('Digite um email');
+      return;
+    }
+    setSearchingEmail(true);
+    const user = await searchUserByEmail(emailToDelete.trim());
+    setEmailSearchResult(user);
+    setSearchingEmail(false);
+    if (!user) {
+      toast.info('Nenhum usuário encontrado com esse email');
+    }
+  };
+
+  // Delete user by email
+  const handleDeleteUserByEmail = async () => {
+    if (!emailSearchResult) return;
+    const success = await deleteUserByEmail(emailSearchResult.email);
+    if (success) {
+      toast.success(`Usuário ${emailSearchResult.email} excluído com sucesso!`);
+      setDeleteByEmailDialogOpen(false);
+      setEmailToDelete('');
+      setEmailSearchResult(null);
+      loadData();
+    } else if (error) {
+      toast.error(error);
+    }
   };
 
   const generateSlug = (name: string) => {
@@ -1163,18 +1222,144 @@ export default function Admin() {
 
           {/* Users Tab */}
           <TabsContent value="users" className="space-y-4">
-            <h2 className="text-xl font-semibold">Todos os Usuários</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold">Todos os Usuários</h2>
+              <Dialog open={deleteByEmailDialogOpen} onOpenChange={(open) => {
+                setDeleteByEmailDialogOpen(open);
+                if (!open) {
+                  setEmailToDelete('');
+                  setEmailSearchResult(null);
+                }
+              }}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="gap-2">
+                    <Mail className="h-4 w-4" />
+                    Excluir por Email
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Excluir Usuário por Email</DialogTitle>
+                    <DialogDescription>
+                      Digite o email do usuário que deseja excluir definitivamente do sistema.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="email@exemplo.com"
+                        value={emailToDelete}
+                        onChange={(e) => {
+                          setEmailToDelete(e.target.value);
+                          setEmailSearchResult(null);
+                        }}
+                        onKeyDown={(e) => e.key === 'Enter' && handleSearchEmailForDelete()}
+                      />
+                      <Button onClick={handleSearchEmailForDelete} disabled={searchingEmail}>
+                        {searchingEmail ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                    
+                    {emailSearchResult && (
+                      <Card className="border-destructive/50 bg-destructive/5">
+                        <CardContent className="p-4 space-y-3">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <p className="font-medium">{emailSearchResult.name}</p>
+                              <p className="text-sm text-muted-foreground">{emailSearchResult.email}</p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Cadastrado em: {new Date(emailSearchResult.created_at).toLocaleDateString('pt-BR')}
+                              </p>
+                            </div>
+                            {emailSearchResult.is_superadmin && (
+                              <Badge className="bg-amber-500/20 text-amber-400">Superadmin</Badge>
+                            )}
+                          </div>
+                          
+                          {emailSearchResult.organizations && emailSearchResult.organizations.length > 0 ? (
+                            <div>
+                              <p className="text-xs font-medium mb-1">Organizações:</p>
+                              <div className="flex flex-wrap gap-1">
+                                {emailSearchResult.organizations.map((org, i) => (
+                                  <Badge key={i} variant="outline" className="text-xs">
+                                    {org.org_name} ({org.role})
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          ) : (
+                            <Badge variant="secondary" className="gap-1">
+                              <AlertTriangle className="h-3 w-3" />
+                              Usuário órfão (sem organização)
+                            </Badge>
+                          )}
+                          
+                          <div className="pt-2 border-t">
+                            <p className="text-xs text-destructive mb-2">
+                              Esta ação irá excluir permanentemente o usuário e liberar o email.
+                            </p>
+                            <Button 
+                              variant="destructive" 
+                              className="w-full"
+                              onClick={handleDeleteUserByEmail}
+                              disabled={actionLoading}
+                            >
+                              {actionLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Excluir Definitivamente
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+            
+            {/* Search and Filter */}
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <div className="flex-1 flex gap-2">
+                    <Input
+                      placeholder="Buscar por nome ou email..."
+                      value={userSearch}
+                      onChange={(e) => setUserSearch(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && reloadUsers()}
+                      className="flex-1"
+                    />
+                    <Button onClick={reloadUsers} disabled={searchingUsers}>
+                      {searchingUsers ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                  <div className="flex items-center gap-2 rounded-lg border px-3 py-2">
+                    <AlertTriangle className="h-4 w-4 text-amber-500" />
+                    <Label htmlFor="orphans-filter" className="text-sm whitespace-nowrap">Apenas órfãos</Label>
+                    <Switch
+                      id="orphans-filter"
+                      checked={showOrphansOnly}
+                      onCheckedChange={(v) => {
+                        setShowOrphansOnly(v);
+                        // Auto reload when toggled
+                        setTimeout(() => reloadUsers(), 0);
+                      }}
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
             
             <Card>
               <CardContent className="p-0">
-                {loading ? (
+                {loading || searchingUsers ? (
                   <div className="flex items-center justify-center py-12">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
                   </div>
                 ) : users.length === 0 ? (
                   <div className="text-center py-12 text-muted-foreground">
                     <Users className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                    <p>Nenhum usuário cadastrado</p>
+                    <p>{showOrphansOnly ? 'Nenhum usuário órfão encontrado' : 'Nenhum usuário encontrado'}</p>
                   </div>
                 ) : (
                   <Table>
@@ -1182,6 +1367,7 @@ export default function Admin() {
                       <TableRow>
                         <TableHead>Nome</TableHead>
                         <TableHead>Email</TableHead>
+                        <TableHead>Organizações</TableHead>
                         <TableHead>Superadmin</TableHead>
                         <TableHead>Cadastrado em</TableHead>
                         <TableHead className="w-[100px]">Ações</TableHead>
@@ -1189,16 +1375,39 @@ export default function Admin() {
                     </TableHeader>
                     <TableBody>
                       {users.map((user) => (
-                        <TableRow key={user.id}>
+                        <TableRow key={user.id} className={user.is_orphan ? 'bg-amber-500/5' : ''}>
                           <TableCell>
                             <div className="flex items-center gap-2">
                               <span className="font-medium">{user.name}</span>
                               {user.is_superadmin && (
                                 <Crown className="h-4 w-4 text-amber-500" />
                               )}
+                              {user.is_orphan && (
+                                <Badge variant="outline" className="text-amber-500 border-amber-500/30 text-xs">
+                                  Órfão
+                                </Badge>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell className="text-muted-foreground">{user.email}</TableCell>
+                          <TableCell>
+                            {user.organizations && user.organizations.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {user.organizations.slice(0, 2).map((org, i) => (
+                                  <Badge key={i} variant="secondary" className="text-xs">
+                                    {org.org_name}
+                                  </Badge>
+                                ))}
+                                {user.organizations.length > 2 && (
+                                  <Badge variant="outline" className="text-xs">
+                                    +{user.organizations.length - 2}
+                                  </Badge>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
                           <TableCell>
                             <Switch
                               checked={user.is_superadmin}

@@ -1,12 +1,20 @@
 import { useState, useCallback } from 'react';
 import { API_URL, getAuthToken } from '@/lib/api';
 
+interface UserOrganization {
+  org_id: string;
+  org_name: string;
+  role: string;
+}
+
 interface User {
   id: string;
   email: string;
   name: string;
   is_superadmin: boolean;
   created_at: string;
+  organizations?: UserOrganization[];
+  is_orphan?: boolean;
 }
 
 interface Plan {
@@ -186,14 +194,59 @@ export function useSuperadmin() {
   // USERS
   // ============================================
 
-  const getAllUsers = useCallback(async (): Promise<User[]> => {
+  const getAllUsers = useCallback(async (options?: { search?: string; orphansOnly?: boolean }): Promise<User[]> => {
     try {
-      const response = await fetch(`${API_URL}/api/admin/users`, { headers: getHeaders() });
+      const params = new URLSearchParams();
+      if (options?.search) params.append('search', options.search);
+      if (options?.orphansOnly) params.append('orphans_only', 'true');
+      
+      const url = `${API_URL}/api/admin/users${params.toString() ? `?${params}` : ''}`;
+      const response = await fetch(url, { headers: getHeaders() });
       if (!response.ok) throw new Error('Acesso negado');
       return response.json();
     } catch (err) {
       console.error('Get users error:', err);
       return [];
+    }
+  }, []);
+
+  const searchUserByEmail = useCallback(async (email: string): Promise<User | null> => {
+    try {
+      const response = await fetch(`${API_URL}/api/admin/users/search-email?email=${encodeURIComponent(email)}`, { 
+        headers: getHeaders() 
+      });
+      if (!response.ok) {
+        if (response.status === 404) return null;
+        throw new Error('Erro ao buscar usuário');
+      }
+      return response.json();
+    } catch (err) {
+      console.error('Search user by email error:', err);
+      return null;
+    }
+  }, []);
+
+  const deleteUserByEmail = useCallback(async (email: string): Promise<boolean> => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await fetch(`${API_URL}/api/admin/users/by-email/${encodeURIComponent(email)}`, {
+        method: 'DELETE',
+        headers: getHeaders()
+      });
+      
+      if (!response.ok) {
+        const res = await response.json();
+        throw new Error(res.error || 'Erro ao excluir usuário');
+      }
+      
+      return true;
+    } catch (err: any) {
+      setError(err.message);
+      return false;
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -465,6 +518,8 @@ export function useSuperadmin() {
     getAllUsers,
     setSuperadmin,
     deleteUser,
+    searchUserByEmail,
+    deleteUserByEmail,
     // Organizations
     getAllOrganizations,
     createOrganization,

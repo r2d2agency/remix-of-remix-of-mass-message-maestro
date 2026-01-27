@@ -228,18 +228,117 @@ router.delete('/plans/:id', requireSuperadmin, async (req, res) => {
 // USERS
 // ============================================
 
-// List all users (superadmin only)
+// List all users with orphan status (superadmin only)
 router.get('/users', requireSuperadmin, async (req, res) => {
   try {
-    const result = await query(
-      `SELECT id, email, name, is_superadmin, created_at 
-       FROM users 
-       ORDER BY created_at DESC`
-    );
+    const { search, orphans_only } = req.query;
+    
+    let baseQuery = `
+      SELECT u.id, u.email, u.name, u.is_superadmin, u.created_at,
+             COALESCE(
+               (SELECT json_agg(json_build_object('org_id', o.id, 'org_name', o.name, 'role', om.role))
+                FROM organization_members om
+                JOIN organizations o ON o.id = om.organization_id
+                WHERE om.user_id = u.id),
+               '[]'::json
+             ) as organizations,
+             NOT EXISTS (SELECT 1 FROM organization_members om WHERE om.user_id = u.id) as is_orphan
+      FROM users u
+      WHERE 1=1
+    `;
+    
+    const params = [];
+    let paramIndex = 1;
+    
+    if (search) {
+      baseQuery += ` AND (u.email ILIKE $${paramIndex} OR u.name ILIKE $${paramIndex})`;
+      params.push(`%${search}%`);
+      paramIndex++;
+    }
+    
+    if (orphans_only === 'true') {
+      baseQuery += ` AND NOT EXISTS (SELECT 1 FROM organization_members om WHERE om.user_id = u.id)`;
+    }
+    
+    baseQuery += ` ORDER BY u.created_at DESC`;
+    
+    const result = await query(baseQuery, params);
     res.json(result.rows);
   } catch (error) {
     console.error('List users error:', error);
     res.status(500).json({ error: 'Erro ao listar usuários' });
+  }
+});
+
+// Search user by exact email (superadmin only)
+router.get('/users/search-email', requireSuperadmin, async (req, res) => {
+  try {
+    const { email } = req.query;
+    
+    if (!email) {
+      return res.status(400).json({ error: 'Email é obrigatório' });
+    }
+    
+    const result = await query(
+      `SELECT u.id, u.email, u.name, u.is_superadmin, u.created_at,
+              COALESCE(
+                (SELECT json_agg(json_build_object('org_id', o.id, 'org_name', o.name, 'role', om.role))
+                 FROM organization_members om
+                 JOIN organizations o ON o.id = om.organization_id
+                 WHERE om.user_id = u.id),
+                '[]'::json
+              ) as organizations
+       FROM users u
+       WHERE u.email = $1`,
+      [email]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Usuário não encontrado', exists: false });
+    }
+    
+    res.json({ ...result.rows[0], exists: true });
+  } catch (error) {
+    console.error('Search user by email error:', error);
+    res.status(500).json({ error: 'Erro ao buscar usuário' });
+  }
+});
+
+// Delete user by email (superadmin only - for orphan cleanup)
+router.delete('/users/by-email/:email', requireSuperadmin, async (req, res) => {
+  try {
+    const { email } = req.params;
+    
+    // Find user by email
+    const userCheck = await query(`SELECT id, email FROM users WHERE email = $1`, [email]);
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
+    
+    const userId = userCheck.rows[0].id;
+    
+    // Can't delete yourself
+    if (userId === req.userId) {
+      return res.status(400).json({ error: 'Não é possível excluir sua própria conta' });
+    }
+    
+    // Delete all related data in order (respecting foreign keys)
+    await query(`DELETE FROM organization_members WHERE user_id = $1`, [userId]);
+    await query(`DELETE FROM department_members WHERE user_id = $1`, [userId]);
+    await query(`DELETE FROM user_roles WHERE user_id = $1`, [userId]);
+    await query(`UPDATE conversations SET assigned_user_id = NULL WHERE assigned_user_id = $1`, [userId]);
+    
+    const result = await query(`DELETE FROM users WHERE id = $1 RETURNING id, email`, [userId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Erro ao excluir usuário' });
+    }
+    
+    console.log(`User ${email} deleted by superadmin ${req.userId}`);
+    res.json({ success: true, deleted_email: email });
+  } catch (error) {
+    console.error('Delete user by email error:', error);
+    res.status(500).json({ error: 'Erro ao excluir usuário', details: error.message });
   }
 });
 
