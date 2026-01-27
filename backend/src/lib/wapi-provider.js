@@ -554,33 +554,45 @@ export async function sendDocument(instanceId, token, phone, documentUrl, filena
   const cleanPhone = isGroup ? phone : phone.replace(/\D/g, '');
   const at = new Date().toISOString();
 
+  const sanitizeFilenameBase = (name) => {
+    const raw = String(name || 'document');
+    // Remove any path fragments just in case
+    const base = raw.split('/').pop().split('\\').pop();
+    // Replace problematic chars; keep letters, numbers, dot, dash, underscore
+    const cleaned = base
+      .replace(/\s+/g, '_')
+      .replace(/[^a-zA-Z0-9._-]+/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^[_\.]+|[_\.]+$/g, '');
+    // Prevent empty / very long names
+    return (cleaned || 'document').slice(0, 80);
+  };
+
   // Ensure filename has an extension (W-API requires it)
   const ensureExtension = (fname, url) => {
-    // If filename already has extension, use it
-    if (fname && /\.[a-z0-9]{2,5}$/i.test(fname)) {
-      return fname;
+    const safeBase = sanitizeFilenameBase(fname);
+
+    // If filename already has extension, keep it (but sanitize base)
+    const hasExt = /\.[a-z0-9]{2,10}$/i.test(String(fname || ''));
+    if (hasExt) {
+      const ext = String(fname).match(/\.([a-z0-9]{2,10})$/i)?.[1] || 'pdf';
+      return `${safeBase.replace(/\.[a-z0-9]{2,10}$/i, '')}.${ext}`;
     }
 
     // Try to extract extension from URL
     try {
       const urlPath = new URL(url).pathname;
-      const match = urlPath.match(/\.([a-z0-9]{2,5})$/i);
+      const match = urlPath.match(/\.([a-z0-9]{2,10})$/i);
       if (match) {
         const ext = match[1];
-        // If fname is generic 'document', use URL filename
-        if (fname === 'document' || !fname) {
-          const urlFilename = urlPath.split('/').pop();
-          return urlFilename || `document.${ext}`;
-        }
-        // Add extension to existing filename
-        return `${fname}.${ext}`;
+        return `${safeBase}.${ext}`;
       }
     } catch (e) {
       // URL parsing failed, fallback below
     }
 
     // Last resort: use mimetype from URL check or default to .pdf
-    return fname ? `${fname}.pdf` : 'document.pdf';
+    return `${safeBase}.pdf`;
   };
 
   const filenameWithExt = ensureExtension(filename, documentUrl);
@@ -632,6 +644,8 @@ export async function sendDocument(instanceId, token, phone, documentUrl, filena
           phone: cleanPhone,
           document: documentUrl,
           filename: filenameWithExt,
+          // Some W-API installations/docs use camelCase
+          fileName: filenameWithExt,
         }),
       }
     );
