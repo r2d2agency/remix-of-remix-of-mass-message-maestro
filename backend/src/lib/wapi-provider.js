@@ -597,20 +597,38 @@ export async function sendDocument(instanceId, token, phone, documentUrl, filena
 
   const filenameWithExt = ensureExtension(filename, documentUrl);
 
+  // Some W-API installations validate the *URL* extension (not just the filename).
+  // If we have a URL without an extension (common when original uploads had no ext),
+  // serve it through our public download route that includes the desired filename.
+  let effectiveDocumentUrl = documentUrl;
+  try {
+    const u = new URL(documentUrl);
+    const pathHasExt = /\.[a-z0-9]{2,10}$/i.test(u.pathname);
+    if (!pathHasExt && u.pathname.startsWith('/uploads/')) {
+      const stored = u.pathname.split('/').pop();
+      if (stored) {
+        effectiveDocumentUrl = `${u.origin}/api/uploads/public/${encodeURIComponent(stored)}/${encodeURIComponent(filenameWithExt)}`;
+      }
+    }
+  } catch {
+    // keep original
+  }
+
   logInfo('wapi.send_document_started', {
     instance_id: instanceId,
     phone_preview: cleanPhone.substring(0, 15),
     document_url_preview: documentUrl ? documentUrl.substring(0, 100) : null,
+    effective_document_url_preview: effectiveDocumentUrl ? effectiveDocumentUrl.substring(0, 100) : null,
     filename: filenameWithExt,
   });
 
   // Pre-check: verify URL is accessible before sending to W-API
-  const urlCheck = await verifyMediaUrl(documentUrl, 10000);
+  const urlCheck = await verifyMediaUrl(effectiveDocumentUrl, 10000);
   if (!urlCheck.accessible) {
     const errorMsg = `URL do arquivo não acessível: ${urlCheck.error}`;
     logError('wapi.send_document_url_check_failed', new Error(errorMsg), {
       instance_id: instanceId,
-      document_url_preview: documentUrl ? documentUrl.substring(0, 200) : null,
+      document_url_preview: effectiveDocumentUrl ? effectiveDocumentUrl.substring(0, 200) : null,
       url_check_result: urlCheck,
     });
 
@@ -642,7 +660,7 @@ export async function sendDocument(instanceId, token, phone, documentUrl, filena
         headers: getHeaders(token),
         body: JSON.stringify({
           phone: cleanPhone,
-          document: documentUrl,
+          document: effectiveDocumentUrl,
           filename: filenameWithExt,
           // Some W-API installations/docs use camelCase
           fileName: filenameWithExt,

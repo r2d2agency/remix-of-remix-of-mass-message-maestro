@@ -19,8 +19,46 @@ const storage = multer.diskStorage({
     cb(null, uploadsDir);
   },
   filename: (req, file, cb) => {
-    // Generate unique filename with original extension
-    const ext = path.extname(file.originalname);
+    // Generate unique filename with original extension.
+    // If original filename has no extension (common on mobile), infer from mimetype
+    // so providers like W-API can fetch a URL that ends with a visible extension.
+    const originalExt = path.extname(file.originalname || '');
+    const mime = String(file.mimetype || '').toLowerCase();
+
+    const mimeToExt = {
+      'application/pdf': '.pdf',
+      'application/msword': '.doc',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+      'application/vnd.ms-powerpoint': '.ppt',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx',
+      'application/vnd.ms-excel': '.xls',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+      'text/plain': '.txt',
+      'text/csv': '.csv',
+      'application/csv': '.csv',
+      'application/zip': '.zip',
+      'application/x-zip-compressed': '.zip',
+      'application/x-rar-compressed': '.rar',
+      'image/jpeg': '.jpg',
+      'image/png': '.png',
+      'image/gif': '.gif',
+      'image/webp': '.webp',
+      'audio/mpeg': '.mp3',
+      'audio/mp3': '.mp3',
+      'audio/ogg': '.ogg',
+      'audio/wav': '.wav',
+      'audio/x-wav': '.wav',
+      'audio/webm': '.webm',
+      'audio/aac': '.aac',
+      'audio/m4a': '.m4a',
+      'audio/x-m4a': '.m4a',
+      'video/mp4': '.mp4',
+      'video/webm': '.webm',
+      'video/ogg': '.ogv',
+      'video/quicktime': '.mov',
+    };
+
+    const ext = originalExt || mimeToExt[mime] || '.bin';
     const uniqueName = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${ext}`;
     cb(null, uniqueName);
   }
@@ -131,6 +169,42 @@ router.post('/', authenticate, (req, res) => {
       res.status(500).json({ error: 'Erro ao fazer upload' });
     }
   });
+});
+
+// Public download with forced filename (keeps extension visible in the URL)
+// Useful for providers that require a file extension to be present.
+// Example: GET /api/uploads/public/<stored>/<downloadName.pdf>
+router.get('/public/:stored/:downloadName', (req, res) => {
+  try {
+    const stored = String(req.params.stored || '');
+    const downloadName = String(req.params.downloadName || '');
+
+    // Prevent path traversal
+    const safe = /^[a-zA-Z0-9._-]+$/;
+    if (!safe.test(stored) || !safe.test(downloadName)) {
+      return res.status(400).json({ error: 'Nome de arquivo inválido' });
+    }
+
+    const filePath = path.join(uploadsDir, stored);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'Arquivo não encontrado' });
+    }
+
+    // Ensure downstream services see the extension in the URL
+    const ext = path.extname(downloadName) || path.extname(stored);
+    if (ext) {
+      res.type(ext);
+    }
+
+    // Inline is usually fine; providers just need to fetch the bytes.
+    // Keep a friendly filename for any human downloads.
+    res.setHeader('Content-Disposition', `inline; filename="${downloadName}"`);
+
+    return res.sendFile(filePath);
+  } catch (error) {
+    console.error('Public download error:', error);
+    return res.status(500).json({ error: 'Erro ao baixar arquivo' });
+  }
 });
 
 // Delete file
