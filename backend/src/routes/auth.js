@@ -310,4 +310,104 @@ router.get('/me', async (req, res) => {
   }
 });
 
+// Update current user profile (name)
+router.put('/profile', async (req, res) => {
+  const authHeader = req.headers.authorization;
+  
+  if (!authHeader?.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Não autenticado' });
+  }
+
+  try {
+    const token = authHeader.replace('Bearer ', '');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    let { name } = req.body;
+    
+    // Validate name
+    name = typeof name === 'string' ? name.trim() : '';
+    if (!name || name.length < 2) {
+      return res.status(400).json({ error: 'Nome deve ter pelo menos 2 caracteres' });
+    }
+    if (name.length > 100) {
+      return res.status(400).json({ error: 'Nome deve ter no máximo 100 caracteres' });
+    }
+    
+    // Update user name
+    const result = await query(
+      'UPDATE users SET name = $1, updated_at = NOW() WHERE id = $2 RETURNING id, email, name',
+      [name, decoded.userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
+
+    res.json({ user: result.rows[0], message: 'Perfil atualizado com sucesso' });
+  } catch (error) {
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({ error: 'Token inválido' });
+    }
+    console.error('Update profile error:', error);
+    res.status(500).json({ error: 'Erro ao atualizar perfil' });
+  }
+});
+
+// Change password
+router.put('/password', async (req, res) => {
+  const authHeader = req.headers.authorization;
+  
+  if (!authHeader?.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Não autenticado' });
+  }
+
+  try {
+    const token = authHeader.replace('Bearer ', '');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    const { currentPassword, newPassword } = req.body;
+    
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Senha atual e nova senha são obrigatórias' });
+    }
+    
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'Nova senha deve ter pelo menos 6 caracteres' });
+    }
+    
+    // Get current user
+    const userResult = await query(
+      'SELECT password_hash FROM users WHERE id = $1',
+      [decoded.userId]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
+    
+    // Verify current password
+    const validPassword = await bcrypt.compare(currentPassword, userResult.rows[0].password_hash);
+    if (!validPassword) {
+      return res.status(400).json({ error: 'Senha atual incorreta' });
+    }
+    
+    // Hash new password
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    
+    // Update password
+    await query(
+      'UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2',
+      [passwordHash, decoded.userId]
+    );
+
+    res.json({ message: 'Senha alterada com sucesso' });
+  } catch (error) {
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({ error: 'Token inválido' });
+    }
+    console.error('Change password error:', error);
+    res.status(500).json({ error: 'Erro ao alterar senha' });
+  }
+});
+
 export default router;
