@@ -186,6 +186,7 @@ export function useAsaas(organizationId: string | null) {
         payments_synced: number;
         pending_synced?: number;
         overdue_synced?: number;
+        today_synced?: number;
         partial?: boolean;
         message?: string;
       }>(`/api/asaas/sync/${organizationId}`, {
