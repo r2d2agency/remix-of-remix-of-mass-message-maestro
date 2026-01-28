@@ -245,17 +245,48 @@ router.post('/sync/:organizationId', async (req, res) => {
       ? 'https://api.asaas.com/v3'
       : 'https://sandbox.asaas.com/api/v3';
 
+    const fetchAsaasJson = async (url) => {
+      const resp = await fetch(url, { headers: { 'access_token': integration.api_key } });
+      const contentType = (resp.headers.get('content-type') || '').toLowerCase();
+
+      let body;
+      if (contentType.includes('application/json')) {
+        try {
+          body = await resp.json();
+        } catch (e) {
+          // fall back to text if JSON parsing fails
+          body = await resp.text().catch(() => null);
+        }
+      } else {
+        body = await resp.text().catch(() => null);
+      }
+
+      if (!resp.ok) {
+        const snippet = typeof body === 'string'
+          ? body.slice(0, 300)
+          : JSON.stringify(body ?? {}).slice(0, 300);
+        const err = new Error(`Asaas ${resp.status}: ${snippet}`);
+        // @ts-ignore
+        err.httpStatus = resp.status;
+        throw err;
+      }
+
+      if (!body || typeof body !== 'object') {
+        throw new Error('Asaas: resposta inválida (não-JSON)');
+      }
+
+      return body;
+    };
+
     // Sync customers
     let customerOffset = 0;
     let hasMoreCustomers = true;
     let customersCount = 0;
 
     while (hasMoreCustomers) {
-      const customersResponse = await fetch(
-        `${baseUrl}/customers?limit=100&offset=${customerOffset}`,
-        { headers: { 'access_token': integration.api_key } }
+      const customersData = await fetchAsaasJson(
+        `${baseUrl}/customers?limit=100&offset=${customerOffset}`
       );
-      const customersData = await customersResponse.json();
 
       if (!customersData.data || customersData.data.length === 0) {
         hasMoreCustomers = false;
@@ -292,11 +323,9 @@ router.post('/sync/:organizationId', async (req, res) => {
       let hasMorePayments = true;
 
       while (hasMorePayments) {
-        const paymentsResponse = await fetch(
-          `${baseUrl}/payments?status=${status}&limit=100&offset=${paymentOffset}`,
-          { headers: { 'access_token': integration.api_key } }
+        const paymentsData = await fetchAsaasJson(
+          `${baseUrl}/payments?status=${status}&limit=100&offset=${paymentOffset}`
         );
-        const paymentsData = await paymentsResponse.json();
 
         if (!paymentsData.data || paymentsData.data.length === 0) {
           hasMorePayments = false;
@@ -365,6 +394,10 @@ router.post('/sync/:organizationId', async (req, res) => {
     });
   } catch (error) {
     console.error('Sync error:', error);
+    const message = error?.message || 'Erro ao sincronizar com Asaas';
+    if (String(message).startsWith('Asaas')) {
+      return res.status(502).json({ error: message });
+    }
     res.status(500).json({ error: 'Erro ao sincronizar com Asaas' });
   }
 });
@@ -393,41 +426,72 @@ router.get('/check/:organizationId', async (req, res) => {
       ? 'https://api.asaas.com/v3'
       : 'https://sandbox.asaas.com/api/v3';
 
-    // Get counts from Asaas API
+    const fetchAsaasJsonSafe = async (url) => {
+      const resp = await fetch(url, { headers: { 'access_token': integration.api_key } });
+      const contentType = (resp.headers.get('content-type') || '').toLowerCase();
+
+      let body;
+      if (contentType.includes('application/json')) {
+        try {
+          body = await resp.json();
+        } catch (e) {
+          body = await resp.text().catch(() => null);
+        }
+      } else {
+        body = await resp.text().catch(() => null);
+      }
+
+      if (!resp.ok) {
+        const snippet = typeof body === 'string'
+          ? body.slice(0, 300)
+          : JSON.stringify(body ?? {}).slice(0, 300);
+        throw new Error(`Asaas ${resp.status}: ${snippet}`);
+      }
+
+      if (!body || typeof body !== 'object') {
+        throw new Error('Asaas: resposta inválida (não-JSON)');
+      }
+
+      return body;
+    };
+
+    // Get counts from Asaas API (safe)
+    const errors = [];
     const asaasCounts = { PENDING: 0, OVERDUE: 0, total_customers: 0 };
     const today = new Date().toISOString().split('T')[0];
     
     // Count pending
-    const pendingResp = await fetch(
-      `${baseUrl}/payments?status=PENDING&limit=1`,
-      { headers: { 'access_token': integration.api_key } }
-    );
-    const pendingData = await pendingResp.json();
-    asaasCounts.PENDING = pendingData.totalCount || 0;
+    try {
+      const pendingData = await fetchAsaasJsonSafe(`${baseUrl}/payments?status=PENDING&limit=1`);
+      asaasCounts.PENDING = pendingData.totalCount || 0;
+    } catch (e) {
+      errors.push({ type: 'pending', message: e.message });
+    }
 
     // Count overdue
-    const overdueResp = await fetch(
-      `${baseUrl}/payments?status=OVERDUE&limit=1`,
-      { headers: { 'access_token': integration.api_key } }
-    );
-    const overdueData = await overdueResp.json();
-    asaasCounts.OVERDUE = overdueData.totalCount || 0;
+    try {
+      const overdueData = await fetchAsaasJsonSafe(`${baseUrl}/payments?status=OVERDUE&limit=1`);
+      asaasCounts.OVERDUE = overdueData.totalCount || 0;
+    } catch (e) {
+      errors.push({ type: 'overdue', message: e.message });
+    }
 
     // Count customers
-    const customersResp = await fetch(
-      `${baseUrl}/customers?limit=1`,
-      { headers: { 'access_token': integration.api_key } }
-    );
-    const customersData = await customersResp.json();
-    asaasCounts.total_customers = customersData.totalCount || 0;
+    try {
+      const customersData = await fetchAsaasJsonSafe(`${baseUrl}/customers?limit=1`);
+      asaasCounts.total_customers = customersData.totalCount || 0;
+    } catch (e) {
+      errors.push({ type: 'customers', message: e.message });
+    }
 
     // Get today's due payments
-    const todayResp = await fetch(
-      `${baseUrl}/payments?dueDate=${today}&limit=1`,
-      { headers: { 'access_token': integration.api_key } }
-    );
-    const todayData = await todayResp.json();
-    const todayDueCount = todayData.totalCount || 0;
+    let todayDueCount = 0;
+    try {
+      const todayData = await fetchAsaasJsonSafe(`${baseUrl}/payments?dueDate=${today}&limit=1`);
+      todayDueCount = todayData.totalCount || 0;
+    } catch (e) {
+      errors.push({ type: 'today_due', message: e.message });
+    }
 
     // Get counts from our database
     const dbCounts = await query(
@@ -459,10 +523,15 @@ router.get('/check/:organizationId', async (req, res) => {
         overdue: asaasCounts.OVERDUE === parseInt(db.overdue),
         customers: asaasCounts.total_customers === parseInt(db.customers)
       },
+      errors,
       last_sync: integration.last_sync_at
     });
   } catch (error) {
     console.error('Check Asaas error:', error);
+    const message = error?.message || 'Erro ao verificar Asaas';
+    if (String(message).startsWith('Asaas')) {
+      return res.status(502).json({ error: message });
+    }
     res.status(500).json({ error: 'Erro ao verificar Asaas' });
   }
 });

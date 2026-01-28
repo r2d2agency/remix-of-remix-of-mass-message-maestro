@@ -467,6 +467,9 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
                 onClick={async () => {
                   setCheckingSync(true);
                   const result = await checkSync();
+                  if (!result) {
+                    toast({ title: "Erro ao verificar Asaas", variant: "destructive" });
+                  }
                   setSyncStatus(result);
                   setCheckingSync(false);
                 }} 
@@ -486,7 +489,7 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
 
           {/* Sync Status Panel */}
           {syncStatus && (
-            <Card className="border-blue-500/50 bg-blue-500/5">
+            <Card className="border-border bg-muted/30">
               <CardHeader className="pb-2">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Eye className="h-4 w-4" />
@@ -498,30 +501,30 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
                   <div className="space-y-1">
                     <p className="text-sm font-medium text-muted-foreground">Pendentes</p>
                     <div className="flex items-center gap-2">
-                      <span className="text-lg font-bold text-yellow-500">{syncStatus.asaas.pending}</span>
+                      <span className="text-lg font-bold">{syncStatus.asaas.pending}</span>
                       <span className="text-muted-foreground">→</span>
-                      <span className={syncStatus.synced.pending ? "text-green-500" : "text-red-500"}>
+                      <span className={syncStatus.synced.pending ? "text-primary" : "text-destructive"}>
                         {syncStatus.database.pending}
                       </span>
                       {syncStatus.synced.pending ? (
-                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <CheckCircle className="h-4 w-4 text-primary" />
                       ) : (
-                        <AlertCircle className="h-4 w-4 text-red-500" />
+                        <AlertCircle className="h-4 w-4 text-destructive" />
                       )}
                     </div>
                   </div>
                   <div className="space-y-1">
                     <p className="text-sm font-medium text-muted-foreground">Vencidos</p>
                     <div className="flex items-center gap-2">
-                      <span className="text-lg font-bold text-red-500">{syncStatus.asaas.overdue}</span>
+                      <span className="text-lg font-bold">{syncStatus.asaas.overdue}</span>
                       <span className="text-muted-foreground">→</span>
-                      <span className={syncStatus.synced.overdue ? "text-green-500" : "text-red-500"}>
+                      <span className={syncStatus.synced.overdue ? "text-primary" : "text-destructive"}>
                         {syncStatus.database.overdue}
                       </span>
                       {syncStatus.synced.overdue ? (
-                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <CheckCircle className="h-4 w-4 text-primary" />
                       ) : (
-                        <AlertCircle className="h-4 w-4 text-red-500" />
+                        <AlertCircle className="h-4 w-4 text-destructive" />
                       )}
                     </div>
                   </div>
@@ -530,35 +533,35 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
                     <div className="flex items-center gap-2">
                       <span className="text-lg font-bold">{syncStatus.asaas.customers}</span>
                       <span className="text-muted-foreground">→</span>
-                      <span className={syncStatus.synced.customers ? "text-green-500" : "text-red-500"}>
+                      <span className={syncStatus.synced.customers ? "text-primary" : "text-destructive"}>
                         {syncStatus.database.customers}
                       </span>
                       {syncStatus.synced.customers ? (
-                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <CheckCircle className="h-4 w-4 text-primary" />
                       ) : (
-                        <AlertCircle className="h-4 w-4 text-red-500" />
+                        <AlertCircle className="h-4 w-4 text-destructive" />
                       )}
                     </div>
                   </div>
                   <div className="space-y-1">
                     <p className="text-sm font-medium text-muted-foreground">Vence Hoje</p>
                     <div className="flex items-center gap-2">
-                      <span className="text-lg font-bold text-blue-500">{syncStatus.asaas.today_due}</span>
+                      <span className="text-lg font-bold">{syncStatus.asaas.today_due}</span>
                       <span className="text-muted-foreground">→</span>
-                      <span className={syncStatus.asaas.today_due === syncStatus.database.today_due ? "text-green-500" : "text-orange-500"}>
+                      <span className={syncStatus.asaas.today_due === syncStatus.database.today_due ? "text-primary" : "text-destructive"}>
                         {syncStatus.database.today_due}
                       </span>
-                      <Calendar className="h-4 w-4 text-blue-500" />
+                      <Calendar className="h-4 w-4 text-muted-foreground" />
                     </div>
                   </div>
                 </div>
                 {(!syncStatus.synced.pending || !syncStatus.synced.overdue || !syncStatus.synced.customers) && (
-                  <div className="mt-4 p-3 bg-orange-500/10 border border-orange-500/30 rounded-lg flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-orange-500">
-                      <AlertTriangle className="h-4 w-4" />
+                  <div className="mt-4 p-3 bg-muted/40 border border-border rounded-lg flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 text-destructive" />
                       <span className="text-sm font-medium">Dados desatualizados! Clique em Sincronizar para atualizar.</span>
                     </div>
-                    <Button onClick={handleSync} disabled={syncing} size="sm" variant="outline" className="border-orange-500 text-orange-500 hover:bg-orange-500/10">
+                    <Button onClick={handleSync} disabled={syncing} size="sm" variant="outline">
                       <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
                       Sincronizar Agora
                     </Button>
