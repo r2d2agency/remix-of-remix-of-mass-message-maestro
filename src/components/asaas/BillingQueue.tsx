@@ -297,6 +297,57 @@ export default function BillingQueue({ organizationId }: BillingQueueProps) {
 
         {/* Queue Tab */}
         <TabsContent value="queue" className="space-y-4">
+          {/* Summary Cards - Volume por dia */}
+          {queue.length > 0 && (
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+              {queue.slice(0, 7).map((day) => {
+                const totalMessages = day.items.reduce((sum, item) => sum + item.payments_count, 0);
+                const totalValue = day.items.reduce((sum, item) => sum + item.total_value, 0);
+                const isToday = day.date === new Date().toISOString().split('T')[0];
+                const hasConnectionIssue = day.items.some(item => !item.connection_name || item.connection_status !== 'connected');
+                
+                return (
+                  <Card 
+                    key={day.date} 
+                    className={`cursor-pointer transition-all hover:shadow-md ${
+                      isToday ? 'border-primary bg-primary/5' : ''
+                    } ${hasConnectionIssue ? 'border-yellow-500/50' : ''}`}
+                    onClick={() => {
+                      if (!expandedDays.has(day.date)) {
+                        setExpandedDays(new Set([...expandedDays, day.date]));
+                      }
+                      // Scroll to day
+                      document.getElementById(`day-${day.date}`)?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                  >
+                    <CardContent className="p-3">
+                      <div className="text-center">
+                        <p className="text-xs text-muted-foreground font-medium">
+                          {format(parseISO(day.date), "EEE", { locale: ptBR }).toUpperCase()}
+                        </p>
+                        <p className={`text-lg font-bold ${isToday ? 'text-primary' : ''}`}>
+                          {format(parseISO(day.date), "dd/MM")}
+                        </p>
+                        <div className="mt-1 space-y-0.5">
+                          <Badge variant={totalMessages > 0 ? "default" : "secondary"} className="text-xs">
+                            <MessageSquare className="h-3 w-3 mr-1" />
+                            {totalMessages}
+                          </Badge>
+                          <p className="text-xs font-medium text-green-600">
+                            {formatCurrency(totalValue)}
+                          </p>
+                        </div>
+                        {hasConnectionIssue && (
+                          <AlertCircle className="h-3 w-3 text-yellow-500 mx-auto mt-1" />
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+
           {/* Alert for rules without connection */}
           {rulesWithoutConnection.length > 0 && (
             <Alert variant="destructive">
@@ -350,7 +401,8 @@ export default function BillingQueue({ organizationId }: BillingQueueProps) {
                       open={expandedDays.has(day.date)}
                       onOpenChange={() => toggleDay(day.date)}
                     >
-                      <CollapsibleTrigger asChild>
+                      <div id={`day-${day.date}`}>
+                        <CollapsibleTrigger asChild>
                         <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg cursor-pointer hover:bg-muted transition-colors">
                           <div className="flex items-center gap-3">
                             {expandedDays.has(day.date) ? (
@@ -471,6 +523,7 @@ export default function BillingQueue({ organizationId }: BillingQueueProps) {
                           </Collapsible>
                         ))}
                       </CollapsibleContent>
+                      </div>
                     </Collapsible>
                   ))}
                 </div>

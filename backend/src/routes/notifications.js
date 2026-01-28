@@ -380,22 +380,115 @@ router.post('/trigger/:organizationId/:ruleId', authenticate, async (req, res) =
       });
     }
 
-    // Similar logic as execute but for single rule
-    const today = new Date().toISOString().split('T')[0];
-    let paymentsQuery = `
-      SELECT p.*, c.name as customer_name, c.phone as customer_phone, c.email as customer_email
-      FROM asaas_payments p
-      JOIN asaas_customers c ON c.id = p.customer_id
-      WHERE p.organization_id = $1 
-        AND p.status IN ('PENDING', 'OVERDUE')
-        AND c.phone IS NOT NULL
-        AND NOT EXISTS (
-          SELECT 1 FROM billing_notifications bn 
-          WHERE bn.payment_id = p.id AND bn.rule_id = $2 AND bn.status = 'sent'
-        )
-      LIMIT 100`;
+    // Build proper query based on trigger type (same logic as queue)
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    let paymentsQuery;
+    let paymentsParams;
 
-    const paymentsResult = await query(paymentsQuery, [organizationId, ruleId]);
+    if (rule.trigger_type === 'before_due') {
+      // For "X days before due", we look for payments with due_date = today + X days
+      const dueDate = new Date(today);
+      dueDate.setDate(dueDate.getDate() + Math.abs(rule.days_offset));
+      const dueDateStr = dueDate.toISOString().split('T')[0];
+
+      paymentsQuery = `
+        SELECT p.*, c.name as customer_name, c.phone as customer_phone, c.email as customer_email
+        FROM asaas_payments p
+        JOIN asaas_customers c ON c.id = p.customer_id
+        WHERE p.organization_id = $1 
+          AND p.status = 'PENDING'
+          AND p.due_date = $2
+          AND c.phone IS NOT NULL
+          AND (c.is_blacklisted = false OR c.is_blacklisted IS NULL)
+          AND (c.billing_paused = false OR c.billing_paused IS NULL OR c.billing_paused_until < CURRENT_DATE)
+          AND NOT EXISTS (
+            SELECT 1 FROM billing_notifications bn 
+            WHERE bn.payment_id = p.id AND bn.rule_id = $3 AND bn.status = 'sent'
+          )
+        ORDER BY c.name
+        LIMIT 100`;
+      paymentsParams = [organizationId, dueDateStr, ruleId];
+      console.log(`  📅 Before due: looking for due_date = ${dueDateStr}`);
+    } 
+    else if (rule.trigger_type === 'on_due') {
+      // On the due date = payments due today
+      paymentsQuery = `
+        SELECT p.*, c.name as customer_name, c.phone as customer_phone, c.email as customer_email
+        FROM asaas_payments p
+        JOIN asaas_customers c ON c.id = p.customer_id
+        WHERE p.organization_id = $1 
+          AND p.status IN ('PENDING', 'OVERDUE')
+          AND p.due_date = $2
+          AND c.phone IS NOT NULL
+          AND (c.is_blacklisted = false OR c.is_blacklisted IS NULL)
+          AND (c.billing_paused = false OR c.billing_paused IS NULL OR c.billing_paused_until < CURRENT_DATE)
+          AND NOT EXISTS (
+            SELECT 1 FROM billing_notifications bn 
+            WHERE bn.payment_id = p.id AND bn.rule_id = $3 AND bn.status = 'sent'
+          )
+        ORDER BY c.name
+        LIMIT 100`;
+      paymentsParams = [organizationId, todayStr, ruleId];
+      console.log(`  📅 On due: looking for due_date = ${todayStr}`);
+    }
+    else if (rule.trigger_type === 'after_due') {
+      // For "X days after due", we look for payments due X days ago
+      const dueDate = new Date(today);
+      dueDate.setDate(dueDate.getDate() - Math.abs(rule.days_offset));
+      const dueDateStr = dueDate.toISOString().split('T')[0];
+      
+      const maxDaysClause = rule.max_days_overdue 
+        ? `AND p.due_date >= $4`
+        : '';
+      const maxDaysDate = rule.max_days_overdue
+        ? new Date(today.getTime() - (rule.max_days_overdue * 24 * 60 * 60 * 1000)).toISOString().split('T')[0]
+        : null;
+
+      paymentsQuery = `
+        SELECT p.*, c.name as customer_name, c.phone as customer_phone, c.email as customer_email
+        FROM asaas_payments p
+        JOIN asaas_customers c ON c.id = p.customer_id
+        WHERE p.organization_id = $1 
+          AND p.status = 'OVERDUE'
+          AND p.due_date = $2
+          AND c.phone IS NOT NULL
+          AND (c.is_blacklisted = false OR c.is_blacklisted IS NULL)
+          AND (c.billing_paused = false OR c.billing_paused IS NULL OR c.billing_paused_until < CURRENT_DATE)
+          ${maxDaysClause}
+          AND NOT EXISTS (
+            SELECT 1 FROM billing_notifications bn 
+            WHERE bn.payment_id = p.id AND bn.rule_id = $3 AND bn.status = 'sent'
+          )
+        ORDER BY c.name
+        LIMIT 100`;
+      paymentsParams = maxDaysDate 
+        ? [organizationId, dueDateStr, ruleId, maxDaysDate]
+        : [organizationId, dueDateStr, ruleId];
+      console.log(`  📅 After due: looking for due_date = ${dueDateStr}`);
+    }
+    else {
+      // Fallback: all pending/overdue
+      paymentsQuery = `
+        SELECT p.*, c.name as customer_name, c.phone as customer_phone, c.email as customer_email
+        FROM asaas_payments p
+        JOIN asaas_customers c ON c.id = p.customer_id
+        WHERE p.organization_id = $1 
+          AND p.status IN ('PENDING', 'OVERDUE')
+          AND c.phone IS NOT NULL
+          AND (c.is_blacklisted = false OR c.is_blacklisted IS NULL)
+          AND NOT EXISTS (
+            SELECT 1 FROM billing_notifications bn 
+            WHERE bn.payment_id = p.id AND bn.rule_id = $2 AND bn.status = 'sent'
+          )
+        ORDER BY c.name
+        LIMIT 100`;
+      paymentsParams = [organizationId, ruleId];
+      console.log(`  📅 Fallback query for unknown trigger type: ${rule.trigger_type}`);
+    }
+
+    const paymentsResult = await query(paymentsQuery, paymentsParams);
+    console.log(`  📊 Found ${paymentsResult.rows.length} payments to notify`);
     
     let sent = 0;
     let failed = 0;
