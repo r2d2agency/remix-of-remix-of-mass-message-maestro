@@ -394,11 +394,16 @@ router.post('/sync/:organizationId', async (req, res) => {
     });
   } catch (error) {
     console.error('Sync error:', error);
+    // Ensure CORS headers are always set, even on errors
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    
     const message = error?.message || 'Erro ao sincronizar com Asaas';
     if (String(message).startsWith('Asaas')) {
       return res.status(502).json({ error: message });
     }
-    res.status(500).json({ error: 'Erro ao sincronizar com Asaas' });
+    res.status(500).json({ error: 'Erro ao sincronizar com Asaas', details: message });
   }
 });
 
@@ -528,11 +533,16 @@ router.get('/check/:organizationId', async (req, res) => {
     });
   } catch (error) {
     console.error('Check Asaas error:', error);
+    // Ensure CORS headers are always set, even on errors
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    
     const message = error?.message || 'Erro ao verificar Asaas';
     if (String(message).startsWith('Asaas')) {
-      return res.status(502).json({ error: message });
+      return res.status(502).json({ error: message, details: error?.message });
     }
-    res.status(500).json({ error: 'Erro ao verificar Asaas' });
+    res.status(500).json({ error: 'Erro ao verificar Asaas', details: message });
   }
 });
 
