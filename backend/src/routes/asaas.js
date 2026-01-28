@@ -286,48 +286,12 @@ router.post('/sync/:organizationId', async (req, res) => {
     };
 
     let totalItemsSynced = 0;
-    let hasMoreData = true;
-
-    // Sync customers (limited)
-    let customerOffset = 0;
-    let customersCount = 0;
-
-    while (hasMoreData && totalItemsSynced < maxItemsPerSync) {
-      const customersData = await fetchAsaasJson(
-        `${baseUrl}/customers?limit=100&offset=${customerOffset}`
-      );
-
-      if (!customersData.data || customersData.data.length === 0) {
-        break;
-      }
-
-      for (const customer of customersData.data) {
-        if (totalItemsSynced >= maxItemsPerSync) break;
-        
-        await query(
-          `INSERT INTO asaas_customers (organization_id, asaas_id, name, email, phone, cpf_cnpj, external_reference)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)
-           ON CONFLICT (organization_id, asaas_id) DO UPDATE SET
-             name = EXCLUDED.name,
-             email = EXCLUDED.email,
-             phone = EXCLUDED.phone,
-             cpf_cnpj = EXCLUDED.cpf_cnpj,
-             external_reference = EXCLUDED.external_reference,
-             updated_at = NOW()`,
-          [organizationId, customer.id, customer.name, customer.email, customer.phone, customer.cpfCnpj, customer.externalReference]
-        );
-        customersCount++;
-        totalItemsSynced++;
-      }
-
-      customerOffset += 100;
-      if (customersData.data.length < 100) break;
-    }
-
-    // Sync payments (pending and overdue) - limited
-    const statuses = ['PENDING', 'OVERDUE'];
+    
+    // PRIORITY: Sync payments FIRST (OVERDUE then PENDING) - these are more critical
+    const statuses = ['OVERDUE', 'PENDING']; // OVERDUE first!
     let paymentsCount = 0;
     const statusCounts = { PENDING: 0, OVERDUE: 0 };
+    const syncedCustomerIds = new Set(); // Track customers we need to sync
 
     for (const status of statuses) {
       if (totalItemsSynced >= maxItemsPerSync) break;
@@ -345,6 +309,25 @@ router.post('/sync/:organizationId', async (req, res) => {
 
         for (const payment of paymentsData.data) {
           if (totalItemsSynced >= maxItemsPerSync) break;
+
+          // Track customer ID for later sync
+          if (payment.customer) {
+            syncedCustomerIds.add(payment.customer);
+          }
+
+          // Upsert customer inline (minimal data from payment)
+          if (payment.customer) {
+            await query(
+              `INSERT INTO asaas_customers (organization_id, asaas_id, name, email, phone)
+               VALUES ($1, $2, $3, $4, $5)
+               ON CONFLICT (organization_id, asaas_id) DO UPDATE SET
+                 name = COALESCE(EXCLUDED.name, asaas_customers.name),
+                 email = COALESCE(EXCLUDED.email, asaas_customers.email),
+                 phone = COALESCE(EXCLUDED.phone, asaas_customers.phone),
+                 updated_at = NOW()`,
+              [organizationId, payment.customer, payment.customerName || 'Cliente', payment.customerEmail, payment.customerPhone]
+            );
+          }
 
           // Get customer UUID
           const customerResult = await query(
@@ -391,6 +374,45 @@ router.post('/sync/:organizationId', async (req, res) => {
         paymentOffset += 100;
         if (paymentsData.data.length < 100) break;
       }
+    }
+    
+    // Sync remaining customers if we have capacity (lower priority)
+    let customersCount = syncedCustomerIds.size; // Already synced inline with payments
+    let customerOffset = 0;
+    
+    while (totalItemsSynced < maxItemsPerSync) {
+      const customersData = await fetchAsaasJson(
+        `${baseUrl}/customers?limit=100&offset=${customerOffset}`
+      );
+
+      if (!customersData.data || customersData.data.length === 0) {
+        break;
+      }
+
+      for (const customer of customersData.data) {
+        if (totalItemsSynced >= maxItemsPerSync) break;
+        
+        // Skip if already synced via payment
+        if (syncedCustomerIds.has(customer.id)) continue;
+        
+        await query(
+          `INSERT INTO asaas_customers (organization_id, asaas_id, name, email, phone, cpf_cnpj, external_reference)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           ON CONFLICT (organization_id, asaas_id) DO UPDATE SET
+             name = EXCLUDED.name,
+             email = EXCLUDED.email,
+             phone = EXCLUDED.phone,
+             cpf_cnpj = EXCLUDED.cpf_cnpj,
+             external_reference = EXCLUDED.external_reference,
+             updated_at = NOW()`,
+          [organizationId, customer.id, customer.name, customer.email, customer.phone, customer.cpfCnpj, customer.externalReference]
+        );
+        customersCount++;
+        totalItemsSynced++;
+      }
+
+      customerOffset += 100;
+      if (customersData.data.length < 100) break;
     }
 
     // Update last sync
