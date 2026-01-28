@@ -401,9 +401,11 @@ export default function BillingQueue({ organizationId }: BillingQueueProps) {
                       open={expandedDays.has(day.date)}
                       onOpenChange={() => toggleDay(day.date)}
                     >
-                      <div id={`day-${day.date}`}>
-                        <CollapsibleTrigger asChild>
-                        <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg cursor-pointer hover:bg-muted transition-colors">
+                      <CollapsibleTrigger asChild>
+                        <div 
+                          id={`day-${day.date}`}
+                          className="flex items-center justify-between p-3 bg-muted/50 rounded-lg cursor-pointer hover:bg-muted transition-colors"
+                        >
                           <div className="flex items-center gap-3">
                             {expandedDays.has(day.date) ? (
                               <ChevronDown className="h-4 w-4" />
@@ -431,7 +433,7 @@ export default function BillingQueue({ organizationId }: BillingQueueProps) {
                         </div>
                       </CollapsibleTrigger>
                       <CollapsibleContent className="mt-2 space-y-2 pl-4">
-                        {day.items.map((item, idx) => (
+                        {day.items.map((item) => (
                           <Collapsible
                             key={`${day.date}-${item.rule_id}`}
                             open={expandedRules.has(`${day.date}-${item.rule_id}`)}
@@ -504,16 +506,14 @@ export default function BillingQueue({ organizationId }: BillingQueueProps) {
                                       <TableRow key={payment.id}>
                                         <TableCell className="font-medium">{payment.customer_name}</TableCell>
                                         <TableCell>
-                                          <span className="flex items-center gap-1">
+                                          <div className="flex items-center gap-1">
                                             <Phone className="h-3 w-3" />
                                             {payment.customer_phone}
-                                          </span>
+                                          </div>
                                         </TableCell>
                                         <TableCell>{formatCurrency(payment.value)}</TableCell>
                                         <TableCell>{format(parseISO(payment.due_date), "dd/MM/yyyy")}</TableCell>
-                                        <TableCell className="max-w-[200px] truncate">
-                                          {payment.description || '-'}
-                                        </TableCell>
+                                        <TableCell className="max-w-[200px] truncate">{payment.description}</TableCell>
                                       </TableRow>
                                     ))}
                                   </TableBody>
@@ -523,7 +523,6 @@ export default function BillingQueue({ organizationId }: BillingQueueProps) {
                           </Collapsible>
                         ))}
                       </CollapsibleContent>
-                      </div>
                     </Collapsible>
                   ))}
                 </div>
