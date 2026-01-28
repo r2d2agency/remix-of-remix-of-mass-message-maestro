@@ -110,11 +110,47 @@ export function useNotifications(organizationId: string | null) {
     }
   }, [organizationId]);
 
+  const getQueue = useCallback(async (days: number = 7): Promise<any> => {
+    if (!organizationId) return null;
+    
+    try {
+      return await api<any>(`/api/notifications/queue/${organizationId}?days=${days}`);
+    } catch (err) {
+      console.error('Get queue error:', err);
+      return null;
+    }
+  }, [organizationId]);
+
+  const getLogs = useCallback(async (filters?: {
+    status?: string;
+    from_date?: string;
+    to_date?: string;
+    limit?: number;
+  }): Promise<any> => {
+    if (!organizationId) return null;
+    
+    try {
+      const params = new URLSearchParams();
+      if (filters?.status) params.set('status', filters.status);
+      if (filters?.from_date) params.set('from_date', filters.from_date);
+      if (filters?.to_date) params.set('to_date', filters.to_date);
+      if (filters?.limit) params.set('limit', String(filters.limit));
+      
+      const queryString = params.toString() ? `?${params.toString()}` : '';
+      return await api<any>(`/api/notifications/logs/${organizationId}${queryString}`);
+    } catch (err) {
+      console.error('Get logs error:', err);
+      return null;
+    }
+  }, [organizationId]);
+
   return {
     loading,
     error,
     getStats,
     getHistory,
+    getQueue,
+    getLogs,
     triggerRule,
     retryNotifications
   };

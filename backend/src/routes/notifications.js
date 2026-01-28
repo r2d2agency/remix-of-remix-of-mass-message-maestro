@@ -483,4 +483,293 @@ router.post('/retry/:organizationId', authenticate, async (req, res) => {
   }
 });
 
+// Get billing queue - shows scheduled notifications by date
+router.get('/queue/:organizationId', authenticate, async (req, res) => {
+  try {
+    const { organizationId } = req.params;
+    const { days = 7 } = req.query;
+
+    // Get organization's active rules
+    const rulesResult = await query(
+      `SELECT r.*, c.name as connection_name, c.status as connection_status
+       FROM billing_notification_rules r
+       LEFT JOIN connections c ON c.id = r.connection_id
+       WHERE r.organization_id = $1 AND r.is_active = true
+       ORDER BY r.send_time`,
+      [organizationId]
+    );
+
+    const rules = rulesResult.rows;
+    const queue = [];
+
+    // For each day in the range, calculate what will be sent
+    for (let dayOffset = 0; dayOffset < parseInt(days); dayOffset++) {
+      const targetDate = new Date();
+      targetDate.setDate(targetDate.getDate() + dayOffset);
+      const dateStr = targetDate.toISOString().split('T')[0];
+      const dayName = targetDate.toLocaleDateString('pt-BR', { weekday: 'long' });
+
+      const dayQueue = {
+        date: dateStr,
+        day_name: dayName,
+        items: []
+      };
+
+      for (const rule of rules) {
+        let paymentsQuery;
+        let paymentsParams;
+
+        // Calculate which payments will match this rule on this date
+        if (rule.trigger_type === 'before_due') {
+          // X days before due date means due_date = target_date + days_offset
+          const dueDate = new Date(targetDate);
+          dueDate.setDate(dueDate.getDate() + Math.abs(rule.days_offset));
+          const dueDateStr = dueDate.toISOString().split('T')[0];
+
+          paymentsQuery = `
+            SELECT p.id, p.value, p.due_date, p.status, p.description,
+                   c.id as customer_id, c.name as customer_name, c.phone as customer_phone,
+                   c.is_blacklisted, c.billing_paused, c.billing_paused_until
+            FROM asaas_payments p
+            JOIN asaas_customers c ON c.id = p.customer_id
+            WHERE p.organization_id = $1 
+              AND p.status = 'PENDING'
+              AND p.due_date = $2
+              AND c.phone IS NOT NULL
+              AND (c.is_blacklisted = false OR c.is_blacklisted IS NULL)
+              AND (c.billing_paused = false OR c.billing_paused IS NULL OR c.billing_paused_until < CURRENT_DATE)
+              AND NOT EXISTS (
+                SELECT 1 FROM billing_notifications bn 
+                WHERE bn.payment_id = p.id AND bn.rule_id = $3 AND bn.status = 'sent'
+              )
+            ORDER BY c.name`;
+          paymentsParams = [organizationId, dueDateStr, rule.id];
+        } 
+        else if (rule.trigger_type === 'on_due') {
+          // On the due date
+          paymentsQuery = `
+            SELECT p.id, p.value, p.due_date, p.status, p.description,
+                   c.id as customer_id, c.name as customer_name, c.phone as customer_phone,
+                   c.is_blacklisted, c.billing_paused, c.billing_paused_until
+            FROM asaas_payments p
+            JOIN asaas_customers c ON c.id = p.customer_id
+            WHERE p.organization_id = $1 
+              AND p.status IN ('PENDING', 'OVERDUE')
+              AND p.due_date = $2
+              AND c.phone IS NOT NULL
+              AND (c.is_blacklisted = false OR c.is_blacklisted IS NULL)
+              AND (c.billing_paused = false OR c.billing_paused IS NULL OR c.billing_paused_until < CURRENT_DATE)
+              AND NOT EXISTS (
+                SELECT 1 FROM billing_notifications bn 
+                WHERE bn.payment_id = p.id AND bn.rule_id = $3 AND bn.status = 'sent'
+              )
+            ORDER BY c.name`;
+          paymentsParams = [organizationId, dateStr, rule.id];
+        }
+        else if (rule.trigger_type === 'after_due') {
+          // X days after due date
+          const dueDate = new Date(targetDate);
+          dueDate.setDate(dueDate.getDate() - Math.abs(rule.days_offset));
+          const dueDateStr = dueDate.toISOString().split('T')[0];
+          
+          const maxDaysClause = rule.max_days_overdue 
+            ? `AND p.due_date >= $4`
+            : '';
+          const maxDaysDate = rule.max_days_overdue
+            ? new Date(targetDate.getTime() - (rule.max_days_overdue * 24 * 60 * 60 * 1000)).toISOString().split('T')[0]
+            : null;
+
+          paymentsQuery = `
+            SELECT p.id, p.value, p.due_date, p.status, p.description,
+                   c.id as customer_id, c.name as customer_name, c.phone as customer_phone,
+                   c.is_blacklisted, c.billing_paused, c.billing_paused_until
+            FROM asaas_payments p
+            JOIN asaas_customers c ON c.id = p.customer_id
+            WHERE p.organization_id = $1 
+              AND p.status = 'OVERDUE'
+              AND p.due_date = $2
+              AND c.phone IS NOT NULL
+              AND (c.is_blacklisted = false OR c.is_blacklisted IS NULL)
+              AND (c.billing_paused = false OR c.billing_paused IS NULL OR c.billing_paused_until < CURRENT_DATE)
+              ${maxDaysClause}
+              AND NOT EXISTS (
+                SELECT 1 FROM billing_notifications bn 
+                WHERE bn.payment_id = p.id AND bn.rule_id = $3 AND bn.status = 'sent'
+              )
+            ORDER BY c.name`;
+          paymentsParams = maxDaysDate 
+            ? [organizationId, dueDateStr, rule.id, maxDaysDate]
+            : [organizationId, dueDateStr, rule.id];
+        }
+
+        if (paymentsQuery) {
+          try {
+            const paymentsResult = await query(paymentsQuery, paymentsParams);
+            
+            if (paymentsResult.rows.length > 0) {
+              dayQueue.items.push({
+                rule_id: rule.id,
+                rule_name: rule.name,
+                trigger_type: rule.trigger_type,
+                days_offset: rule.days_offset,
+                send_time: rule.send_time || '09:00',
+                connection_name: rule.connection_name,
+                connection_status: rule.connection_status,
+                payments_count: paymentsResult.rows.length,
+                total_value: paymentsResult.rows.reduce((sum, p) => sum + Number(p.value), 0),
+                payments: paymentsResult.rows.map(p => ({
+                  id: p.id,
+                  customer_name: p.customer_name,
+                  customer_phone: p.customer_phone,
+                  value: Number(p.value),
+                  due_date: p.due_date,
+                  status: p.status,
+                  description: p.description
+                }))
+              });
+            }
+          } catch (queryError) {
+            console.error('Queue query error:', queryError);
+          }
+        }
+      }
+
+      if (dayQueue.items.length > 0) {
+        queue.push(dayQueue);
+      }
+    }
+
+    // Get integration status
+    const integrationResult = await query(
+      `SELECT is_active, billing_paused, billing_paused_until, billing_paused_reason,
+              daily_message_limit_per_customer
+       FROM asaas_integrations
+       WHERE organization_id = $1`,
+      [organizationId]
+    );
+
+    const integration = integrationResult.rows[0] || {};
+
+    res.json({
+      queue,
+      integration_status: {
+        is_active: integration.is_active || false,
+        billing_paused: integration.billing_paused || false,
+        billing_paused_until: integration.billing_paused_until,
+        billing_paused_reason: integration.billing_paused_reason,
+        daily_limit: integration.daily_message_limit_per_customer || 3
+      },
+      rules_count: rules.length,
+      total_scheduled: queue.reduce((sum, day) => 
+        sum + day.items.reduce((s, item) => s + item.payments_count, 0), 0)
+    });
+  } catch (error) {
+    console.error('Get queue error:', error);
+    res.status(500).json({ error: 'Erro ao buscar fila de cobranças' });
+  }
+});
+
+// Get detailed execution logs
+router.get('/logs/:organizationId', authenticate, async (req, res) => {
+  try {
+    const { organizationId } = req.params;
+    const { from_date, to_date, status, limit = 200 } = req.query;
+
+    let queryText = `
+      SELECT 
+        bn.id,
+        bn.phone,
+        bn.message,
+        bn.status,
+        bn.error_message,
+        bn.sent_at,
+        bn.created_at,
+        r.name as rule_name,
+        r.trigger_type,
+        r.send_time,
+        p.value as payment_value,
+        p.due_date,
+        p.status as payment_status,
+        c.name as customer_name,
+        c.is_blacklisted,
+        c.billing_paused
+      FROM billing_notifications bn
+      LEFT JOIN billing_notification_rules r ON r.id = bn.rule_id
+      LEFT JOIN asaas_payments p ON p.id = bn.payment_id
+      LEFT JOIN asaas_customers c ON c.id = p.customer_id
+      WHERE bn.organization_id = $1
+    `;
+    const params = [organizationId];
+    let paramIndex = 2;
+
+    if (from_date) {
+      queryText += ` AND bn.created_at >= $${paramIndex++}`;
+      params.push(from_date);
+    }
+
+    if (to_date) {
+      queryText += ` AND bn.created_at <= $${paramIndex++}::date + INTERVAL '1 day'`;
+      params.push(to_date);
+    }
+
+    if (status && status !== 'all') {
+      queryText += ` AND bn.status = $${paramIndex++}`;
+      params.push(status);
+    }
+
+    queryText += ` ORDER BY bn.created_at DESC LIMIT $${paramIndex}`;
+    params.push(parseInt(limit));
+
+    const result = await query(queryText, params);
+
+    // Group by date for easier visualization
+    const grouped = {};
+    for (const row of result.rows) {
+      const date = new Date(row.created_at).toISOString().split('T')[0];
+      if (!grouped[date]) {
+        grouped[date] = {
+          date,
+          total: 0,
+          sent: 0,
+          failed: 0,
+          pending: 0,
+          cancelled: 0,
+          items: []
+        };
+      }
+      grouped[date].total++;
+      grouped[date][row.status]++;
+      grouped[date].items.push({
+        id: row.id,
+        time: new Date(row.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+        customer_name: row.customer_name,
+        phone: row.phone,
+        value: Number(row.payment_value),
+        due_date: row.due_date,
+        rule_name: row.rule_name,
+        status: row.status,
+        error_message: row.error_message,
+        sent_at: row.sent_at,
+        message_preview: row.message?.substring(0, 100) + (row.message?.length > 100 ? '...' : ''),
+        customer_blocked: row.is_blacklisted,
+        customer_paused: row.billing_paused
+      });
+    }
+
+    res.json({
+      logs: Object.values(grouped).sort((a, b) => b.date.localeCompare(a.date)),
+      summary: {
+        total: result.rows.length,
+        sent: result.rows.filter(r => r.status === 'sent').length,
+        failed: result.rows.filter(r => r.status === 'failed').length,
+        pending: result.rows.filter(r => r.status === 'pending').length,
+        cancelled: result.rows.filter(r => r.status === 'cancelled').length
+      }
+    });
+  } catch (error) {
+    console.error('Get logs error:', error);
+    res.status(500).json({ error: 'Erro ao buscar logs' });
+  }
+});
+
 export default router;
