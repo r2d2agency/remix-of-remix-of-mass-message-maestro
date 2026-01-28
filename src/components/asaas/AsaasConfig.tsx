@@ -13,12 +13,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useAsaas } from "@/hooks/use-asaas";
 import { useNotifications } from "@/hooks/use-notifications";
+import BillingQueue from "./BillingQueue";
 import { 
   RefreshCw, Settings, Receipt, Users, Bell, Plus, Trash2, 
   CheckCircle, AlertCircle, Clock, Calendar, Link2,
   History, RotateCcw, Play, BarChart3, Download, TrendingUp,
   TrendingDown, Percent, Ban, Pause, AlertTriangle, Shield,
-  Eye, EyeOff, Check
+  Eye, EyeOff, Check, ListChecks
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
@@ -547,6 +548,10 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
               <TabsTrigger value="settings">
                 <Settings className="mr-2 h-4 w-4" />
                 Configurações
+              </TabsTrigger>
+              <TabsTrigger value="queue">
+                <ListChecks className="mr-2 h-4 w-4" />
+                Fila
               </TabsTrigger>
               <TabsTrigger value="history">
                 <History className="mr-2 h-4 w-4" />
@@ -1328,6 +1333,11 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
                   </TableBody>
                 </Table>
               </Card>
+            </TabsContent>
+
+            {/* Billing Queue Tab */}
+            <TabsContent value="queue">
+              <BillingQueue organizationId={organizationId} />
             </TabsContent>
 
             {/* Notification History Tab */}
