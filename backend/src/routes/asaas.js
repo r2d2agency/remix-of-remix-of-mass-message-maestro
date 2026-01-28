@@ -222,9 +222,8 @@ router.post('/integration/:organizationId', async (req, res) => {
 });
 
 // Sync payments from Asaas
-// NOTE: This endpoint can take a long time with many records. 
+// NOTE: This endpoint prioritizes TODAY's due payments, then OVERDUE, then PENDING.
 // We set CORS headers upfront so even if proxy times out, browser gets headers.
-// We also limit to a max of 500 items per sync to avoid timeout.
 router.post('/sync/:organizationId', async (req, res) => {
   // Set CORS headers IMMEDIATELY before any async work
   res.header('Access-Control-Allow-Origin', '*');
@@ -233,7 +232,8 @@ router.post('/sync/:organizationId', async (req, res) => {
 
   try {
     const { organizationId } = req.params;
-    const maxItemsPerSync = 500; // Limit to avoid timeout
+    // Increase limit to sync more data (but still avoid timeout)
+    const maxItemsPerSync = 1500;
 
     const access = await checkOrgAccess(req.userId, organizationId);
     if (!access) {
@@ -287,35 +287,24 @@ router.post('/sync/:organizationId', async (req, res) => {
 
     let totalItemsSynced = 0;
     
-    // PRIORITY: Sync payments FIRST (OVERDUE then PENDING) - these are more critical
-    const statuses = ['OVERDUE', 'PENDING']; // OVERDUE first!
-    let paymentsCount = 0;
-    const statusCounts = { PENDING: 0, OVERDUE: 0 };
-    const syncedCustomerIds = new Set(); // Track customers we need to sync
-
-    for (const status of statuses) {
-      if (totalItemsSynced >= maxItemsPerSync) break;
+    // Get today's date for filtering "vence hoje"
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Helper to sync a batch of payments
+    const syncPaymentBatch = async (url, statusLabel) => {
+      let count = 0;
+      let offset = 0;
+      const syncedIds = new Set();
       
-      let paymentOffset = 0;
-
       while (totalItemsSynced < maxItemsPerSync) {
-        const paymentsData = await fetchAsaasJson(
-          `${baseUrl}/payments?status=${status}&limit=100&offset=${paymentOffset}`
-        );
-
-        if (!paymentsData.data || paymentsData.data.length === 0) {
-          break;
-        }
-
+        const paymentsData = await fetchAsaasJson(`${url}&limit=100&offset=${offset}`);
+        
+        if (!paymentsData.data || paymentsData.data.length === 0) break;
+        
         for (const payment of paymentsData.data) {
           if (totalItemsSynced >= maxItemsPerSync) break;
-
-          // Track customer ID for later sync
-          if (payment.customer) {
-            syncedCustomerIds.add(payment.customer);
-          }
-
-          // Upsert customer inline (minimal data from payment)
+          
+          // Upsert customer inline
           if (payment.customer) {
             await query(
               `INSERT INTO asaas_customers (organization_id, asaas_id, name, email, phone)
@@ -327,15 +316,16 @@ router.post('/sync/:organizationId', async (req, res) => {
                  updated_at = NOW()`,
               [organizationId, payment.customer, payment.customerName || 'Cliente', payment.customerEmail, payment.customerPhone]
             );
+            syncedIds.add(payment.customer);
           }
-
+          
           // Get customer UUID
           const customerResult = await query(
             `SELECT id FROM asaas_customers WHERE organization_id = $1 AND asaas_id = $2`,
             [organizationId, payment.customer]
           );
           const customerId = customerResult.rows[0]?.id;
-
+          
           await query(
             `INSERT INTO asaas_payments (
                organization_id, asaas_id, customer_id, asaas_customer_id, value, net_value,
@@ -348,32 +338,62 @@ router.post('/sync/:organizationId', async (req, res) => {
                due_date = EXCLUDED.due_date,
                updated_at = NOW()`,
             [
-              organizationId,
-              payment.id,
-              customerId,
-              payment.customer,
-              payment.value,
-              payment.netValue,
-              payment.dueDate,
-              payment.billingType,
-              payment.status,
-              payment.invoiceUrl,
-              payment.invoiceUrl,
-              payment.bankSlipUrl,
-              null,
-              null,
-              payment.description,
-              payment.externalReference
+              organizationId, payment.id, customerId, payment.customer,
+              payment.value, payment.netValue, payment.dueDate, payment.billingType,
+              payment.status, payment.invoiceUrl, payment.invoiceUrl, payment.bankSlipUrl,
+              null, null, payment.description, payment.externalReference
             ]
           );
-          paymentsCount++;
-          statusCounts[status]++;
+          count++;
           totalItemsSynced++;
         }
-
-        paymentOffset += 100;
+        
+        offset += 100;
         if (paymentsData.data.length < 100) break;
       }
+      
+      return { count, syncedIds };
+    };
+    
+    let paymentsCount = 0;
+    const statusCounts = { PENDING: 0, OVERDUE: 0, TODAY: 0 };
+    const syncedCustomerIds = new Set();
+    
+    // PRIORITY 1: Sync TODAY's due payments (PENDING with dueDate = today)
+    console.log(`[Sync] Starting sync for org ${organizationId}, priority: TODAY (${today})`);
+    const todayResult = await syncPaymentBatch(
+      `${baseUrl}/payments?status=PENDING&dueDate[ge]=${today}&dueDate[le]=${today}`,
+      'TODAY'
+    );
+    statusCounts.TODAY = todayResult.count;
+    paymentsCount += todayResult.count;
+    todayResult.syncedIds.forEach(id => syncedCustomerIds.add(id));
+    console.log(`[Sync] TODAY synced: ${todayResult.count}`);
+    
+    // PRIORITY 2: Sync OVERDUE payments
+    if (totalItemsSynced < maxItemsPerSync) {
+      console.log(`[Sync] Syncing OVERDUE...`);
+      const overdueResult = await syncPaymentBatch(
+        `${baseUrl}/payments?status=OVERDUE`,
+        'OVERDUE'
+      );
+      statusCounts.OVERDUE = overdueResult.count;
+      paymentsCount += overdueResult.count;
+      overdueResult.syncedIds.forEach(id => syncedCustomerIds.add(id));
+      console.log(`[Sync] OVERDUE synced: ${overdueResult.count}`);
+    }
+    
+    // PRIORITY 3: Sync remaining PENDING payments
+    if (totalItemsSynced < maxItemsPerSync) {
+      console.log(`[Sync] Syncing PENDING...`);
+      const pendingResult = await syncPaymentBatch(
+        `${baseUrl}/payments?status=PENDING`,
+        'PENDING'
+      );
+      statusCounts.PENDING = pendingResult.count;
+      paymentsCount += pendingResult.count;
+      pendingResult.syncedIds.forEach(id => syncedCustomerIds.add(id));
+      console.log(`[Sync] PENDING synced: ${pendingResult.count}`);
     }
     
     // Sync remaining customers if we have capacity (lower priority)
@@ -429,10 +449,11 @@ router.post('/sync/:organizationId', async (req, res) => {
       payments_synced: paymentsCount,
       pending_synced: statusCounts.PENDING,
       overdue_synced: statusCounts.OVERDUE,
+      today_synced: statusCounts.TODAY,
       partial: needsMoreSync,
       message: needsMoreSync 
-        ? `Sincronizados ${totalItemsSynced} itens. Clique novamente para continuar.`
-        : `Sincronização completa: ${customersCount} clientes, ${paymentsCount} cobranças.`
+        ? `Sincronizados ${totalItemsSynced} itens (${statusCounts.TODAY} vence hoje, ${statusCounts.OVERDUE} vencidos, ${statusCounts.PENDING} pendentes). Clique novamente para continuar.`
+        : `Sincronização completa: ${customersCount} clientes, ${paymentsCount} cobranças (${statusCounts.TODAY} vence hoje).`
     });
   } catch (error) {
     console.error('Sync error:', error);
