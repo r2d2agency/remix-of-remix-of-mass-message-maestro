@@ -26,7 +26,8 @@ import {
   CRMCustomField,
   CRMLossReason,
 } from "@/hooks/use-crm-config";
-import { useCRMGroups, useCRMGroupMembers, useCRMGroupMutations } from "@/hooks/use-crm";
+import { useCRMGroups, useCRMGroupMembers, useCRMGroupMutations, useCRMFunnels, useCRMFunnel, useCRMFunnelMutations, CRMFunnel } from "@/hooks/use-crm";
+import { FunnelEditorDialog } from "@/components/crm/FunnelEditorDialog";
 
 import {
   Plus,
@@ -46,6 +47,7 @@ import {
   Globe,
   Building2,
   XCircle,
+  GitBranch,
 } from "lucide-react";
 
 const ICON_OPTIONS = [
@@ -84,7 +86,7 @@ function getIconComponent(iconName: string) {
 }
 
 export default function CRMConfiguracoes() {
-  const [activeTab, setActiveTab] = useState("task-types");
+  const [activeTab, setActiveTab] = useState("funnels");
   
   // Task Types
   const { data: taskTypes, isLoading: loadingTaskTypes } = useCRMTaskTypes();
@@ -141,6 +143,13 @@ export default function CRMConfiguracoes() {
   const [editingLossReason, setEditingLossReason] = useState<CRMLossReason | null>(null);
   const [lossReasonForm, setLossReasonForm] = useState({ name: "", description: "" });
 
+  // Funnels
+  const { data: funnels, isLoading: loadingFunnels } = useCRMFunnels();
+  const { deleteFunnel } = useCRMFunnelMutations();
+  const [funnelEditorOpen, setFunnelEditorOpen] = useState(false);
+  const [editingFunnelId, setEditingFunnelId] = useState<string | null>(null);
+  const { data: editingFunnelData } = useCRMFunnel(editingFunnelId);
+
   // Loss Reason handlers
   const openLossReasonDialog = (reason?: CRMLossReason) => {
     if (reason) {
@@ -161,6 +170,22 @@ export default function CRMConfiguracoes() {
       createLossReason.mutate(lossReasonForm);
     }
     setLossReasonDialog(false);
+  };
+
+  // Funnel handlers
+  const openFunnelEditor = (funnel?: CRMFunnel) => {
+    if (funnel) {
+      setEditingFunnelId(funnel.id);
+    } else {
+      setEditingFunnelId(null);
+    }
+    setFunnelEditorOpen(true);
+  };
+
+  const handleDeleteFunnel = (id: string) => {
+    if (confirm("Excluir este funil e todas as suas etapas?")) {
+      deleteFunnel.mutate(id);
+    }
   };
 
   // Members list is not needed here, removing unused code
@@ -330,10 +355,14 @@ export default function CRMConfiguracoes() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid grid-cols-5 w-full max-w-3xl">
+          <TabsList className="grid grid-cols-6 w-full max-w-4xl">
+            <TabsTrigger value="funnels" className="flex items-center gap-2">
+              <GitBranch className="h-4 w-4" />
+              <span className="hidden sm:inline">Funis</span>
+            </TabsTrigger>
             <TabsTrigger value="task-types" className="flex items-center gap-2">
               <CheckSquare className="h-4 w-4" />
-              <span className="hidden sm:inline">Tipos de Tarefa</span>
+              <span className="hidden sm:inline">Tarefas</span>
             </TabsTrigger>
             <TabsTrigger value="segments" className="flex items-center gap-2">
               <Tag className="h-4 w-4" />
@@ -345,13 +374,111 @@ export default function CRMConfiguracoes() {
             </TabsTrigger>
             <TabsTrigger value="loss-reasons" className="flex items-center gap-2">
               <XCircle className="h-4 w-4" />
-              <span className="hidden sm:inline">Motivos de Perda</span>
+              <span className="hidden sm:inline">Perdas</span>
             </TabsTrigger>
             <TabsTrigger value="custom-fields" className="flex items-center gap-2">
               <FormInput className="h-4 w-4" />
               <span className="hidden sm:inline">Campos</span>
             </TabsTrigger>
           </TabsList>
+
+          {/* Funnels Tab */}
+          <TabsContent value="funnels" className="mt-6">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>Funis de Vendas</CardTitle>
+                  <CardDescription>
+                    Configure os funis e etapas do seu processo de vendas
+                  </CardDescription>
+                </div>
+                <Button onClick={() => openFunnelEditor()}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Novo Funil
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {loadingFunnels ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Funil</TableHead>
+                        <TableHead>Etapas</TableHead>
+                        <TableHead>Negociações</TableHead>
+                        <TableHead>Valor Total</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="w-[100px]">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {funnels?.map((funnel) => (
+                        <TableRow key={funnel.id}>
+                          <TableCell>
+                            <div className="flex items-center gap-3">
+                              <div
+                                className="w-3 h-3 rounded-full"
+                                style={{ backgroundColor: funnel.color }}
+                              />
+                              <div>
+                                <p className="font-medium">{funnel.name}</p>
+                                {funnel.description && (
+                                  <p className="text-xs text-muted-foreground">{funnel.description}</p>
+                                )}
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="secondary">
+                              {funnel.stages?.length || 0} etapas
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{funnel.open_deals || 0}</TableCell>
+                          <TableCell>
+                            R$ {(funnel.total_value || 0).toLocaleString("pt-BR")}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={funnel.is_active ? "default" : "secondary"}>
+                              {funnel.is_active ? "Ativo" : "Inativo"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => openFunnelEditor(funnel)}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-destructive hover:text-destructive"
+                                onClick={() => handleDeleteFunnel(funnel.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {(!funnels || funnels.length === 0) && (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                            Nenhum funil cadastrado. Crie seu primeiro funil de vendas.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
 
           {/* Task Types Tab */}
           <TabsContent value="task-types" className="mt-6">
@@ -1184,6 +1311,16 @@ export default function CRMConfiguracoes() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Funnel Editor Dialog */}
+      <FunnelEditorDialog
+        funnel={editingFunnelData as CRMFunnel | null}
+        open={funnelEditorOpen}
+        onOpenChange={(open) => {
+          setFunnelEditorOpen(open);
+          if (!open) setEditingFunnelId(null);
+        }}
+      />
     </MainLayout>
   );
 }

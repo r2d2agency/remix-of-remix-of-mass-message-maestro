@@ -185,7 +185,12 @@ export default function CRMNegociacoes() {
   };
 
   const handleEditFunnel = () => {
-    setEditingFunnel(currentFunnel);
+    // Use funnelData which includes stages
+    if (funnelData) {
+      setEditingFunnel(funnelData as CRMFunnel);
+    } else {
+      setEditingFunnel(currentFunnel);
+    }
     setFunnelEditorOpen(true);
   };
 
