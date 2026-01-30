@@ -1,5 +1,9 @@
+import { useState } from "react";
 import { MessageItem } from "./MessageItemEditor";
-import { Image, Video, Mic, FileText, Images } from "lucide-react";
+import { Image, Video, Mic, FileText, Images, Eye, Download } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { DocumentPreviewDialog } from "./DocumentPreviewDialog";
+import { resolveMediaUrl } from "@/lib/media";
 
 interface MessagePreviewProps {
   items: MessageItem[];
@@ -7,6 +11,13 @@ interface MessagePreviewProps {
 }
 
 export function MessagePreview({ items, previewName }: MessagePreviewProps) {
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewItem, setPreviewItem] = useState<{
+    url?: string;
+    fileName?: string;
+    type?: "image" | "video" | "document" | "audio";
+  } | null>(null);
+
   const replaceVariables = (text: string) => {
     return text.replace(/\{\{nome\}\}/gi, previewName);
   };
@@ -21,6 +32,24 @@ export function MessagePreview({ items, previewName }: MessagePreviewProps) {
       return ext || 'DOC';
     }
     return 'DOC';
+  };
+
+  const openPreview = (url?: string, fileName?: string, type?: "image" | "video" | "document" | "audio") => {
+    setPreviewItem({ url, fileName, type });
+    setPreviewOpen(true);
+  };
+
+  const handleDownload = (url?: string, fileName?: string) => {
+    const resolvedUrl = resolveMediaUrl(url);
+    if (!resolvedUrl) return;
+    
+    const link = document.createElement('a');
+    link.href = resolvedUrl;
+    link.download = fileName || 'download';
+    link.target = '_blank';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   if (items.length === 0) {
@@ -58,17 +87,37 @@ export function MessagePreview({ items, previewName }: MessagePreviewProps) {
           <div className="max-w-[85%] rounded-lg bg-[#dcf8c6] px-3 py-2 shadow-sm">
             {/* Media content */}
             {item.type === "image" && (
-              <div className="mb-2 rounded overflow-hidden">
+              <div className="mb-2 rounded overflow-hidden relative group">
                 {item.mediaUrl ? (
-                  <img
-                    src={item.mediaUrl}
-                    alt="Preview"
-                    className="max-w-full max-h-48 object-cover"
-                    onError={(e) => {
-                      e.currentTarget.style.display = "none";
-                      e.currentTarget.nextElementSibling?.classList.remove("hidden");
-                    }}
-                  />
+                  <>
+                    <img
+                      src={item.mediaUrl}
+                      alt="Preview"
+                      className="max-w-full max-h-48 object-cover"
+                      onError={(e) => {
+                        e.currentTarget.style.display = "none";
+                        e.currentTarget.nextElementSibling?.classList.remove("hidden");
+                      }}
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="h-8 px-2"
+                        onClick={() => openPreview(item.mediaUrl, item.fileName, "image")}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="h-8 px-2"
+                        onClick={() => handleDownload(item.mediaUrl, item.fileName)}
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </>
                 ) : null}
                 <div className={`flex items-center justify-center h-24 bg-gray-200 ${item.mediaUrl ? "hidden" : ""}`}>
                   <Image className="h-8 w-8 text-gray-400" />
@@ -104,8 +153,28 @@ export function MessagePreview({ items, previewName }: MessagePreviewProps) {
             )}
 
             {item.type === "video" && (
-              <div className="mb-2 flex items-center justify-center h-24 bg-gray-200 rounded">
+              <div className="mb-2 flex items-center justify-center h-24 bg-gray-200 rounded relative group">
                 <Video className="h-8 w-8 text-gray-400" />
+                {item.mediaUrl && (
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 rounded">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="h-8 px-2"
+                      onClick={() => openPreview(item.mediaUrl, item.fileName, "video")}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="h-8 px-2"
+                      onClick={() => handleDownload(item.mediaUrl, item.fileName)}
+                    >
+                      <Download className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -120,7 +189,7 @@ export function MessagePreview({ items, previewName }: MessagePreviewProps) {
             )}
 
             {item.type === "document" && (
-              <div className="mb-2 flex items-center gap-3 bg-white/80 rounded-lg px-3 py-2 border border-gray-200">
+              <div className="mb-2 flex items-center gap-3 bg-white/80 rounded-lg px-3 py-2 border border-gray-200 group relative">
                 <div className="flex items-center justify-center w-10 h-10 bg-red-500 rounded">
                   <FileText className="h-5 w-5 text-white" />
                 </div>
@@ -131,6 +200,26 @@ export function MessagePreview({ items, previewName }: MessagePreviewProps) {
                   <p className="text-xs text-gray-500">
                     {getFileExtension(item.mediaUrl, item.fileName)}
                   </p>
+                </div>
+                <div className="flex gap-1">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 w-8 p-0"
+                    onClick={() => openPreview(item.mediaUrl, item.fileName, "document")}
+                    title="Visualizar"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 w-8 p-0"
+                    onClick={() => handleDownload(item.mediaUrl, item.fileName)}
+                    title="Baixar"
+                  >
+                    <Download className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
             )}
@@ -148,6 +237,14 @@ export function MessagePreview({ items, previewName }: MessagePreviewProps) {
           </div>
         </div>
       ))}
+
+      <DocumentPreviewDialog
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+        url={previewItem?.url}
+        fileName={previewItem?.fileName}
+        type={previewItem?.type}
+      />
     </div>
   );
 }
