@@ -2,7 +2,64 @@
 import { query } from '../db.js';
 import * as whatsappProvider from './whatsapp-provider.js';
 
+// In-memory execution logs for debugging (per conversation, limited)
+const EXECUTION_LOGS_MAX_PER_CONVERSATION = 100;
+const EXECUTION_LOGS_MAX_CONVERSATIONS = 50;
+const executionLogs = new Map(); // Map<conversationId, Array<ExecutionLogEntry>>
+
 /**
+ * Add an execution log entry
+ */
+export function addExecutionLog(conversationId, entry) {
+  if (!executionLogs.has(conversationId)) {
+    executionLogs.set(conversationId, []);
+  }
+  const logs = executionLogs.get(conversationId);
+  logs.unshift({
+    at: new Date().toISOString(),
+    ...entry,
+  });
+  // Limit logs per conversation
+  if (logs.length > EXECUTION_LOGS_MAX_PER_CONVERSATION) {
+    logs.length = EXECUTION_LOGS_MAX_PER_CONVERSATION;
+  }
+  // Limit total conversations tracked
+  if (executionLogs.size > EXECUTION_LOGS_MAX_CONVERSATIONS) {
+    const keys = Array.from(executionLogs.keys());
+    executionLogs.delete(keys[keys.length - 1]);
+  }
+}
+
+/**
+ * Get execution logs for a conversation or all
+ */
+export function getExecutionLogs(conversationId = null, limit = 100) {
+  if (conversationId) {
+    return (executionLogs.get(conversationId) || []).slice(0, limit);
+  }
+  // Return all logs flattened, sorted by time
+  const all = [];
+  executionLogs.forEach((logs, convId) => {
+    logs.forEach(log => all.push({ ...log, conversationId: convId }));
+  });
+  all.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+  return all.slice(0, limit);
+}
+
+/**
+ * Clear execution logs
+ */
+export function clearExecutionLogs(conversationId = null) {
+  if (conversationId) {
+    executionLogs.delete(conversationId);
+  } else {
+    executionLogs.clear();
+  }
+}
+
+/**
+ * Execute a flow starting from a given node
+ */
  * Execute a flow starting from a given node
  */
 export async function executeFlow(flowId, conversationId, startNodeId = 'start') {
@@ -146,21 +203,57 @@ export async function executeFlow(flowId, conversationId, startNodeId = 'start')
       
       if (!node) {
         console.log('Flow executor: Node not found:', currentNodeId);
+        addExecutionLog(conversationId, {
+          type: 'error',
+          flowId,
+          nodeId: currentNodeId,
+          nodeType: 'unknown',
+          message: `Nó não encontrado: ${currentNodeId}`,
+          step: processedNodes + 1,
+        });
         break;
       }
 
       processedNodes++;
       console.log(`Flow executor: Processing node ${node.node_id} (${node.node_type}) - content:`, JSON.stringify(node.content).substring(0, 200));
 
+      // Log node processing start
+      addExecutionLog(conversationId, {
+        type: 'node_start',
+        flowId,
+        nodeId: node.node_id,
+        nodeType: node.node_type,
+        nodeName: node.name || node.node_id,
+        step: processedNodes,
+        message: `Executando nó: ${node.name || node.node_id} (${node.node_type})`,
+      });
+
       // Process the node based on its type
       const result = await processNode(node, connection, conversation.contact_phone, variables, conversationId);
 
       if (!result.success && result.error) {
         console.error('Flow executor: Node processing failed:', result.error);
+        addExecutionLog(conversationId, {
+          type: 'error',
+          flowId,
+          nodeId: node.node_id,
+          nodeType: node.node_type,
+          step: processedNodes,
+          message: `Erro no nó: ${result.error}`,
+        });
       }
 
       // If node requires user input, stop here and wait
       if (result.waitForInput) {
+        addExecutionLog(conversationId, {
+          type: 'waiting_input',
+          flowId,
+          nodeId: node.node_id,
+          nodeType: node.node_type,
+          step: processedNodes,
+          message: `Aguardando entrada do usuário`,
+          variables: { ...variables },
+        });
         // Update session with current state
         await updateFlowSession(flowId, conversationId, currentNodeId, variables);
         return { success: true, waitingForInput: true, currentNode: currentNodeId };
@@ -172,6 +265,13 @@ export async function executeFlow(flowId, conversationId, startNodeId = 'start')
       if (outgoingEdges.length === 0) {
         // No more nodes - flow complete
         console.log('Flow executor: No more edges, flow complete');
+        addExecutionLog(conversationId, {
+          type: 'flow_complete',
+          flowId,
+          nodeId: node.node_id,
+          step: processedNodes,
+          message: `Fluxo finalizado após ${processedNodes} nós`,
+        });
         break;
       }
 
@@ -180,7 +280,19 @@ export async function executeFlow(flowId, conversationId, startNodeId = 'start')
         ? outgoingEdges.find(e => e.source_handle === result.nextHandle) || outgoingEdges[0]
         : outgoingEdges[0];
 
+      const previousNodeId = currentNodeId;
       currentNodeId = nextEdge?.target_node_id;
+      
+      addExecutionLog(conversationId, {
+        type: 'transition',
+        flowId,
+        fromNodeId: previousNodeId,
+        toNodeId: currentNodeId,
+        step: processedNodes,
+        message: `Transição: ${previousNodeId} → ${currentNodeId}`,
+        handle: result.nextHandle || 'default',
+      });
+      
       console.log(`Flow executor: Moving to next node: ${currentNodeId}`);
     }
 
@@ -754,21 +866,61 @@ async function resumeFlowFromNode(flowId, conversationId, startNodeId, variables
       
       if (!node) {
         console.log('Flow executor: Node not found:', currentNodeId);
+        addExecutionLog(conversationId, {
+          type: 'error',
+          flowId,
+          nodeId: currentNodeId,
+          nodeType: 'unknown',
+          message: `Nó não encontrado: ${currentNodeId}`,
+          step: processedNodes + 1,
+          resumed: true,
+        });
         break;
       }
 
       processedNodes++;
       console.log(`Flow executor: Processing node ${node.node_id} (${node.node_type})`);
 
+      // Log node processing
+      addExecutionLog(conversationId, {
+        type: 'node_start',
+        flowId,
+        nodeId: node.node_id,
+        nodeType: node.node_type,
+        nodeName: node.name || node.node_id,
+        step: processedNodes,
+        message: `Executando nó: ${node.name || node.node_id} (${node.node_type})`,
+        resumed: true,
+      });
+
       // Process the node
       const result = await processNode(node, connection, conversation.contact_phone, variables, conversationId);
 
       if (!result.success && result.error) {
         console.error('Flow executor: Node processing failed:', result.error);
+        addExecutionLog(conversationId, {
+          type: 'error',
+          flowId,
+          nodeId: node.node_id,
+          nodeType: node.node_type,
+          step: processedNodes,
+          message: `Erro: ${result.error}`,
+          resumed: true,
+        });
       }
 
       // If node requires user input, stop here
       if (result.waitForInput) {
+        addExecutionLog(conversationId, {
+          type: 'waiting_input',
+          flowId,
+          nodeId: node.node_id,
+          nodeType: node.node_type,
+          step: processedNodes,
+          message: `Aguardando entrada do usuário`,
+          variables: { ...variables },
+          resumed: true,
+        });
         await updateFlowSession(flowId, conversationId, currentNodeId, variables);
         return { success: true, waitingForInput: true, currentNode: currentNodeId };
       }
@@ -778,6 +930,14 @@ async function resumeFlowFromNode(flowId, conversationId, startNodeId, variables
       
       if (outgoingEdges.length === 0) {
         console.log('Flow executor: No more edges, flow complete');
+        addExecutionLog(conversationId, {
+          type: 'flow_complete',
+          flowId,
+          nodeId: node.node_id,
+          step: processedNodes,
+          message: `Fluxo retomado e finalizado após ${processedNodes} nós`,
+          resumed: true,
+        });
         break;
       }
 
@@ -785,7 +945,20 @@ async function resumeFlowFromNode(flowId, conversationId, startNodeId, variables
         ? outgoingEdges.find(e => e.source_handle === result.nextHandle) || outgoingEdges[0]
         : outgoingEdges[0];
 
+      const previousNodeId = currentNodeId;
       currentNodeId = nextEdge?.target_node_id;
+      
+      addExecutionLog(conversationId, {
+        type: 'transition',
+        flowId,
+        fromNodeId: previousNodeId,
+        toNodeId: currentNodeId,
+        step: processedNodes,
+        message: `Transição: ${previousNodeId} → ${currentNodeId}`,
+        handle: result.nextHandle || 'default',
+        resumed: true,
+      });
+      
       console.log(`Flow executor: Moving to next node: ${currentNodeId}`);
     }
 

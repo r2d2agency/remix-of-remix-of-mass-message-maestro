@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
-import { executeFlow } from '../lib/flow-executor.js';
+import { executeFlow, getExecutionLogs, clearExecutionLogs } from '../lib/flow-executor.js';
 
 const router = Router();
 router.use(authenticate);
@@ -601,6 +601,59 @@ router.post('/conversation/:conversationId/cancel', async (req, res) => {
   } catch (error) {
     console.error('Cancel flow error:', error);
     res.status(500).json({ error: 'Erro ao cancelar fluxo' });
+  }
+});
+
+// ============================================
+// FLOW EXECUTION LOGS (debugging)
+// ============================================
+
+// Get execution logs for a conversation or all
+router.get('/execution-logs/:conversationId?', authenticate, async (req, res) => {
+  try {
+    const org = await getUserOrganization(req.userId);
+    if (!org) {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+
+    const { conversationId } = req.params;
+    const limit = parseInt(req.query.limit) || 100;
+
+    // If conversationId provided, verify access
+    if (conversationId) {
+      const conv = await query(
+        `SELECT c.id FROM conversations c
+         JOIN connections conn ON conn.id = c.connection_id
+         WHERE c.id = $1 AND conn.organization_id = $2`,
+        [conversationId, org.organization_id]
+      );
+      if (conv.rows.length === 0) {
+        return res.status(404).json({ error: 'Conversa não encontrada' });
+      }
+    }
+
+    const logs = getExecutionLogs(conversationId || null, limit);
+    res.json({ logs });
+  } catch (error) {
+    console.error('Get execution logs error:', error);
+    res.status(500).json({ error: 'Erro ao buscar logs' });
+  }
+});
+
+// Clear execution logs
+router.delete('/execution-logs/:conversationId?', authenticate, async (req, res) => {
+  try {
+    const org = await getUserOrganization(req.userId);
+    if (!org || !isAdmin(org.role)) {
+      return res.status(403).json({ error: 'Sem permissão' });
+    }
+
+    const { conversationId } = req.params;
+    clearExecutionLogs(conversationId || null);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Clear execution logs error:', error);
+    res.status(500).json({ error: 'Erro ao limpar logs' });
   }
 });
 

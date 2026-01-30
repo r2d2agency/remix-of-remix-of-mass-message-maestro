@@ -10,15 +10,17 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useFlows, Flow } from '@/hooks/use-flows';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { 
   GitBranch, Plus, Pencil, Trash2, Copy, 
   Tag, Loader2, Clock, Layers, Play, Search, 
-  CheckCircle, Hash
+  CheckCircle, Hash, ChevronDown, Activity
 } from 'lucide-react';
 import { FlowEditorFullscreen } from '@/components/flows/FlowEditorFullscreen';
+import { FlowExecutionLogs } from '@/components/flows/FlowExecutionLogs';
 
 export default function Fluxos() {
   const [flows, setFlows] = useState<Flow[]>([]);
@@ -39,6 +41,7 @@ export default function Fluxos() {
     trigger_keywords: '',
     trigger_match_mode: 'exact' as 'exact' | 'contains' | 'starts_with'
   });
+  const [logsExpanded, setLogsExpanded] = useState(false);
 
   const { user } = useAuth();
   const { loading, error, getFlows, createFlow, updateFlow, deleteFlow, toggleFlow, duplicateFlow } = useFlows();
@@ -355,6 +358,22 @@ export default function Fluxos() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Execution Logs (Collapsible) */}
+        <Collapsible open={logsExpanded} onOpenChange={setLogsExpanded}>
+          <CollapsibleTrigger asChild>
+            <Button variant="outline" className="w-full justify-between">
+              <span className="flex items-center gap-2">
+                <Activity className="h-4 w-4" />
+                Logs de Execução
+              </span>
+              <ChevronDown className={`h-4 w-4 transition-transform ${logsExpanded ? 'rotate-180' : ''}`} />
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-4">
+            <FlowExecutionLogs />
+          </CollapsibleContent>
+        </Collapsible>
 
         {/* Flows List */}
         {loadingFlows ? (
