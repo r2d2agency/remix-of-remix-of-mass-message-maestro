@@ -250,7 +250,10 @@ export function ChatArea({
   const { data: contactDeals, isLoading: loadingDeals } = useCRMDealsByPhone(
     conversation?.contact_phone && !conversation.is_group ? conversation.contact_phone : null
   );
-  const openDeals = contactDeals?.filter(d => d.status === 'open') || [];
+  // Be resilient to backend variations like 'OPEN' / 'Open'
+  const openDeals = (contactDeals || []).filter(
+    (d) => (d as any)?.status && String((d as any).status).toLowerCase() === 'open'
+  );
   
   const {
     isRecording,
@@ -1240,6 +1243,35 @@ export function ChatArea({
                   </Badge>
                 )}
               </DropdownMenuItem>
+
+              {/* CRM deals inside the 3-dots menu as an alternative entry point */}
+              {!conversation.is_group && openDeals.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                    Negociações abertas ({openDeals.length})
+                  </div>
+                  {openDeals.slice(0, 5).map((deal) => (
+                    <DropdownMenuItem
+                      key={deal.id}
+                      onClick={() => {
+                        setSelectedDeal(deal);
+                        setShowDealDetailDialog(true);
+                      }}
+                      className="flex items-center gap-2"
+                    >
+                      <Briefcase className="h-4 w-4" />
+                      <span className="truncate">{deal.title}</span>
+                    </DropdownMenuItem>
+                  ))}
+                  {openDeals.length > 5 && (
+                    <div className="px-2 py-1.5 text-xs text-muted-foreground text-center">
+                      +{openDeals.length - 5} negociação(ões)
+                    </div>
+                  )}
+                </>
+              )}
+
               {!isViewOnly && (
                 <>
                   <DropdownMenuSeparator />
