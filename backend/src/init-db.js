@@ -1178,6 +1178,41 @@ CREATE TABLE IF NOT EXISTS flow_edges (
 
 CREATE INDEX IF NOT EXISTS idx_flow_edges_flow ON flow_edges(flow_id);
 
+-- Sessões de execução do fluxo (necessário para continuar após Input/Menu via webhooks)
+CREATE TABLE IF NOT EXISTS flow_sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  flow_id UUID NOT NULL REFERENCES flows(id) ON DELETE CASCADE,
+  conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+  contact_phone VARCHAR(50) NOT NULL,
+
+  -- Estado atual
+  current_node_id VARCHAR(100) NOT NULL DEFAULT 'start',
+  variables JSONB DEFAULT '{}'::jsonb,
+
+  -- Controle
+  is_active BOOLEAN DEFAULT true,
+  started_by UUID REFERENCES users(id),
+  started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  last_interaction_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  ended_at TIMESTAMP WITH TIME ZONE
+);
+
+-- Backward/forward compatibility (for existing DBs)
+DO $$ BEGIN
+  ALTER TABLE flow_sessions ADD COLUMN IF NOT EXISTS last_interaction_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+  ALTER TABLE flow_sessions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+
+-- Apenas uma sessão ativa por conversa (permite ON CONFLICT (conversation_id) WHERE is_active = true)
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_flow_sessions_active_conversation
+  ON flow_sessions(conversation_id)
+  WHERE is_active = true;
+
+CREATE INDEX IF NOT EXISTS idx_flow_sessions_flow ON flow_sessions(flow_id);
+CREATE INDEX IF NOT EXISTS idx_flow_sessions_conversation ON flow_sessions(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_flow_sessions_active ON flow_sessions(is_active);
+
 -- Histórico de versões do fluxo
 CREATE TABLE IF NOT EXISTS flow_versions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
