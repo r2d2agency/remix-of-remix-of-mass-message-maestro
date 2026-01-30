@@ -33,8 +33,8 @@ export function KanbanColumn({ stage, deals, totalValue, onDealClick, onStatusCh
     <div
       ref={setNodeRef}
       className={cn(
-        "flex flex-col w-[300px] min-w-[300px] bg-muted/50 rounded-lg border",
-        isOver && "ring-2 ring-primary bg-primary/5"
+        "flex flex-col w-[300px] min-w-[300px] bg-muted/50 rounded-lg border transition-all duration-300",
+        isOver && "ring-2 ring-primary bg-primary/5 shadow-lg scale-[1.01]"
       )}
     >
       {/* Header */}
@@ -56,13 +56,22 @@ export function KanbanColumn({ stage, deals, totalValue, onDealClick, onStatusCh
       {/* Cards */}
       <ScrollArea className="flex-1 max-h-[calc(100vh-280px)]">
         <div className="p-2 space-y-2">
-          {deals.length === 0 ? (
+          {/* Drop indicator when hovering over empty area */}
+          {isOver && deals.length === 0 && (
+            <div className="h-24 rounded-lg border-2 border-dashed border-primary/50 bg-primary/5 flex items-center justify-center animate-pulse">
+              <span className="text-sm text-primary/70">Soltar aqui</span>
+            </div>
+          )}
+          {deals.length === 0 && !isOver ? (
             <div className="py-8 text-center text-muted-foreground text-sm">
               Nenhuma negociação
             </div>
           ) : (
             deals.map((deal) => (
-              <div key={deal.id} className="relative group">
+              <div 
+                key={deal.id} 
+                className="relative group transition-all duration-200"
+              >
                 <DealCard
                   deal={deal}
                   onClick={() => onDealClick(deal)}

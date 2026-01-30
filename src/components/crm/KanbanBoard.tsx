@@ -114,9 +114,14 @@ export function KanbanBoard({ stages, dealsByStage, onDealClick, onStatusChange,
         <ScrollBar orientation="horizontal" />
       </ScrollArea>
 
-      <DragOverlay>
+      <DragOverlay dropAnimation={{
+        duration: 250,
+        easing: 'cubic-bezier(0.25, 1, 0.5, 1)',
+      }}>
         {activeDeal ? (
-          <DealCard deal={activeDeal} isDragging onClick={() => {}} />
+          <div className="animate-scale-in">
+            <DealCard deal={activeDeal} isDragging onClick={() => {}} />
+          </div>
         ) : null}
       </DragOverlay>
     </DndContext>

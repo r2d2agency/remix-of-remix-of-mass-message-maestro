@@ -16,18 +16,22 @@ interface DealCardProps {
 }
 
 export const DealCard = forwardRef<HTMLDivElement, DealCardProps>(
-  function DealCard({ deal, isDragging, onClick, isNewWin }, ref) {
+  function DealCard({ deal, isDragging: isDraggingProp, onClick, isNewWin }, ref) {
     const {
       attributes,
       listeners,
       setNodeRef,
       transform,
       transition,
+      isDragging,
+      isOver,
     } = useSortable({ id: deal.id });
 
-    const baseStyle = {
+    // Smooth transform with better easing
+    const style = {
       transform: CSS.Transform.toString(transform),
-      transition,
+      transition: transition || 'transform 250ms cubic-bezier(0.25, 1, 0.5, 1)',
+      zIndex: isDragging ? 50 : undefined,
     };
 
     // Calculate inactivity
@@ -73,9 +77,9 @@ export const DealCard = forwardRef<HTMLDivElement, DealCardProps>(
 
     const borderColor = getBorderColor();
 
-    // Merge styles
+    // Merge styles with smooth transitions
     const cardStyle = {
-      ...baseStyle,
+      ...style,
       borderLeftColor: borderColor,
     };
 
@@ -118,6 +122,9 @@ export const DealCard = forwardRef<HTMLDivElement, DealCardProps>(
       return null;
     };
 
+    // Combined dragging state (from prop or from useSortable)
+    const isCurrentlyDragging = isDraggingProp || isDragging;
+
     return (
       <Card
         ref={setRefs}
@@ -126,8 +133,10 @@ export const DealCard = forwardRef<HTMLDivElement, DealCardProps>(
         {...listeners}
         onClick={onClick}
         className={cn(
-          "p-3 cursor-grab active:cursor-grabbing hover:shadow-md transition-all duration-300",
-          isDragging && "opacity-50 shadow-lg rotate-2",
+          "p-3 cursor-grab active:cursor-grabbing transition-all duration-200",
+          "hover:shadow-md hover:-translate-y-0.5",
+          isCurrentlyDragging && "opacity-80 shadow-xl scale-105 rotate-1 ring-2 ring-primary/50",
+          isOver && "ring-2 ring-primary/30 bg-primary/5",
           borderColor && "border-l-4",
           getStatusStyles(),
           isNewWin && "animate-scale-in"
