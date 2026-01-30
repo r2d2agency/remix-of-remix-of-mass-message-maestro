@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Play, Pause, Loader2, Volume2 } from "lucide-react";
+import { Play, Pause, Loader2, Volume2, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface AudioPlayerProps {
   src: string;
@@ -24,6 +25,9 @@ export function AudioPlayer({ src, mimetype, className, isFromMe }: AudioPlayerP
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [waveformData, setWaveformData] = useState<number[]>([]);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [transcript, setTranscript] = useState<string | null>(null);
+  const [showTranscript, setShowTranscript] = useState(false);
 
   const formatTime = (time: number) => {
     if (!isFinite(time) || isNaN(time)) return "0:00";
@@ -184,6 +188,91 @@ export function AudioPlayer({ src, mimetype, className, isFromMe }: AudioPlayerP
     audio.currentTime = percentage * duration;
   };
 
+  // Transcribe audio using Web Speech API
+  const transcribeAudio = async () => {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+      toast.error("Seu navegador não suporta transcrição de áudio");
+      return;
+    }
+
+    setIsTranscribing(true);
+    
+    try {
+      // Fetch the audio file
+      const response = await fetch(src);
+      const blob = await response.blob();
+      
+      // Create an audio context to play and transcribe
+      const audioContext = new AudioContext();
+      const arrayBuffer = await blob.arrayBuffer();
+      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+      
+      // Create a media stream from the audio
+      const source = audioContext.createBufferSource();
+      source.buffer = audioBuffer;
+      
+      const destination = audioContext.createMediaStreamDestination();
+      source.connect(destination);
+      
+      // Initialize speech recognition
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      const recognition = new SpeechRecognition();
+      
+      recognition.lang = 'pt-BR';
+      recognition.continuous = true;
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+      
+      let finalTranscript = '';
+      
+      recognition.onresult = (event: any) => {
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript + ' ';
+          }
+        }
+      };
+      
+      recognition.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error);
+        if (event.error === 'no-speech') {
+          toast.error("Nenhuma fala detectada no áudio");
+        } else {
+          toast.error("Erro na transcrição: " + event.error);
+        }
+        setIsTranscribing(false);
+      };
+      
+      recognition.onend = () => {
+        if (finalTranscript.trim()) {
+          setTranscript(finalTranscript.trim());
+          setShowTranscript(true);
+          toast.success("Transcrição concluída!");
+        } else {
+          toast.error("Não foi possível transcrever o áudio");
+        }
+        setIsTranscribing(false);
+        audioContext.close();
+      };
+      
+      // Start recognition and play audio
+      recognition.start();
+      source.start(0);
+      
+      // Stop after audio ends
+      source.onended = () => {
+        setTimeout(() => {
+          recognition.stop();
+        }, 1000); // Wait a bit for final results
+      };
+      
+    } catch (error) {
+      console.error('Transcription error:', error);
+      toast.error("Erro ao transcrever áudio");
+      setIsTranscribing(false);
+    }
+  };
+
   if (hasError) {
     return (
       <div className={cn(
@@ -198,61 +287,105 @@ export function AudioPlayer({ src, mimetype, className, isFromMe }: AudioPlayerP
   }
 
   return (
-    <div className={cn(
-      "flex items-center gap-3 p-2 rounded-lg min-w-[200px] max-w-[280px]",
-      isFromMe ? "bg-primary-foreground/10" : "bg-background/50",
-      className
-    )}>
-      {/* Hidden audio element */}
-      <audio
-        ref={audioRef}
-        preload="metadata"
-        crossOrigin="anonymous"
-      >
-        {mimetype && <source src={src} type={mimetype} />}
-        <source src={src} type="audio/ogg; codecs=opus" />
-        <source src={src} type="audio/webm; codecs=opus" />
-        <source src={src} type="audio/mpeg" />
-        <source src={src} type="audio/mp4" />
-        <source src={src} type="audio/ogg" />
-      </audio>
+    <div className="flex flex-col gap-1">
+      <div className={cn(
+        "flex items-center gap-2 p-2 rounded-lg min-w-[200px] max-w-[300px]",
+        isFromMe ? "bg-primary-foreground/10" : "bg-background/50",
+        className
+      )}>
+        {/* Hidden audio element */}
+        <audio
+          ref={audioRef}
+          preload="metadata"
+          crossOrigin="anonymous"
+        >
+          {mimetype && <source src={src} type={mimetype} />}
+          <source src={src} type="audio/ogg; codecs=opus" />
+          <source src={src} type="audio/webm; codecs=opus" />
+          <source src={src} type="audio/mpeg" />
+          <source src={src} type="audio/mp4" />
+          <source src={src} type="audio/ogg" />
+        </audio>
 
-      {/* Play/Pause button */}
-      <Button
-        variant="ghost"
-        size="icon"
-        className={cn(
-          "h-10 w-10 rounded-full flex-shrink-0",
-          isFromMe 
-            ? "bg-primary-foreground/20 hover:bg-primary-foreground/30 text-primary-foreground" 
-            : "bg-primary/20 hover:bg-primary/30 text-primary"
-        )}
-        onClick={togglePlay}
-        disabled={isLoading}
-      >
-        {isLoading ? (
-          <Loader2 className="h-5 w-5 animate-spin" />
-        ) : isPlaying ? (
-          <Pause className="h-5 w-5" />
-        ) : (
-          <Play className="h-5 w-5 ml-0.5" />
-        )}
-      </Button>
+        {/* Play/Pause button */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className={cn(
+            "h-9 w-9 rounded-full flex-shrink-0",
+            isFromMe 
+              ? "bg-primary-foreground/20 hover:bg-primary-foreground/30 text-primary-foreground" 
+              : "bg-primary/20 hover:bg-primary/30 text-primary"
+          )}
+          onClick={togglePlay}
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : isPlaying ? (
+            <Pause className="h-4 w-4" />
+          ) : (
+            <Play className="h-4 w-4 ml-0.5" />
+          )}
+        </Button>
 
-      {/* Waveform and time */}
-      <div className="flex-1 min-w-0">
-        <canvas
-          ref={canvasRef}
-          className="w-full h-8 cursor-pointer"
-          onClick={handleSeek}
-        />
-        <div className={cn(
-          "text-[10px] mt-0.5",
-          isFromMe ? "text-primary-foreground/70" : "text-muted-foreground"
-        )}>
-          {formatTime(currentTime)} / {formatTime(duration)}
+        {/* Waveform and time */}
+        <div className="flex-1 min-w-0">
+          <canvas
+            ref={canvasRef}
+            className="w-full h-7 cursor-pointer"
+            onClick={handleSeek}
+          />
+          <div className={cn(
+            "text-[10px] mt-0.5",
+            isFromMe ? "text-primary-foreground/70" : "text-muted-foreground"
+          )}>
+            {formatTime(currentTime)} / {formatTime(duration)}
+          </div>
         </div>
+
+        {/* Transcribe button */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className={cn(
+            "h-8 w-8 rounded-full flex-shrink-0",
+            isFromMe 
+              ? "bg-primary-foreground/20 hover:bg-primary-foreground/30 text-primary-foreground" 
+              : "bg-muted hover:bg-muted/80 text-muted-foreground"
+          )}
+          onClick={transcribeAudio}
+          disabled={isTranscribing || isLoading}
+          title="Transcrever áudio"
+        >
+          {isTranscribing ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <FileText className="h-4 w-4" />
+          )}
+        </Button>
       </div>
+
+      {/* Transcript display */}
+      {showTranscript && transcript && (
+        <div className={cn(
+          "text-xs p-2 rounded-lg max-w-[300px]",
+          isFromMe 
+            ? "bg-primary-foreground/10 text-primary-foreground" 
+            : "bg-muted text-foreground"
+        )}>
+          <div className="flex items-center justify-between mb-1">
+            <span className="font-medium text-[10px] uppercase opacity-70">Transcrição</span>
+            <button 
+              onClick={() => setShowTranscript(false)}
+              className="text-[10px] opacity-50 hover:opacity-100"
+            >
+              ✕
+            </button>
+          </div>
+          <p className="whitespace-pre-wrap">{transcript}</p>
+        </div>
+      )}
     </div>
   );
 }
