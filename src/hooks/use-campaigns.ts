@@ -8,6 +8,7 @@ export interface Campaign {
   connection_id: string | null;
   list_id: string | null;
   message_id: string | null;
+  flow_id: string | null;
   status: 'pending' | 'running' | 'paused' | 'completed' | 'cancelled';
   scheduled_at: string | null;
   start_date: string | null;
@@ -26,6 +27,7 @@ export interface Campaign {
   // Joined fields
   list_name?: string;
   message_name?: string;
+  flow_name?: string;
   connection_name?: string;
 }
 
@@ -40,7 +42,8 @@ export interface CreateCampaignData {
   name: string;
   connection_id: string;
   list_id: string;
-  message_ids: string[];
+  message_ids?: string[];
+  flow_id?: string;
   scheduled_at?: string;
   start_date?: string;
   end_date?: string;

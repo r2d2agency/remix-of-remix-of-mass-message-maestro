@@ -1,5 +1,6 @@
 import { query } from './db.js';
 import * as whatsappProvider from './lib/whatsapp-provider.js';
+import { executeFlow } from './lib/flow-executor.js';
 // Translation map for common Evolution API errors
 const errorTranslations = {
   'not a whatsapp number': 'Número não é WhatsApp',
@@ -152,6 +153,7 @@ export async function executeCampaignMessages() {
         cm.scheduled_at,
         c.status as campaign_status,
         c.connection_id,
+        c.flow_id,
         conn.provider,
         conn.api_url,
         conn.api_key,
@@ -189,7 +191,76 @@ export async function executeCampaignMessages() {
       stats.processed++;
 
       try {
-        // Get message items
+        // Check if this is a flow-based campaign
+        if (msg.flow_id) {
+          // Execute flow for this contact
+          const remoteJid = msg.phone.includes('@') ? msg.phone : `${msg.phone}@s.whatsapp.net`;
+          
+          // Find or create conversation for this contact
+          let conversation = await query(
+            `SELECT id FROM conversations WHERE connection_id = $1 AND remote_jid = $2`,
+            [msg.connection_id, remoteJid]
+          );
+          
+          let conversationId;
+          if (conversation.rows.length === 0) {
+            // Create a new conversation for campaign flow
+            const newConv = await query(
+              `INSERT INTO conversations (connection_id, remote_jid, contact_name, contact_phone)
+               VALUES ($1, $2, $3, $4)
+               RETURNING id`,
+              [msg.connection_id, remoteJid, msg.contact_name || '', msg.phone]
+            );
+            conversationId = newConv.rows[0].id;
+          } else {
+            conversationId = conversation.rows[0].id;
+          }
+
+          // Set contact variables in flow session
+          const initialVariables = {
+            nome: msg.contact_name || '',
+            telefone: msg.phone || '',
+            email: msg.contact_email || '',
+          };
+
+          // Execute flow
+          const flowResult = await executeFlow(msg.flow_id, conversationId, 'start', initialVariables);
+          
+          if (flowResult.success !== false) {
+            await query(
+              `UPDATE campaign_messages 
+               SET status = 'sent', sent_at = NOW()
+               WHERE id = $1`,
+              [msg.id]
+            );
+            stats.sent++;
+            console.log(`  ✓ [${msg.phone}] Fluxo iniciado`);
+
+            // Update campaign sent_count
+            await query(
+              `UPDATE campaigns SET sent_count = sent_count + 1, updated_at = NOW() WHERE id = $1`,
+              [msg.campaign_id]
+            );
+          } else {
+            const errorMsg = flowResult.error || 'Erro ao executar fluxo';
+            await query(
+              `UPDATE campaign_messages 
+               SET status = 'failed', error_message = $1, sent_at = NOW()
+               WHERE id = $2`,
+              [errorMsg, msg.id]
+            );
+            stats.failed++;
+            console.log(`  ✗ [${msg.phone}] ${errorMsg}`);
+
+            await query(
+              `UPDATE campaigns SET failed_count = failed_count + 1, updated_at = NOW() WHERE id = $1`,
+              [msg.campaign_id]
+            );
+          }
+          continue;
+        }
+
+        // Regular message-based campaign
         const messageItems = msg.message_items || [];
         
         if (messageItems.length === 0) {

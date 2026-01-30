@@ -158,22 +158,43 @@ export function MessageItemEditor({
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <Label className="text-xs text-muted-foreground">Mensagem de texto</Label>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-6 text-xs"
-              onClick={() => insertVariable(item.id, "nome")}
-            >
-              <Variable className="h-3 w-3 mr-1" />
-              Nome
-            </Button>
+            <div className="flex gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-6 text-xs"
+                onClick={() => insertVariable(item.id, "nome")}
+              >
+                <Variable className="h-3 w-3 mr-1" />
+                nome
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-6 text-xs"
+                onClick={() => insertVariable(item.id, "telefone")}
+              >
+                telefone
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-6 text-xs"
+                onClick={() => insertVariable(item.id, "email")}
+              >
+                email
+              </Button>
+            </div>
           </div>
           <Textarea
-            placeholder="Digite sua mensagem aqui... Use {{nome}} para personalizar"
+            placeholder="Digite sua mensagem aqui... Use {{nome}}, {{telefone}}, {{email}} para personalizar"
             value={item.content}
             onChange={(e) => onUpdate(item.id, { content: e.target.value })}
             className="min-h-[100px] resize-none"
           />
+          <p className="text-xs text-muted-foreground">
+            Variáveis disponíveis: <code className="bg-muted px-1 rounded">{'{{nome}}'}</code>, <code className="bg-muted px-1 rounded">{'{{telefone}}'}</code>, <code className="bg-muted px-1 rounded">{'{{email}}'}</code>, <code className="bg-muted px-1 rounded">{'{{empresa}}'}</code>, <code className="bg-muted px-1 rounded">{'{{cargo}}'}</code>, <code className="bg-muted px-1 rounded">{'{{obs}}'}</code>
+          </p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -310,18 +331,28 @@ export function MessageItemEditor({
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label className="text-xs text-muted-foreground">Legenda (opcional)</Label>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-6 text-xs"
-                onClick={() => insertVariable(item.id, "nome")}
-              >
-                <Variable className="h-3 w-3 mr-1" />
-                Nome
-              </Button>
+              <div className="flex gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-6 text-xs"
+                  onClick={() => insertVariable(item.id, "nome")}
+                >
+                  <Variable className="h-3 w-3 mr-1" />
+                  nome
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-6 text-xs"
+                  onClick={() => insertVariable(item.id, "telefone")}
+                >
+                  telefone
+                </Button>
+              </div>
             </div>
             <Textarea
-              placeholder="Adicione uma legenda..."
+              placeholder="Adicione uma legenda... Use {{nome}} para personalizar"
               value={item.caption || ""}
               onChange={(e) => onUpdate(item.id, { caption: e.target.value })}
               className="min-h-[60px] resize-none"

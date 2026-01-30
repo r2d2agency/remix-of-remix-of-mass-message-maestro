@@ -42,11 +42,13 @@ import {
   Filter,
   X,
   Tag,
+  GitBranch,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCampaigns, Campaign } from "@/hooks/use-campaigns";
 import { useContacts, ContactList } from "@/hooks/use-contacts";
 import { useMessages, MessageTemplate } from "@/hooks/use-messages";
+import { useFlows, Flow } from "@/hooks/use-flows";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { CampaignDetailModal } from "@/components/campanhas/CampaignDetailModal";
@@ -76,10 +78,12 @@ const Campanhas = () => {
   const { loading: loadingCampaigns, getCampaigns, createCampaign, updateStatus, deleteCampaign } = useCampaigns();
   const { getLists } = useContacts();
   const { getMessages } = useMessages();
+  const { getFlows } = useFlows();
 
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [lists, setLists] = useState<ContactList[]>([]);
   const [messages, setMessages] = useState<MessageTemplate[]>([]);
+  const [flows, setFlows] = useState<Flow[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
   const [conversationTags, setConversationTags] = useState<ConversationTag[]>([]);
 
@@ -103,6 +107,10 @@ const Campanhas = () => {
   const [selectedConnection, setSelectedConnection] = useState("");
   const [selectedList, setSelectedList] = useState("");
   const [selectedMessages, setSelectedMessages] = useState<string[]>([]);
+  
+  // Form state - Content type (message or flow)
+  const [contentType, setContentType] = useState<'message' | 'flow'>('message');
+  const [selectedFlow, setSelectedFlow] = useState("");
   
   // Form state - Tag source
   const [contactSource, setContactSource] = useState<'list' | 'tag'>('list');
@@ -128,11 +136,12 @@ const Campanhas = () => {
       getCampaigns(),
       getLists(),
       getMessages(),
+      getFlows(),
       api<Connection[]>('/api/connections'),
       api<ConversationTag[]>('/api/chat/tags/with-count'),
     ]);
 
-    const [campaignsRes, listsRes, messagesRes, connectionsRes, tagsRes] = results;
+    const [campaignsRes, listsRes, messagesRes, flowsRes, connectionsRes, tagsRes] = results;
 
     if (campaignsRes.status === 'fulfilled') {
       setCampaigns(campaignsRes.value);
@@ -155,6 +164,13 @@ const Campanhas = () => {
       setMessages([]);
     }
 
+    if (flowsRes.status === 'fulfilled') {
+      setFlows(flowsRes.value);
+    } else {
+      console.error('Erro ao carregar fluxos:', flowsRes.reason);
+      setFlows([]);
+    }
+
     if (connectionsRes.status === 'fulfilled') {
       setConnections(connectionsRes.value);
     } else {
@@ -168,7 +184,7 @@ const Campanhas = () => {
       console.error('Erro ao carregar tags:', tagsRes.reason);
       setConversationTags([]);
     }
-  }, [getCampaigns, getLists, getMessages]);
+  }, [getCampaigns, getLists, getMessages, getFlows]);
 
   useEffect(() => {
     loadData();
@@ -244,6 +260,8 @@ const Campanhas = () => {
     setSelectedConnection("");
     setSelectedList("");
     setSelectedMessages([]);
+    setContentType('message');
+    setSelectedFlow("");
     setContactSource('list');
     setSelectedTag("");
     setStartDate(undefined);
@@ -276,14 +294,17 @@ const Campanhas = () => {
   };
 
   const handleCreateCampaign = async () => {
+    // Validate content selection
+    const hasContent = contentType === 'flow' ? !!selectedFlow : selectedMessages.length > 0;
+    
     // Validate based on contact source
     if (contactSource === 'list') {
-      if (!campaignName || !selectedConnection || !selectedList || selectedMessages.length === 0) {
+      if (!campaignName || !selectedConnection || !selectedList || !hasContent) {
         toast.error("Preencha todos os campos obrigatórios");
         return;
       }
     } else {
-      if (!campaignName || !selectedConnection || !selectedTag || selectedMessages.length === 0) {
+      if (!campaignName || !selectedConnection || !selectedTag || !hasContent) {
         toast.error("Preencha todos os campos obrigatórios");
         return;
       }
@@ -341,7 +362,8 @@ const Campanhas = () => {
         name: campaignName,
         connection_id: selectedConnection,
         list_id: listIdToUse,
-        message_ids: selectedMessages,
+        message_ids: contentType === 'message' ? selectedMessages : [],
+        flow_id: contentType === 'flow' ? selectedFlow : undefined,
         start_date: formatDateForApi(startDate),
         end_date: formatDateForApi(endDate),
         start_time: startTime,
@@ -597,6 +619,12 @@ const Campanhas = () => {
                                 Aleatório
                               </Badge>
                             )}
+                            {campaign.flow_id && (
+                              <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/30">
+                                <GitBranch className="h-3 w-3 mr-1" />
+                                Fluxo
+                              </Badge>
+                            )}
                           </div>
                           <div className="mt-2 flex flex-wrap gap-4 text-sm text-muted-foreground">
                             <span className="flex items-center gap-1">
@@ -604,8 +632,17 @@ const Campanhas = () => {
                               {campaign.list_name || "Lista removida"}
                             </span>
                             <span className="flex items-center gap-1">
-                              <MessageSquare className="h-4 w-4" />
-                              {campaign.message_name || "Mensagem removida"}
+                              {campaign.flow_id ? (
+                                <>
+                                  <GitBranch className="h-4 w-4" />
+                                  {campaign.flow_name || "Fluxo removido"}
+                                </>
+                              ) : (
+                                <>
+                                  <MessageSquare className="h-4 w-4" />
+                                  {campaign.message_name || "Mensagem removida"}
+                                </>
+                              )}
                             </span>
                             {campaign.start_date && (
                               <span className="flex items-center gap-1">
@@ -813,50 +850,108 @@ const Campanhas = () => {
                     </div>
                   )}
 
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label>Mensagens ({selectedMessages.length} selecionadas)</Label>
-                      {selectedMessages.length > 1 && (
-                        <Badge variant="outline" className="text-xs">
-                          <Shuffle className="h-3 w-3 mr-1" />
-                          Envio aleatório
-                        </Badge>
-                      )}
+                  {/* Content Type Toggle */}
+                  <div className="space-y-3">
+                    <Label>Tipo de Conteúdo</Label>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant={contentType === 'message' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setContentType('message')}
+                        className="flex-1"
+                      >
+                        <MessageSquare className="h-4 w-4 mr-2" />
+                        Mensagem
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={contentType === 'flow' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setContentType('flow')}
+                        className="flex-1"
+                      >
+                        <GitBranch className="h-4 w-4 mr-2" />
+                        Fluxo
+                      </Button>
                     </div>
-                     <div className="space-y-2 max-h-40 overflow-y-auto rounded-lg border p-2">
-                       {messages.length === 0 ? (
-                         <div className="p-3 text-sm text-muted-foreground">
-                           Nenhuma mensagem encontrada
-                         </div>
-                       ) : (
-                         messages.map((msg) => (
-                           <div
-                             key={msg.id}
-                             className={cn(
-                               "flex items-center gap-2 p-2 rounded-md cursor-pointer transition-colors",
-                               selectedMessages.includes(msg.id)
-                                 ? "bg-primary/10 border border-primary"
-                                 : "hover:bg-accent"
-                             )}
-                             onClick={() => toggleMessageSelection(msg.id)}
-                           >
-                             <div className={cn(
-                               "w-4 h-4 rounded border flex items-center justify-center",
-                               selectedMessages.includes(msg.id) ? "bg-primary border-primary" : "border-muted-foreground"
-                             )}>
-                               {selectedMessages.includes(msg.id) && (
-                                 <Check className="h-3 w-3 text-primary-foreground" />
-                               )}
-                             </div>
-                             <span className="text-sm">{msg.name}</span>
-                           </div>
-                         ))
-                       )}
-                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      Selecione múltiplas mensagens para envio aleatório entre contatos
-                    </p>
                   </div>
+
+                  {contentType === 'message' ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label>Mensagens ({selectedMessages.length} selecionadas)</Label>
+                        {selectedMessages.length > 1 && (
+                          <Badge variant="outline" className="text-xs">
+                            <Shuffle className="h-3 w-3 mr-1" />
+                            Envio aleatório
+                          </Badge>
+                        )}
+                      </div>
+                       <div className="space-y-2 max-h-40 overflow-y-auto rounded-lg border p-2">
+                         {messages.length === 0 ? (
+                           <div className="p-3 text-sm text-muted-foreground">
+                             Nenhuma mensagem encontrada
+                           </div>
+                         ) : (
+                           messages.map((msg) => (
+                             <div
+                               key={msg.id}
+                               className={cn(
+                                 "flex items-center gap-2 p-2 rounded-md cursor-pointer transition-colors",
+                                 selectedMessages.includes(msg.id)
+                                   ? "bg-primary/10 border border-primary"
+                                   : "hover:bg-accent"
+                               )}
+                               onClick={() => toggleMessageSelection(msg.id)}
+                             >
+                               <div className={cn(
+                                 "w-4 h-4 rounded border flex items-center justify-center",
+                                 selectedMessages.includes(msg.id) ? "bg-primary border-primary" : "border-muted-foreground"
+                               )}>
+                                 {selectedMessages.includes(msg.id) && (
+                                   <Check className="h-3 w-3 text-primary-foreground" />
+                                 )}
+                               </div>
+                               <span className="text-sm">{msg.name}</span>
+                             </div>
+                           ))
+                         )}
+                       </div>
+                      <p className="text-xs text-muted-foreground">
+                        Selecione múltiplas mensagens para envio aleatório entre contatos. Use <code className="bg-muted px-1 rounded">{'{{nome}}'}</code>, <code className="bg-muted px-1 rounded">{'{{telefone}}'}</code> nas mensagens para personalização.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <Label>Fluxo de Automação</Label>
+                      <Select value={selectedFlow} onValueChange={setSelectedFlow} disabled={flows.length === 0}>
+                        <SelectTrigger>
+                          <SelectValue placeholder={flows.length === 0 ? "Nenhum fluxo disponível" : "Selecione um fluxo"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {flows.length === 0 ? (
+                            <div className="px-2 py-2 text-sm text-muted-foreground">Nenhum fluxo encontrado</div>
+                          ) : (
+                            flows.filter(f => f.is_active).map((flow) => (
+                              <SelectItem key={flow.id} value={flow.id}>
+                                <div className="flex items-center gap-2">
+                                  <GitBranch className="h-4 w-4 text-primary" />
+                                  {flow.name}
+                                  <Badge variant="outline" className="text-xs ml-1">
+                                    {flow.node_count} nós
+                                  </Badge>
+                                </div>
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        O fluxo será iniciado para cada contato da lista. Variáveis do contato estarão disponíveis no fluxo.
+                      </p>
+                    </div>
+                  )}
 
                   {/* Random Order Toggle */}
                   <div className="flex items-center justify-between rounded-lg bg-accent/50 p-4">

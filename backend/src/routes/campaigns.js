@@ -37,11 +37,13 @@ router.get('/', async (req, res) => {
       `SELECT c.*, 
               cl.name as list_name,
               mt.name as message_name,
+              f.name as flow_name,
               conn.name as connection_name,
               u.name as created_by_name
        FROM campaigns c
        LEFT JOIN contact_lists cl ON c.list_id = cl.id
        LEFT JOIN message_templates mt ON c.message_id = mt.id
+       LEFT JOIN flows f ON c.flow_id = f.id
        LEFT JOIN connections conn ON c.connection_id = conn.id
        LEFT JOIN users u ON c.user_id = u.id
        WHERE ${whereClause}
@@ -64,6 +66,7 @@ router.post('/', async (req, res) => {
       list_id, 
       message_id,
       message_ids, // Support array of messages
+      flow_id, // Support flow-based campaigns
       scheduled_at,
       start_date,
       end_date,
@@ -77,16 +80,18 @@ router.post('/', async (req, res) => {
       random_messages
     } = req.body;
 
-    // Accept message_id or message_ids
+    // Accept message_id or message_ids (unless using flow)
     const allMessageIds = message_ids && Array.isArray(message_ids) && message_ids.length > 0 
       ? message_ids 
       : (message_id ? [message_id] : []);
     
     const finalMessageId = allMessageIds[0] || null;
+    const isFlowCampaign = !!flow_id;
 
-    if (!name || !connection_id || !list_id || !finalMessageId) {
+    // Either messages or flow is required
+    if (!name || !connection_id || !list_id || (!finalMessageId && !isFlowCampaign)) {
       return res.status(400).json({ 
-        error: 'Nome, conexão, lista e mensagem são obrigatórios' 
+        error: 'Nome, conexão, lista e (mensagem ou fluxo) são obrigatórios' 
       });
     }
 
@@ -125,25 +130,49 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Lista não encontrada ou sem permissão' });
     }
 
-    // Verify all message IDs
-    for (const msgId of allMessageIds) {
-      let messageCheck;
+    // Verify all message IDs (only if not using flow)
+    if (!isFlowCampaign) {
+      for (const msgId of allMessageIds) {
+        let messageCheck;
+        if (org) {
+          messageCheck = await query(
+            `SELECT id FROM message_templates WHERE id = $1 AND (
+              user_id = $2 OR 
+              user_id IN (SELECT user_id FROM organization_members WHERE organization_id = $3)
+            )`,
+            [msgId, req.userId, org.organization_id]
+          );
+        } else {
+          messageCheck = await query(
+            'SELECT id FROM message_templates WHERE id = $1 AND user_id = $2',
+            [msgId, req.userId]
+          );
+        }
+        if (messageCheck.rows.length === 0) {
+          return res.status(400).json({ error: `Mensagem ${msgId} não encontrada ou sem permissão` });
+        }
+      }
+    }
+
+    // Verify flow if using flow-based campaign
+    if (isFlowCampaign) {
+      let flowCheck;
       if (org) {
-        messageCheck = await query(
-          `SELECT id FROM message_templates WHERE id = $1 AND (
-            user_id = $2 OR 
-            user_id IN (SELECT user_id FROM organization_members WHERE organization_id = $3)
-          )`,
-          [msgId, req.userId, org.organization_id]
+        flowCheck = await query(
+          `SELECT id FROM flows WHERE id = $1 AND organization_id = $2 AND is_active = true`,
+          [flow_id, org.organization_id]
         );
       } else {
-        messageCheck = await query(
-          'SELECT id FROM message_templates WHERE id = $1 AND user_id = $2',
-          [msgId, req.userId]
+        // For users without org, check if they have access to the flow
+        flowCheck = await query(
+          `SELECT f.id FROM flows f
+           JOIN organization_members om ON om.organization_id = f.organization_id
+           WHERE f.id = $1 AND om.user_id = $2 AND f.is_active = true`,
+          [flow_id, req.userId]
         );
       }
-      if (messageCheck.rows.length === 0) {
-        return res.status(400).json({ error: `Mensagem ${msgId} não encontrada ou sem permissão` });
+      if (flowCheck.rows.length === 0) {
+        return res.status(400).json({ error: 'Fluxo não encontrado, inativo ou sem permissão' });
       }
     }
 
@@ -262,17 +291,18 @@ router.post('/', async (req, res) => {
     // Create campaign
     const campaignResult = await query(
       `INSERT INTO campaigns 
-       (user_id, name, connection_id, list_id, message_id, scheduled_at, 
+       (user_id, name, connection_id, list_id, message_id, flow_id, scheduled_at, 
         start_date, end_date, start_time, end_time,
         min_delay, max_delay, pause_after_messages, pause_duration, random_order)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) 
        RETURNING *`,
       [
         req.userId, 
         name, 
         connection_id, 
         list_id, 
-        finalMessageId,
+        isFlowCampaign ? null : finalMessageId,
+        isFlowCampaign ? flow_id : null,
         scheduled_at || null,
         start_date || null,
         end_date || null,
@@ -295,13 +325,16 @@ router.post('/', async (req, res) => {
     for (let i = 0; i < contacts.length; i++) {
       const contact = contacts[i];
       
-      // Assign message (random if multiple messages selected)
-      let assignedMessageId = finalMessageId;
-      if (allMessageIds.length > 1 && random_messages) {
-        assignedMessageId = allMessageIds[Math.floor(Math.random() * allMessageIds.length)];
-      } else if (allMessageIds.length > 1) {
-        // Round-robin distribution
-        assignedMessageId = allMessageIds[i % allMessageIds.length];
+      // Assign message (random if multiple messages selected) - null for flow campaigns
+      let assignedMessageId = null;
+      if (!isFlowCampaign) {
+        assignedMessageId = finalMessageId;
+        if (allMessageIds.length > 1 && random_messages) {
+          assignedMessageId = allMessageIds[Math.floor(Math.random() * allMessageIds.length)];
+        } else if (allMessageIds.length > 1) {
+          // Round-robin distribution
+          assignedMessageId = allMessageIds[i % allMessageIds.length];
+        }
       }
 
       // Check if we need to respect time bounds (using São Paulo clock)
