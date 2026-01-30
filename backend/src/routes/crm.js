@@ -2321,32 +2321,39 @@ router.get('/map-data', async (req, res) => {
     };
 
     // Get deals with contact/company info
-    const dealsResult = await query(
-      `SELECT d.id, d.title, d.value,
-              c.phone, c.city, c.state,
-              co.city as company_city, co.state as company_state
-       FROM crm_deals d
-       LEFT JOIN contacts c ON d.contact_id = c.id
-       LEFT JOIN crm_companies co ON d.company_id = co.id
-       WHERE d.organization_id = $1 AND d.status = 'active'`,
-      [org.organization_id]
-    );
-    for (const deal of dealsResult.rows) {
-      const city = deal.city || deal.company_city;
-      const state = deal.state || deal.company_state;
-      const coords = getCoords(city, state);
-      if (coords) {
-        locations.push({
-          id: deal.id,
-          type: 'deal',
-          name: deal.title,
-          phone: deal.phone,
-          city,
-          state,
-          lat: coords.lat,
-          lng: coords.lng,
-          value: deal.value,
-        });
+    try {
+      const dealsResult = await query(
+        `SELECT d.id, d.title, d.value,
+                c.phone, c.city, c.state,
+                co.city as company_city, co.state as company_state
+         FROM crm_deals d
+         LEFT JOIN contacts c ON d.contact_id = c.id
+         LEFT JOIN crm_companies co ON d.company_id = co.id
+         WHERE d.organization_id = $1 AND d.status = 'active'`,
+        [org.organization_id]
+      );
+      for (const deal of dealsResult.rows) {
+        const city = deal.city || deal.company_city;
+        const state = deal.state || deal.company_state;
+        const coords = getCoords(city, state);
+        if (coords) {
+          locations.push({
+            id: deal.id,
+            type: 'deal',
+            name: deal.title,
+            phone: deal.phone,
+            city,
+            state,
+            lat: coords.lat,
+            lng: coords.lng,
+            value: deal.value,
+          });
+        }
+      }
+    } catch (e) {
+      // Ignore if table/columns don't exist yet
+      if (e.code !== '42P01' && e.code !== '42703') {
+        console.error('Error fetching deals for map:', e.message);
       }
     }
 
@@ -2372,35 +2379,45 @@ router.get('/map-data', async (req, res) => {
         }
       }
     } catch (e) {
-      // Ignore if columns don't exist yet
-      if (e.code !== '42703') throw e;
+      // Ignore if table/columns don't exist yet
+      if (e.code !== '42P01' && e.code !== '42703') {
+        console.error('Error fetching prospects for map:', e.message);
+      }
     }
 
     // Get companies with location
-    const companiesResult = await query(
-      `SELECT id, name, phone, city, state FROM crm_companies WHERE organization_id = $1`,
-      [org.organization_id]
-    );
-    for (const company of companiesResult.rows) {
-      const coords = getCoords(company.city, company.state);
-      if (coords) {
-        locations.push({
-          id: company.id,
-          type: 'company',
-          name: company.name,
-          phone: company.phone,
-          city: company.city,
-          state: company.state,
-          lat: coords.lat,
-          lng: coords.lng,
-        });
+    try {
+      const companiesResult = await query(
+        `SELECT id, name, phone, city, state FROM crm_companies WHERE organization_id = $1`,
+        [org.organization_id]
+      );
+      for (const company of companiesResult.rows) {
+        const coords = getCoords(company.city, company.state);
+        if (coords) {
+          locations.push({
+            id: company.id,
+            type: 'company',
+            name: company.name,
+            phone: company.phone,
+            city: company.city,
+            state: company.state,
+            lat: coords.lat,
+            lng: coords.lng,
+          });
+        }
+      }
+    } catch (e) {
+      // Ignore if table/columns don't exist yet
+      if (e.code !== '42P01' && e.code !== '42703') {
+        console.error('Error fetching companies for map:', e.message);
       }
     }
 
     res.json(locations);
   } catch (error) {
     console.error('Error fetching map data:', error);
-    res.status(500).json({ error: error.message });
+    // Return empty array instead of error to avoid breaking the UI
+    res.json([]);
   }
 });
 
