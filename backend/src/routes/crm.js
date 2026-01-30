@@ -594,8 +594,10 @@ router.get('/deals/by-phone/:phone', async (req, res) => {
 
      // Search in both contacts table (CRM contacts) AND chat_contacts table
      // Normalize stored phone values to digits-only so we can match regardless of formatting
+    // NOTE: This JOIN can duplicate deals (multiple contacts), so we dedupe by deal id.
+    // We use DISTINCT ON to keep PostgreSQL happy with ORDER BY expressions.
     const result = await query(
-      `SELECT DISTINCT d.*, 
+      `SELECT DISTINCT ON (d.id) d.*, 
         c.name as company_name,
         u.name as owner_name,
         s.name as stage_name,
@@ -614,7 +616,7 @@ router.get('/deals/by-phone/:phone', async (req, res) => {
             regexp_replace(COALESCE(cnt.phone, ''), '\\D', '', 'g') LIKE $2
             OR regexp_replace(COALESCE(cc.phone, ''), '\\D', '', 'g') LIKE $2
           )
-       ORDER BY d.status = 'open' DESC, d.updated_at DESC
+       ORDER BY d.id, (d.status = 'open') DESC, d.updated_at DESC
        LIMIT 10`,
       [org.organization_id, phonePattern]
     );
