@@ -385,17 +385,38 @@ router.post('/sync/:organizationId', async (req, res) => {
         for (const payment of paymentsData.data) {
           if (totalItemsSynced >= maxItemsPerSync) break;
           
-          // Upsert customer inline
+          // Upsert customer inline - fetch customer data if name not available
           if (payment.customer) {
+            let customerName = payment.customerName;
+            let customerEmail = payment.customerEmail;
+            let customerPhone = payment.customerPhone;
+            let customerCpfCnpj = null;
+            
+            // If customer name is missing, fetch directly from Asaas
+            if (!customerName || customerName === 'Cliente') {
+              try {
+                const customerData = await fetchAsaasJson(`${baseUrl}/customers/${payment.customer}`);
+                if (customerData && customerData.name) {
+                  customerName = customerData.name;
+                  customerEmail = customerData.email || customerEmail;
+                  customerPhone = customerData.phone || customerPhone;
+                  customerCpfCnpj = customerData.cpfCnpj;
+                }
+              } catch (e) {
+                console.log(`Could not fetch customer ${payment.customer}:`, e.message);
+              }
+            }
+            
             await query(
-              `INSERT INTO asaas_customers (organization_id, asaas_id, name, email, phone)
-               VALUES ($1, $2, $3, $4, $5)
+              `INSERT INTO asaas_customers (organization_id, asaas_id, name, email, phone, cpf_cnpj)
+               VALUES ($1, $2, $3, $4, $5, $6)
                ON CONFLICT (organization_id, asaas_id) DO UPDATE SET
-                 name = COALESCE(EXCLUDED.name, asaas_customers.name),
+                 name = CASE WHEN EXCLUDED.name IS NOT NULL AND EXCLUDED.name != 'Cliente' THEN EXCLUDED.name ELSE asaas_customers.name END,
                  email = COALESCE(EXCLUDED.email, asaas_customers.email),
                  phone = COALESCE(EXCLUDED.phone, asaas_customers.phone),
+                 cpf_cnpj = COALESCE(EXCLUDED.cpf_cnpj, asaas_customers.cpf_cnpj),
                  updated_at = NOW()`,
-              [organizationId, payment.customer, payment.customerName || 'Cliente', payment.customerEmail, payment.customerPhone]
+              [organizationId, payment.customer, customerName || 'Cliente', customerEmail, customerPhone, customerCpfCnpj]
             );
             syncedIds.add(payment.customer);
           }
@@ -848,6 +869,83 @@ router.get('/customers/:organizationId', async (req, res) => {
   } catch (error) {
     console.error('Get customers error:', error);
     res.status(500).json({ error: 'Erro ao buscar clientes' });
+  }
+});
+
+// Fix customer names - re-fetch from Asaas for customers with name = 'Cliente'
+router.post('/fix-customer-names/:organizationId', async (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  try {
+    const { organizationId } = req.params;
+
+    const access = await checkOrgAccess(req.userId, organizationId);
+    if (!access) {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+
+    // Get integration
+    const integrationResult = await query(
+      `SELECT * FROM asaas_integrations WHERE organization_id = $1 AND is_active = true`,
+      [organizationId]
+    );
+
+    if (integrationResult.rows.length === 0) {
+      return res.status(400).json({ error: 'Integração não configurada' });
+    }
+
+    const integration = integrationResult.rows[0];
+    const baseUrl = integration.environment === 'production'
+      ? 'https://api.asaas.com/v3'
+      : 'https://sandbox.asaas.com/api/v3';
+
+    // Get customers with missing names
+    const customersResult = await query(
+      `SELECT id, asaas_id FROM asaas_customers 
+       WHERE organization_id = $1 AND (name IS NULL OR name = 'Cliente' OR name = '')
+       LIMIT 100`,
+      [organizationId]
+    );
+
+    let fixed = 0;
+    let failed = 0;
+
+    for (const customer of customersResult.rows) {
+      try {
+        const resp = await fetch(`${baseUrl}/customers/${customer.asaas_id}`, {
+          headers: { 'access_token': integration.api_key }
+        });
+
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data.name) {
+            await query(
+              `UPDATE asaas_customers SET name = $1, email = COALESCE($2, email), phone = COALESCE($3, phone), cpf_cnpj = COALESCE($4, cpf_cnpj), updated_at = NOW()
+               WHERE id = $5`,
+              [data.name, data.email, data.phone, data.cpfCnpj, customer.id]
+            );
+            fixed++;
+          }
+        } else {
+          failed++;
+        }
+      } catch (e) {
+        console.error(`Error fetching customer ${customer.asaas_id}:`, e.message);
+        failed++;
+      }
+    }
+
+    res.json({ 
+      fixed, 
+      failed, 
+      total: customersResult.rows.length,
+      message: `${fixed} clientes atualizados com sucesso`
+    });
+  } catch (error) {
+    console.error('Fix customer names error:', error);
+    res.status(500).json({ error: 'Erro ao corrigir nomes' });
   }
 });
 
@@ -1655,15 +1753,38 @@ router.post('/auto-sync/:organizationId/sync-now', async (req, res) => {
         for (const payment of data.data) {
           if (count >= maxItems) break;
           
-          // Upsert customer
+          // Upsert customer - fetch data if name missing
           if (payment.customer) {
+            let customerName = payment.customerName;
+            let customerEmail = payment.customerEmail;
+            let customerPhone = payment.customerPhone;
+            
+            // If customer name is missing, fetch directly
+            if (!customerName || customerName === 'Cliente') {
+              try {
+                const custResp = await fetch(`${baseUrl}/customers/${payment.customer}`, {
+                  headers: { 'access_token': integration.api_key }
+                });
+                if (custResp.ok) {
+                  const custData = await custResp.json();
+                  customerName = custData.name || customerName;
+                  customerEmail = custData.email || customerEmail;
+                  customerPhone = custData.phone || customerPhone;
+                }
+              } catch (e) {
+                console.log(`Could not fetch customer ${payment.customer}`);
+              }
+            }
+            
             await query(
               `INSERT INTO asaas_customers (organization_id, asaas_id, name, email, phone)
                VALUES ($1, $2, $3, $4, $5)
                ON CONFLICT (organization_id, asaas_id) DO UPDATE SET
-                 name = COALESCE(EXCLUDED.name, asaas_customers.name),
+                 name = CASE WHEN EXCLUDED.name IS NOT NULL AND EXCLUDED.name != 'Cliente' THEN EXCLUDED.name ELSE asaas_customers.name END,
+                 email = COALESCE(EXCLUDED.email, asaas_customers.email),
+                 phone = COALESCE(EXCLUDED.phone, asaas_customers.phone),
                  updated_at = NOW()`,
-              [organizationId, payment.customer, payment.customerName || 'Cliente', payment.customerEmail, payment.customerPhone]
+              [organizationId, payment.customer, customerName || 'Cliente', customerEmail, customerPhone]
             );
           }
           
@@ -1915,17 +2036,35 @@ router.post('/auto-sync/:organizationId/full-sync', async (req, res) => {
       if (!data.data || data.data.length === 0) return { count: 0, hasMore: false };
       
       for (const payment of data.data) {
-        // Upsert customer
+        // Upsert customer - fetch data if name missing
         if (payment.customer) {
+          let customerName = payment.customerName;
+          let customerEmail = payment.customerEmail;
+          let customerPhone = payment.customerPhone;
+          
+          // If customer name is missing, fetch directly
+          if (!customerName || customerName === 'Cliente') {
+            try {
+              const custData = await fetchAsaas(`${baseUrl}/customers/${payment.customer}`);
+              if (custData && custData.name) {
+                customerName = custData.name;
+                customerEmail = custData.email || customerEmail;
+                customerPhone = custData.phone || customerPhone;
+              }
+            } catch (e) {
+              console.log(`Could not fetch customer ${payment.customer}`);
+            }
+          }
+          
           await query(
             `INSERT INTO asaas_customers (organization_id, asaas_id, name, email, phone)
              VALUES ($1, $2, $3, $4, $5)
              ON CONFLICT (organization_id, asaas_id) DO UPDATE SET
-               name = COALESCE(EXCLUDED.name, asaas_customers.name),
+               name = CASE WHEN EXCLUDED.name IS NOT NULL AND EXCLUDED.name != 'Cliente' THEN EXCLUDED.name ELSE asaas_customers.name END,
                email = COALESCE(EXCLUDED.email, asaas_customers.email),
                phone = COALESCE(EXCLUDED.phone, asaas_customers.phone),
                updated_at = NOW()`,
-            [organizationId, payment.customer, payment.customerName || 'Cliente', payment.customerEmail, payment.customerPhone]
+            [organizationId, payment.customer, customerName || 'Cliente', customerEmail, customerPhone]
           );
           syncedCustomerIds.add(payment.customer);
         }

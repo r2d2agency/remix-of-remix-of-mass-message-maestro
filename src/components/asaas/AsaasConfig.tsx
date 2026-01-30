@@ -969,11 +969,38 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
             </TabsContent>
 
             <TabsContent value="customers" className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-2">
                   <Switch checked={showBlacklisted} onCheckedChange={(v) => { setShowBlacklisted(v); }} />
                   <Label className="text-sm">Mostrar blacklist</Label>
                 </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      const resp = await fetch(`${import.meta.env.VITE_API_URL || 'https://whastsale-backend.exf0ty.easypanel.host'}/api/asaas/fix-customer-names/${organizationId}`, {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+                        }
+                      });
+                      const data = await resp.json();
+                      if (resp.ok) {
+                        toast({ title: data.message || `${data.fixed} clientes corrigidos` });
+                        await loadData();
+                      } else {
+                        toast({ title: data.error || 'Erro ao corrigir', variant: 'destructive' });
+                      }
+                    } catch (e) {
+                      toast({ title: 'Erro ao corrigir nomes', variant: 'destructive' });
+                    }
+                  }}
+                >
+                  <RefreshCw className="h-4 w-4 mr-1" />
+                  Corrigir Nomes
+                </Button>
               </div>
               <Card>
                 <Table>
