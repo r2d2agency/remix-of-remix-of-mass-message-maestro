@@ -799,7 +799,28 @@ router.get('/payments/:organizationId', async (req, res) => {
     }
 
     let queryText = `
-      SELECT p.*, c.name as customer_name, c.phone as customer_phone, c.email as customer_email
+      SELECT 
+        p.id,
+        p.asaas_id,
+        p.organization_id,
+        p.value::numeric::float8 as value,
+        p.net_value::numeric::float8 as net_value,
+        p.due_date,
+        p.billing_type,
+        p.status,
+        p.payment_link,
+        p.invoice_url,
+        p.bank_slip_url,
+        p.pix_qr_code,
+        p.pix_copy_paste,
+        p.description,
+        p.confirmed_date,
+        p.payment_date,
+        p.created_at,
+        p.updated_at,
+        COALESCE(NULLIF(c.name, ''), NULLIF(c.name, 'Cliente'), 'Cliente') as customer_name, 
+        c.phone as customer_phone, 
+        c.email as customer_email
       FROM asaas_payments p
       LEFT JOIN asaas_customers c ON c.id = p.customer_id
       WHERE p.organization_id = $1
@@ -822,7 +843,7 @@ router.get('/payments/:organizationId', async (req, res) => {
       params.push(due_date_end);
     }
 
-    queryText += ` ORDER BY p.due_date ASC`;
+    queryText += ` ORDER BY p.due_date ASC LIMIT 2000`;
 
     const result = await query(queryText, params);
     res.json(result.rows);
@@ -1886,15 +1907,15 @@ router.post('/auto-sync/:organizationId/check-status', async (req, res) => {
       ? 'https://api.asaas.com/v3'
       : 'https://sandbox.asaas.com/api/v3';
 
-    // Get local pending/overdue payments
+    // Get local pending/overdue payments (increase limit for better coverage)
     const localPayments = await query(`
       SELECT id, asaas_id, status
       FROM asaas_payments
       WHERE organization_id = $1
         AND status IN ('PENDING', 'OVERDUE')
-        AND due_date >= CURRENT_DATE - INTERVAL '30 days'
-      ORDER BY due_date DESC
-      LIMIT 200
+        AND due_date >= CURRENT_DATE - INTERVAL '90 days'
+      ORDER BY due_date ASC
+      LIMIT 500
     `, [organizationId]);
 
     let checked = 0;
