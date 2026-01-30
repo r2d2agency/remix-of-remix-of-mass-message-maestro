@@ -231,7 +231,8 @@ export function FlowSimulator({
         const varName = content.variable as string || "";
         const operator = content.operator as string || "equals";
         const condValue = content.value as string || "";
-        const currentValue = state.variables[varName] || "";
+        // Use ref to get current variable value to avoid stale closure
+        const currentValue = variablesRef.current[varName] || "";
 
         let result = false;
         switch (operator) {
