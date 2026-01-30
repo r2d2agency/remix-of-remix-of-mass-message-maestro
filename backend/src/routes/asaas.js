@@ -497,10 +497,15 @@ router.post('/sync/:organizationId', async (req, res) => {
       statusCounts.CUSTOM = paymentsCount;
       
     } else if (priority === 'overdue_only') {
-      // OVERDUE ONLY: Sync all overdue payments
-      console.log(`[Sync] Syncing OVERDUE only...`);
+      // OVERDUE ONLY: Sync overdue payments from last 5 days only
+      // Calculate date 5 days ago
+      const fiveDaysAgo = new Date();
+      fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
+      const fiveDaysAgoStr = fiveDaysAgo.toISOString().split('T')[0];
+      
+      console.log(`[Sync] Syncing OVERDUE only (last 5 days, from ${fiveDaysAgoStr})...`);
       const overdueResult = await syncPaymentBatch(
-        `${baseUrl}/payments?status=OVERDUE`,
+        `${baseUrl}/payments?status=OVERDUE&dueDate[ge]=${fiveDaysAgoStr}`,
         'OVERDUE'
       );
       statusCounts.OVERDUE = overdueResult.count;
@@ -533,11 +538,15 @@ router.post('/sync/:organizationId', async (req, res) => {
       todayResult.syncedIds.forEach(id => syncedCustomerIds.add(id));
       console.log(`[Sync] TODAY synced: ${todayResult.count}`);
       
-      // PRIORITY 2: Sync OVERDUE payments
+      // PRIORITY 2: Sync OVERDUE payments (only last 5 days)
       if (totalItemsSynced < maxItemsPerSync) {
-        console.log(`[Sync] Syncing OVERDUE...`);
+        const fiveDaysAgo = new Date();
+        fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
+        const fiveDaysAgoStr = fiveDaysAgo.toISOString().split('T')[0];
+        
+        console.log(`[Sync] Syncing OVERDUE (last 5 days, from ${fiveDaysAgoStr})...`);
         const overdueResult = await syncPaymentBatch(
-          `${baseUrl}/payments?status=OVERDUE`,
+          `${baseUrl}/payments?status=OVERDUE&dueDate[ge]=${fiveDaysAgoStr}`,
           'OVERDUE'
         );
         statusCounts.OVERDUE = overdueResult.count;
@@ -714,9 +723,13 @@ router.get('/check/:organizationId', async (req, res) => {
       errors.push({ type: 'pending', message: e.message });
     }
 
-    // Count overdue
+    // Count overdue (only last 5 days)
+    const fiveDaysAgo = new Date();
+    fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
+    const fiveDaysAgoStr = fiveDaysAgo.toISOString().split('T')[0];
+    
     try {
-      const overdueData = await fetchAsaasJsonSafe(`${baseUrl}/payments?status=OVERDUE&limit=1`);
+      const overdueData = await fetchAsaasJsonSafe(`${baseUrl}/payments?status=OVERDUE&dueDate[ge]=${fiveDaysAgoStr}&limit=1`);
       asaasCounts.OVERDUE = overdueData.totalCount || 0;
     } catch (e) {
       errors.push({ type: 'overdue', message: e.message });
@@ -739,11 +752,11 @@ router.get('/check/:organizationId', async (req, res) => {
       errors.push({ type: 'today_due', message: e.message });
     }
 
-    // Get counts from our database
+    // Get counts from our database (overdue only counts last 5 days)
     const dbCounts = await query(
       `SELECT 
         (SELECT COUNT(*) FROM asaas_payments WHERE organization_id = $1 AND status = 'PENDING') as pending,
-        (SELECT COUNT(*) FROM asaas_payments WHERE organization_id = $1 AND status = 'OVERDUE') as overdue,
+        (SELECT COUNT(*) FROM asaas_payments WHERE organization_id = $1 AND status = 'OVERDUE' AND due_date >= CURRENT_DATE - INTERVAL '5 days') as overdue,
         (SELECT COUNT(*) FROM asaas_customers WHERE organization_id = $1) as customers,
         (SELECT COUNT(*) FROM asaas_payments WHERE organization_id = $1 AND due_date = CURRENT_DATE AND status IN ('PENDING', 'OVERDUE')) as today_due`,
       [organizationId]
@@ -824,6 +837,10 @@ router.get('/payments/:organizationId', async (req, res) => {
       FROM asaas_payments p
       LEFT JOIN asaas_customers c ON c.id = p.customer_id
       WHERE p.organization_id = $1
+        AND (
+          p.status != 'OVERDUE' 
+          OR (p.status = 'OVERDUE' AND p.due_date >= CURRENT_DATE - INTERVAL '5 days')
+        )
     `;
     const params = [organizationId];
     let paramIndex = 2;

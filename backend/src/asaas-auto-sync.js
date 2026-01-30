@@ -205,16 +205,32 @@ export async function syncTodaysDueBoletos() {
         console.log(`    ✓ Day after (${dayAfterStr}): ${dayAfterResult.count} boletos synced`);
         stats.total_synced += dayAfterResult.count;
         
-        // Also sync OVERDUE (for "após vencimento" rules)
+        // Also sync OVERDUE (for "após vencimento" rules) - only last 5 days
+        const fiveDaysAgo = new Date(today);
+        fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
+        const fiveDaysAgoStr = fiveDaysAgo.toISOString().split('T')[0];
+        
         const overdueResult = await syncPaymentBatch(
           integration.organization_id,
           baseUrl,
           integration.api_key,
-          `/payments?status=OVERDUE`,
+          `/payments?status=OVERDUE&dueDate[ge]=${fiveDaysAgoStr}`,
           500
         );
-        console.log(`    ✓ Overdue: ${overdueResult.count} boletos synced`);
+        console.log(`    ✓ Overdue (last 5 days): ${overdueResult.count} boletos synced`);
         stats.total_synced += overdueResult.count;
+        
+        // Clean up old overdue payments (older than 5 days)
+        const cleanupResult = await query(
+          `DELETE FROM asaas_payments 
+           WHERE organization_id = $1 
+             AND status = 'OVERDUE' 
+             AND due_date < CURRENT_DATE - INTERVAL '5 days'`,
+          [integration.organization_id]
+        );
+        if (cleanupResult.rowCount > 0) {
+          console.log(`    🧹 Cleaned up ${cleanupResult.rowCount} old overdue payments`);
+        }
         
         // Update last sync timestamp
         await query(
@@ -283,13 +299,15 @@ export async function checkPaymentStatusUpdates() {
           : 'https://sandbox.asaas.com/api/v3';
         
         // Get all PENDING and OVERDUE payments in our local DB for this org
-        // Focus on payments due in the last 30 days to avoid checking too many
+        // Focus on PENDING from last 30 days, OVERDUE only from last 5 days
         const localPayments = await query(`
           SELECT id, asaas_id, status, customer_id
           FROM asaas_payments
           WHERE organization_id = $1
-            AND status IN ('PENDING', 'OVERDUE')
-            AND due_date >= CURRENT_DATE - INTERVAL '30 days'
+            AND (
+              (status = 'PENDING' AND due_date >= CURRENT_DATE - INTERVAL '30 days')
+              OR (status = 'OVERDUE' AND due_date >= CURRENT_DATE - INTERVAL '5 days')
+            )
           ORDER BY due_date DESC
           LIMIT 500
         `, [integration.organization_id]);
@@ -405,13 +423,26 @@ export async function manualSyncOrganization(organizationId) {
     500
   );
   
-  // Sync overdue
+  // Sync overdue (only last 5 days)
+  const fiveDaysAgo = new Date();
+  fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
+  const fiveDaysAgoStr = fiveDaysAgo.toISOString().split('T')[0];
+  
   const overdueResult = await syncPaymentBatch(
     organizationId,
     baseUrl,
     integration.api_key,
-    `/payments?status=OVERDUE`,
+    `/payments?status=OVERDUE&dueDate[ge]=${fiveDaysAgoStr}`,
     500
+  );
+  
+  // Clean up old overdue payments
+  await query(
+    `DELETE FROM asaas_payments 
+     WHERE organization_id = $1 
+       AND status = 'OVERDUE' 
+       AND due_date < CURRENT_DATE - INTERVAL '5 days'`,
+    [organizationId]
   );
   
   await query(
