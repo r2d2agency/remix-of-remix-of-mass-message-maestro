@@ -132,23 +132,32 @@ export function useSpeechRecognition() {
     };
 
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-      let errorMessage = 'Erro no reconhecimento de voz';
+      console.log('Speech recognition error:', event.error);
+      
+      let errorMessage: string | null = null;
       
       switch (event.error) {
         case 'not-allowed':
-          errorMessage = 'Permissão de microfone negada. Habilite nas configurações do navegador.';
+          errorMessage = 'Permissão de microfone negada. Clique no ícone de cadeado na barra de endereços e habilite o microfone.';
           break;
         case 'no-speech':
-          errorMessage = 'Nenhuma fala detectada. Tente novamente.';
-          break;
+          // Not an error - just no speech detected, don't show error
+          return;
         case 'audio-capture':
-          errorMessage = 'Microfone não encontrado ou em uso.';
+          errorMessage = 'Microfone não encontrado ou em uso por outro aplicativo.';
           break;
         case 'network':
-          errorMessage = 'Erro de rede. Verifique sua conexão.';
+          errorMessage = 'Erro de rede. Verifique sua conexão com a internet.';
           break;
         case 'aborted':
-          // User stopped, not an error
+          // User stopped intentionally, not an error
+          return;
+        case 'service-not-allowed':
+          errorMessage = 'Serviço de reconhecimento de voz não disponível. Tente novamente.';
+          break;
+        default:
+          // Don't show error for unknown/minor issues
+          console.warn('Unknown speech recognition error:', event.error);
           return;
       }
 
