@@ -321,6 +321,41 @@ export function FlowSimulator({
         }
         break;
 
+      case "delay": {
+        const rawDelaySeconds = (content as any).delay_seconds;
+        const rawDuration = (content as any).duration;
+        const unit = String((content as any).unit || "seconds");
+
+        let delayMs = 1000;
+        if (rawDelaySeconds !== undefined && rawDelaySeconds !== null && rawDelaySeconds !== "") {
+          const seconds = Number(rawDelaySeconds);
+          if (!Number.isNaN(seconds) && seconds > 0) delayMs = seconds * 1000;
+        } else if (rawDuration !== undefined && rawDuration !== null && rawDuration !== "") {
+          const duration = Number(rawDuration);
+          if (!Number.isNaN(duration) && duration > 0) {
+            const factor = unit === "hours" ? 3600 : unit === "minutes" ? 60 : 1;
+            delayMs = duration * factor * 1000;
+          }
+        }
+
+        addMessage(
+          "system",
+          `⏱️ Delay: aguardando ${Math.round(delayMs / 1000)}s...`,
+          nodeId,
+          "delay"
+        );
+
+        await new Promise((r) => setTimeout(r, delayMs));
+
+        const nextFromDelay = findNextNode(nodeId);
+        if (nextFromDelay) {
+          processNode(nextFromDelay);
+        } else {
+          setState((s) => ({ ...s, isComplete: true }));
+        }
+        break;
+      }
+
       case "transfer":
         addMessage("system", "🔄 Conversa transferida para atendente humano", nodeId, "transfer");
         setState((s) => ({ ...s, isComplete: true, isTransferred: true }));

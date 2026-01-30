@@ -209,9 +209,30 @@ async function processNode(node, connection, phone, variables, conversationId) {
       return { success: true, waitForInput: true };
 
     case 'delay':
-      const delayMs = (content.delay_seconds || 1) * 1000;
-      await sleep(delayMs);
-      return { success: true };
+      // Frontend stores delay as { duration, unit }, but older payloads may use delay_seconds.
+      // Support both formats.
+      {
+        const rawDelaySeconds = content.delay_seconds;
+        const rawDuration = content.duration;
+        const unit = String(content.unit || 'seconds');
+
+        let delayMs = 1000;
+
+        if (rawDelaySeconds !== undefined && rawDelaySeconds !== null && rawDelaySeconds !== '') {
+          const seconds = Number(rawDelaySeconds);
+          if (!Number.isNaN(seconds) && seconds > 0) delayMs = seconds * 1000;
+        } else if (rawDuration !== undefined && rawDuration !== null && rawDuration !== '') {
+          const duration = Number(rawDuration);
+          if (!Number.isNaN(duration) && duration > 0) {
+            const factor = unit === 'hours' ? 3600 : unit === 'minutes' ? 60 : 1;
+            delayMs = duration * factor * 1000;
+          }
+        }
+
+        console.log(`Flow executor: Delay node waiting ${delayMs}ms (unit=${unit})`);
+        await sleep(delayMs);
+        return { success: true };
+      }
 
     case 'condition':
       return processConditionNode(content, variables);
