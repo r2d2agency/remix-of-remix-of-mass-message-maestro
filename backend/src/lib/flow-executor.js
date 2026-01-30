@@ -74,24 +74,36 @@ export async function executeFlow(flowId, conversationId, startNodeId = 'start')
       telefone: conversation.contact_phone || '',
     };
 
-    // Create or update flow session to track state
+    // Create or update flow session to track state.
+    // IMPORTANT: keep this compatible with backend/src/routes/flows.js (manual start)
+    // so keyword-triggered flows can also be continued by webhooks.
     try {
-      // First, deactivate any existing sessions for this conversation
       await query(
-        `UPDATE flow_sessions SET is_active = false, ended_at = NOW() 
-         WHERE conversation_id = $1 AND is_active = true`,
-        [conversationId]
+        `INSERT INTO flow_sessions (
+          flow_id, conversation_id, contact_phone, current_node_id, is_active, started_by
+        ) VALUES ($1, $2, $3, 'start', true, $4)
+        ON CONFLICT (conversation_id) WHERE is_active = true
+        DO UPDATE SET
+          flow_id = $1,
+          current_node_id = 'start',
+          started_at = NOW(),
+          started_by = $4,
+          variables = '{}'`,
+        // started_by can be null for system/keyword triggers
+        [flowId, conversationId, conversation.contact_phone, null]
       );
-      
-      // Create new session
+
+      // Ensure initial variables are present (update after upsert)
       await query(
-        `INSERT INTO flow_sessions (flow_id, conversation_id, contact_phone, current_node_id, variables, is_active, started_at)
-         VALUES ($1, $2, $3, 'start', $4, true, NOW())`,
-        [flowId, conversationId, conversation.contact_phone, JSON.stringify(variables)]
+        `UPDATE flow_sessions
+         SET variables = $1
+         WHERE conversation_id = $2 AND flow_id = $3 AND is_active = true`,
+        [JSON.stringify(variables), conversationId, flowId]
       );
-      console.log(`Flow executor: Created new flow session for conversation ${conversationId}`);
+
+      console.log(`Flow executor: Flow session ensured for conversation ${conversationId}`);
     } catch (sessionError) {
-      console.log('Flow executor: Session creation skipped (may already exist):', sessionError.message);
+      console.log('Flow executor: flow_sessions table missing or incompatible, skipping session creation:', sessionError.message);
     }
 
     // Find the start node and its first connected node
