@@ -60,8 +60,6 @@ export function clearExecutionLogs(conversationId = null) {
 /**
  * Execute a flow starting from a given node
  */
- * Execute a flow starting from a given node
- */
 export async function executeFlow(flowId, conversationId, startNodeId = 'start') {
   try {
     console.log(`Flow executor: Starting flow ${flowId} for conversation ${conversationId}`);
