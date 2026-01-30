@@ -1447,4 +1447,314 @@ router.delete('/rules/:organizationId/:ruleId', async (req, res) => {
   }
 });
 
+// ============================================
+// AUTO-SYNC SETTINGS & MANUAL TRIGGERS
+// ============================================
+
+// Get auto-sync settings for organization
+router.get('/auto-sync/:organizationId', async (req, res) => {
+  try {
+    const { organizationId } = req.params;
+
+    const access = await checkOrgAccess(req.userId, organizationId);
+    if (!access) {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+
+    const result = await query(
+      `SELECT 
+         auto_sync_enabled,
+         sync_time_morning,
+         check_time_morning,
+         last_sync_at
+       FROM asaas_integrations 
+       WHERE organization_id = $1`,
+      [organizationId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.json({
+        auto_sync_enabled: true,
+        sync_time_morning: '02:00',
+        check_time_morning: '08:00',
+        last_sync_at: null,
+      });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Get auto-sync settings error:', error);
+    res.status(500).json({ error: 'Erro ao buscar configurações' });
+  }
+});
+
+// Update auto-sync settings
+router.patch('/auto-sync/:organizationId', async (req, res) => {
+  try {
+    const { organizationId } = req.params;
+    const { auto_sync_enabled, sync_time_morning, check_time_morning } = req.body;
+
+    const access = await checkOrgAccess(req.userId, organizationId);
+    if (!access || !['owner', 'admin'].includes(access.role)) {
+      return res.status(403).json({ error: 'Apenas admins podem alterar configurações' });
+    }
+
+    const result = await query(
+      `UPDATE asaas_integrations 
+       SET 
+         auto_sync_enabled = COALESCE($1, auto_sync_enabled),
+         sync_time_morning = COALESCE($2, sync_time_morning),
+         check_time_morning = COALESCE($3, check_time_morning),
+         updated_at = NOW()
+       WHERE organization_id = $4
+       RETURNING auto_sync_enabled, sync_time_morning, check_time_morning, last_sync_at`,
+      [auto_sync_enabled, sync_time_morning, check_time_morning, organizationId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Integração não encontrada' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update auto-sync settings error:', error);
+    res.status(500).json({ error: 'Erro ao atualizar configurações' });
+  }
+});
+
+// Manual trigger: Sync today's boletos (simulates 2AM job)
+router.post('/auto-sync/:organizationId/sync-now', async (req, res) => {
+  // Set CORS headers immediately
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  try {
+    const { organizationId } = req.params;
+
+    const access = await checkOrgAccess(req.userId, organizationId);
+    if (!access) {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+
+    const integrationResult = await query(
+      `SELECT ai.*, o.name as org_name 
+       FROM asaas_integrations ai
+       JOIN organizations o ON o.id = ai.organization_id
+       WHERE ai.organization_id = $1 AND ai.is_active = true`,
+      [organizationId]
+    );
+
+    if (integrationResult.rows.length === 0) {
+      return res.status(400).json({ error: 'Integração não configurada ou inativa' });
+    }
+
+    const integration = integrationResult.rows[0];
+    const baseUrl = integration.environment === 'production'
+      ? 'https://api.asaas.com/v3'
+      : 'https://sandbox.asaas.com/api/v3';
+
+    // Helper to sync batch
+    const syncBatch = async (endpoint, maxItems = 500) => {
+      let count = 0;
+      let offset = 0;
+      
+      while (count < maxItems) {
+        const resp = await fetch(`${baseUrl}${endpoint}&limit=100&offset=${offset}`, {
+          headers: { 'access_token': integration.api_key }
+        });
+        
+        if (!resp.ok) {
+          const text = await resp.text().catch(() => '');
+          throw new Error(`Asaas ${resp.status}: ${text.slice(0, 200)}`);
+        }
+        
+        const data = await resp.json();
+        if (!data.data || data.data.length === 0) break;
+        
+        for (const payment of data.data) {
+          if (count >= maxItems) break;
+          
+          // Upsert customer
+          if (payment.customer) {
+            await query(
+              `INSERT INTO asaas_customers (organization_id, asaas_id, name, email, phone)
+               VALUES ($1, $2, $3, $4, $5)
+               ON CONFLICT (organization_id, asaas_id) DO UPDATE SET
+                 name = COALESCE(EXCLUDED.name, asaas_customers.name),
+                 updated_at = NOW()`,
+              [organizationId, payment.customer, payment.customerName || 'Cliente', payment.customerEmail, payment.customerPhone]
+            );
+          }
+          
+          // Get customer UUID
+          const customerResult = await query(
+            `SELECT id FROM asaas_customers WHERE organization_id = $1 AND asaas_id = $2`,
+            [organizationId, payment.customer]
+          );
+          const customerId = customerResult.rows[0]?.id;
+          
+          // Upsert payment
+          await query(
+            `INSERT INTO asaas_payments (
+               organization_id, asaas_id, customer_id, asaas_customer_id, value, net_value,
+               due_date, billing_type, status, invoice_url, bank_slip_url, description
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+             ON CONFLICT (organization_id, asaas_id) DO UPDATE SET
+               status = EXCLUDED.status,
+               due_date = EXCLUDED.due_date,
+               invoice_url = COALESCE(EXCLUDED.invoice_url, asaas_payments.invoice_url),
+               bank_slip_url = COALESCE(EXCLUDED.bank_slip_url, asaas_payments.bank_slip_url),
+               updated_at = NOW()`,
+            [
+              organizationId, payment.id, customerId, payment.customer,
+              payment.value, payment.netValue, payment.dueDate, payment.billingType,
+              payment.status, payment.invoiceUrl, payment.bankSlipUrl, payment.description
+            ]
+          );
+          count++;
+        }
+        
+        offset += 100;
+        if (data.data.length < 100) break;
+      }
+      
+      return count;
+    };
+
+    const today = new Date().toISOString().split('T')[0];
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+
+    // Sync today's pending
+    const todayCount = await syncBatch(`/payments?status=PENDING&dueDate[ge]=${today}&dueDate[le]=${today}`);
+    
+    // Sync tomorrow's pending (for "antes do vencimento" rules)
+    const tomorrowCount = await syncBatch(`/payments?status=PENDING&dueDate[ge]=${tomorrowStr}&dueDate[le]=${tomorrowStr}`, 300);
+    
+    // Sync overdue
+    const overdueCount = await syncBatch(`/payments?status=OVERDUE`, 500);
+
+    // Update last sync
+    await query(
+      `UPDATE asaas_integrations SET last_sync_at = NOW() WHERE organization_id = $1`,
+      [organizationId]
+    );
+
+    res.json({
+      success: true,
+      today_synced: todayCount,
+      tomorrow_synced: tomorrowCount,
+      overdue_synced: overdueCount,
+      total: todayCount + tomorrowCount + overdueCount,
+      message: `Sincronizados: ${todayCount} vence hoje, ${tomorrowCount} vence amanhã, ${overdueCount} vencidos`
+    });
+  } catch (error) {
+    console.error('Manual sync error:', error);
+    res.status(500).json({ error: error.message || 'Erro ao sincronizar' });
+  }
+});
+
+// Manual trigger: Check payment status (simulates 8AM job)
+router.post('/auto-sync/:organizationId/check-status', async (req, res) => {
+  // Set CORS headers immediately
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  try {
+    const { organizationId } = req.params;
+
+    const access = await checkOrgAccess(req.userId, organizationId);
+    if (!access) {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+
+    const integrationResult = await query(
+      `SELECT * FROM asaas_integrations WHERE organization_id = $1 AND is_active = true`,
+      [organizationId]
+    );
+
+    if (integrationResult.rows.length === 0) {
+      return res.status(400).json({ error: 'Integração não configurada ou inativa' });
+    }
+
+    const integration = integrationResult.rows[0];
+    const baseUrl = integration.environment === 'production'
+      ? 'https://api.asaas.com/v3'
+      : 'https://sandbox.asaas.com/api/v3';
+
+    // Get local pending/overdue payments
+    const localPayments = await query(`
+      SELECT id, asaas_id, status
+      FROM asaas_payments
+      WHERE organization_id = $1
+        AND status IN ('PENDING', 'OVERDUE')
+        AND due_date >= CURRENT_DATE - INTERVAL '30 days'
+      ORDER BY due_date DESC
+      LIMIT 200
+    `, [organizationId]);
+
+    let checked = 0;
+    let updated = 0;
+    let newlyPaid = 0;
+
+    for (const localPayment of localPayments.rows) {
+      checked++;
+      
+      try {
+        const resp = await fetch(`${baseUrl}/payments/${localPayment.asaas_id}`, {
+          headers: { 'access_token': integration.api_key }
+        });
+        
+        if (!resp.ok) continue;
+        
+        const asaasPayment = await resp.json();
+        
+        if (asaasPayment.status !== localPayment.status) {
+          updated++;
+          
+          const isPaid = ['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH'].includes(asaasPayment.status);
+          if (isPaid) {
+            newlyPaid++;
+            
+            // Cancel pending notifications
+            await query(
+              `UPDATE billing_notifications 
+               SET status = 'cancelled', error_message = 'Pagamento confirmado via verificação manual'
+               WHERE payment_id = $1 AND status = 'pending'`,
+              [localPayment.id]
+            );
+          }
+          
+          // Update local status
+          await query(
+            `UPDATE asaas_payments 
+             SET status = $1, confirmed_date = $2, payment_date = $3, updated_at = NOW()
+             WHERE id = $4`,
+            [asaasPayment.status, asaasPayment.confirmedDate, asaasPayment.paymentDate, localPayment.id]
+          );
+        }
+      } catch (e) {
+        // Skip individual payment errors
+      }
+      
+      // Small delay
+      await new Promise(r => setTimeout(r, 50));
+    }
+
+    res.json({
+      success: true,
+      checked,
+      updated,
+      newly_paid: newlyPaid,
+      message: `Verificados: ${checked} cobranças. ${newlyPaid} pagas encontradas.`
+    });
+  } catch (error) {
+    console.error('Check status error:', error);
+    res.status(500).json({ error: error.message || 'Erro ao verificar status' });
+  }
+});
+
 export default router;

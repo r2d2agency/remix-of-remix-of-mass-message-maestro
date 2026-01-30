@@ -539,6 +539,11 @@ DO $$ BEGIN
     ALTER TABLE asaas_integrations ADD COLUMN IF NOT EXISTS alert_email TEXT;
     ALTER TABLE asaas_integrations ADD COLUMN IF NOT EXISTS alert_whatsapp BOOLEAN DEFAULT false;
     ALTER TABLE asaas_integrations ADD COLUMN IF NOT EXISTS alert_connection_id UUID REFERENCES connections(id) ON DELETE SET NULL;
+
+    -- Auto-sync settings (for 2AM/8AM CRON jobs)
+    ALTER TABLE asaas_integrations ADD COLUMN IF NOT EXISTS auto_sync_enabled BOOLEAN DEFAULT true;
+    ALTER TABLE asaas_integrations ADD COLUMN IF NOT EXISTS sync_time_morning VARCHAR(5) DEFAULT '02:00';
+    ALTER TABLE asaas_integrations ADD COLUMN IF NOT EXISTS check_time_morning VARCHAR(5) DEFAULT '08:00';
 EXCEPTION
     WHEN duplicate_column THEN null;
     WHEN others THEN null;

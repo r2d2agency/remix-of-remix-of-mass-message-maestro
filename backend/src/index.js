@@ -28,6 +28,9 @@ import { initDatabase } from './init-db.js';
 import { executeNotifications } from './scheduler.js';
 import { executeCampaignMessages } from './campaign-scheduler.js';
 import { executeScheduledMessages } from './scheduled-messages.js';
+import { syncTodaysDueBoletos, checkPaymentStatusUpdates } from './asaas-auto-sync.js';
+import { requestContext } from './request-context.js';
+import { log, logError } from './logger.js';
 import { requestContext } from './request-context.js';
 import { log, logError } from './logger.js';
 
@@ -224,8 +227,42 @@ initDatabase().then((ok) => {
       timezone: 'America/Sao_Paulo'
     });
 
+    // ============================================
+    // ASAAS AUTO-SYNC JOBS
+    // ============================================
+
+    // 02:00 AM - Sync today's due boletos from Asaas
+    // This ensures all boletos that are due TODAY are in the local DB
+    // before the notification rules run
+    cron.schedule('0 2 * * *', async () => {
+      console.log('🌙 [CRON] 2AM Asaas auto-sync triggered at', new Date().toISOString());
+      try {
+        await syncTodaysDueBoletos();
+      } catch (error) {
+        console.error('🌙 [CRON] Error in 2AM Asaas sync:', error);
+      }
+    }, {
+      timezone: 'America/Sao_Paulo'
+    });
+
+    // 08:00 AM - Check payment status updates
+    // This verifies if any PENDING/OVERDUE payments have been paid
+    // and updates their status (catches missed webhooks)
+    cron.schedule('0 8 * * *', async () => {
+      console.log('☀️ [CRON] 8AM Asaas status check triggered at', new Date().toISOString());
+      try {
+        await checkPaymentStatusUpdates();
+      } catch (error) {
+        console.error('☀️ [CRON] Error in 8AM status check:', error);
+      }
+    }, {
+      timezone: 'America/Sao_Paulo'
+    });
+
     console.log('⏰ Notification scheduler started - checks every hour (timezone: America/Sao_Paulo)');
     console.log('📤 Campaign scheduler started - checks every 30 seconds');
     console.log('📅 Scheduled messages started - checks every minute');
+    console.log('🌙 Asaas auto-sync started - runs at 2:00 AM daily');
+    console.log('☀️ Asaas status check started - runs at 8:00 AM daily');
   });
 });
