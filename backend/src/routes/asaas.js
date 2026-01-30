@@ -197,23 +197,101 @@ router.post('/integration/:organizationId', async (req, res) => {
 
     // Generate webhook token
     const webhookToken = crypto.randomBytes(32).toString('hex');
+    const webhookBaseUrl = process.env.WEBHOOK_BASE_URL || process.env.API_URL || 'https://your-api.com';
+    const webhookUrl = `${webhookBaseUrl}/api/asaas/webhook/${organizationId}`;
 
     const result = await query(
-      `INSERT INTO asaas_integrations (organization_id, api_key, environment, webhook_token)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO asaas_integrations (organization_id, api_key, environment, webhook_token, webhook_url)
+       VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (organization_id) DO UPDATE SET
          api_key = EXCLUDED.api_key,
          environment = EXCLUDED.environment,
          webhook_token = COALESCE(asaas_integrations.webhook_token, EXCLUDED.webhook_token),
+         webhook_url = EXCLUDED.webhook_url,
          is_active = true,
          updated_at = NOW()
-       RETURNING id, organization_id, environment, webhook_token, is_active, created_at`,
-      [organizationId, api_key, environment || 'sandbox', webhookToken]
+       RETURNING id, organization_id, environment, webhook_token, webhook_url, is_active, created_at`,
+      [organizationId, api_key, environment || 'sandbox', webhookToken, webhookUrl]
     );
+
+    // Try to configure webhook in Asaas automatically
+    let webhookConfigured = false;
+    let webhookError = null;
+    
+    try {
+      // First, list existing webhooks
+      const existingWebhooks = await fetch(`${baseUrl}/webhooks`, {
+        headers: { 'access_token': api_key }
+      });
+      
+      if (existingWebhooks.ok) {
+        const webhooksData = await existingWebhooks.json();
+        const existingHook = webhooksData.data?.find(w => w.url === webhookUrl);
+        
+        if (existingHook) {
+          // Update existing webhook
+          await fetch(`${baseUrl}/webhooks/${existingHook.id}`, {
+            method: 'PUT',
+            headers: { 
+              'access_token': api_key,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              url: webhookUrl,
+              email: 'system@whatsale.com',
+              enabled: true,
+              interrupted: false,
+              authToken: webhookToken,
+              sendType: 'SEQUENTIALLY',
+              events: [
+                'PAYMENT_CREATED', 'PAYMENT_UPDATED', 'PAYMENT_CONFIRMED',
+                'PAYMENT_RECEIVED', 'PAYMENT_OVERDUE', 'PAYMENT_DELETED',
+                'PAYMENT_REFUNDED', 'PAYMENT_RECEIVED_IN_CASH'
+              ]
+            })
+          });
+          webhookConfigured = true;
+        } else {
+          // Create new webhook
+          const createResponse = await fetch(`${baseUrl}/webhooks`, {
+            method: 'POST',
+            headers: { 
+              'access_token': api_key,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              url: webhookUrl,
+              email: 'system@whatsale.com',
+              enabled: true,
+              interrupted: false,
+              authToken: webhookToken,
+              sendType: 'SEQUENTIALLY',
+              events: [
+                'PAYMENT_CREATED', 'PAYMENT_UPDATED', 'PAYMENT_CONFIRMED',
+                'PAYMENT_RECEIVED', 'PAYMENT_OVERDUE', 'PAYMENT_DELETED',
+                'PAYMENT_REFUNDED', 'PAYMENT_RECEIVED_IN_CASH'
+              ]
+            })
+          });
+          
+          if (createResponse.ok) {
+            webhookConfigured = true;
+          } else {
+            const errData = await createResponse.text();
+            webhookError = `Erro ao criar webhook: ${errData.slice(0, 200)}`;
+          }
+        }
+      }
+    } catch (e) {
+      webhookError = `Erro ao configurar webhook: ${e.message}`;
+      console.error('Webhook configuration error:', e);
+    }
 
     res.json({
       ...result.rows[0],
-      webhook_url: `${process.env.API_URL || 'https://your-api.com'}/api/asaas/webhook/${organizationId}`
+      webhook_url: webhookUrl,
+      webhook_configured: webhookConfigured,
+      webhook_error: webhookError
     });
   } catch (error) {
     console.error('Configure integration error:', error);
@@ -1762,6 +1840,384 @@ router.post('/auto-sync/:organizationId/check-status', async (req, res) => {
   } catch (error) {
     console.error('Check status error:', error);
     res.status(500).json({ error: error.message || 'Erro ao verificar status' });
+  }
+});
+
+// Full sync in batches - designed for large datasets (4000+ contacts)
+// Uses smaller batches to avoid proxy timeout
+router.post('/auto-sync/:organizationId/full-sync', async (req, res) => {
+  // Set CORS headers immediately
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  try {
+    const { organizationId } = req.params;
+    const { sync_type = 'all', batch_size = 500, offset = 0 } = req.body;
+
+    const access = await checkOrgAccess(req.userId, organizationId);
+    if (!access) {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+
+    const integrationResult = await query(
+      `SELECT * FROM asaas_integrations WHERE organization_id = $1 AND is_active = true`,
+      [organizationId]
+    );
+
+    if (integrationResult.rows.length === 0) {
+      return res.status(400).json({ error: 'Integração não configurada ou inativa' });
+    }
+
+    const integration = integrationResult.rows[0];
+    const baseUrl = integration.environment === 'production'
+      ? 'https://api.asaas.com/v3'
+      : 'https://sandbox.asaas.com/api/v3';
+
+    const fetchAsaas = async (url) => {
+      const resp = await fetch(url, { headers: { 'access_token': integration.api_key } });
+      if (!resp.ok) {
+        const text = await resp.text().catch(() => '');
+        throw new Error(`Asaas ${resp.status}: ${text.slice(0, 200)}`);
+      }
+      return resp.json();
+    };
+
+    // Get total counts from Asaas
+    const totals = {};
+    try {
+      if (sync_type === 'all' || sync_type === 'pending') {
+        const pendingData = await fetchAsaas(`${baseUrl}/payments?status=PENDING&limit=1`);
+        totals.pending = pendingData.totalCount || 0;
+      }
+      if (sync_type === 'all' || sync_type === 'overdue') {
+        const overdueData = await fetchAsaas(`${baseUrl}/payments?status=OVERDUE&limit=1`);
+        totals.overdue = overdueData.totalCount || 0;
+      }
+      if (sync_type === 'all' || sync_type === 'customers') {
+        const customersData = await fetchAsaas(`${baseUrl}/customers?limit=1`);
+        totals.customers = customersData.totalCount || 0;
+      }
+    } catch (e) {
+      console.error('Error fetching totals:', e.message);
+    }
+
+    // Sync based on type
+    let synced = 0;
+    let currentOffset = offset;
+    const maxBatch = batch_size;
+    const syncedCustomerIds = new Set();
+
+    const syncPaymentBatch = async (status, batchOffset) => {
+      let count = 0;
+      const data = await fetchAsaas(`${baseUrl}/payments?status=${status}&limit=${maxBatch}&offset=${batchOffset}`);
+      
+      if (!data.data || data.data.length === 0) return { count: 0, hasMore: false };
+      
+      for (const payment of data.data) {
+        // Upsert customer
+        if (payment.customer) {
+          await query(
+            `INSERT INTO asaas_customers (organization_id, asaas_id, name, email, phone)
+             VALUES ($1, $2, $3, $4, $5)
+             ON CONFLICT (organization_id, asaas_id) DO UPDATE SET
+               name = COALESCE(EXCLUDED.name, asaas_customers.name),
+               email = COALESCE(EXCLUDED.email, asaas_customers.email),
+               phone = COALESCE(EXCLUDED.phone, asaas_customers.phone),
+               updated_at = NOW()`,
+            [organizationId, payment.customer, payment.customerName || 'Cliente', payment.customerEmail, payment.customerPhone]
+          );
+          syncedCustomerIds.add(payment.customer);
+        }
+        
+        // Get customer UUID
+        const customerResult = await query(
+          `SELECT id FROM asaas_customers WHERE organization_id = $1 AND asaas_id = $2`,
+          [organizationId, payment.customer]
+        );
+        const customerId = customerResult.rows[0]?.id;
+        
+        // Upsert payment
+        await query(
+          `INSERT INTO asaas_payments (
+             organization_id, asaas_id, customer_id, asaas_customer_id, value, net_value,
+             due_date, billing_type, status, invoice_url, bank_slip_url, description
+           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+           ON CONFLICT (organization_id, asaas_id) DO UPDATE SET
+             status = EXCLUDED.status,
+             due_date = EXCLUDED.due_date,
+             invoice_url = COALESCE(EXCLUDED.invoice_url, asaas_payments.invoice_url),
+             bank_slip_url = COALESCE(EXCLUDED.bank_slip_url, asaas_payments.bank_slip_url),
+             updated_at = NOW()`,
+          [
+            organizationId, payment.id, customerId, payment.customer,
+            payment.value, payment.netValue, payment.dueDate, payment.billingType,
+            payment.status, payment.invoiceUrl, payment.bankSlipUrl, payment.description
+          ]
+        );
+        count++;
+      }
+      
+      return { count, hasMore: data.data.length === maxBatch };
+    };
+
+    let hasMore = true;
+    let totalThisBatch = 0;
+
+    if (sync_type === 'overdue' || sync_type === 'all') {
+      const result = await syncPaymentBatch('OVERDUE', currentOffset);
+      totalThisBatch += result.count;
+      hasMore = result.hasMore;
+    }
+
+    if ((sync_type === 'pending' || sync_type === 'all') && totalThisBatch < maxBatch) {
+      const pendingOffset = sync_type === 'all' ? 0 : currentOffset;
+      const result = await syncPaymentBatch('PENDING', pendingOffset);
+      totalThisBatch += result.count;
+      hasMore = hasMore || result.hasMore;
+    }
+
+    // Update last sync
+    await query(
+      `UPDATE asaas_integrations SET last_sync_at = NOW() WHERE organization_id = $1`,
+      [organizationId]
+    );
+
+    // Get current database counts
+    const dbCounts = await query(
+      `SELECT 
+        (SELECT COUNT(*) FROM asaas_payments WHERE organization_id = $1 AND status = 'PENDING') as pending,
+        (SELECT COUNT(*) FROM asaas_payments WHERE organization_id = $1 AND status = 'OVERDUE') as overdue,
+        (SELECT COUNT(*) FROM asaas_customers WHERE organization_id = $1) as customers`,
+      [organizationId]
+    );
+
+    const nextOffset = currentOffset + maxBatch;
+    const totalAsaas = (totals.pending || 0) + (totals.overdue || 0);
+    const progress = totalAsaas > 0 ? Math.min(100, Math.round((parseInt(dbCounts.rows[0].pending) + parseInt(dbCounts.rows[0].overdue)) / totalAsaas * 100)) : 100;
+
+    res.json({
+      success: true,
+      synced_this_batch: totalThisBatch,
+      customers_synced: syncedCustomerIds.size,
+      next_offset: hasMore ? nextOffset : null,
+      has_more: hasMore,
+      progress,
+      totals: {
+        asaas: {
+          pending: totals.pending || 0,
+          overdue: totals.overdue || 0,
+          customers: totals.customers || 0
+        },
+        database: {
+          pending: parseInt(dbCounts.rows[0].pending),
+          overdue: parseInt(dbCounts.rows[0].overdue),
+          customers: parseInt(dbCounts.rows[0].customers)
+        }
+      },
+      message: hasMore 
+        ? `Sincronizados ${totalThisBatch} neste lote. Continue para sincronizar mais.`
+        : `Sincronização completa! ${totalThisBatch} sincronizados neste lote.`
+    });
+  } catch (error) {
+    console.error('Full sync error:', error);
+    res.status(500).json({ error: error.message || 'Erro ao sincronizar' });
+  }
+});
+
+// Get webhook status/configuration
+router.get('/webhook-status/:organizationId', async (req, res) => {
+  try {
+    const { organizationId } = req.params;
+
+    const access = await checkOrgAccess(req.userId, organizationId);
+    if (!access) {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+
+    const integrationResult = await query(
+      `SELECT webhook_url, webhook_token, environment, api_key 
+       FROM asaas_integrations WHERE organization_id = $1 AND is_active = true`,
+      [organizationId]
+    );
+
+    if (integrationResult.rows.length === 0) {
+      return res.status(400).json({ error: 'Integração não configurada' });
+    }
+
+    const integration = integrationResult.rows[0];
+    const baseUrl = integration.environment === 'production'
+      ? 'https://api.asaas.com/v3'
+      : 'https://sandbox.asaas.com/api/v3';
+
+    // Get webhook events stats
+    const eventsStats = await query(`
+      SELECT 
+        COUNT(*) as total,
+        COUNT(*) FILTER (WHERE processed = true) as processed,
+        COUNT(*) FILTER (WHERE processed = false) as pending,
+        MAX(created_at) as last_event
+      FROM asaas_webhook_events
+      WHERE organization_id = $1 AND created_at > NOW() - INTERVAL '7 days'
+    `, [organizationId]);
+
+    // Check if webhook is configured in Asaas
+    let asaasWebhookStatus = null;
+    try {
+      const resp = await fetch(`${baseUrl}/webhooks`, {
+        headers: { 'access_token': integration.api_key }
+      });
+      
+      if (resp.ok) {
+        const data = await resp.json();
+        const ourWebhook = data.data?.find(w => 
+          w.url === integration.webhook_url || 
+          w.url?.includes(`/api/asaas/webhook/${organizationId}`)
+        );
+        
+        if (ourWebhook) {
+          asaasWebhookStatus = {
+            configured: true,
+            enabled: ourWebhook.enabled,
+            interrupted: ourWebhook.interrupted,
+            events: ourWebhook.events,
+            lastUpdate: ourWebhook.dateUpdated
+          };
+        } else {
+          asaasWebhookStatus = { configured: false };
+        }
+      }
+    } catch (e) {
+      console.error('Error checking Asaas webhook:', e.message);
+    }
+
+    res.json({
+      webhook_url: integration.webhook_url,
+      local_stats: eventsStats.rows[0],
+      asaas_status: asaasWebhookStatus
+    });
+  } catch (error) {
+    console.error('Webhook status error:', error);
+    res.status(500).json({ error: 'Erro ao verificar status do webhook' });
+  }
+});
+
+// Configure webhook in Asaas
+router.post('/configure-webhook/:organizationId', async (req, res) => {
+  try {
+    const { organizationId } = req.params;
+
+    const access = await checkOrgAccess(req.userId, organizationId);
+    if (!access || !['owner', 'admin'].includes(access.role)) {
+      return res.status(403).json({ error: 'Apenas admins podem configurar webhooks' });
+    }
+
+    const integrationResult = await query(
+      `SELECT * FROM asaas_integrations WHERE organization_id = $1 AND is_active = true`,
+      [organizationId]
+    );
+
+    if (integrationResult.rows.length === 0) {
+      return res.status(400).json({ error: 'Integração não configurada' });
+    }
+
+    const integration = integrationResult.rows[0];
+    const baseUrl = integration.environment === 'production'
+      ? 'https://api.asaas.com/v3'
+      : 'https://sandbox.asaas.com/api/v3';
+
+    const webhookBaseUrl = process.env.WEBHOOK_BASE_URL || process.env.API_URL;
+    if (!webhookBaseUrl) {
+      return res.status(400).json({ error: 'WEBHOOK_BASE_URL não configurado no servidor' });
+    }
+
+    const webhookUrl = `${webhookBaseUrl}/api/asaas/webhook/${organizationId}`;
+    const webhookToken = integration.webhook_token || crypto.randomBytes(32).toString('hex');
+
+    // Check for existing webhook
+    const existingResp = await fetch(`${baseUrl}/webhooks`, {
+      headers: { 'access_token': integration.api_key }
+    });
+
+    if (!existingResp.ok) {
+      const errText = await existingResp.text();
+      return res.status(502).json({ error: `Erro ao listar webhooks: ${errText.slice(0, 200)}` });
+    }
+
+    const existingData = await existingResp.json();
+    const existingHook = existingData.data?.find(w => 
+      w.url === webhookUrl || 
+      w.url?.includes(`/api/asaas/webhook/${organizationId}`)
+    );
+
+    const webhookPayload = {
+      url: webhookUrl,
+      email: 'system@whatsale.com',
+      enabled: true,
+      interrupted: false,
+      authToken: webhookToken,
+      sendType: 'SEQUENTIALLY',
+      events: [
+        'PAYMENT_CREATED', 'PAYMENT_UPDATED', 'PAYMENT_CONFIRMED',
+        'PAYMENT_RECEIVED', 'PAYMENT_OVERDUE', 'PAYMENT_DELETED',
+        'PAYMENT_REFUNDED', 'PAYMENT_RECEIVED_IN_CASH'
+      ]
+    };
+
+    let result;
+    if (existingHook) {
+      // Update existing
+      const updateResp = await fetch(`${baseUrl}/webhooks/${existingHook.id}`, {
+        method: 'PUT',
+        headers: {
+          'access_token': integration.api_key,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(webhookPayload)
+      });
+      
+      if (!updateResp.ok) {
+        const errText = await updateResp.text();
+        return res.status(502).json({ error: `Erro ao atualizar webhook: ${errText.slice(0, 200)}` });
+      }
+      
+      result = await updateResp.json();
+    } else {
+      // Create new
+      const createResp = await fetch(`${baseUrl}/webhooks`, {
+        method: 'POST',
+        headers: {
+          'access_token': integration.api_key,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(webhookPayload)
+      });
+      
+      if (!createResp.ok) {
+        const errText = await createResp.text();
+        return res.status(502).json({ error: `Erro ao criar webhook: ${errText.slice(0, 200)}` });
+      }
+      
+      result = await createResp.json();
+    }
+
+    // Update local record
+    await query(
+      `UPDATE asaas_integrations 
+       SET webhook_url = $1, webhook_token = $2, updated_at = NOW()
+       WHERE organization_id = $3`,
+      [webhookUrl, webhookToken, organizationId]
+    );
+
+    res.json({
+      success: true,
+      webhook_url: webhookUrl,
+      webhook_id: result.id,
+      message: existingHook ? 'Webhook atualizado com sucesso!' : 'Webhook criado com sucesso!'
+    });
+  } catch (error) {
+    console.error('Configure webhook error:', error);
+    res.status(500).json({ error: error.message || 'Erro ao configurar webhook' });
   }
 });
 
