@@ -137,19 +137,33 @@ function FlowEditorContent({ flow, onClose }: { flow: Flow; onClose: () => void 
     setHasChanges(false);
   };
 
-  // Inject callbacks into all nodes for edit/delete functionality
+  // Use refs for callbacks to avoid stale closures in nodes
+  const handleEditNodeRef = useRef(handleEditNode);
+  const handleDeleteNodeRef = useRef(handleDeleteNode);
+  
   useEffect(() => {
-    setNodes((currentNodes) => 
-      currentNodes.map((node) => ({
-        ...node,
-        data: {
-          ...node.data,
-          onEdit: handleEditNode,
-          onDelete: handleDeleteNode,
-        },
-      }))
-    );
-  }, [handleEditNode, handleDeleteNode, setNodes]);
+    handleEditNodeRef.current = handleEditNode;
+    handleDeleteNodeRef.current = handleDeleteNode;
+  }, [handleEditNode, handleDeleteNode]);
+
+  // Inject callbacks into all nodes for edit/delete functionality
+  // This runs only once after initial load or when nodes are added
+  const nodesNeedCallbacks = nodes.some(n => !n.data.onEdit || !n.data.onDelete);
+  
+  useEffect(() => {
+    if (!loading && nodesNeedCallbacks) {
+      setNodes((currentNodes) => 
+        currentNodes.map((node) => ({
+          ...node,
+          data: {
+            ...node.data,
+            onEdit: (id: string) => handleEditNodeRef.current(id),
+            onDelete: (id: string) => handleDeleteNodeRef.current(id),
+          },
+        }))
+      );
+    }
+  }, [loading, nodesNeedCallbacks, setNodes]);
 
 
   const onConnect = useCallback((params: Connection) => {

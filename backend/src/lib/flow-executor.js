@@ -230,7 +230,7 @@ async function processMessageNode(content, connection, phone, variables, convers
 
   try {
     if (mediaType === 'gallery' && content.gallery_images?.length > 0) {
-      // Send gallery images sequentially
+      // Send gallery images sequentially with proper delay
       console.log(`Flow executor: Sending gallery with ${content.gallery_images.length} images`);
       for (let i = 0; i < content.gallery_images.length; i++) {
         const img = content.gallery_images[i];
@@ -242,9 +242,9 @@ async function processMessageNode(content, connection, phone, variables, convers
         // Save to database
         await saveSentMessage(conversationId, caption || null, 'image', img.url, result?.messageId);
         
-        // Delay between images (1.5s)
+        // Delay between images (2s) to ensure proper ordering
         if (i < content.gallery_images.length - 1) {
-          await sleep(1500);
+          await sleep(2000);
         }
       }
     } else if (mediaType === 'image' && content.media_url) {
@@ -270,6 +270,9 @@ async function processMessageNode(content, connection, phone, variables, convers
     } else {
       console.log('Flow executor: processMessageNode - no content to send');
     }
+
+    // Add small delay between consecutive message nodes to maintain order in WhatsApp
+    await sleep(800);
 
     return { success: true };
   } catch (error) {
