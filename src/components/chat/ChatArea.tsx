@@ -230,11 +230,13 @@ export function ChatArea({
   const [showDealDialog, setShowDealDialog] = useState(false);
   const [showDealDetailDialog, setShowDealDetailDialog] = useState(false);
   const [selectedDeal, setSelectedDeal] = useState<CRMDeal | null>(null);
+  const [showScrollButton, setShowScrollButton] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isUserScrollingRef = useRef(false);
   const lastScrollTopRef = useRef(0);
+  const isInitialLoadRef = useRef(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -385,29 +387,46 @@ export function ChatArea({
     localStorage.setItem('chat-sign-messages', signMessages.toString());
   }, [signMessages]);
 
-  // Auto-scroll to bottom on new messages ONLY if user is near the bottom
+  // Reset initial load flag when conversation changes
   useEffect(() => {
+    isInitialLoadRef.current = true;
+    isUserScrollingRef.current = false;
+    setShowScrollButton(false);
+  }, [conversation?.id]);
+
+  // Scroll to bottom immediately when opening a conversation (initial load)
+  useEffect(() => {
+    if (!messages.length) return;
+    
+    // On initial load, scroll to bottom immediately (no animation for speed)
+    if (isInitialLoadRef.current) {
+      // Use a small delay to ensure DOM is rendered
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+        isInitialLoadRef.current = false;
+      }, 50);
+      return;
+    }
+    
+    // For subsequent message updates, only scroll if near bottom
     if (showSearch) return;
     
     const container = scrollContainerRef.current;
     if (!container) {
-      // Fallback: scroll if no container ref
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
       return;
     }
     
-    // Check if user is near the bottom (within 150px)
     const { scrollTop, scrollHeight, clientHeight } = container;
     const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
     const isNearBottom = distanceFromBottom < 150;
     
-    // Only auto-scroll if user is near the bottom (not browsing history)
     if (isNearBottom && !isUserScrollingRef.current) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, showSearch]);
 
-  // Track user scroll to detect when they're browsing history
+  // Track user scroll to detect when they're browsing history and show scroll button
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
@@ -417,6 +436,9 @@ export function ChatArea({
     const handleScroll = () => {
       const { scrollTop, scrollHeight, clientHeight } = container;
       const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+      
+      // Show scroll button when user is away from bottom
+      setShowScrollButton(distanceFromBottom > 300);
       
       // User is scrolling up (browsing history)
       if (scrollTop < lastScrollTopRef.current && distanceFromBottom > 150) {
@@ -433,7 +455,6 @@ export function ChatArea({
       // Reset the scrolling flag after user stops scrolling
       clearTimeout(scrollTimeout);
       scrollTimeout = setTimeout(() => {
-        // Keep the flag if user is still away from bottom
         if (distanceFromBottom < 50) {
           isUserScrollingRef.current = false;
         }
@@ -446,6 +467,13 @@ export function ChatArea({
       clearTimeout(scrollTimeout);
     };
   }, [conversation?.id]);
+
+  // Function to scroll to bottom (for the button)
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    isUserScrollingRef.current = false;
+    setShowScrollButton(false);
+  }, []);
 
   // Handle search
   useEffect(() => {
@@ -1461,7 +1489,7 @@ export function ChatArea({
       <ScrollArea
         ref={scrollAreaRef}
         viewportRef={scrollContainerRef}
-        className={cn("flex-1 chat-wallpaper min-w-0", isMobile ? "p-3" : "p-4")}
+        className={cn("flex-1 chat-wallpaper min-w-0 relative", isMobile ? "p-3" : "p-4")}
       >
         {hasMore && (
           <div className="flex justify-center mb-4">
@@ -1737,6 +1765,19 @@ export function ChatArea({
           
           <div ref={messagesEndRef} />
         </div>
+
+        {/* Scroll to bottom button */}
+        {showScrollButton && (
+          <Button
+            variant="secondary"
+            size="icon"
+            className="absolute bottom-4 right-4 h-10 w-10 rounded-full shadow-lg z-10 bg-card border hover:bg-accent"
+            onClick={scrollToBottom}
+            title="Ir para última mensagem"
+          >
+            <ChevronDown className="h-5 w-5" />
+          </Button>
+        )}
       </ScrollArea>
 
       {/* Input - Show readonly message for supervisors */}
