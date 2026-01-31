@@ -4,6 +4,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { ConversationList } from "@/components/chat/ConversationList";
 import { ChatArea } from "@/components/chat/ChatArea";
 import { NewConversationDialog } from "@/components/chat/NewConversationDialog";
+import { CRMSidePanel } from "@/components/chat/CRMSidePanel";
 import { useChat, Conversation, ChatMessage, ConversationTag, TeamMember } from "@/hooks/use-chat";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
@@ -68,6 +69,7 @@ const Chat = () => {
   const [syncingHistory, setSyncingHistory] = useState(false);
   const [syncingGroups, setSyncingGroups] = useState(false);
   const [newConversationOpen, setNewConversationOpen] = useState(false);
+  const [crmPanelOpen, setCrmPanelOpen] = useState(false);
   const [attendanceCounts, setAttendanceCounts] = useState<{ waiting: number; attending: number; finished: number }>({ waiting: 0, attending: 0, finished: 0 });
   const [filters, setFilters] = useState({
     search: '',
@@ -850,6 +852,17 @@ const Chat = () => {
               onDepartmentChange={() => loadConversations()}
               isMobile={isMobile}
               onMobileBack={handleMobileBack}
+            />
+          )}
+
+          {/* CRM Side Panel - Desktop only, when conversation selected */}
+          {!isMobile && selectedConversation && (
+            <CRMSidePanel
+              conversationId={selectedConversation.id}
+              contactPhone={selectedConversation.remote_jid?.replace('@s.whatsapp.net', '').replace('@g.us', '') || null}
+              contactName={selectedConversation.contact_name || selectedConversation.group_name || null}
+              isOpen={crmPanelOpen}
+              onToggle={() => setCrmPanelOpen(!crmPanelOpen)}
             />
           )}
         </div>
