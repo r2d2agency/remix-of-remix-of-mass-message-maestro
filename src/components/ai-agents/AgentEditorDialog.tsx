@@ -409,9 +409,9 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
 
                   <div className="grid sm:grid-cols-3 gap-4">
                     <div className="grid gap-2">
-                      <Label>Temperatura: {formData.temperature.toFixed(1)}</Label>
+                      <Label>Temperatura: {normalizeNumber(formData.temperature, 0.7).toFixed(1)}</Label>
                       <Slider
-                        value={[formData.temperature]}
+                        value={[normalizeNumber(formData.temperature, 0.7)]}
                         onValueChange={([value]) => setFormData(prev => ({ ...prev, temperature: value }))}
                         min={0}
                         max={1}
@@ -423,9 +423,9 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
                     </div>
 
                     <div className="grid gap-2">
-                      <Label>Max Tokens: {formData.max_tokens}</Label>
+                      <Label>Max Tokens: {normalizeNumber(formData.max_tokens, 1000)}</Label>
                       <Slider
-                        value={[formData.max_tokens]}
+                        value={[normalizeNumber(formData.max_tokens, 1000)]}
                         onValueChange={([value]) => setFormData(prev => ({ ...prev, max_tokens: value }))}
                         min={100}
                         max={4000}
@@ -437,9 +437,9 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
                     </div>
 
                     <div className="grid gap-2">
-                      <Label>Contexto: {formData.context_window} msgs</Label>
+                      <Label>Contexto: {normalizeNumber(formData.context_window, 10)} msgs</Label>
                       <Slider
-                        value={[formData.context_window]}
+                        value={[normalizeNumber(formData.context_window, 10)]}
                         onValueChange={([value]) => setFormData(prev => ({ ...prev, context_window: value }))}
                         min={1}
                         max={20}
