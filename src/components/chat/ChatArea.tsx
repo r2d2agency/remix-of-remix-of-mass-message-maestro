@@ -887,7 +887,7 @@ export function ChatArea({
 
   return (
     <div 
-      className="flex-1 flex h-full min-w-0 overflow-x-hidden relative"
+      className="flex-1 flex h-full min-w-0 overflow-x-hidden overflow-y-hidden relative max-w-full"
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}

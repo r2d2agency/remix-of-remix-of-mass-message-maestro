@@ -699,10 +699,10 @@ const Chat = () => {
     <MainLayout>
       {/* Mobile: full viewport height minus safe areas; Desktop: calc with padding */}
       <div className={cn(
-        "flex flex-col rounded-lg border overflow-hidden bg-background shadow-lg",
+        "flex flex-col rounded-lg border bg-background shadow-lg",
         isMobile 
-          ? "h-[100dvh] fixed inset-0 z-30 rounded-none border-0" 
-          : "h-[calc(100vh-80px)]"
+          ? "h-[100dvh] w-full fixed inset-0 z-30 rounded-none border-0 overflow-hidden" 
+          : "h-[calc(100vh-80px)] overflow-hidden"
       )}>
         {/* Tab Header - Hide on mobile when chat is open */}
         {(!isMobile || !selectedConversation) && (
@@ -749,12 +749,12 @@ const Chat = () => {
           </div>
         )}
 
-        <div className="flex flex-1 overflow-hidden min-w-0">
+        <div className="flex flex-1 overflow-hidden min-w-0 w-full">
           {/* Conversation List - Hide on mobile when chat is open */}
           {(!isMobile || !selectedConversation) && (
             <div className={cn(
-              "flex-shrink-0 overflow-hidden",
-              isMobile ? "w-full h-full" : "w-[350px]"
+              "flex-shrink-0 overflow-hidden min-w-0",
+              isMobile ? "w-full h-full max-w-full" : "w-[350px]"
             )}>
               <ConversationList
                 conversations={conversations}

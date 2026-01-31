@@ -310,10 +310,10 @@ export function ConversationList({
   };
 
   return (
-    <div className="flex flex-col h-full border-r bg-card">
+    <div className="flex flex-col h-full border-r bg-card overflow-hidden max-w-full">
       {/* Header */}
-      <div className="p-4 border-b space-y-3">
-        <div className="flex items-center justify-between">
+      <div className="p-4 border-b space-y-3 flex-shrink-0">
+        <div className="flex items-center justify-between min-w-0">
           <h2 className="font-semibold text-lg flex items-center gap-2">
             <MessageSquare className="h-5 w-5 text-primary" />
             Conversas
@@ -453,13 +453,13 @@ export function ConversationList({
         </div>
 
         {/* Filters */}
-        <div className="flex gap-2">
+        <div className="flex gap-2 overflow-x-auto min-w-0 scrollbar-none">
           {/* Status filter */}
           <Select
             value={filters.assigned}
             onValueChange={(v) => onFiltersChange({ ...filters, assigned: v })}
           >
-            <SelectTrigger className="flex-1 h-8 text-xs">
+            <SelectTrigger className="flex-1 h-8 text-xs min-w-[80px] max-w-[100px]">
               <UserCheck className="h-3 w-3 mr-1" />
               <SelectValue placeholder="Atendente" />
             </SelectTrigger>
@@ -480,7 +480,7 @@ export function ConversationList({
             value={filters.tag}
             onValueChange={(v) => onFiltersChange({ ...filters, tag: v })}
           >
-            <SelectTrigger className="flex-1 h-8 text-xs">
+            <SelectTrigger className="flex-1 h-8 text-xs min-w-[70px] max-w-[90px]">
               <Tag className="h-3 w-3 mr-1" />
               <SelectValue placeholder="Tag" />
             </SelectTrigger>
@@ -506,7 +506,7 @@ export function ConversationList({
               value={filters.department}
               onValueChange={(v) => onFiltersChange({ ...filters, department: v })}
             >
-              <SelectTrigger className="flex-1 h-8 text-xs">
+              <SelectTrigger className="flex-1 h-8 text-xs min-w-[70px] max-w-[90px]">
                 <Building2 className="h-3 w-3 mr-1" />
                 <SelectValue placeholder="Depto" />
               </SelectTrigger>
@@ -535,7 +535,7 @@ export function ConversationList({
             variant={filters.archived ? "default" : "ghost"}
             size="icon"
             className={cn(
-              "h-8 w-8 transition-colors",
+              "h-8 w-8 flex-shrink-0 transition-colors",
               filters.archived && "bg-amber-500 hover:bg-amber-600 text-white"
             )}
             onClick={() => onFiltersChange({ ...filters, archived: !filters.archived })}
