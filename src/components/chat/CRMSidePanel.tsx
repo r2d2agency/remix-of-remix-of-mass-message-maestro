@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Accordion,
@@ -25,12 +27,15 @@ import {
   DollarSign,
   Calendar,
   CheckSquare,
-  AlertTriangle,
   Plus,
   ExternalLink,
   Trophy,
   XCircle,
   Pause,
+  Edit,
+  Save,
+  X,
+  Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -40,14 +45,17 @@ import {
   useCRMFunnel,
   useCRMDealMutations,
   useCRMCompany,
+  useCRMCompanies,
+  useCRMCompanyMutations,
   CRMDeal,
   CRMStage,
 } from "@/hooks/use-crm";
 import { useChat, ConversationNote } from "@/hooks/use-chat";
 import { toast } from "sonner";
-import { format, differenceInHours, parseISO } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
+import { api } from "@/lib/api";
 
 interface CRMSidePanelProps {
   conversationId: string;
@@ -83,10 +91,17 @@ export function CRMSidePanel({
   const stages = funnelData?.stages || [];
   
   // Company data
-  const { data: company } = useCRMCompany(selectedDeal?.company_id || null);
+  const { data: company, refetch: refetchCompany } = useCRMCompany(selectedDeal?.company_id || null);
+  
+  // Company search for assignment
+  const [companySearch, setCompanySearch] = useState("");
+  const { data: companiesSearch = [] } = useCRMCompanies(companySearch.length >= 2 ? companySearch : undefined);
   
   // Deal mutations
-  const { moveDeal } = useCRMDealMutations();
+  const { moveDeal, updateDeal } = useCRMDealMutations();
+  
+  // Company mutations
+  const { createCompany } = useCRMCompanyMutations();
   
   // Notes
   const [notes, setNotes] = useState<ConversationNote[]>([]);
@@ -94,6 +109,33 @@ export function CRMSidePanel({
   const [newNote, setNewNote] = useState("");
   const [savingNote, setSavingNote] = useState(false);
   const { getNotes, createNote } = useChat();
+
+  // Edit states
+  const [isEditingDeal, setIsEditingDeal] = useState(false);
+  const [dealForm, setDealForm] = useState({
+    title: "",
+    value: 0,
+    probability: 0,
+    expected_close_date: "",
+  });
+
+  // Company assignment states
+  const [isAssigningCompany, setIsAssigningCompany] = useState(false);
+  const [isCreatingCompany, setIsCreatingCompany] = useState(false);
+  const [newCompanyName, setNewCompanyName] = useState("");
+  const [savingCompany, setSavingCompany] = useState(false);
+
+  // Initialize deal form when deal changes
+  useEffect(() => {
+    if (selectedDeal) {
+      setDealForm({
+        title: selectedDeal.title,
+        value: selectedDeal.value,
+        probability: selectedDeal.probability,
+        expected_close_date: selectedDeal.expected_close_date || "",
+      });
+    }
+  }, [selectedDeal?.id]);
 
   // Load notes when panel opens
   useEffect(() => {
@@ -142,6 +184,64 @@ export function CRMSidePanel({
     }
   };
 
+  const handleSaveDeal = async () => {
+    if (!selectedDeal) return;
+    try {
+      await updateDeal.mutateAsync({
+        id: selectedDeal.id,
+        title: dealForm.title,
+        value: dealForm.value,
+        probability: dealForm.probability,
+        expected_close_date: dealForm.expected_close_date || undefined,
+      });
+      refetchDeals();
+      setIsEditingDeal(false);
+      toast.success("Negociação atualizada!");
+    } catch (error) {
+      toast.error("Erro ao atualizar negociação");
+    }
+  };
+
+  const handleAssignCompany = async (companyId: string) => {
+    if (!selectedDeal) return;
+    try {
+      await updateDeal.mutateAsync({
+        id: selectedDeal.id,
+        company_id: companyId,
+      });
+      refetchDeals();
+      refetchCompany();
+      setIsAssigningCompany(false);
+      setCompanySearch("");
+      toast.success("Empresa atribuída!");
+    } catch (error) {
+      toast.error("Erro ao atribuir empresa");
+    }
+  };
+
+  const handleCreateAndAssignCompany = async () => {
+    if (!selectedDeal || !newCompanyName.trim()) return;
+    setSavingCompany(true);
+    try {
+      const newCompany = await createCompany.mutateAsync({ name: newCompanyName.trim() });
+      if (newCompany?.id) {
+        await updateDeal.mutateAsync({
+          id: selectedDeal.id,
+          company_id: newCompany.id,
+        });
+        refetchDeals();
+        refetchCompany();
+        setIsCreatingCompany(false);
+        setNewCompanyName("");
+        toast.success("Empresa criada e atribuída!");
+      }
+    } catch (error) {
+      toast.error("Erro ao criar empresa");
+    } finally {
+      setSavingCompany(false);
+    }
+  };
+
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("pt-BR", {
       style: "currency",
@@ -157,7 +257,6 @@ export function CRMSidePanel({
   };
 
   const createNewDeal = () => {
-    // Navigate to CRM with pre-filled contact info
     const params = new URLSearchParams();
     if (contactPhone) params.set('phone', contactPhone);
     if (contactName) params.set('name', contactName);
@@ -187,7 +286,7 @@ export function CRMSidePanel({
       onClick={onToggle}
       className={cn(
         "absolute top-1/2 -translate-y-1/2 z-20 h-12 w-6 rounded-l-md rounded-r-none border-r-0 bg-background shadow-md hover:bg-muted",
-        isOpen ? "-left-6" : "-left-6"
+        "-left-6"
       )}
       title={isOpen ? "Fechar painel CRM" : "Abrir painel CRM"}
     >
@@ -293,8 +392,8 @@ export function CRMSidePanel({
               </div>
             )}
 
-            <Accordion type="multiple" defaultValue={["deal", "stage", "notes"]} className="space-y-1">
-              {/* Deal Info */}
+            <Accordion type="multiple" defaultValue={["deal", "stage", "company", "notes"]} className="space-y-1">
+              {/* Deal Info - Editable */}
               <AccordionItem value="deal" className="border rounded-lg px-3">
                 <AccordionTrigger className="py-2 hover:no-underline">
                   <div className="flex items-center gap-2 text-sm">
@@ -305,36 +404,113 @@ export function CRMSidePanel({
                 </AccordionTrigger>
                 <AccordionContent className="pb-3">
                   {selectedDeal && (
-                    <div className="space-y-2 text-sm">
-                      <div>
-                        <span className="text-muted-foreground text-xs">Título:</span>
-                        <p className="font-medium">{selectedDeal.title}</p>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground text-xs">Valor:</span>
-                        <span className="font-semibold text-green-600">{formatCurrency(selectedDeal.value)}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground text-xs">Probabilidade:</span>
-                        <Badge variant="secondary" className="text-[10px]">{selectedDeal.probability}%</Badge>
-                      </div>
-                      {selectedDeal.expected_close_date && (
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Calendar className="h-3 w-3" />
-                          <span>Previsão: {format(parseISO(selectedDeal.expected_close_date), "dd/MM/yyyy", { locale: ptBR })}</span>
-                        </div>
-                      )}
-                      {selectedDeal.owner_name && (
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <User className="h-3 w-3" />
-                          <span>Responsável: {selectedDeal.owner_name}</span>
-                        </div>
-                      )}
-                      {Number(selectedDeal.pending_tasks) > 0 && (
-                        <div className="flex items-center gap-1 text-xs text-amber-600">
-                          <CheckSquare className="h-3 w-3" />
-                          <span>{selectedDeal.pending_tasks} tarefa(s) pendente(s)</span>
-                        </div>
+                    <div className="space-y-3">
+                      {isEditingDeal ? (
+                        <>
+                          <div>
+                            <Label className="text-xs">Título</Label>
+                            <Input
+                              value={dealForm.title}
+                              onChange={(e) => setDealForm({ ...dealForm, title: e.target.value })}
+                              className="h-8 text-xs mt-1"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs">Valor (R$)</Label>
+                            <Input
+                              type="number"
+                              value={dealForm.value}
+                              onChange={(e) => setDealForm({ ...dealForm, value: parseFloat(e.target.value) || 0 })}
+                              className="h-8 text-xs mt-1"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs">Probabilidade (%)</Label>
+                            <Input
+                              type="number"
+                              min={0}
+                              max={100}
+                              value={dealForm.probability}
+                              onChange={(e) => setDealForm({ ...dealForm, probability: parseInt(e.target.value) || 0 })}
+                              className="h-8 text-xs mt-1"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs">Previsão de fechamento</Label>
+                            <Input
+                              type="date"
+                              value={dealForm.expected_close_date}
+                              onChange={(e) => setDealForm({ ...dealForm, expected_close_date: e.target.value })}
+                              className="h-8 text-xs mt-1"
+                            />
+                          </div>
+                          <div className="flex gap-2 pt-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="flex-1 h-7 text-xs"
+                              onClick={() => setIsEditingDeal(false)}
+                            >
+                              <X className="h-3 w-3 mr-1" />
+                              Cancelar
+                            </Button>
+                            <Button
+                              size="sm"
+                              className="flex-1 h-7 text-xs"
+                              onClick={handleSaveDeal}
+                              disabled={updateDeal.isPending}
+                            >
+                              {updateDeal.isPending ? (
+                                <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                              ) : (
+                                <Save className="h-3 w-3 mr-1" />
+                              )}
+                              Salvar
+                            </Button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground text-xs">Título:</span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() => setIsEditingDeal(true)}
+                            >
+                              <Edit className="h-3 w-3" />
+                            </Button>
+                          </div>
+                          <p className="font-medium text-sm -mt-2">{selectedDeal.title}</p>
+                          
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground text-xs">Valor:</span>
+                            <span className="font-semibold text-green-600">{formatCurrency(selectedDeal.value)}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground text-xs">Probabilidade:</span>
+                            <Badge variant="secondary" className="text-[10px]">{selectedDeal.probability}%</Badge>
+                          </div>
+                          {selectedDeal.expected_close_date && (
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <Calendar className="h-3 w-3" />
+                              <span>Previsão: {format(parseISO(selectedDeal.expected_close_date), "dd/MM/yyyy", { locale: ptBR })}</span>
+                            </div>
+                          )}
+                          {selectedDeal.owner_name && (
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <User className="h-3 w-3" />
+                              <span>Responsável: {selectedDeal.owner_name}</span>
+                            </div>
+                          )}
+                          {Number(selectedDeal.pending_tasks) > 0 && (
+                            <div className="flex items-center gap-1 text-xs text-amber-600">
+                              <CheckSquare className="h-3 w-3" />
+                              <span>{selectedDeal.pending_tasks} tarefa(s) pendente(s)</span>
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
                   )}
@@ -393,7 +569,7 @@ export function CRMSidePanel({
                 </AccordionContent>
               </AccordionItem>
 
-              {/* Company */}
+              {/* Company - With assignment/creation */}
               <AccordionItem value="company" className="border rounded-lg px-3">
                 <AccordionTrigger className="py-2 hover:no-underline">
                   <div className="flex items-center gap-2 text-sm">
@@ -402,12 +578,116 @@ export function CRMSidePanel({
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="pb-3">
-                  {company ? (
-                    <div className="space-y-2 text-sm">
-                      <div>
-                        <span className="text-muted-foreground text-xs">Nome:</span>
-                        <p className="font-medium">{company.name}</p>
+                  {isAssigningCompany ? (
+                    <div className="space-y-3">
+                      <div className="relative">
+                        <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
+                        <Input
+                          placeholder="Buscar empresa..."
+                          value={companySearch}
+                          onChange={(e) => setCompanySearch(e.target.value)}
+                          className="h-8 text-xs pl-7"
+                        />
                       </div>
+                      {companySearch.length >= 2 && (
+                        <div className="max-h-32 overflow-y-auto space-y-1">
+                          {companiesSearch.length === 0 ? (
+                            <p className="text-xs text-muted-foreground text-center py-2">Nenhuma empresa encontrada</p>
+                          ) : (
+                            companiesSearch.slice(0, 5).map(c => (
+                              <Button
+                                key={c.id}
+                                variant="ghost"
+                                size="sm"
+                                className="w-full justify-start h-7 text-xs"
+                                onClick={() => handleAssignCompany(c.id)}
+                              >
+                                <Building2 className="h-3 w-3 mr-2" />
+                                {c.name}
+                              </Button>
+                            ))
+                          )}
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 h-7 text-xs"
+                          onClick={() => {
+                            setIsAssigningCompany(false);
+                            setCompanySearch("");
+                          }}
+                        >
+                          Cancelar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="flex-1 h-7 text-xs"
+                          onClick={() => {
+                            setIsAssigningCompany(false);
+                            setIsCreatingCompany(true);
+                          }}
+                        >
+                          <Plus className="h-3 w-3 mr-1" />
+                          Criar nova
+                        </Button>
+                      </div>
+                    </div>
+                  ) : isCreatingCompany ? (
+                    <div className="space-y-3">
+                      <div>
+                        <Label className="text-xs">Nome da empresa</Label>
+                        <Input
+                          value={newCompanyName}
+                          onChange={(e) => setNewCompanyName(e.target.value)}
+                          placeholder="Digite o nome..."
+                          className="h-8 text-xs mt-1"
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 h-7 text-xs"
+                          onClick={() => {
+                            setIsCreatingCompany(false);
+                            setNewCompanyName("");
+                          }}
+                        >
+                          Cancelar
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="flex-1 h-7 text-xs"
+                          onClick={handleCreateAndAssignCompany}
+                          disabled={!newCompanyName.trim() || savingCompany}
+                        >
+                          {savingCompany ? (
+                            <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                          ) : (
+                            <Save className="h-3 w-3 mr-1" />
+                          )}
+                          Criar
+                        </Button>
+                      </div>
+                    </div>
+                  ) : company ? (
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground text-xs">Nome:</span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => setIsAssigningCompany(true)}
+                          title="Alterar empresa"
+                        >
+                          <Edit className="h-3 w-3" />
+                        </Button>
+                      </div>
+                      <p className="font-medium -mt-1">{company.name}</p>
                       {company.segment_name && (
                         <div className="flex items-center gap-1">
                           <span className="text-muted-foreground text-xs">Segmento:</span>
@@ -439,10 +719,43 @@ export function CRMSidePanel({
                         </div>
                       )}
                     </div>
-                  ) : selectedDeal?.company_name ? (
-                    <p className="text-sm">{selectedDeal.company_name}</p>
+                  ) : selectedDeal?.company_name && selectedDeal.company_name !== 'Sem empresa' ? (
+                    <div className="space-y-2">
+                      <p className="text-sm">{selectedDeal.company_name}</p>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full h-7 text-xs"
+                        onClick={() => setIsAssigningCompany(true)}
+                      >
+                        <Edit className="h-3 w-3 mr-1" />
+                        Alterar empresa
+                      </Button>
+                    </div>
                   ) : (
-                    <p className="text-sm text-muted-foreground">Sem empresa vinculada</p>
+                    <div className="space-y-2">
+                      <p className="text-sm text-muted-foreground">Sem empresa vinculada</p>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 h-7 text-xs"
+                          onClick={() => setIsAssigningCompany(true)}
+                        >
+                          <Search className="h-3 w-3 mr-1" />
+                          Buscar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="flex-1 h-7 text-xs"
+                          onClick={() => setIsCreatingCompany(true)}
+                        >
+                          <Plus className="h-3 w-3 mr-1" />
+                          Criar
+                        </Button>
+                      </div>
+                    </div>
                   )}
                 </AccordionContent>
               </AccordionItem>
