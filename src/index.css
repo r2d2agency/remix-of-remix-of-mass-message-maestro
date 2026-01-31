@@ -7,71 +7,71 @@
 @layer base {
   :root,
   .light {
-    /* Light mode - Modern WhatsApp-inspired look with blue accent */
-    --background: 210 20% 96%;
-    --foreground: 220 25% 12%;
+    /* Light mode - High contrast, crisp and readable */
+    --background: 210 15% 97%;
+    --foreground: 220 30% 10%;
 
     --card: 0 0% 100%;
-    --card-foreground: 220 25% 12%;
+    --card-foreground: 220 30% 10%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 220 25% 12%;
+    --popover-foreground: 220 30% 10%;
 
-    --primary: 210 100% 50%;
+    --primary: 210 100% 45%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 15% 93%;
-    --secondary-foreground: 220 20% 25%;
+    --secondary: 210 20% 90%;
+    --secondary-foreground: 220 25% 20%;
 
-    --muted: 210 15% 95%;
-    --muted-foreground: 220 10% 40%;
+    --muted: 210 15% 92%;
+    --muted-foreground: 220 15% 35%;
 
-    --accent: 210 80% 94%;
-    --accent-foreground: 210 100% 40%;
+    --accent: 210 70% 92%;
+    --accent-foreground: 210 100% 35%;
 
-    --destructive: 0 84% 60%;
+    --destructive: 0 84% 55%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 152 69% 40%;
+    --success: 152 69% 35%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 38 92% 50%;
+    --warning: 38 92% 45%;
     --warning-foreground: 0 0% 100%;
 
-    --border: 210 20% 85%;
-    --input: 210 20% 85%;
-    --ring: 210 100% 50%;
+    --border: 220 20% 75%;
+    --input: 220 20% 78%;
+    --ring: 210 100% 45%;
 
     --radius: 0.75rem;
 
     /* Chat specific - Light mode */
-    --chat-bg: 210 25% 94%;
-    --chat-pattern: hsl(210 20% 85% / 0.6);
-    --message-sent: 210 100% 50%;
+    --chat-bg: 210 20% 94%;
+    --chat-pattern: hsl(210 25% 80% / 0.7);
+    --message-sent: 210 100% 45%;
     --message-sent-foreground: 0 0% 100%;
     --message-received: 0 0% 100%;
-    --message-received-foreground: 220 25% 12%;
+    --message-received-foreground: 220 30% 10%;
 
     /* Modern tokens - Light mode */
-    --neon-blue: 210 100% 50%;
-    --neon-glow: 210 100% 60%;
-    --gradient-primary: linear-gradient(135deg, hsl(210 100% 50%), hsl(220 100% 45%));
-    --gradient-hero: linear-gradient(135deg, hsl(210 100% 50%) 0%, hsl(225 80% 40%) 100%);
-    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(210 20% 98%) 100%);
-    --shadow-card: 0 2px 12px -2px hsl(220 20% 10% / 0.08), 0 1px 3px hsl(220 20% 10% / 0.04);
-    --shadow-elevated: 0 8px 30px -8px hsl(220 20% 10% / 0.15);
-    --shadow-neon: 0 0 20px hsl(210 100% 50% / 0.25);
-    --glass-bg: hsl(0 0% 100% / 0.9);
-    --glass-border: hsl(210 15% 85% / 0.8);
+    --neon-blue: 210 100% 45%;
+    --neon-glow: 210 100% 55%;
+    --gradient-primary: linear-gradient(135deg, hsl(210 100% 45%), hsl(220 100% 40%));
+    --gradient-hero: linear-gradient(135deg, hsl(210 100% 45%) 0%, hsl(225 80% 35%) 100%);
+    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(210 15% 97%) 100%);
+    --shadow-card: 0 2px 12px -2px hsl(220 25% 10% / 0.12), 0 1px 4px hsl(220 25% 10% / 0.06);
+    --shadow-elevated: 0 8px 30px -8px hsl(220 25% 10% / 0.2);
+    --shadow-neon: 0 0 20px hsl(210 100% 45% / 0.3);
+    --glass-bg: hsl(0 0% 100% / 0.95);
+    --glass-border: hsl(210 20% 75% / 0.9);
 
     --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 220 20% 25%;
-    --sidebar-primary: 210 100% 50%;
+    --sidebar-foreground: 220 25% 20%;
+    --sidebar-primary: 210 100% 45%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 210 80% 94%;
-    --sidebar-accent-foreground: 210 100% 40%;
-    --sidebar-border: 210 20% 90%;
-    --sidebar-ring: 210 100% 50%;
+    --sidebar-accent: 210 70% 92%;
+    --sidebar-accent-foreground: 210 100% 35%;
+    --sidebar-border: 220 20% 85%;
+    --sidebar-ring: 210 100% 45%;
   }
 
   .dark {
