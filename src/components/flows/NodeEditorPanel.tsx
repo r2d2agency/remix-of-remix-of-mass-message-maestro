@@ -97,7 +97,7 @@ export function NodeEditorPanel({ node, onSave, onClose }: NodeEditorPanelProps)
   };
 
   return (
-    <div className="w-96 border-l bg-card flex flex-col h-full">
+    <div className="w-96 border-l bg-card flex flex-col h-full max-h-screen overflow-hidden">
       <div className="p-4 border-b flex items-center justify-between bg-muted/50">
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-lg bg-primary/10 text-primary">
@@ -911,13 +911,13 @@ function ActionNodeEditor({ content, onChange }: { content: Record<string, any>;
               <Loader2 className="h-4 w-4 animate-spin" />
               Carregando tags...
             </div>
-          ) : tags.length === 0 ? (
+          ) : tags.filter(t => t.id && t.id.trim() !== '').length === 0 ? (
             <div className="text-sm text-muted-foreground p-3 bg-muted rounded-lg">
               Nenhuma tag encontrada. Crie tags na página de Tags primeiro.
             </div>
           ) : (
             <Select
-              value={content.tag_id || ''}
+              value={content.tag_id || undefined}
               onValueChange={(v) => {
                 const selectedTag = tags.find(t => t.id === v);
                 onChange({ 
@@ -931,7 +931,7 @@ function ActionNodeEditor({ content, onChange }: { content: Record<string, any>;
                 <SelectValue placeholder="Selecione uma tag" />
               </SelectTrigger>
               <SelectContent>
-                {tags.map((tag) => (
+                {tags.filter(t => t.id && t.id.trim() !== '').map((tag) => (
                   <SelectItem key={tag.id} value={tag.id}>
                     <div className="flex items-center gap-2">
                       <div 
@@ -1138,13 +1138,13 @@ function TransferNodeEditor({ content, onChange }: { content: Record<string, any
               <Loader2 className="h-4 w-4 animate-spin" />
               Carregando departamentos...
             </div>
-          ) : departments.length === 0 ? (
+          ) : departments.filter(d => d.id && d.id.trim() !== '').length === 0 ? (
             <div className="text-sm text-muted-foreground p-3 bg-muted rounded-lg">
               Nenhum departamento encontrado. Crie departamentos primeiro.
             </div>
           ) : (
             <Select
-              value={content.department_id || ''}
+              value={content.department_id || undefined}
               onValueChange={(v) => {
                 const selectedDept = departments.find(d => d.id === v);
                 onChange({ 
@@ -1158,7 +1158,7 @@ function TransferNodeEditor({ content, onChange }: { content: Record<string, any
                 <SelectValue placeholder="Selecione um departamento" />
               </SelectTrigger>
               <SelectContent>
-                {departments.map((dept) => (
+                {departments.filter(d => d.id && d.id.trim() !== '').map((dept) => (
                   <SelectItem key={dept.id} value={dept.id}>
                     <div className="flex items-center gap-2">
                       <div 
@@ -1183,13 +1183,13 @@ function TransferNodeEditor({ content, onChange }: { content: Record<string, any
               <Loader2 className="h-4 w-4 animate-spin" />
               Carregando usuários...
             </div>
-          ) : members.length === 0 ? (
+          ) : members.filter(m => m.user_id && m.user_id.trim() !== '').length === 0 ? (
             <div className="text-sm text-muted-foreground p-3 bg-muted rounded-lg">
               Nenhum usuário encontrado na organização.
             </div>
           ) : (
             <Select
-              value={content.agent_id || ''}
+              value={content.agent_id || undefined}
               onValueChange={(v) => {
                 const selectedMember = members.find(m => m.user_id === v);
                 onChange({ 
@@ -1203,7 +1203,7 @@ function TransferNodeEditor({ content, onChange }: { content: Record<string, any
                 <SelectValue placeholder="Selecione um usuário" />
               </SelectTrigger>
               <SelectContent>
-                {members.map((member) => (
+                {members.filter(m => m.user_id && m.user_id.trim() !== '').map((member) => (
                   <SelectItem key={member.user_id} value={member.user_id}>
                     <div className="flex flex-col">
                       <span>{member.name}</span>
@@ -1500,24 +1500,35 @@ function AIAgentNodeEditor({ content, onChange }: { content: Record<string, any>
     <div className="space-y-4">
       <div className="space-y-2">
         <Label>Agente de IA</Label>
-        <Select
-          value={content.agent_id || ''}
-          onValueChange={(value) => {
-            const agent = agents.find(a => a.id === value);
-            onChange({ ...content, agent_id: value, agent_name: agent?.name || '' });
-          }}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder={loading ? "Carregando..." : "Selecione um agente"} />
-          </SelectTrigger>
-          <SelectContent>
-            {agents.map((agent) => (
-              <SelectItem key={agent.id} value={agent.id}>
-                {agent.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {loading ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground p-2">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Carregando agentes...
+          </div>
+        ) : agents.filter(a => a.id && a.id.trim() !== '').length === 0 ? (
+          <div className="text-sm text-muted-foreground p-3 bg-muted rounded-lg">
+            Nenhum agente de IA encontrado. Crie agentes primeiro.
+          </div>
+        ) : (
+          <Select
+            value={content.agent_id || undefined}
+            onValueChange={(value) => {
+              const agent = agents.find(a => a.id === value);
+              onChange({ ...content, agent_id: value, agent_name: agent?.name || '' });
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione um agente" />
+            </SelectTrigger>
+            <SelectContent>
+              {agents.filter(a => a.id && a.id.trim() !== '').map((agent) => (
+                <SelectItem key={agent.id} value={agent.id}>
+                  {agent.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         <p className="text-xs text-muted-foreground">
           O agente irá assumir a conversa até transferir ou encerrar
         </p>
