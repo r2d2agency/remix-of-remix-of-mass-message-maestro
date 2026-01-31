@@ -36,6 +36,8 @@ import {
   Save,
   X,
   Search,
+  Video,
+  ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -56,6 +58,8 @@ import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
+import { TaskDialog } from "@/components/crm/TaskDialog";
+import { MeetingScheduleDialog } from "./MeetingScheduleDialog";
 
 interface CRMSidePanelProps {
   conversationId: string;
@@ -124,6 +128,10 @@ export function CRMSidePanel({
   const [isCreatingCompany, setIsCreatingCompany] = useState(false);
   const [newCompanyName, setNewCompanyName] = useState("");
   const [savingCompany, setSavingCompany] = useState(false);
+
+  // Task and Meeting dialogs
+  const [showTaskDialog, setShowTaskDialog] = useState(false);
+  const [showMeetingDialog, setShowMeetingDialog] = useState(false);
 
   // Initialize deal form when deal changes
   useEffect(() => {
@@ -344,6 +352,28 @@ export function CRMSidePanel({
             Nova
           </Button>
         </div>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="flex gap-2 p-2 border-b bg-muted/10">
+        <Button
+          variant="outline"
+          size="sm"
+          className="flex-1 h-8 text-xs gap-1.5"
+          onClick={() => setShowTaskDialog(true)}
+        >
+          <ClipboardList className="h-3.5 w-3.5" />
+          Tarefa
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="flex-1 h-8 text-xs gap-1.5"
+          onClick={() => setShowMeetingDialog(true)}
+        >
+          <Video className="h-3.5 w-3.5 text-green-600" />
+          Reunião
+        </Button>
       </div>
 
       <ScrollArea className="flex-1">
@@ -874,6 +904,23 @@ export function CRMSidePanel({
           </div>
         )}
       </ScrollArea>
+
+      {/* Task Dialog */}
+      <TaskDialog
+        task={null}
+        dealId={selectedDeal?.id}
+        open={showTaskDialog}
+        onOpenChange={setShowTaskDialog}
+      />
+
+      {/* Meeting Dialog */}
+      <MeetingScheduleDialog
+        open={showMeetingDialog}
+        onOpenChange={setShowMeetingDialog}
+        dealId={selectedDeal?.id}
+        contactName={contactName}
+        contactPhone={contactPhone}
+      />
     </div>
   );
 }

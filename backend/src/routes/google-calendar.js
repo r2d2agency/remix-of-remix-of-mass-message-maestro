@@ -520,4 +520,103 @@ router.get('/events', async (req, res) => {
   }
 });
 
+// ============================================
+// CREATE EVENT WITH GOOGLE MEET AND ATTENDEES
+// ============================================
+router.post('/events-with-meet', async (req, res) => {
+  try {
+    const { title, description, startDateTime, endDateTime, addMeet, attendees = [], dealId } = req.body;
+
+    if (!title || !startDateTime || !endDateTime) {
+      return res.status(400).json({ error: 'Título, data de início e fim são obrigatórios' });
+    }
+
+    const accessToken = await getValidAccessToken(req.userId);
+
+    const event = {
+      summary: title,
+      description: description || '',
+      start: {
+        dateTime: startDateTime,
+        timeZone: 'America/Sao_Paulo',
+      },
+      end: {
+        dateTime: endDateTime,
+        timeZone: 'America/Sao_Paulo',
+      },
+      reminders: {
+        useDefault: true,
+      },
+    };
+
+    // Add Google Meet conference
+    if (addMeet) {
+      event.conferenceData = {
+        createRequest: {
+          requestId: crypto.randomUUID(),
+          conferenceSolutionKey: { type: 'hangoutsMeet' },
+        },
+      };
+    }
+
+    // Add attendees
+    if (attendees.length > 0) {
+      event.attendees = attendees.map(email => ({
+        email,
+        responseStatus: 'needsAction',
+      }));
+      event.guestsCanModify = false;
+      event.guestsCanInviteOthers = false;
+      event.guestsCanSeeOtherGuests = true;
+    }
+
+    // Build URL with conferenceDataVersion if adding Meet
+    let url = `${GOOGLE_CALENDAR_API}/calendars/primary/events`;
+    if (addMeet) {
+      url += '?conferenceDataVersion=1&sendUpdates=all';
+    } else if (attendees.length > 0) {
+      url += '?sendUpdates=all';
+    }
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(event),
+    });
+
+    const eventData = await response.json();
+
+    if (!response.ok) {
+      logError('Google Calendar API error:', eventData);
+      throw new Error(eventData.error?.message || 'Erro ao criar evento');
+    }
+
+    // Extract Meet link if created
+    const meetLink = eventData.conferenceData?.entryPoints?.find(
+      ep => ep.entryPointType === 'video'
+    )?.uri;
+
+    // Update last sync
+    await query(
+      `UPDATE google_oauth_tokens SET last_sync_at = NOW() WHERE user_id = $1`,
+      [req.userId]
+    );
+
+    logInfo(`Meeting created with Meet=${!!meetLink} for user ${req.userId}`);
+
+    res.json({ 
+      success: true, 
+      eventId: eventData.id, 
+      htmlLink: eventData.htmlLink,
+      meetLink: meetLink || null,
+    });
+  } catch (error) {
+    logError('Error creating meeting with Meet:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
