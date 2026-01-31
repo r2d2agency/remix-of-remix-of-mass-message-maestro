@@ -68,8 +68,11 @@ export function CRMSidePanel({
   const navigate = useNavigate();
   
   // CRM Data
-  const { data: deals = [], isLoading: loadingDeals, refetch: refetchDeals } = useCRMDealsByPhone(contactPhone);
+  const { data: allDeals = [], isLoading: loadingDeals, refetch: refetchDeals } = useCRMDealsByPhone(contactPhone);
   const { data: funnels = [] } = useCRMFunnels();
+  
+  // Filter only active deals (exclude won, lost, paused)
+  const deals = allDeals.filter(d => d.status === 'open');
   
   // Selected deal for detailed view
   const [selectedDealId, setSelectedDealId] = useState<string | null>(null);
@@ -153,6 +156,15 @@ export function CRMSidePanel({
     }
   };
 
+  const createNewDeal = () => {
+    // Navigate to CRM with pre-filled contact info
+    const params = new URLSearchParams();
+    if (contactPhone) params.set('phone', contactPhone);
+    if (contactName) params.set('name', contactName);
+    params.set('new', 'true');
+    navigate(`/crm/negociacoes?${params.toString()}`);
+  };
+
   // Status helpers
   const getStatusBadge = (deal: CRMDeal) => {
     if (deal.status === 'won') {
@@ -211,17 +223,28 @@ export function CRMSidePanel({
             </Badge>
           )}
         </div>
-        {selectedDeal && (
+        <div className="flex items-center gap-1">
+          {selectedDeal && (
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="h-7 text-xs gap-1"
+              onClick={openDealInCRM}
+            >
+              <ExternalLink className="h-3 w-3" />
+              Abrir
+            </Button>
+          )}
           <Button 
             variant="ghost" 
             size="sm" 
-            className="h-7 text-xs gap-1"
-            onClick={openDealInCRM}
+            className="h-7 text-xs gap-1 text-primary"
+            onClick={createNewDeal}
           >
-            <ExternalLink className="h-3 w-3" />
-            Abrir
+            <Plus className="h-3 w-3" />
+            Nova
           </Button>
-        )}
+        </div>
       </div>
 
       <ScrollArea className="flex-1">
@@ -232,15 +255,18 @@ export function CRMSidePanel({
         ) : deals.length === 0 ? (
           <div className="flex flex-col items-center justify-center p-8 text-center text-muted-foreground">
             <Briefcase className="h-10 w-10 mb-3 opacity-40" />
-            <p className="text-sm font-medium">Nenhuma negociação</p>
+            <p className="text-sm font-medium">Nenhuma negociação ativa</p>
             <p className="text-xs mt-1">
-              Este contato não possui negociações no CRM
+              {allDeals.length > 0 
+                ? `${allDeals.length} negociação(ões) encerrada(s)`
+                : "Este contato não possui negociações"
+              }
             </p>
             <Button 
-              variant="outline" 
+              variant="default" 
               size="sm" 
               className="mt-4 gap-1"
-              onClick={() => navigate('/crm/negociacoes')}
+              onClick={createNewDeal}
             >
               <Plus className="h-3 w-3" />
               Criar negociação
