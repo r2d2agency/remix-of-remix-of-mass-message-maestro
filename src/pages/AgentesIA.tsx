@@ -365,12 +365,12 @@ export default function AgentesIA() {
 
                   {/* Capabilities */}
                   <div className="flex flex-wrap gap-1.5">
-                    {agent.capabilities.slice(0, 4).map((cap) => (
+                    {(Array.isArray(agent.capabilities) ? agent.capabilities : []).slice(0, 4).map((cap) => (
                       <Badge key={cap} variant="secondary" className="text-xs">
                         {getCapabilityLabel(cap)}
                       </Badge>
                     ))}
-                    {agent.capabilities.length > 4 && (
+                    {Array.isArray(agent.capabilities) && agent.capabilities.length > 4 && (
                       <Badge variant="outline" className="text-xs">
                         +{agent.capabilities.length - 4}
                       </Badge>
