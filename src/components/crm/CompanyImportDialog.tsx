@@ -146,6 +146,7 @@ export function CompanyImportDialog({
   onOpenChange,
   onImport,
 }: CompanyImportDialogProps) {
+  const UNMAPPED_VALUE = "__unmapped__";
   const [step, setStep] = useState<"upload" | "mapping" | "preview">("upload");
   const [isDragging, setIsDragging] = useState(false);
   const [columns, setColumns] = useState<string[]>([]);
@@ -418,14 +419,19 @@ export function CompanyImportDialog({
                   <div key={field.key} className="space-y-2">
                     <Label>{field.label}</Label>
                     <Select
-                      value={mapping[field.key] || ""}
-                      onValueChange={(v) => setMapping((m) => ({ ...m, [field.key]: v || undefined }))}
+                      value={mapping[field.key] ?? UNMAPPED_VALUE}
+                      onValueChange={(v) =>
+                        setMapping((m) => ({
+                          ...m,
+                          [field.key]: v === UNMAPPED_VALUE ? undefined : v,
+                        }))
+                      }
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione a coluna" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Não mapear</SelectItem>
+                        <SelectItem value={UNMAPPED_VALUE}>Não mapear</SelectItem>
                         {columns.map((col) => (
                           <SelectItem key={col} value={col}>{col}</SelectItem>
                         ))}

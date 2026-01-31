@@ -533,15 +533,22 @@ export function ExternalFormEditorDialog({
                 <div className="grid gap-2">
                   <Label>Disparar Fluxo Automático (opcional)</Label>
                   <Select
-                    value={formData.trigger_flow_id}
-                    onValueChange={(value) => setFormData({ ...formData, trigger_flow_id: value })}
+                    value={formData.trigger_flow_id || "__none__"}
+                    onValueChange={(value) =>
+                      setFormData({
+                        ...formData,
+                        trigger_flow_id: value === "__none__" ? "" : value,
+                      })
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione um fluxo..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Nenhum</SelectItem>
-                      {flows.map((flow) => (
+                      <SelectItem value="__none__">Nenhum</SelectItem>
+                      {flows
+                        .filter((flow) => flow.id && String(flow.id).trim() !== "")
+                        .map((flow) => (
                         <SelectItem key={flow.id} value={flow.id}>
                           {flow.name}
                         </SelectItem>

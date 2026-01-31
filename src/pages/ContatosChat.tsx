@@ -88,6 +88,7 @@ interface Contact {
 
 const ContatosChat = () => {
   const navigate = useNavigate();
+  const NONE_CONNECTION_VALUE = "__none__";
   const [activeTab, setActiveTab] = useState("chat");
   
   // Chat contacts state
@@ -854,17 +855,24 @@ const ContatosChat = () => {
                           </div>
                           <div className="space-y-2">
                             <Label>Conexão (opcional)</Label>
-                            <Select value={newListConnectionId} onValueChange={setNewListConnectionId}>
+                              <Select
+                                value={newListConnectionId || NONE_CONNECTION_VALUE}
+                                onValueChange={(v) =>
+                                  setNewListConnectionId(v === NONE_CONNECTION_VALUE ? "" : v)
+                                }
+                              >
                               <SelectTrigger>
                                 <SelectValue placeholder="Selecione uma conexão" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="">Nenhuma conexão</SelectItem>
-                                {connections.map((conn) => (
+                                  <SelectItem value={NONE_CONNECTION_VALUE}>Nenhuma conexão</SelectItem>
+                                  {connections
+                                    .filter((conn) => conn.id && conn.id.trim() !== "")
+                                    .map((conn) => (
                                   <SelectItem key={conn.id} value={conn.id}>
                                     {conn.name} {conn.phone_number ? `(${conn.phone_number})` : ''}
                                   </SelectItem>
-                                ))}
+                                  ))}
                               </SelectContent>
                             </Select>
                             <p className="text-xs text-muted-foreground">
