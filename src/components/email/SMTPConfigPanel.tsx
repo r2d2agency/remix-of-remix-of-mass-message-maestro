@@ -47,23 +47,23 @@ export function SMTPConfigPanel() {
         </Tabs>
 
         {/* Gmail Help Section */}
-        <GmailHelpSection />
+        <EmailProvidersHelpSection />
       </CardContent>
     </Card>
   );
 }
 
-function GmailHelpSection() {
+function EmailProvidersHelpSection() {
   const [isOpen, setIsOpen] = useState(false);
+  const [activeProvider, setActiveProvider] = useState<"gmail" | "outlook">("gmail");
 
-  const fillGmailDefaults = () => {
-    // This will dispatch a custom event that forms can listen to
+  const fillDefaults = (provider: "gmail" | "outlook") => {
+    const configs = {
+      gmail: { host: 'smtp.gmail.com', port: 587, secure: true },
+      outlook: { host: 'smtp.office365.com', port: 587, secure: true }
+    };
     window.dispatchEvent(new CustomEvent('fill-gmail-defaults', {
-      detail: {
-        host: 'smtp.gmail.com',
-        port: 587,
-        secure: true
-      }
+      detail: configs[provider]
     }));
   };
 
@@ -73,91 +73,152 @@ function GmailHelpSection() {
         <Button variant="ghost" className="w-full justify-between p-4 h-auto border rounded-lg hover:bg-accent">
           <div className="flex items-center gap-2">
             <HelpCircle className="h-5 w-5 text-primary" />
-            <span className="font-medium">Como usar Gmail como SMTP?</span>
+            <span className="font-medium">Como usar Gmail ou Outlook como SMTP?</span>
           </div>
           <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
         </Button>
       </CollapsibleTrigger>
       <CollapsibleContent className="mt-3">
         <div className="rounded-lg border bg-accent/30 p-4 space-y-4">
-          <div className="space-y-3">
-            <h4 className="font-semibold text-sm flex items-center gap-2">
-              <span className="flex items-center justify-center w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs">1</span>
-              Ative a verificação em 2 etapas
-            </h4>
-            <p className="text-sm text-muted-foreground pl-7">
-              Acesse sua conta Google e ative a verificação em duas etapas se ainda não estiver ativada.
-            </p>
-            <a 
-              href="https://myaccount.google.com/security" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-sm text-primary hover:underline flex items-center gap-1 pl-7"
-            >
-              Acessar configurações de segurança do Google
-              <ExternalLink className="h-3 w-3" />
-            </a>
-          </div>
+          {/* Provider Tabs */}
+          <Tabs value={activeProvider} onValueChange={(v) => setActiveProvider(v as "gmail" | "outlook")}>
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="gmail">Gmail</TabsTrigger>
+              <TabsTrigger value="outlook">Outlook / Hotmail</TabsTrigger>
+            </TabsList>
 
-          <div className="space-y-3">
-            <h4 className="font-semibold text-sm flex items-center gap-2">
-              <span className="flex items-center justify-center w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs">2</span>
-              Crie uma Senha de App
-            </h4>
-            <p className="text-sm text-muted-foreground pl-7">
-              Gere uma senha específica para este aplicativo. Esta senha tem 16 caracteres (sem espaços).
-            </p>
-            <a 
-              href="https://myaccount.google.com/apppasswords" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-sm text-primary hover:underline flex items-center gap-1 pl-7"
-            >
-              Criar senha de app no Google
-              <ExternalLink className="h-3 w-3" />
-            </a>
-          </div>
+            {/* Gmail Instructions */}
+            <TabsContent value="gmail" className="mt-4 space-y-4">
+              <div className="space-y-3">
+                <h4 className="font-semibold text-sm flex items-center gap-2">
+                  <span className="flex items-center justify-center w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs">1</span>
+                  Ative a verificação em 2 etapas
+                </h4>
+                <p className="text-sm text-muted-foreground pl-7">
+                  Acesse sua conta Google e ative a verificação em duas etapas.
+                </p>
+                <a 
+                  href="https://myaccount.google.com/security" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-sm text-primary hover:underline flex items-center gap-1 pl-7"
+                >
+                  Configurações de segurança do Google
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
 
-          <div className="space-y-3">
-            <h4 className="font-semibold text-sm flex items-center gap-2">
-              <span className="flex items-center justify-center w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs">3</span>
-              Configure no sistema
-            </h4>
-            <div className="pl-7 space-y-2">
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div className="bg-background rounded px-3 py-2">
-                  <span className="text-muted-foreground">Servidor:</span>
-                  <code className="ml-2 font-mono">smtp.gmail.com</code>
-                </div>
-                <div className="bg-background rounded px-3 py-2">
-                  <span className="text-muted-foreground">Porta:</span>
-                  <code className="ml-2 font-mono">587</code>
+              <div className="space-y-3">
+                <h4 className="font-semibold text-sm flex items-center gap-2">
+                  <span className="flex items-center justify-center w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs">2</span>
+                  Crie uma Senha de App
+                </h4>
+                <p className="text-sm text-muted-foreground pl-7">
+                  Gere uma senha específica para este aplicativo (16 caracteres, sem espaços).
+                </p>
+                <a 
+                  href="https://myaccount.google.com/apppasswords" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-sm text-primary hover:underline flex items-center gap-1 pl-7"
+                >
+                  Criar senha de app no Google
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
+
+              <div className="space-y-3">
+                <h4 className="font-semibold text-sm flex items-center gap-2">
+                  <span className="flex items-center justify-center w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs">3</span>
+                  Configurações SMTP
+                </h4>
+                <div className="pl-7 grid grid-cols-2 gap-2 text-sm">
+                  <div className="bg-background rounded px-3 py-2">
+                    <span className="text-muted-foreground">Servidor:</span>
+                    <code className="ml-2 font-mono">smtp.gmail.com</code>
+                  </div>
+                  <div className="bg-background rounded px-3 py-2">
+                    <span className="text-muted-foreground">Porta:</span>
+                    <code className="ml-2 font-mono">587</code>
+                  </div>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div className="bg-background rounded px-3 py-2">
-                  <span className="text-muted-foreground">TLS:</span>
-                  <code className="ml-2 font-mono">Ativado</code>
-                </div>
-                <div className="bg-background rounded px-3 py-2">
-                  <span className="text-muted-foreground">Usuário:</span>
-                  <code className="ml-2 font-mono text-xs">seu@gmail.com</code>
+
+              <Button variant="outline" size="sm" onClick={() => fillDefaults("gmail")} className="w-full">
+                <Mail className="h-4 w-4 mr-2" />
+                Preencher configurações do Gmail
+              </Button>
+            </TabsContent>
+
+            {/* Outlook Instructions */}
+            <TabsContent value="outlook" className="mt-4 space-y-4">
+              <div className="space-y-3">
+                <h4 className="font-semibold text-sm flex items-center gap-2">
+                  <span className="flex items-center justify-center w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs">1</span>
+                  Ative a verificação em 2 etapas
+                </h4>
+                <p className="text-sm text-muted-foreground pl-7">
+                  Acesse sua conta Microsoft e ative a verificação em duas etapas.
+                </p>
+                <a 
+                  href="https://account.microsoft.com/security" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-sm text-primary hover:underline flex items-center gap-1 pl-7"
+                >
+                  Configurações de segurança da Microsoft
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
+
+              <div className="space-y-3">
+                <h4 className="font-semibold text-sm flex items-center gap-2">
+                  <span className="flex items-center justify-center w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs">2</span>
+                  Crie uma Senha de App
+                </h4>
+                <p className="text-sm text-muted-foreground pl-7">
+                  Gere uma senha específica para aplicativos.
+                </p>
+                <a 
+                  href="https://account.live.com/proofs/AppPassword" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-sm text-primary hover:underline flex items-center gap-1 pl-7"
+                >
+                  Criar senha de app na Microsoft
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
+
+              <div className="space-y-3">
+                <h4 className="font-semibold text-sm flex items-center gap-2">
+                  <span className="flex items-center justify-center w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs">3</span>
+                  Configurações SMTP
+                </h4>
+                <div className="pl-7 grid grid-cols-2 gap-2 text-sm">
+                  <div className="bg-background rounded px-3 py-2">
+                    <span className="text-muted-foreground">Servidor:</span>
+                    <code className="ml-2 font-mono text-xs">smtp.office365.com</code>
+                  </div>
+                  <div className="bg-background rounded px-3 py-2">
+                    <span className="text-muted-foreground">Porta:</span>
+                    <code className="ml-2 font-mono">587</code>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
 
-          <div className="pt-2 border-t">
-            <Button variant="outline" size="sm" onClick={fillGmailDefaults} className="w-full">
-              <Mail className="h-4 w-4 mr-2" />
-              Preencher configurações do Gmail automaticamente
-            </Button>
-          </div>
+              <Button variant="outline" size="sm" onClick={() => fillDefaults("outlook")} className="w-full">
+                <Mail className="h-4 w-4 mr-2" />
+                Preencher configurações do Outlook
+              </Button>
+            </TabsContent>
+          </Tabs>
 
           <div className="flex items-start gap-2 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
             <span className="text-yellow-600 text-lg">⚠️</span>
             <p className="text-sm text-muted-foreground">
-              <strong className="text-foreground">Importante:</strong> Use a <em>Senha de App</em> gerada, não sua senha normal do Gmail. 
+              <strong className="text-foreground">Importante:</strong> Use a <em>Senha de App</em> gerada, não sua senha normal. 
+              A senha de app é diferente da senha de login.
               A senha de app tem 16 caracteres sem espaços.
             </p>
           </div>
