@@ -276,5 +276,18 @@ export function useCRMLossReasonMutations() {
     },
   });
 
-  return { createLossReason, updateLossReason, deleteLossReason };
+  const resetToDefaults = useMutation({
+    mutationFn: async () => {
+      return api<CRMLossReason[]>("/api/crm/config/loss-reasons/reset-defaults", { method: "POST" });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["crm-loss-reasons"] });
+      toast({ title: "Motivos resetados para padrão" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Erro ao resetar motivos", description: error.message, variant: "destructive" });
+    },
+  });
+
+  return { createLossReason, updateLossReason, deleteLossReason, resetToDefaults };
 }

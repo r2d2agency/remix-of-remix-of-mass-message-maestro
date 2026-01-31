@@ -140,7 +140,7 @@ export default function CRMConfiguracoes() {
 
   // Loss Reasons
   const { data: lossReasons, isLoading: loadingLossReasons } = useCRMLossReasons();
-  const { createLossReason, updateLossReason, deleteLossReason } = useCRMLossReasonMutations();
+  const { createLossReason, updateLossReason, deleteLossReason, resetToDefaults } = useCRMLossReasonMutations();
   const [lossReasonDialog, setLossReasonDialog] = useState(false);
   const [editingLossReason, setEditingLossReason] = useState<CRMLossReason | null>(null);
   const [lossReasonForm, setLossReasonForm] = useState({ name: "", description: "" });
@@ -754,10 +754,24 @@ export default function CRMConfiguracoes() {
                     Configure os motivos que serão selecionados ao marcar uma negociação como perdida
                   </CardDescription>
                 </div>
-                <Button onClick={() => openLossReasonDialog()}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Novo Motivo
-                </Button>
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      if (confirm('Isso irá apagar todos os motivos atuais e criar os padrões. Continuar?')) {
+                        resetToDefaults.mutate();
+                      }
+                    }}
+                    disabled={resetToDefaults.isPending}
+                  >
+                    {resetToDefaults.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                    Resetar Padrões
+                  </Button>
+                  <Button onClick={() => openLossReasonDialog()}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Novo Motivo
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 {loadingLossReasons ? (

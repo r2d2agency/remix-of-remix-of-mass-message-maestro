@@ -2639,4 +2639,48 @@ router.delete('/config/loss-reasons/:id', async (req, res) => {
   }
 });
 
+// Reset loss reasons to defaults
+router.post('/config/loss-reasons/reset-defaults', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org) return res.status(403).json({ error: 'No organization' });
+    if (!canManage(org.role)) return res.status(403).json({ error: 'Not authorized' });
+
+    // Delete all existing loss reasons for this organization
+    await query(
+      `DELETE FROM crm_loss_reasons WHERE organization_id = $1`,
+      [org.organization_id]
+    );
+
+    // Insert default loss reasons
+    const defaultReasons = [
+      { name: 'Preço muito alto', description: 'Cliente achou o valor elevado para o orçamento disponível' },
+      { name: 'Concorrência', description: 'Cliente optou por outro fornecedor ou solução' },
+      { name: 'Sem resposta', description: 'Cliente parou de responder e não retornou contato' },
+      { name: 'Timing ruim', description: 'Não é o momento certo para o cliente' },
+      { name: 'Desistiu do projeto', description: 'Cliente decidiu não seguir com o projeto ou compra' },
+    ];
+
+    for (let i = 0; i < defaultReasons.length; i++) {
+      await query(
+        `INSERT INTO crm_loss_reasons (organization_id, name, description, position, is_active)
+         VALUES ($1, $2, $3, $4, true)`,
+        [org.organization_id, defaultReasons[i].name, defaultReasons[i].description, i]
+      );
+    }
+
+    // Return the new list
+    const result = await query(
+      `SELECT * FROM crm_loss_reasons 
+       WHERE organization_id = $1
+       ORDER BY position ASC`,
+      [org.organization_id]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error resetting loss reasons:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
