@@ -57,62 +57,90 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-4">
-      <Card className="w-full max-w-md shadow-neon">
-        <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
-            {branding.logo_login ? (
-              <img src={branding.logo_login} alt="Logo" className="h-16 max-w-[200px] object-contain" />
-            ) : (
-              <div className="gradient-primary p-3 rounded-full neon-glow">
-                <Zap className="h-8 w-8 text-primary-foreground" />
+    <div className="min-h-screen flex flex-col bg-background">
+      {/* Main content */}
+      <div className="flex-1 flex items-center justify-center px-4 py-8">
+        <div className="w-full max-w-md space-y-6">
+          <Card className="shadow-neon">
+            <CardHeader className="text-center">
+              <div className="flex justify-center mb-4">
+                {branding.logo_login ? (
+                  <img src={branding.logo_login} alt="Logo" className="h-16 max-w-[200px] object-contain" />
+                ) : (
+                  <div className="gradient-primary p-3 rounded-full neon-glow">
+                    <Zap className="h-8 w-8 text-primary-foreground" />
+                  </div>
+                )}
               </div>
-            )}
+              <CardTitle className="text-2xl neon-text">Entrar no Whatsale</CardTitle>
+              <CardDescription>
+                Plataforma completa de CRM e automação de WhatsApp para gerenciar contatos, 
+                campanhas e atendimento ao cliente
+              </CardDescription>
+            </CardHeader>
+            <form onSubmit={handleSubmit}>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="seu@email.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    disabled={isLoading}
+                  />
+                  {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Senha</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    disabled={isLoading}
+                  />
+                  {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
+                </div>
+              </CardContent>
+              <CardFooter className="flex flex-col gap-4">
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Entrar
+                </Button>
+                <p className="text-sm text-muted-foreground text-center">
+                  Não tem uma conta?{' '}
+                  <Link to="/cadastro" className="text-primary hover:underline">
+                    Cadastre-se
+                  </Link>
+                </p>
+              </CardFooter>
+            </form>
+          </Card>
+        </div>
+      </div>
+
+      {/* Footer with Privacy Policy link */}
+      <footer className="py-4 px-4 border-t">
+        <div className="max-w-md mx-auto text-center space-y-2">
+          <p className="text-xs text-muted-foreground">
+            Whatsale - CRM e Automação de WhatsApp
+          </p>
+          <div className="flex items-center justify-center gap-4 text-xs">
+            <Link 
+              to="/politica-privacidade" 
+              className="text-muted-foreground hover:text-primary underline"
+            >
+              Política de Privacidade
+            </Link>
           </div>
-          <CardTitle className="text-2xl neon-text">Entrar no Whatsale</CardTitle>
-          <CardDescription>Digite seu email e senha para acessar</CardDescription>
-        </CardHeader>
-        <form onSubmit={handleSubmit}>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="seu@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={isLoading}
-              />
-              {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Senha</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={isLoading}
-              />
-              {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
-            </div>
-          </CardContent>
-          <CardFooter className="flex flex-col gap-4">
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Entrar
-            </Button>
-            <p className="text-sm text-muted-foreground text-center">
-              Não tem uma conta?{' '}
-              <Link to="/cadastro" className="text-primary hover:underline">
-                Cadastre-se
-              </Link>
-            </p>
-          </CardFooter>
-        </form>
-      </Card>
+          <p className="text-xs text-muted-foreground">
+            © {new Date().getFullYear()} Whatsale. Todos os direitos reservados.
+          </p>
+        </div>
+      </footer>
     </div>
   );
 };
