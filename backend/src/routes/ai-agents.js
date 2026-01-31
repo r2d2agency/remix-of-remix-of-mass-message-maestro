@@ -114,7 +114,7 @@ router.post('/', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'Nome é obrigatório' });
     }
 
-    const result = await query(`
+     const result = await query(`
       INSERT INTO ai_agents (
         organization_id, name, description, avatar_url,
         ai_provider, ai_model, ai_api_key,
@@ -127,7 +127,7 @@ router.post('/', authenticate, async (req, res) => {
         created_by
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-        $11, $12, $13, $14, $15, $16, $17, $18, $19,
+         $11, $12, $13, $14::agent_capability[], $15, $16, $17, $18::text[], $19,
         $20, $21, $22, $23, $24, $25
       ) RETURNING *
     `, [
@@ -184,9 +184,14 @@ router.patch('/:id', authenticate, async (req, res) => {
     const values = [];
     let paramIndex = 1;
 
-    for (const field of allowedFields) {
+     for (const field of allowedFields) {
       if (req.body[field] !== undefined) {
-        updates.push(`${field} = $${paramIndex}`);
+         // Ensure correct Postgres types for array columns
+         let assignment = `${field} = $${paramIndex}`;
+         if (field === 'capabilities') assignment = `${field} = $${paramIndex}::agent_capability[]`;
+         if (field === 'handoff_keywords') assignment = `${field} = $${paramIndex}::text[]`;
+
+         updates.push(assignment);
         let value = req.body[field];
         if (['personality_traits', 'lead_scoring_criteria'].includes(field) && typeof value === 'object') {
           value = JSON.stringify(value);
