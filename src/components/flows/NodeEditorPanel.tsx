@@ -869,6 +869,7 @@ function ActionNodeEditor({ content, onChange }: { content: Record<string, any>;
             <SelectItem value="set_variable">Definir variável</SelectItem>
             <SelectItem value="add_tag">Adicionar tag</SelectItem>
             <SelectItem value="remove_tag">Remover tag</SelectItem>
+            <SelectItem value="send_email">Enviar e-mail</SelectItem>
             <SelectItem value="notify">Notificar equipe</SelectItem>
             <SelectItem value="notify_external">Notificar externa (WhatsApp)</SelectItem>
             <SelectItem value="close_conversation">Encerrar conversa</SelectItem>
@@ -939,6 +940,56 @@ function ActionNodeEditor({ content, onChange }: { content: Record<string, any>;
               </SelectContent>
             </Select>
           )}
+        </div>
+      )}
+
+      {content.action_type === 'send_email' && (
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>E-mail do destinatário</Label>
+            <Input
+              value={content.email_to || ''}
+              onChange={(e) => onChange({ ...content, email_to: e.target.value })}
+              placeholder="{email} ou email@exemplo.com"
+            />
+            <p className="text-xs text-muted-foreground">
+              Use {'{email}'} para usar o e-mail coletado no fluxo
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label>Assunto</Label>
+            <Input
+              value={content.email_subject || ''}
+              onChange={(e) => onChange({ ...content, email_subject: e.target.value })}
+              placeholder="Assunto do e-mail"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Corpo do e-mail</Label>
+            <Textarea
+              value={content.email_body || ''}
+              onChange={(e) => onChange({ ...content, email_body: e.target.value })}
+              placeholder="Olá {nome},&#10;&#10;Obrigado pelo contato..."
+              rows={6}
+            />
+          </div>
+          <div className="p-3 bg-muted rounded-lg space-y-1">
+            <p className="text-xs font-medium">Variáveis disponíveis:</p>
+            <div className="flex flex-wrap gap-1">
+              {['{nome}', '{telefone}', '{email}', '{mensagem}'].map(v => (
+                <Badge key={v} variant="secondary" className="text-xs cursor-pointer hover:bg-primary/20"
+                  onClick={() => onChange({ ...content, email_body: (content.email_body || '') + ' ' + v })}
+                >
+                  {v}
+                </Badge>
+              ))}
+            </div>
+          </div>
+          <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+            <p className="text-xs text-muted-foreground">
+              💡 Configure o SMTP em <strong>Configurações → E-mail</strong> antes de usar esta ação.
+            </p>
+          </div>
         </div>
       )}
 

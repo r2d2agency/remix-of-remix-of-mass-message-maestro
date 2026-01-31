@@ -585,6 +585,35 @@ async function processActionNode(content, connection, phone, variables) {
       case 'close_conversation':
         console.log('Flow action: Close conversation');
         break;
+      case 'send_email':
+        // Send email via SMTP queue
+        if (content.email_to && content.email_subject) {
+          const toEmail = replaceVariables(content.email_to, variables);
+          const subject = replaceVariables(content.email_subject, variables);
+          const body = replaceVariables(content.email_body || '', variables);
+          
+          console.log(`Flow action: Send email to ${toEmail}`);
+          
+          // Get organization from connection
+          const orgResult = await query(
+            'SELECT organization_id FROM connections WHERE id = $1',
+            [connection.id]
+          );
+          
+          if (orgResult.rows.length > 0) {
+            const orgId = orgResult.rows[0].organization_id;
+            
+            // Add to email queue
+            await query(
+              `INSERT INTO email_queue 
+                (organization_id, to_email, subject, body_html, body_text, context_type, status, priority)
+               VALUES ($1, $2, $3, $4, $4, 'flow', 'pending', 5)`,
+              [orgId, toEmail, subject, body]
+            );
+            console.log('Flow action: Email queued successfully');
+          }
+        }
+        break;
       case 'external_notification':
         // Send message to external number
         if (content.external_phone && content.external_message) {
