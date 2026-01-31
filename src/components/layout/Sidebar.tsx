@@ -95,7 +95,7 @@ const navSections: NavSection[] = [
       { name: "Listas", href: "/contatos", icon: Users },
       { name: "Mensagens", href: "/mensagens", icon: MessageSquare },
       { name: "Campanhas", href: "/campanhas", icon: Send },
-      { name: "Fluxos Externos", href: "/fluxos-externos", icon: FileText, adminOnly: true },
+      { name: "Fluxos Externos", href: "/fluxos-externos", icon: FileText },
     ],
   },
   {
