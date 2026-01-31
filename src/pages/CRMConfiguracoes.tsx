@@ -28,6 +28,7 @@ import {
 } from "@/hooks/use-crm-config";
 import { useCRMGroups, useCRMGroupMembers, useCRMGroupMutations, useCRMFunnels, useCRMFunnel, useCRMFunnelMutations, CRMFunnel } from "@/hooks/use-crm";
 import { FunnelEditorDialog } from "@/components/crm/FunnelEditorDialog";
+import { GoogleCalendarPanel } from "@/components/crm/GoogleCalendarPanel";
 
 import {
   Plus,
@@ -48,6 +49,7 @@ import {
   Building2,
   XCircle,
   GitBranch,
+  Link2,
 } from "lucide-react";
 
 const ICON_OPTIONS = [
@@ -379,6 +381,10 @@ export default function CRMConfiguracoes() {
             <TabsTrigger value="custom-fields" className="flex items-center gap-2">
               <FormInput className="h-4 w-4" />
               <span className="hidden sm:inline">Campos</span>
+            </TabsTrigger>
+            <TabsTrigger value="integrations" className="flex items-center gap-2">
+              <Link2 className="h-4 w-4" />
+              <span className="hidden sm:inline">Integrações</span>
             </TabsTrigger>
           </TabsList>
 
@@ -902,6 +908,24 @@ export default function CRMConfiguracoes() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Integrations Tab */}
+          <TabsContent value="integrations" className="mt-6">
+            <div className="space-y-6">
+              <GoogleCalendarPanel />
+              
+              {/* Placeholder for future integrations */}
+              <Card className="border-dashed">
+                <CardContent className="flex flex-col items-center justify-center py-8 text-center">
+                  <Link2 className="h-12 w-12 text-muted-foreground/50 mb-3" />
+                  <h3 className="font-medium text-muted-foreground">Mais integrações em breve</h3>
+                  <p className="text-sm text-muted-foreground/70 mt-1">
+                    Microsoft Outlook, Zoom, Google Meet e outros
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
         </Tabs>
       </div>

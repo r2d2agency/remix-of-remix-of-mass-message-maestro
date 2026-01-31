@@ -24,6 +24,7 @@ import flowsRoutes from './routes/flows.js';
 import crmRoutes from './routes/crm.js';
 import crmAutomationRoutes from './routes/crm-automation.js';
 import emailRoutes from './routes/email.js';
+import googleCalendarRoutes from './routes/google-calendar.js';
 import billingQueueRoutes from './routes/billing-queue.js';
 import transcribeRoutes from './routes/transcribe.js';
 import { initDatabase } from './init-db.js';
@@ -161,6 +162,7 @@ app.use('/api/flows', flowsRoutes);
 app.use('/api/crm', crmRoutes);
 app.use('/api/crm/automation', crmAutomationRoutes);
 app.use('/api/email', emailRoutes);
+app.use('/api/google-calendar', googleCalendarRoutes);
 app.use('/api/billing-queue', billingQueueRoutes);
 app.use('/api/transcribe-audio', transcribeRoutes);
 

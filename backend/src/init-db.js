@@ -1872,6 +1872,49 @@ CREATE INDEX IF NOT EXISTS idx_email_history_org ON email_history(organization_i
 CREATE INDEX IF NOT EXISTS idx_email_history_context ON email_history(context_type, context_id);
 `;
 
+// ============================================
+// STEP 24: GOOGLE CALENDAR INTEGRATION
+// ============================================
+const step24GoogleCalendar = `
+-- Google OAuth tokens
+CREATE TABLE IF NOT EXISTS google_oauth_tokens (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL UNIQUE,
+    access_token TEXT NOT NULL,
+    refresh_token TEXT NOT NULL,
+    token_type VARCHAR(50) DEFAULT 'Bearer',
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    scope TEXT,
+    google_email VARCHAR(255),
+    google_name VARCHAR(255),
+    is_active BOOLEAN DEFAULT true,
+    last_sync_at TIMESTAMP WITH TIME ZONE,
+    last_error TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Google Calendar events mapping
+CREATE TABLE IF NOT EXISTS google_calendar_events (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+    crm_task_id UUID REFERENCES crm_tasks(id) ON DELETE CASCADE,
+    crm_deal_id UUID REFERENCES crm_deals(id) ON DELETE SET NULL,
+    google_event_id VARCHAR(255) NOT NULL,
+    google_calendar_id VARCHAR(255) DEFAULT 'primary',
+    sync_status VARCHAR(20) DEFAULT 'synced',
+    last_synced_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(user_id, crm_task_id)
+);
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_google_oauth_user ON google_oauth_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_google_calendar_events_user ON google_calendar_events(user_id);
+CREATE INDEX IF NOT EXISTS idx_google_calendar_events_task ON google_calendar_events(crm_task_id);
+`;
+
 // Migration steps in order of execution
 const migrationSteps = [
   { name: 'Enums', sql: step1Enums, critical: true },
@@ -1898,6 +1941,7 @@ const migrationSteps = [
   { name: 'CRM Prospects', sql: step21Prospects, critical: false },
   { name: 'CRM Automation', sql: step22CRMAutomation, critical: false },
   { name: 'Email System', sql: step23Email, critical: false },
+  { name: 'Google Calendar', sql: step24GoogleCalendar, critical: false },
 ];
 
 export async function initDatabase() {
