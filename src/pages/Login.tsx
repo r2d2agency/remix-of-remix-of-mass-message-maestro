@@ -57,11 +57,11 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
+    <div className="min-h-screen flex flex-col bg-background overflow-x-hidden w-full max-w-full">
       {/* Main content */}
-      <div className="flex-1 flex items-center justify-center px-4 py-8">
-        <div className="w-full max-w-md space-y-6">
-          <Card className="shadow-neon">
+      <div className="flex-1 flex items-center justify-center px-4 py-8 w-full max-w-full">
+        <div className="w-full max-w-md space-y-6 min-w-0">
+          <Card className="shadow-neon w-full overflow-hidden">
             <CardHeader className="text-center">
               <div className="flex justify-center mb-4">
                 {branding.logo_login ? (
