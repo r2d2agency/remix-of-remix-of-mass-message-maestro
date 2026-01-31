@@ -10,6 +10,7 @@ const router = express.Router();
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/api/google-calendar/callback';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -65,18 +66,18 @@ router.get('/callback', async (req, res) => {
     const { code, state, error: oauthError } = req.query;
 
     if (oauthError) {
-      return res.redirect(`/crm/configuracoes?google_error=${encodeURIComponent(oauthError)}`);
+      return res.redirect(`${FRONTEND_URL}/crm/configuracoes?google_error=${encodeURIComponent(oauthError)}`);
     }
 
     if (!code || !state) {
-      return res.redirect('/crm/configuracoes?google_error=missing_params');
+      return res.redirect(`${FRONTEND_URL}/crm/configuracoes?google_error=missing_params`);
     }
 
     // Validate state token
     const stateData = stateTokens.get(state);
     if (!stateData || stateData.expires < Date.now()) {
       stateTokens.delete(state);
-      return res.redirect('/crm/configuracoes?google_error=invalid_state');
+      return res.redirect(`${FRONTEND_URL}/crm/configuracoes?google_error=invalid_state`);
     }
 
     const userId = stateData.userId;
@@ -99,7 +100,7 @@ router.get('/callback', async (req, res) => {
 
     if (!tokenResponse.ok) {
       logError('Token exchange failed:', tokenData);
-      return res.redirect(`/crm/configuracoes?google_error=${encodeURIComponent(tokenData.error || 'token_exchange_failed')}`);
+      return res.redirect(`${FRONTEND_URL}/crm/configuracoes?google_error=${encodeURIComponent(tokenData.error || 'token_exchange_failed')}`);
     }
 
     // Get user info
@@ -131,10 +132,10 @@ router.get('/callback', async (req, res) => {
     );
 
     logInfo(`Google Calendar connected for user ${userId}: ${userInfo.email}`);
-    res.redirect('/crm/configuracoes?google_success=true');
+    res.redirect(`${FRONTEND_URL}/crm/configuracoes?google_success=true`);
   } catch (error) {
     logError('OAuth callback error:', error);
-    res.redirect(`/crm/configuracoes?google_error=${encodeURIComponent(error.message)}`);
+    res.redirect(`${FRONTEND_URL}/crm/configuracoes?google_error=${encodeURIComponent(error.message)}`);
   }
 });
 
