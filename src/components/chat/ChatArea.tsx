@@ -2427,9 +2427,9 @@ export function ChatArea({
       {showQuickReplies && (
         <QuickRepliesPanel
           onSelect={(content) => {
-            // Replace {{nome}} with contact name
+            // Replace {nome} with contact name
             const contactName = conversation?.contact_name || '';
-            const processedContent = content.replace(/\{\{nome\}\}/gi, contactName);
+            const processedContent = content.replace(/\{nome\}/gi, contactName);
             setMessageText(processedContent);
           }}
           onClose={() => setShowQuickReplies(false)}

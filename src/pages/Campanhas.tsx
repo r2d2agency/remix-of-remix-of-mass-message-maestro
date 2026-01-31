@@ -914,7 +914,7 @@ const Campanhas = () => {
                          )}
                        </div>
                       <p className="text-xs text-muted-foreground">
-                        Selecione múltiplas mensagens para envio aleatório entre contatos. Use <code className="bg-muted px-1 rounded">{'{{nome}}'}</code>, <code className="bg-muted px-1 rounded">{'{{telefone}}'}</code> nas mensagens para personalização.
+                        Selecione múltiplas mensagens para envio aleatório entre contatos. Use <code className="bg-muted px-1 rounded">{'{nome}'}</code>, <code className="bg-muted px-1 rounded">{'{telefone}'}</code> nas mensagens para personalização.
                       </p>
                     </div>
                   ) : (

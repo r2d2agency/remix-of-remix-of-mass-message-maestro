@@ -71,7 +71,7 @@ export function SendEmailDialog({
       let body = template.body_html;
 
       Object.entries(variables).forEach(([key, value]) => {
-        const regex = new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, 'gi');
+        const regex = new RegExp(`\\{\\s*${key}\\s*\\}`, 'gi');
         subject = subject.replace(regex, value || '');
         body = body.replace(regex, value || '');
       });
@@ -211,7 +211,7 @@ export function SendEmailDialog({
                 <div className="flex flex-wrap gap-1">
                   {Object.entries(variables).map(([key, value]) => (
                     <Badge key={key} variant="secondary" className="text-xs">
-                      {`{{${key}}}`}: {value || "(vazio)"}
+                      {`{${key}}`}: {value || "(vazio)"}
                     </Badge>
                   ))}
                 </div>

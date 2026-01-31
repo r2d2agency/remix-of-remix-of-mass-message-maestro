@@ -187,13 +187,13 @@ export function MessageItemEditor({
             </div>
           </div>
           <Textarea
-            placeholder="Digite sua mensagem aqui... Use {{nome}}, {{telefone}}, {{email}} para personalizar"
+            placeholder="Digite sua mensagem aqui... Use {nome}, {telefone}, {email} para personalizar"
             value={item.content}
             onChange={(e) => onUpdate(item.id, { content: e.target.value })}
             className="min-h-[100px] resize-none"
           />
           <p className="text-xs text-muted-foreground">
-            Variáveis disponíveis: <code className="bg-muted px-1 rounded">{'{{nome}}'}</code>, <code className="bg-muted px-1 rounded">{'{{telefone}}'}</code>, <code className="bg-muted px-1 rounded">{'{{email}}'}</code>, <code className="bg-muted px-1 rounded">{'{{empresa}}'}</code>, <code className="bg-muted px-1 rounded">{'{{cargo}}'}</code>, <code className="bg-muted px-1 rounded">{'{{obs}}'}</code>
+            Variáveis disponíveis: <code className="bg-muted px-1 rounded">{'{nome}'}</code>, <code className="bg-muted px-1 rounded">{'{telefone}'}</code>, <code className="bg-muted px-1 rounded">{'{email}'}</code>, <code className="bg-muted px-1 rounded">{'{empresa}'}</code>, <code className="bg-muted px-1 rounded">{'{cargo}'}</code>, <code className="bg-muted px-1 rounded">{'{obs}'}</code>
           </p>
         </div>
       ) : (
@@ -352,7 +352,7 @@ export function MessageItemEditor({
               </div>
             </div>
             <Textarea
-              placeholder="Adicione uma legenda... Use {{nome}} para personalizar"
+              placeholder="Adicione uma legenda... Use {nome} para personalizar"
               value={item.caption || ""}
               onChange={(e) => onUpdate(item.id, { caption: e.target.value })}
               className="min-h-[60px] resize-none"

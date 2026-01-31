@@ -89,7 +89,7 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
     trigger_type: "before_due" as "before_due" | "on_due" | "after_due",
     days_offset: 3,
     max_days_overdue: 30,
-    message_template: "Olá {{nome}}! Sua fatura de R$ {{valor}} vence em {{vencimento}}. Acesse: {{link}}",
+    message_template: "Olá {nome}! Sua fatura de R$ {valor} vence em {vencimento}. Acesse: {link}",
     send_time: "09:00",
     connection_id: "",
     min_delay: 120,
@@ -394,7 +394,7 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
         trigger_type: "before_due",
         days_offset: 3,
         max_days_overdue: 30,
-        message_template: "Olá {{nome}}! Sua fatura de R$ {{valor}} vence em {{vencimento}}. Acesse: {{link}}",
+        message_template: "Olá {nome}! Sua fatura de R$ {valor} vence em {vencimento}. Acesse: {link}",
         send_time: "09:00",
         connection_id: "",
         min_delay: 120,
@@ -1243,7 +1243,7 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
                         trigger_type: "before_due",
                         days_offset: 3,
                         max_days_overdue: 30,
-                        message_template: "Olá {{nome}}! Sua fatura de R$ {{valor}} vence em {{vencimento}}. Acesse: {{link}}",
+                        message_template: "Olá {nome}! Sua fatura de R$ {valor} vence em {vencimento}. Acesse: {link}",
                         send_time: "09:00",
                         connection_id: "",
                         min_delay: 120,
@@ -1392,12 +1392,12 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
                         <Label>Mensagem</Label>
                         <Textarea 
                           rows={4}
-                          placeholder="Use variáveis: {{nome}}, {{valor}}, {{vencimento}}, {{link}}, {{boleto}}, {{pix}}"
+                          placeholder="Use variáveis: {nome}, {valor}, {vencimento}, {link}, {boleto}, {pix}"
                           value={ruleForm.message_template}
                           onChange={(e) => setRuleForm({...ruleForm, message_template: e.target.value})}
                         />
                         <p className="text-xs text-muted-foreground">
-                          Variáveis: {"{{nome}}"}, {"{{valor}}"}, {"{{vencimento}}"}, {"{{link}}"}, {"{{boleto}}"}, {"{{pix}}"}, {"{{descricao}}"}
+                          Variáveis: {"{nome}"}, {"{valor}"}, {"{vencimento}"}, {"{link}"}, {"{boleto}"}, {"{pix}"}, {"{descricao}"}
                         </p>
                       </div>
 

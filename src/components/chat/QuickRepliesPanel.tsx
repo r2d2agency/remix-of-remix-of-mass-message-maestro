@@ -310,7 +310,7 @@ export function QuickRepliesPanel({ onSelect, onClose }: QuickRepliesPanelProps)
                 rows={4}
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Use {"{{nome}}"} para inserir o nome do contato
+                Use {"{nome}"} para inserir o nome do contato
               </p>
             </div>
 

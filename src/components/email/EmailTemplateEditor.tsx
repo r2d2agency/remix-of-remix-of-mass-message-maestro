@@ -82,7 +82,7 @@ export function EmailTemplateEditor({ template, open, onOpenChange }: EmailTempl
   };
 
   const insertVariable = (key: string) => {
-    const variable = `{{${key}}}`;
+    const variable = `{${key}}`;
     setForm(prev => ({
       ...prev,
       body_html: prev.body_html + variable,
@@ -142,7 +142,7 @@ export function EmailTemplateEditor({ template, open, onOpenChange }: EmailTempl
             <Input
               value={form.subject}
               onChange={(e) => setForm({ ...form, subject: e.target.value })}
-              placeholder="Ex: Olá {{nome}}, temos novidades!"
+              placeholder="Ex: Olá {nome}, temos novidades!"
             />
           </div>
 
@@ -157,7 +157,7 @@ export function EmailTemplateEditor({ template, open, onOpenChange }: EmailTempl
                   className="cursor-pointer hover:bg-primary hover:text-primary-foreground"
                   onClick={() => insertVariable(v.key)}
                 >
-                  {`{{${v.key}}}`}
+                  {`{${v.key}}`}
                 </Badge>
               ))}
             </div>
@@ -168,7 +168,7 @@ export function EmailTemplateEditor({ template, open, onOpenChange }: EmailTempl
             <Textarea
               value={form.body_html}
               onChange={(e) => setForm({ ...form, body_html: e.target.value })}
-              placeholder="<h1>Olá {{nome}}</h1><p>Seu email aqui...</p>"
+              placeholder="<h1>Olá {nome}</h1><p>Seu email aqui...</p>"
               rows={12}
               className="font-mono text-sm"
             />
