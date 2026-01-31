@@ -87,17 +87,24 @@ function createTransporter(config) {
       user: config.username,
       pass: decryptPassword(config.password_encrypted),
     },
+    tls: {
+      // Allow self-signed or mismatched certificates (common in shared hosting)
+      rejectUnauthorized: false,
+    },
   });
 }
 
-// Helper: Replace variables in template
+// Helper: Replace variables in template (supports both {var} and {{var}})
 function interpolateVariables(text, variables) {
   if (!text) return text;
   
   let result = text;
   for (const [key, value] of Object.entries(variables)) {
-    const regex = new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, 'gi');
-    result = result.replace(regex, value || '');
+    // Replace {{var}} and {var} patterns
+    const regexDouble = new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, 'gi');
+    const regexSingle = new RegExp(`\\{${key}\\}`, 'gi');
+    result = result.replace(regexDouble, value || '');
+    result = result.replace(regexSingle, value || '');
   }
   return result;
 }
