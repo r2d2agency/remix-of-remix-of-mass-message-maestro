@@ -700,7 +700,7 @@ const Chat = () => {
         "flex flex-col rounded-lg border overflow-hidden bg-background shadow-lg",
         isMobile 
           ? "h-[100dvh] fixed inset-0 z-30 rounded-none border-0" 
-          : "h-[calc(100vh-120px)]"
+          : "h-[calc(100vh-80px)]"
       )}>
         {/* Tab Header - Hide on mobile when chat is open */}
         {(!isMobile || !selectedConversation) && (

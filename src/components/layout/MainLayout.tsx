@@ -12,8 +12,8 @@ export function MainLayout({ children }: MainLayoutProps) {
       <Sidebar />
       <TopBar />
       {/* Desktop: margin-left for collapsed sidebar + top bar, Mobile: no margin */}
-      <main className="lg:ml-16 pt-16 lg:pt-14">
-        <div className="p-4 lg:p-6 xl:p-8">{children}</div>
+      <main className="lg:ml-16 pt-14 lg:pt-12">
+        <div className="p-2 lg:p-3 xl:p-4">{children}</div>
       </main>
     </div>
   );
