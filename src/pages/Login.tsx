@@ -44,14 +44,14 @@ const Login = () => {
     try {
       // Use validated+trimmed values
       await login(result.data.email, result.data.password);
-      // Small delay to ensure state is propagated before navigation
-      setTimeout(() => navigate('/'), 100);
+      navigate('/', { replace: true });
     } catch (error) {
       toast({
         title: 'Erro ao fazer login',
         description: error instanceof Error ? error.message : 'Credenciais inválidas',
         variant: 'destructive',
       });
+    } finally {
       setIsLoading(false);
     }
   };
