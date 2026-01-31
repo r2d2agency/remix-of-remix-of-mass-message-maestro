@@ -58,6 +58,27 @@ Diretrizes:
 - Quando apropriado, faça perguntas para entender melhor a necessidade
 - Mantenha o foco no atendimento ao cliente`;
 
+// Helper to normalize PostgreSQL arrays (can come as string "{a,b,c}" or actual array)
+function normalizeArray<T>(value: unknown, defaultValue: T[] = []): T[] {
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    // PostgreSQL array format: {item1,item2,item3}
+    if (value.startsWith('{') && value.endsWith('}')) {
+      const inner = value.slice(1, -1);
+      if (!inner) return defaultValue;
+      return inner.split(',').map(s => s.trim()) as T[];
+    }
+    // Try JSON parse
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : defaultValue;
+    } catch {
+      return defaultValue;
+    }
+  }
+  return defaultValue;
+}
+
 export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentEditorDialogProps) {
   const [saving, setSaving] = useState(false);
   const [models, setModels] = useState<AIModels>({ openai: [], gemini: [] });
@@ -98,16 +119,16 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
           ai_model: agent.ai_model,
           ai_api_key: '', // Não expor a chave existente
           system_prompt: agent.system_prompt,
-          personality_traits: agent.personality_traits || [],
+          personality_traits: normalizeArray<string>(agent.personality_traits, []),
           language: agent.language,
           temperature: agent.temperature,
           max_tokens: agent.max_tokens,
           context_window: agent.context_window,
-          capabilities: agent.capabilities,
+          capabilities: normalizeArray<AgentCapability>(agent.capabilities, ['respond_messages']),
           greeting_message: agent.greeting_message || '',
           fallback_message: agent.fallback_message,
           handoff_message: agent.handoff_message,
-          handoff_keywords: agent.handoff_keywords,
+          handoff_keywords: normalizeArray<string>(agent.handoff_keywords, ['humano', 'atendente', 'pessoa']),
           auto_handoff_after_failures: agent.auto_handoff_after_failures,
         });
       } else {
