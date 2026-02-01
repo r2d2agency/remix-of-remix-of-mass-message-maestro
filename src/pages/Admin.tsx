@@ -205,7 +205,7 @@ export default function Admin() {
     
     if (!isAdmin) {
       toast.error('Acesso negado. Apenas superadmins podem acessar esta página.');
-      navigate('/');
+      navigate('/dashboard');
       return;
     }
     

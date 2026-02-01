@@ -44,7 +44,7 @@ const Login = () => {
     try {
       // Use validated+trimmed values
       await login(result.data.email, result.data.password);
-      navigate('/', { replace: true });
+      navigate('/dashboard', { replace: true });
     } catch (error) {
       toast({
         title: 'Erro ao fazer login',

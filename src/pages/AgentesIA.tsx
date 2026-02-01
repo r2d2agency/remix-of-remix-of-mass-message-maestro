@@ -61,7 +61,7 @@ export default function AgentesIA() {
       try {
         const token = getAuthToken();
         if (!token) {
-          navigate('/');
+          navigate('/dashboard');
           return;
         }
 
@@ -73,16 +73,16 @@ export default function AgentesIA() {
           const data = await response.json();
           if (!data.isSuperadmin) {
             toast.error('Acesso restrito a superadmins');
-            navigate('/');
+            navigate('/dashboard');
             return;
           }
           setIsSuperadmin(true);
         } else {
-          navigate('/');
+          navigate('/dashboard');
           return;
         }
       } catch {
-        navigate('/');
+        navigate('/dashboard');
       } finally {
         setCheckingAccess(false);
       }

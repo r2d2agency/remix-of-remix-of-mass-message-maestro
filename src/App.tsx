@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { useBranding } from "@/hooks/use-branding";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import LandingPage from "./pages/LandingPage";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Cadastro from "./pages/Cadastro";
@@ -73,7 +74,8 @@ const App = () => (
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/cadastro" element={<Cadastro />} />
-            <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/dashboard" element={<ProtectedRoute><Index /></ProtectedRoute>} />
             <Route path="/conexao" element={<ProtectedRoute><Conexao /></ProtectedRoute>} />
             <Route path="/contatos" element={<ProtectedRoute><Contatos /></ProtectedRoute>} />
             <Route path="/mensagens" element={<ProtectedRoute><Mensagens /></ProtectedRoute>} />

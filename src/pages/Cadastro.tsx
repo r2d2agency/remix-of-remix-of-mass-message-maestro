@@ -100,7 +100,7 @@ const Cadastro = () => {
     try {
       // Use validated+trimmed values
       await register(result.data.email, result.data.password, result.data.name, selectedPlan || undefined);
-      navigate('/');
+      navigate('/dashboard');
     } catch (error) {
       toast({
         title: 'Erro ao criar conta',
