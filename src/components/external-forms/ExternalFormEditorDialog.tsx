@@ -211,7 +211,7 @@ export function ExternalFormEditorDialog({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl h-[85vh] flex flex-col overflow-hidden">
+      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5 text-primary" />
@@ -219,29 +219,29 @@ export function ExternalFormEditorDialog({
           </DialogTitle>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
           <TabsList className="grid w-full grid-cols-4 flex-shrink-0">
-            <TabsTrigger value="fields" className="gap-2">
-              <MessageSquare className="h-4 w-4" />
-              Campos
+            <TabsTrigger value="fields" className="gap-1 text-xs sm:text-sm px-2">
+              <MessageSquare className="h-4 w-4 flex-shrink-0" />
+              <span className="hidden sm:inline">Campos</span>
             </TabsTrigger>
-            <TabsTrigger value="style" className="gap-2">
-              <Palette className="h-4 w-4" />
-              Estilo
+            <TabsTrigger value="style" className="gap-1 text-xs sm:text-sm px-2">
+              <Palette className="h-4 w-4 flex-shrink-0" />
+              <span className="hidden sm:inline">Estilo</span>
             </TabsTrigger>
-            <TabsTrigger value="messages" className="gap-2">
-              <FileText className="h-4 w-4" />
-              Mensagens
+            <TabsTrigger value="messages" className="gap-1 text-xs sm:text-sm px-2">
+              <FileText className="h-4 w-4 flex-shrink-0" />
+              <span className="hidden sm:inline">Mensagens</span>
             </TabsTrigger>
-            <TabsTrigger value="actions" className="gap-2">
-              <Settings className="h-4 w-4" />
-              Ações
+            <TabsTrigger value="actions" className="gap-1 text-xs sm:text-sm px-2">
+              <Settings className="h-4 w-4 flex-shrink-0" />
+              <span className="hidden sm:inline">Ações</span>
             </TabsTrigger>
           </TabsList>
 
           {/* FIELDS TAB */}
-          <TabsContent value="fields" className="mt-4 flex-1 overflow-hidden">
-            <ScrollArea className="h-full">
+          <TabsContent value="fields" className="mt-4 flex-1 min-h-0">
+            <ScrollArea className="h-[calc(90vh-280px)] min-h-[250px]">
               <div className="pr-4 space-y-4">
                 <div className="grid gap-4">
                   <div className="grid gap-2">
@@ -387,8 +387,8 @@ export function ExternalFormEditorDialog({
           </TabsContent>
 
           {/* STYLE TAB */}
-          <TabsContent value="style" className="mt-4 flex-1 overflow-hidden">
-            <ScrollArea className="h-full">
+          <TabsContent value="style" className="mt-4 flex-1 min-h-0">
+            <ScrollArea className="h-[calc(90vh-280px)] min-h-[250px]">
               <div className="pr-4 space-y-4">
                 <div className="grid gap-2">
                   <Label>URL da Logo (opcional)</Label>
@@ -490,8 +490,8 @@ export function ExternalFormEditorDialog({
           </TabsContent>
 
           {/* MESSAGES TAB */}
-          <TabsContent value="messages" className="mt-4 flex-1 overflow-hidden">
-            <ScrollArea className="h-full">
+          <TabsContent value="messages" className="mt-4 flex-1 min-h-0">
+            <ScrollArea className="h-[calc(90vh-280px)] min-h-[250px]">
               <div className="pr-4 space-y-4">
                 <div className="grid gap-2">
                   <Label>Mensagem de Boas-vindas</Label>
@@ -535,8 +535,8 @@ export function ExternalFormEditorDialog({
           </TabsContent>
 
           {/* ACTIONS TAB */}
-          <TabsContent value="actions" className="mt-4 flex-1 overflow-hidden">
-            <ScrollArea className="h-full">
+          <TabsContent value="actions" className="mt-4 flex-1 min-h-0">
+            <ScrollArea className="h-[calc(90vh-280px)] min-h-[250px]">
               <div className="pr-4 space-y-4">
                 <div className="grid gap-2">
                   <Label>Disparar Fluxo Automático (opcional)</Label>
