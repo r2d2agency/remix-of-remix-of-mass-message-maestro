@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
+import { fetchWithRetry } from '../lib/retry-fetch.js';
 import crypto from 'crypto';
 
 const router = Router();
@@ -336,7 +337,11 @@ router.post('/sync/:organizationId', async (req, res) => {
       : 'https://sandbox.asaas.com/api/v3';
 
     const fetchAsaasJson = async (url) => {
-      const resp = await fetch(url, { headers: { 'access_token': integration.api_key } });
+      const resp = await fetchWithRetry(
+        url, 
+        { headers: { 'access_token': integration.api_key } },
+        { retries: 3, baseDelay: 1000, maxDelay: 8000, label: 'Asaas-Sync' }
+      );
       const contentType = (resp.headers.get('content-type') || '').toLowerCase();
 
       let body;

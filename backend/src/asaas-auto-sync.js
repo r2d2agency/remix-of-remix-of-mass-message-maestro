@@ -5,18 +5,27 @@
 // - 08:00 AM: Check payment status for all PENDING/OVERDUE in local DB → update if paid
 //
 import { query } from './db.js';
+import { fetchWithRetry } from './lib/retry-fetch.js';
 
 /**
- * Fetch JSON from Asaas API with proper error handling
+ * Fetch JSON from Asaas API with proper error handling and automatic retry on 5xx
  */
 async function fetchAsaasJson(baseUrl, apiKey, endpoint) {
   const url = `${baseUrl}${endpoint}`;
   console.log(`  [Asaas API] GET ${endpoint}`);
   
-  const resp = await fetch(url, { 
-    headers: { 'access_token': apiKey },
-    timeout: 30000,
-  });
+  const resp = await fetchWithRetry(
+    url, 
+    { 
+      headers: { 'access_token': apiKey },
+    },
+    {
+      retries: 3,
+      baseDelay: 1000,
+      maxDelay: 8000,
+      label: 'Asaas-AutoSync',
+    }
+  );
   
   const contentType = (resp.headers.get('content-type') || '').toLowerCase();
   
