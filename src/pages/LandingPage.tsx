@@ -23,7 +23,23 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import systemPreview from "@/assets/system-preview-chat.png";
+import systemPreviewChat from "@/assets/system-preview-chat.png";
+import systemPreviewCRM from "@/assets/system-preview-crm.png";
+
+const systemScreenshots = [
+  {
+    id: "chat",
+    title: "Chat Unificado",
+    description: "Gerencie todas as conversas em um único lugar",
+    image: systemPreviewChat,
+  },
+  {
+    id: "crm",
+    title: "CRM Kanban",
+    description: "Visualize seu funil de vendas completo",
+    image: systemPreviewCRM,
+  },
+];
 
 const features = [
   {
@@ -70,6 +86,7 @@ const benefits = [
 export default function LandingPage() {
   const { branding } = useBranding();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [activeScreen, setActiveScreen] = useState("chat");
 
   return (
     <div className="min-h-screen bg-background">
@@ -197,9 +214,28 @@ export default function LandingPage() {
             </p>
           </div>
 
-          {/* Hero Image/Preview */}
+          {/* Hero Image/Preview with Tabs */}
           <div className="mt-16 relative">
             <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent z-10 pointer-events-none" />
+            
+            {/* Screenshot Tabs */}
+            <div className="flex justify-center gap-4 mb-6">
+              {systemScreenshots.map((screen) => (
+                <button
+                  key={screen.id}
+                  onClick={() => setActiveScreen(screen.id)}
+                  className={cn(
+                    "px-4 py-2 rounded-lg text-sm font-medium transition-all",
+                    activeScreen === screen.id
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground hover:bg-muted/80"
+                  )}
+                >
+                  {screen.title}
+                </button>
+              ))}
+            </div>
+
             <div className="rounded-xl border shadow-2xl bg-card overflow-hidden">
               <div className="flex items-center gap-2 px-4 py-3 border-b bg-muted/30">
                 <div className="flex gap-1.5">
@@ -208,14 +244,20 @@ export default function LandingPage() {
                   <div className="w-3 h-3 rounded-full bg-green-500" />
                 </div>
                 <div className="flex-1 text-center text-xs text-muted-foreground">
-                  {branding.company_name || "Whatsale"} - Dashboard
+                  {branding.company_name || "Whatsale"} - {systemScreenshots.find(s => s.id === activeScreen)?.title}
                 </div>
               </div>
-              <img 
-                src={systemPreview} 
-                alt="Preview do sistema de chat e CRM"
-                className="w-full h-auto"
-              />
+              {systemScreenshots.map((screen) => (
+                <img 
+                  key={screen.id}
+                  src={screen.image} 
+                  alt={screen.description}
+                  className={cn(
+                    "w-full h-auto transition-opacity duration-300",
+                    activeScreen === screen.id ? "block" : "hidden"
+                  )}
+                />
+              ))}
             </div>
           </div>
         </div>
