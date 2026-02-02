@@ -46,9 +46,32 @@ const Login = () => {
       await login(result.data.email, result.data.password);
       navigate('/dashboard', { replace: true });
     } catch (error) {
+      // Parse error message to provide specific feedback
+      const errorMessage = error instanceof Error ? error.message : '';
+      
+      let title = 'Erro ao fazer login';
+      let description = 'Ocorreu um erro inesperado. Tente novamente.';
+      
+      // Check for specific error patterns
+      if (errorMessage.includes('401') || errorMessage.toLowerCase().includes('inválid') || errorMessage.toLowerCase().includes('credenciais')) {
+        title = 'Credenciais inválidas';
+        description = 'Email ou senha incorretos. Verifique os dados e tente novamente.';
+      } else if (errorMessage.includes('502') || errorMessage.includes('504') || errorMessage.toLowerCase().includes('gateway')) {
+        title = 'Servidor indisponível';
+        description = 'O servidor está temporariamente indisponível. Tente novamente em alguns minutos.';
+      } else if (errorMessage.includes('500') || errorMessage.toLowerCase().includes('internal')) {
+        title = 'Erro no servidor';
+        description = 'Ocorreu um erro interno. Por favor, tente novamente mais tarde.';
+      } else if (errorMessage.includes('network') || errorMessage.toLowerCase().includes('fetch') || errorMessage.toLowerCase().includes('conexão')) {
+        title = 'Erro de conexão';
+        description = 'Não foi possível conectar ao servidor. Verifique sua conexão com a internet.';
+      } else if (errorMessage) {
+        description = errorMessage;
+      }
+
       toast({
-        title: 'Erro ao fazer login',
-        description: error instanceof Error ? error.message : 'Credenciais inválidas',
+        title,
+        description,
         variant: 'destructive',
       });
     } finally {
