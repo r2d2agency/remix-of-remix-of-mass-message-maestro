@@ -533,9 +533,55 @@ router.post('/events-with-meet', async (req, res) => {
 
     const accessToken = await getValidAccessToken(req.userId);
 
+    // Build enhanced description with deal context if provided
+    let enhancedDescription = description || '';
+    let dealInfo = null;
+    
+    if (dealId) {
+      // Fetch deal details with company and contacts
+      const dealResult = await query(
+        `SELECT d.id, d.title, d.value, c.name as company_name, c.phone as company_phone,
+          (SELECT string_agg(ct.name || COALESCE(' (' || dc.role || ')', ''), ', ')
+           FROM crm_deal_contacts dc
+           JOIN contacts ct ON ct.id = dc.contact_id
+           WHERE dc.deal_id = d.id) as contact_names
+         FROM crm_deals d
+         LEFT JOIN crm_companies c ON c.id = d.company_id
+         WHERE d.id = $1`,
+        [dealId]
+      );
+      
+      if (dealResult.rows[0]) {
+        dealInfo = dealResult.rows[0];
+        
+        // Build context section for the description
+        const contextParts = [];
+        contextParts.push('📋 Negociação: ' + dealInfo.title);
+        if (dealInfo.company_name && dealInfo.company_name !== 'Sem empresa') {
+          contextParts.push('🏢 Empresa: ' + dealInfo.company_name);
+        }
+        if (dealInfo.contact_names) {
+          contextParts.push('👤 Contatos: ' + dealInfo.contact_names);
+        }
+        if (dealInfo.value) {
+          const formattedValue = new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: 'BRL',
+            minimumFractionDigits: 0,
+          }).format(dealInfo.value);
+          contextParts.push('💰 Valor: ' + formattedValue);
+        }
+        
+        const contextBlock = '─────────────────\n' + contextParts.join('\n') + '\n─────────────────';
+        
+        // Prepend context to description
+        enhancedDescription = contextBlock + (enhancedDescription ? '\n\n' + enhancedDescription : '');
+      }
+    }
+
     const event = {
       summary: title,
-      description: description || '',
+      description: enhancedDescription,
       start: {
         dateTime: startDateTime,
         timeZone: 'America/Sao_Paulo',
@@ -599,13 +645,37 @@ router.post('/events-with-meet', async (req, res) => {
       ep => ep.entryPointType === 'video'
     )?.uri;
 
+    // Save mapping if deal provided
+    if (dealId) {
+      await query(
+        `INSERT INTO google_calendar_events 
+         (user_id, crm_deal_id, google_event_id, google_calendar_id, event_summary, event_start, event_end, meet_link)
+         VALUES ($1, $2, $3, 'primary', $4, $5, $6, $7)
+         ON CONFLICT (user_id, google_event_id) DO UPDATE SET
+           crm_deal_id = EXCLUDED.crm_deal_id,
+           event_summary = EXCLUDED.event_summary,
+           event_start = EXCLUDED.event_start,
+           event_end = EXCLUDED.event_end,
+           meet_link = EXCLUDED.meet_link,
+           sync_status = 'synced',
+           last_synced_at = NOW()`,
+        [req.userId, dealId, eventData.id, title, startDateTime, endDateTime, meetLink]
+      );
+      
+      // Update deal's last_activity_at
+      await query(
+        `UPDATE crm_deals SET last_activity_at = NOW() WHERE id = $1`,
+        [dealId]
+      );
+    }
+
     // Update last sync
     await query(
       `UPDATE google_oauth_tokens SET last_sync_at = NOW() WHERE user_id = $1`,
       [req.userId]
     );
 
-    logInfo(`Meeting created with Meet=${!!meetLink} for user ${req.userId}`);
+    logInfo(`Meeting created with Meet=${!!meetLink} for user ${req.userId}${dealId ? ` linked to deal ${dealId}` : ''}`);
 
     res.json({ 
       success: true, 
@@ -615,6 +685,30 @@ router.post('/events-with-meet', async (req, res) => {
     });
   } catch (error) {
     logError('Error creating meeting with Meet:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get scheduled meetings for a deal
+router.get('/deal-meetings/:dealId', async (req, res) => {
+  try {
+    const { dealId } = req.params;
+    
+    // Get all upcoming meetings linked to this deal
+    const result = await query(
+      `SELECT gce.*, u.name as created_by_name
+       FROM google_calendar_events gce
+       LEFT JOIN users u ON u.id = gce.user_id
+       WHERE gce.crm_deal_id = $1 
+         AND gce.event_start > NOW()
+         AND gce.sync_status = 'synced'
+       ORDER BY gce.event_start ASC`,
+      [dealId]
+    );
+    
+    res.json(result.rows);
+  } catch (error) {
+    logError('Error fetching deal meetings:', error);
     res.status(500).json({ error: error.message });
   }
 });

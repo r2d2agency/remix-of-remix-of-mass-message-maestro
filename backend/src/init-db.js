@@ -1903,6 +1903,10 @@ CREATE TABLE IF NOT EXISTS google_calendar_events (
     crm_deal_id UUID REFERENCES crm_deals(id) ON DELETE SET NULL,
     google_event_id VARCHAR(255) NOT NULL,
     google_calendar_id VARCHAR(255) DEFAULT 'primary',
+    event_summary VARCHAR(500),
+    event_start TIMESTAMP WITH TIME ZONE,
+    event_end TIMESTAMP WITH TIME ZONE,
+    meet_link VARCHAR(500),
     sync_status VARCHAR(20) DEFAULT 'synced',
     last_synced_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -1910,10 +1914,32 @@ CREATE TABLE IF NOT EXISTS google_calendar_events (
     UNIQUE(user_id, crm_task_id)
 );
 
+-- Add new columns if not exists (migration for existing databases)
+DO $$ BEGIN
+    ALTER TABLE google_calendar_events ADD COLUMN IF NOT EXISTS event_summary VARCHAR(500);
+    ALTER TABLE google_calendar_events ADD COLUMN IF NOT EXISTS event_start TIMESTAMP WITH TIME ZONE;
+    ALTER TABLE google_calendar_events ADD COLUMN IF NOT EXISTS event_end TIMESTAMP WITH TIME ZONE;
+    ALTER TABLE google_calendar_events ADD COLUMN IF NOT EXISTS meet_link VARCHAR(500);
+EXCEPTION
+    WHEN duplicate_column THEN null;
+END $$;
+
+-- Add unique constraint on google_event_id if not exists
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'google_calendar_events_user_id_google_event_id_key'
+    ) THEN
+        ALTER TABLE google_calendar_events ADD CONSTRAINT google_calendar_events_user_id_google_event_id_key UNIQUE (user_id, google_event_id);
+    END IF;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_google_oauth_user ON google_oauth_tokens(user_id);
 CREATE INDEX IF NOT EXISTS idx_google_calendar_events_user ON google_calendar_events(user_id);
 CREATE INDEX IF NOT EXISTS idx_google_calendar_events_task ON google_calendar_events(crm_task_id);
+CREATE INDEX IF NOT EXISTS idx_google_calendar_events_deal ON google_calendar_events(crm_deal_id);
+CREATE INDEX IF NOT EXISTS idx_google_calendar_events_start ON google_calendar_events(event_start);
 `;
 
 // ============================================

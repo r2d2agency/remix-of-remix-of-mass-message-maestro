@@ -94,6 +94,7 @@ export interface CRMDeal {
   inactivity_hours?: number;
   inactivity_color?: string;
   pending_tasks: number;
+  upcoming_meetings?: number;
   contacts?: CRMDealContact[];
   last_activity_at: string;
   last_opened_at: string;

@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CRMDeal } from "@/hooks/use-crm";
 import { cn } from "@/lib/utils";
-import { Building2, User, Clock, AlertTriangle, CheckSquare, Trophy, XCircle, Pause } from "lucide-react";
+import { Building2, User, Clock, AlertTriangle, CheckSquare, Trophy, XCircle, Pause, Video } from "lucide-react";
 import { differenceInHours, parseISO } from "date-fns";
 
 interface DealCardProps {
@@ -41,6 +41,10 @@ export const DealCard = forwardRef<HTMLDivElement, DealCardProps>(
     // Convert pending_tasks to number (comes as string from API)
     const pendingTasksCount = Number(deal.pending_tasks) || 0;
     const hasPendingTasks = pendingTasksCount > 0;
+    
+    // Upcoming meetings count
+    const upcomingMeetingsCount = Number(deal.upcoming_meetings) || 0;
+    const hasUpcomingMeetings = upcomingMeetingsCount > 0;
 
     const formatCurrency = (value: number) => {
       return new Intl.NumberFormat("pt-BR", {
@@ -216,6 +220,18 @@ export const DealCard = forwardRef<HTMLDivElement, DealCardProps>(
           </div>
 
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            {/* Upcoming meetings - highlighted */}
+            {hasUpcomingMeetings && !isWon && !isLost && (
+              <Badge 
+                variant="secondary" 
+                className="text-[10px] px-1.5 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 flex items-center gap-0.5"
+                title={`${upcomingMeetingsCount} reunião(ões) agendada(s)`}
+              >
+                <Video className="h-3 w-3" />
+                <span>{upcomingMeetingsCount}</span>
+              </Badge>
+            )}
+
             {/* Pending tasks - highlighted */}
             {hasPendingTasks && !isWon && !isLost && (
               <Badge 

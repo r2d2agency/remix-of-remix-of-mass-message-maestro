@@ -46,6 +46,12 @@ CREATE TABLE IF NOT EXISTS google_calendar_events (
     google_event_id VARCHAR(255) NOT NULL,
     google_calendar_id VARCHAR(255) DEFAULT 'primary',
     
+    -- Event details (cached for display)
+    event_summary VARCHAR(500),
+    event_start TIMESTAMP WITH TIME ZONE,
+    event_end TIMESTAMP WITH TIME ZONE,
+    meet_link VARCHAR(500),
+    
     -- Sync status
     sync_status VARCHAR(20) DEFAULT 'synced', -- synced, pending_update, pending_delete, error
     last_synced_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -53,7 +59,8 @@ CREATE TABLE IF NOT EXISTS google_calendar_events (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     
-    UNIQUE(user_id, crm_task_id)
+    UNIQUE(user_id, crm_task_id),
+    UNIQUE(user_id, google_event_id)
 );
 
 -- ============================================
@@ -64,7 +71,9 @@ CREATE INDEX IF NOT EXISTS idx_google_oauth_user ON google_oauth_tokens(user_id)
 CREATE INDEX IF NOT EXISTS idx_google_oauth_active ON google_oauth_tokens(is_active);
 CREATE INDEX IF NOT EXISTS idx_google_calendar_events_user ON google_calendar_events(user_id);
 CREATE INDEX IF NOT EXISTS idx_google_calendar_events_task ON google_calendar_events(crm_task_id);
+CREATE INDEX IF NOT EXISTS idx_google_calendar_events_deal ON google_calendar_events(crm_deal_id);
 CREATE INDEX IF NOT EXISTS idx_google_calendar_events_google_id ON google_calendar_events(google_event_id);
+CREATE INDEX IF NOT EXISTS idx_google_calendar_events_start ON google_calendar_events(event_start);
 
 -- ============================================
 -- TRIGGERS
