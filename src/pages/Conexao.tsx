@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Plus, QrCode, RefreshCw, Plug, Unplug, Trash2, Phone, Loader2, Wifi, WifiOff, Send, Settings2, AlertTriangle, CheckCircle, Eye, Activity, Radio, Users, Download, Pencil } from "lucide-react";
+import { Plus, QrCode, RefreshCw, Plug, Unplug, Trash2, Phone, Loader2, Wifi, WifiOff, Send, Settings2, AlertTriangle, CheckCircle, Eye, Activity, Radio, Users, Download, Pencil, UserCheck } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
@@ -16,6 +16,7 @@ import { WebhookDiagnosticPanel } from "@/components/conexao/WebhookDiagnosticPa
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
+import { LeadDistributionDialog } from "@/components/conexao/LeadDistributionDialog";
 
 interface Connection {
   id: string;
@@ -87,6 +88,10 @@ const Conexao = () => {
   const [editWapiToken, setEditWapiToken] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
   const [diagnosticConnection, setDiagnosticConnection] = useState<Connection | null>(null);
+  
+  // Lead distribution state
+  const [leadDistributionDialogOpen, setLeadDistributionDialogOpen] = useState(false);
+  const [leadDistributionConnection, setLeadDistributionConnection] = useState<Connection | null>(null);
 
   useEffect(() => {
     loadConnections();
@@ -710,6 +715,26 @@ const handleGetQRCode = async (connection: Connection) => {
                     />
                   </div>
 
+                  {/* Lead Distribution Button */}
+                  <div 
+                    className="flex items-center justify-between rounded-lg border p-3 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => {
+                      setLeadDistributionConnection(connection);
+                      setLeadDistributionDialogOpen(true);
+                    }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <UserCheck className="h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <p className="text-sm font-medium">Distribuição de Leads</p>
+                        <p className="text-xs text-muted-foreground">Distribuir leads automaticamente</p>
+                      </div>
+                    </div>
+                    <Badge variant="outline" className="text-xs">
+                      Configurar
+                    </Badge>
+                  </div>
+
                   <div className="flex gap-2">
                     {connection.status === 'connected' ? (
                       <>
@@ -1176,6 +1201,13 @@ const handleGetQRCode = async (connection: Connection) => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Lead Distribution Dialog */}
+        <LeadDistributionDialog
+          open={leadDistributionDialogOpen}
+          onOpenChange={setLeadDistributionDialogOpen}
+          connection={leadDistributionConnection}
+        />
       </div>
     </MainLayout>
   );

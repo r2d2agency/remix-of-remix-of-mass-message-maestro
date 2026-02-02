@@ -2296,6 +2296,56 @@ CREATE INDEX IF NOT EXISTS idx_external_form_submissions_phone ON external_form_
 CREATE INDEX IF NOT EXISTS idx_external_form_submissions_created ON external_form_submissions(created_at DESC);
 `;
 
+// ============================================
+// STEP 27: LEAD DISTRIBUTION
+// ============================================
+const step27LeadDistribution = `
+-- Adicionar colunas na tabela connections para controlar distribuição
+DO $$ BEGIN
+    ALTER TABLE connections ADD COLUMN IF NOT EXISTS lead_distribution_enabled BOOLEAN DEFAULT false;
+EXCEPTION WHEN duplicate_column THEN null; END $$;
+
+DO $$ BEGIN
+    ALTER TABLE connections ADD COLUMN IF NOT EXISTS lead_distribution_last_user_index INTEGER DEFAULT 0;
+EXCEPTION WHEN duplicate_column THEN null; END $$;
+
+-- Tabela de usuários elegíveis para distribuição de leads em cada conexão
+CREATE TABLE IF NOT EXISTS connection_lead_distribution (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    connection_id UUID REFERENCES connections(id) ON DELETE CASCADE NOT NULL,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+    is_active BOOLEAN DEFAULT true,
+    priority INTEGER DEFAULT 0,
+    max_leads_per_day INTEGER,
+    leads_today INTEGER DEFAULT 0,
+    last_lead_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE (connection_id, user_id)
+);
+
+-- Índices para performance
+CREATE INDEX IF NOT EXISTS idx_connection_lead_dist_conn ON connection_lead_distribution(connection_id);
+CREATE INDEX IF NOT EXISTS idx_connection_lead_dist_user ON connection_lead_distribution(user_id);
+CREATE INDEX IF NOT EXISTS idx_connection_lead_dist_active ON connection_lead_distribution(is_active);
+
+-- Tabela de log de distribuição
+CREATE TABLE IF NOT EXISTS lead_distribution_log (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    connection_id UUID REFERENCES connections(id) ON DELETE CASCADE NOT NULL,
+    conversation_id UUID,
+    contact_phone VARCHAR(50),
+    contact_name VARCHAR(255),
+    assigned_to_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    distribution_method VARCHAR(20) DEFAULT 'round_robin',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_lead_dist_log_conn ON lead_distribution_log(connection_id);
+CREATE INDEX IF NOT EXISTS idx_lead_dist_log_user ON lead_distribution_log(assigned_to_user_id);
+CREATE INDEX IF NOT EXISTS idx_lead_dist_log_date ON lead_distribution_log(created_at);
+`;
+
 // Migration steps in order of execution
 const migrationSteps = [
   { name: 'Enums', sql: step1Enums, critical: true },
@@ -2325,6 +2375,7 @@ const migrationSteps = [
   { name: 'Google Calendar', sql: step24GoogleCalendar, critical: false },
   { name: 'AI Agents', sql: step25AIAgents, critical: false },
   { name: 'External Forms', sql: step26ExternalForms, critical: false },
+  { name: 'Lead Distribution', sql: step27LeadDistribution, critical: false },
 ];
 
 export async function initDatabase() {
