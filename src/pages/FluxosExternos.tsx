@@ -94,7 +94,7 @@ export default function FluxosExternos() {
 
   return (
     <MainLayout>
-      <div className="space-y-4">
+      <div className="space-y-4 min-w-0 overflow-hidden">
         {/* Header */}
         <div className="flex flex-col sm:flex-row gap-4 justify-between">
           <div>
@@ -169,9 +169,9 @@ export default function FluxosExternos() {
         </div>
 
         {/* Table */}
-        <Card>
-          <CardContent className="p-0">
-            <Table>
+        <Card className="min-w-0 overflow-hidden">
+          <CardContent className="p-0 overflow-x-auto">
+            <Table className="min-w-[700px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Nome</TableHead>
