@@ -1161,7 +1161,7 @@ router.get('/tasks', async (req, res) => {
     const org = await getUserOrg(req.userId);
     if (!org) return res.status(403).json({ error: 'No organization' });
 
-    const { period, status, assigned_to, deal_id } = req.query;
+    const { period, status, assigned_to, deal_id, start_date, end_date, view_all } = req.query;
     
     let sql = `SELECT t.*, 
       d.title as deal_title,
@@ -1177,19 +1177,27 @@ router.get('/tasks', async (req, res) => {
     const params = [org.organization_id];
     let paramIndex = 2;
 
-    // Visibility filter
-    if (!canManage(org.role)) {
+    // Visibility filter - admins can view all or filter by specific user
+    const isAdmin = canManage(org.role);
+    if (!isAdmin) {
+      // Non-admin: only their own tasks
       sql += ` AND t.assigned_to = $${paramIndex}`;
       params.push(req.userId);
       paramIndex++;
-    } else if (assigned_to) {
+    } else if (assigned_to && assigned_to !== 'all') {
+      // Admin filtering by specific user
       sql += ` AND t.assigned_to = $${paramIndex}`;
       params.push(assigned_to);
       paramIndex++;
     }
+    // If admin and (view_all=true OR assigned_to=all), show all tasks
 
-    // Period filter
-    if (period === 'today') {
+    // Custom date range filter (takes priority over period)
+    if (start_date && end_date) {
+      sql += ` AND t.due_date >= $${paramIndex} AND t.due_date < $${paramIndex + 1}::date + INTERVAL '1 day'`;
+      params.push(start_date, end_date);
+      paramIndex += 2;
+    } else if (period === 'today') {
       sql += ` AND DATE(t.due_date) = CURRENT_DATE`;
     } else if (period === 'week') {
       sql += ` AND t.due_date >= CURRENT_DATE AND t.due_date < CURRENT_DATE + INTERVAL '7 days'`;
