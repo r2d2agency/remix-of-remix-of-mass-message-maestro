@@ -142,8 +142,9 @@ export async function executeCampaignMessages() {
 
     // Get pending messages that should be sent now (scheduled_at <= now)
     // Include contact data for variable replacement
+    // NOTE: Some deployments may not have contacts.email yet; we fallback gracefully.
     // For W-API, accept connections with instance_id/wapi_token even if status not 'connected'
-    const pendingMessages = await query(`
+    const pendingMessagesSqlBase = `
       SELECT 
         cm.id,
         cm.campaign_id,
@@ -164,7 +165,7 @@ export async function executeCampaignMessages() {
         mt.items as message_items,
         co.name as contact_name,
         co.phone as contact_phone,
-        co.email as contact_email
+        {{CONTACT_EMAIL_SELECT}}
       FROM campaign_messages cm
       JOIN campaigns c ON c.id = cm.campaign_id
       JOIN connections conn ON conn.id = c.connection_id
@@ -176,7 +177,29 @@ export async function executeCampaignMessages() {
         AND cm.scheduled_at <= NOW()
       ORDER BY cm.scheduled_at ASC
       LIMIT 50
-    `);
+    `;
+
+    let pendingMessages;
+    try {
+      pendingMessages = await query(
+        pendingMessagesSqlBase.replace('{{CONTACT_EMAIL_SELECT}}', 'co.email as contact_email')
+      );
+    } catch (error) {
+      const isMissingEmailColumn =
+        error?.code === '42703' &&
+        typeof error?.message === 'string' &&
+        (error.message.includes('co.email') || error.message.includes('column') && error.message.includes('email'));
+
+      if (!isMissingEmailColumn) throw error;
+
+      console.warn(
+        '📤 [CAMPAIGN] contacts.email column missing; falling back to NULL contact_email. Consider migrating DB to add contacts.email.'
+      );
+
+      pendingMessages = await query(
+        pendingMessagesSqlBase.replace('{{CONTACT_EMAIL_SELECT}}', "NULL::text as contact_email")
+      );
+    }
 
     if (pendingMessages.rows.length === 0) {
       if (stats.campaignsStarted > 0) {
