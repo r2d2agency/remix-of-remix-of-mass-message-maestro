@@ -83,7 +83,7 @@ const features = [
 
 const benefits = [
   "Múltiplos WhatsApps conectados",
-  "Usuários ilimitados por plano",
+  "Planos flexíveis por equipe",
   "Chatbots sem limite de fluxos",
   "Relatórios e métricas completas",
   "API para integrações",
