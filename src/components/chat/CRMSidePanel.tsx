@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
 import {
   Accordion,
   AccordionContent,
@@ -38,6 +39,7 @@ import {
   Search,
   Video,
   ClipboardList,
+  ArrowLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -103,7 +105,7 @@ export function CRMSidePanel({
   const { data: companiesSearch = [] } = useCRMCompanies(companySearch.length >= 2 ? companySearch : undefined);
   
   // Deal mutations
-  const { moveDeal, updateDeal } = useCRMDealMutations();
+  const { moveDeal, updateDeal, createDeal } = useCRMDealMutations();
   
   // Company mutations
   const { createCompany } = useCRMCompanyMutations();
@@ -135,6 +137,19 @@ export function CRMSidePanel({
   const [showMeetingDialog, setShowMeetingDialog] = useState(false);
   const [showEmailDialog, setShowEmailDialog] = useState(false);
 
+  // Inline deal creation state
+  const [showCreateDeal, setShowCreateDeal] = useState(false);
+  const [newDealTitle, setNewDealTitle] = useState("");
+  const [newDealFunnelId, setNewDealFunnelId] = useState("");
+  const [newDealStageId, setNewDealStageId] = useState("");
+  const [newDealValue, setNewDealValue] = useState("");
+  const [newDealProbability, setNewDealProbability] = useState(50);
+  const [isCreatingDeal, setIsCreatingDeal] = useState(false);
+
+  // Get stages for selected funnel in new deal form
+  const { data: newDealFunnelData } = useCRMFunnel(newDealFunnelId || null);
+  const newDealStages = newDealFunnelData?.stages?.filter(s => !s.is_final) || [];
+
   // Initialize deal form when deal changes
   useEffect(() => {
     if (selectedDeal) {
@@ -146,6 +161,13 @@ export function CRMSidePanel({
       });
     }
   }, [selectedDeal?.id]);
+
+  // Auto-select first stage when funnel changes
+  useEffect(() => {
+    if (newDealStages.length > 0 && !newDealStageId) {
+      setNewDealStageId(newDealStages[0].id || "");
+    }
+  }, [newDealFunnelData]);
 
   // Load notes when panel opens
   useEffect(() => {
@@ -266,12 +288,54 @@ export function CRMSidePanel({
     }
   };
 
-  const createNewDeal = () => {
-    const params = new URLSearchParams();
-    if (contactPhone) params.set('phone', contactPhone);
-    if (contactName) params.set('name', contactName);
-    params.set('new', 'true');
-    navigate(`/crm/negociacoes?${params.toString()}`);
+  const openCreateDealForm = () => {
+    // Auto-select first funnel if available
+    if (funnels.length > 0 && !newDealFunnelId) {
+      setNewDealFunnelId(funnels[0].id);
+    }
+    // Pre-fill title with contact name
+    if (contactName) {
+      setNewDealTitle(`Negociação - ${contactName}`);
+    }
+    setShowCreateDeal(true);
+  };
+
+  const handleCreateDealInline = async () => {
+    if (!newDealTitle.trim() || !newDealFunnelId || !newDealStageId) {
+      toast.error("Preencha título, funil e etapa");
+      return;
+    }
+
+    setIsCreatingDeal(true);
+    try {
+      await createDeal.mutateAsync({
+        funnel_id: newDealFunnelId,
+        stage_id: newDealStageId,
+        title: newDealTitle,
+        value: parseFloat(newDealValue) || 0,
+        probability: newDealProbability,
+        contact_phone: contactPhone || undefined,
+        contact_name: contactName || undefined,
+      } as any);
+      
+      refetchDeals();
+      resetCreateDealForm();
+      toast.success("Negociação criada e vinculada ao contato!");
+    } catch (error) {
+      console.error("Error creating deal:", error);
+      toast.error("Erro ao criar negociação");
+    } finally {
+      setIsCreatingDeal(false);
+    }
+  };
+
+  const resetCreateDealForm = () => {
+    setShowCreateDeal(false);
+    setNewDealTitle("");
+    setNewDealFunnelId("");
+    setNewDealStageId("");
+    setNewDealValue("");
+    setNewDealProbability(50);
   };
 
   // Status helpers
@@ -348,13 +412,137 @@ export function CRMSidePanel({
             variant="ghost" 
             size="sm" 
             className="h-7 text-xs gap-1 text-primary"
-            onClick={createNewDeal}
+            onClick={openCreateDealForm}
           >
             <Plus className="h-3 w-3" />
             Nova
           </Button>
         </div>
       </div>
+
+      {/* Inline Deal Creation Form */}
+      {showCreateDeal && (
+        <div className="p-3 border-b bg-muted/20 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={resetCreateDealForm}>
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+              <span className="font-medium text-sm">Nova Negociação</span>
+            </div>
+            {contactName && (
+              <Badge variant="secondary" className="text-[10px]">
+                <User className="h-3 w-3 mr-1" />
+                {contactName}
+              </Badge>
+            )}
+          </div>
+
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs">Título *</Label>
+              <Input
+                value={newDealTitle}
+                onChange={(e) => setNewDealTitle(e.target.value)}
+                placeholder="Título da negociação"
+                className="h-8 text-xs mt-1"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-xs">Funil *</Label>
+                <Select value={newDealFunnelId} onValueChange={(val) => {
+                  setNewDealFunnelId(val);
+                  setNewDealStageId(""); // Reset stage when funnel changes
+                }}>
+                  <SelectTrigger className="h-8 text-xs mt-1">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {funnels.map((funnel) => (
+                      <SelectItem key={funnel.id} value={funnel.id} className="text-xs">
+                        {funnel.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Etapa *</Label>
+                <Select 
+                  value={newDealStageId} 
+                  onValueChange={setNewDealStageId}
+                  disabled={!newDealFunnelId}
+                >
+                  <SelectTrigger className="h-8 text-xs mt-1">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {newDealStages.map((stage) => (
+                      <SelectItem key={stage.id} value={stage.id!} className="text-xs">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: stage.color }} />
+                          {stage.name}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-xs">Valor (R$)</Label>
+                <Input
+                  type="number"
+                  value={newDealValue}
+                  onChange={(e) => setNewDealValue(e.target.value)}
+                  placeholder="0,00"
+                  className="h-8 text-xs mt-1"
+                  min={0}
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Probabilidade: {newDealProbability}%</Label>
+                <Slider
+                  value={[newDealProbability]}
+                  onValueChange={([val]) => setNewDealProbability(val)}
+                  min={0}
+                  max={100}
+                  step={10}
+                  className="mt-2"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1 h-8 text-xs"
+                onClick={resetCreateDealForm}
+              >
+                Cancelar
+              </Button>
+              <Button
+                size="sm"
+                className="flex-1 h-8 text-xs"
+                onClick={handleCreateDealInline}
+                disabled={!newDealTitle.trim() || !newDealFunnelId || !newDealStageId || isCreatingDeal}
+              >
+                {isCreatingDeal ? (
+                  <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                ) : (
+                  <Plus className="h-3 w-3 mr-1" />
+                )}
+                Criar
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Quick Actions */}
       <div className="flex gap-2 p-2 border-b bg-muted/10">
@@ -406,7 +594,7 @@ export function CRMSidePanel({
               variant="default" 
               size="sm" 
               className="mt-4 gap-1"
-              onClick={createNewDeal}
+              onClick={openCreateDealForm}
             >
               <Plus className="h-3 w-3" />
               Criar negociação
@@ -414,22 +602,33 @@ export function CRMSidePanel({
           </div>
         ) : (
           <div className="p-2">
-            {/* Deal selector if multiple deals */}
+            {/* Deal selector - prominent when multiple deals */}
             {deals.length > 1 && (
-              <div className="mb-3 p-2 bg-muted/30 rounded-lg">
-                <label className="text-xs text-muted-foreground mb-1 block">Negociação:</label>
+              <div className="mb-3 p-3 bg-primary/5 border border-primary/20 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <Briefcase className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium">Qual negociação está em pauta?</span>
+                </div>
                 <Select value={selectedDealId || deals[0]?.id} onValueChange={setSelectedDealId}>
-                  <SelectTrigger className="h-8 text-xs">
+                  <SelectTrigger className="h-9 text-sm bg-background">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     {deals.map(deal => (
-                      <SelectItem key={deal.id} value={deal.id} className="text-xs">
-                        {deal.title} - {formatCurrency(deal.value)}
+                      <SelectItem key={deal.id} value={deal.id} className="text-sm py-2">
+                        <div className="flex flex-col items-start">
+                          <span className="font-medium">{deal.title}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {formatCurrency(deal.value)} • {deal.stage_name}
+                          </span>
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  {deals.length} negociações ativas com este contato
+                </p>
               </div>
             )}
 
