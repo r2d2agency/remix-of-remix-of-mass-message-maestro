@@ -2090,6 +2090,113 @@ router.get('/scheduled/all', authenticate, async (req, res) => {
   }
 });
 
+// Get scheduled messages by phone number (for CRM deal view)
+router.get('/scheduled-messages-by-phone', authenticate, async (req, res) => {
+  try {
+    const { phone } = req.query;
+    const connectionIds = await getUserConnections(req.userId);
+
+    if (!phone) {
+      return res.status(400).json({ error: 'Telefone é obrigatório' });
+    }
+
+    if (connectionIds.length === 0) {
+      return res.json([]);
+    }
+
+    // Normalize phone for search
+    const normalizedPhone = phone.replace(/\D/g, '');
+    
+    const result = await query(
+      `SELECT sm.*, 
+        u.name as sender_name,
+        c.contact_name,
+        c.contact_phone
+      FROM scheduled_messages sm
+      LEFT JOIN users u ON u.id = sm.sender_id
+      LEFT JOIN conversations c ON c.id = sm.conversation_id
+      WHERE sm.connection_id = ANY($1) 
+        AND sm.status = 'pending'
+        AND (c.contact_phone LIKE '%' || $2 || '%' OR c.remote_jid LIKE '%' || $2 || '%')
+      ORDER BY sm.scheduled_at ASC`,
+      [connectionIds, normalizedPhone]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get scheduled messages by phone error:', error);
+    res.status(500).json({ error: 'Erro ao buscar mensagens agendadas' });
+  }
+});
+
+// Schedule a message by phone number (for CRM deal view)
+router.post('/schedule-message-by-phone', authenticate, async (req, res) => {
+  try {
+    const { phone, content, message_type = 'text', media_url, media_mimetype, scheduled_at, timezone = 'America/Sao_Paulo' } = req.body;
+    const connectionIds = await getUserConnections(req.userId);
+
+    if (!phone) {
+      return res.status(400).json({ error: 'Telefone é obrigatório' });
+    }
+
+    if (!content && !media_url) {
+      return res.status(400).json({ error: 'Conteúdo ou mídia é obrigatório' });
+    }
+
+    if (!scheduled_at) {
+      return res.status(400).json({ error: 'Data/hora de agendamento é obrigatória' });
+    }
+
+    const scheduledDate = new Date(scheduled_at);
+    if (scheduledDate <= new Date()) {
+      return res.status(400).json({ error: 'Data de agendamento deve ser no futuro' });
+    }
+
+    // Normalize phone
+    const normalizedPhone = phone.replace(/\D/g, '');
+
+    // Find conversation by phone
+    const convResult = await query(
+      `SELECT c.id, c.connection_id 
+       FROM conversations c
+       WHERE c.connection_id = ANY($1) 
+         AND (c.contact_phone LIKE '%' || $2 || '%' OR c.remote_jid LIKE '%' || $2 || '%')
+       ORDER BY c.last_message_at DESC NULLS LAST
+       LIMIT 1`,
+      [connectionIds, normalizedPhone]
+    );
+
+    if (convResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Conversa não encontrada para este telefone' });
+    }
+
+    const conversation = convResult.rows[0];
+
+    const result = await query(
+      `INSERT INTO scheduled_messages 
+        (conversation_id, connection_id, sender_id, content, message_type, media_url, media_mimetype, scheduled_at, timezone)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING *`,
+      [
+        conversation.id,
+        conversation.connection_id,
+        req.userId,
+        content,
+        message_type,
+        media_url || null,
+        media_mimetype || null,
+        scheduledDate,
+        timezone
+      ]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Schedule message by phone error:', error);
+    res.status(500).json({ error: 'Erro ao agendar mensagem' });
+  }
+}
+
 // Update scheduled message
 router.patch('/scheduled/:messageId', authenticate, async (req, res) => {
   try {

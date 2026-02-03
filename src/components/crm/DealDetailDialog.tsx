@@ -14,7 +14,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CRMDeal, CRMTask, CRMStage, useCRMDeal, useCRMDealMutations, useCRMTaskMutations, useCRMFunnel, useCRMCompanies } from "@/hooks/use-crm";
 import { api } from "@/lib/api";
-import { Building2, User, Phone, Calendar as CalendarIcon, Clock, CheckCircle, Plus, Trash2, Paperclip, MessageSquare, ChevronRight, Edit2, Save, X, FileText, Image, Loader2, Upload, Search, UserPlus, Building, Mail, Video } from "lucide-react";
+import { Building2, User, Phone, Calendar as CalendarIcon, Clock, CheckCircle, Plus, Trash2, Paperclip, MessageSquare, ChevronRight, Edit2, Save, X, FileText, Image, Loader2, Upload, Search, UserPlus, Building, Mail, Video, Send, ClipboardList } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -62,15 +62,25 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
   const [attachments, setAttachments] = useState<DealAttachment[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Scheduling states
+  // Task scheduling states (replacing "Agendar Retorno")
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [scheduleDate, setScheduleDate] = useState<Date | undefined>(undefined);
   const [scheduleTime, setScheduleTime] = useState("09:00");
   const [scheduleEndTime, setScheduleEndTime] = useState("10:00");
-  const [scheduleNote, setScheduleNote] = useState("");
+  const [scheduleTaskTitle, setScheduleTaskTitle] = useState("");
+  const [scheduleTaskType, setScheduleTaskType] = useState<string>("follow_up");
   const [addMeetToSchedule, setAddMeetToSchedule] = useState(false);
   const [sendWhatsAppAfter, setSendWhatsAppAfter] = useState(false);
   const [isScheduling, setIsScheduling] = useState(false);
+  
+  // WhatsApp scheduled message states
+  const [showScheduleWhatsApp, setShowScheduleWhatsApp] = useState(false);
+  const [whatsAppDate, setWhatsAppDate] = useState<Date | undefined>(undefined);
+  const [whatsAppTime, setWhatsAppTime] = useState("09:00");
+  const [whatsAppContent, setWhatsAppContent] = useState("");
+  const [whatsAppCalendarOpen, setWhatsAppCalendarOpen] = useState(false);
+  const [isSchedulingWhatsApp, setIsSchedulingWhatsApp] = useState(false);
+  const [scheduledWhatsAppMessages, setScheduledWhatsAppMessages] = useState<any[]>([]);
 
   // Company edit states
   const [isEditingCompany, setIsEditingCompany] = useState(false);
@@ -92,6 +102,25 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
   const { createTask, completeTask, deleteTask } = useCRMTaskMutations();
   const { uploadFile, isUploading } = useUpload();
 
+  const currentDeal = fullDeal || deal;
+  const stages = funnelData?.stages || [];
+
+  // Load scheduled messages for deal's primary contact
+  const loadScheduledMessages = async () => {
+    const primaryContact = currentDeal?.contacts?.find(c => c.is_primary) || currentDeal?.contacts?.[0];
+    if (!primaryContact?.phone) {
+      setScheduledWhatsAppMessages([]);
+      return;
+    }
+    try {
+      const messages = await api<any[]>(`/api/chat/scheduled-messages-by-phone?phone=${encodeURIComponent(primaryContact.phone)}`);
+      setScheduledWhatsAppMessages(messages.filter(m => m.status === 'pending'));
+    } catch (error) {
+      console.error("Error loading scheduled messages:", error);
+      setScheduledWhatsAppMessages([]);
+    }
+  };
+
   // Load agenda contacts
   useEffect(() => {
     if (open) {
@@ -100,11 +129,11 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
         .then(setAgendaContacts)
         .catch(console.error)
         .finally(() => setLoadingContacts(false));
+      
+      // Load scheduled WhatsApp messages for this deal's contacts
+      loadScheduledMessages();
     }
-  }, [open]);
-
-  const currentDeal = fullDeal || deal;
-  const stages = funnelData?.stages || [];
+  }, [open, currentDeal?.contacts]);
 
   // Sync description with deal
   useEffect(() => {
@@ -221,8 +250,8 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
           {
             method: "POST",
             body: {
-              title: scheduleNote || `Retorno - ${currentDeal?.title}`,
-              description: `Retorno agendado para a negociação: ${currentDeal?.title}`,
+              title: scheduleTaskTitle || `Reunião - ${currentDeal?.title}`,
+              description: `Reunião agendada para a negociação: ${currentDeal?.title}`,
               startDateTime: scheduledDate.toISOString(),
               endDateTime: endDate.toISOString(),
               addMeet: true,
@@ -234,15 +263,15 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
         
         toast.success("Reunião agendada no Google Calendar!");
       } else {
-        // Create a follow-up task only
+        // Create a task
         createTask.mutate({
           deal_id: deal.id,
-          title: scheduleNote || "Retorno agendado",
-          type: "follow_up",
+          title: scheduleTaskTitle || "Tarefa agendada",
+          type: scheduleTaskType as CRMTask['type'],
           due_date: scheduledDate.toISOString(),
         });
         
-        toast.success("Retorno agendado!");
+        toast.success("Tarefa agendada!");
       }
 
       // Reset form
@@ -250,7 +279,8 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
       setScheduleDate(undefined);
       setScheduleTime("09:00");
       setScheduleEndTime("10:00");
-      setScheduleNote("");
+      setScheduleTaskTitle("");
+      setScheduleTaskType("follow_up");
       setAddMeetToSchedule(false);
       
       // If user wants to send WhatsApp, navigate to chat
@@ -540,105 +570,265 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
                   )}
                 </Card>
 
-                {/* Schedule Return Card */}
+                {/* Ações Rápidas Card */}
                 <Card className="p-4 col-span-2">
-                  <h4 className="font-medium mb-3 flex items-center gap-2">
-                    <CalendarIcon className="h-4 w-4" />
-                    Agendar Retorno
+                  <h4 className="font-medium mb-4 flex items-center gap-2">
+                    <ClipboardList className="h-4 w-4" />
+                    Ações Rápidas
                   </h4>
-                  <div className="space-y-4">
-                    {/* Date and Time Row */}
-                    <div className="flex gap-3 flex-wrap items-center">
-                      <Popover open={scheduleOpen} onOpenChange={setScheduleOpen}>
-                        <PopoverTrigger asChild>
-                          <Button variant="outline" className={cn(!scheduleDate && "text-muted-foreground")}>
-                            <CalendarIcon className="h-4 w-4 mr-2" />
-                            {scheduleDate ? format(scheduleDate, "dd/MM/yyyy", { locale: ptBR }) : "Selecionar data"}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0 z-[100]" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={scheduleDate}
-                            onSelect={(d) => {
-                              setScheduleDate(d);
-                            }}
-                            disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                            locale={ptBR}
-                            initialFocus
-                            className="p-3 pointer-events-auto"
-                          />
-                        </PopoverContent>
-                      </Popover>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Agendar Tarefa Section */}
+                    <div className="space-y-3 p-3 bg-muted/30 rounded-lg">
+                      <h5 className="text-sm font-medium flex items-center gap-2">
+                        <CalendarIcon className="h-4 w-4" />
+                        Agendar Tarefa
+                      </h5>
                       
-                      <div className="flex items-center gap-1">
+                      <div className="space-y-2">
                         <Input
-                          type="time"
-                          value={scheduleTime}
-                          onChange={(e) => setScheduleTime(e.target.value)}
-                          className="w-24"
+                          placeholder="Título da tarefa..."
+                          value={scheduleTaskTitle}
+                          onChange={(e) => setScheduleTaskTitle(e.target.value)}
+                          className="text-sm"
                         />
-                        {addMeetToSchedule && (
-                          <>
-                            <span className="text-muted-foreground text-sm">até</span>
-                            <Input
-                              type="time"
-                              value={scheduleEndTime}
-                              onChange={(e) => setScheduleEndTime(e.target.value)}
-                              className="w-24"
+                        
+                        <div className="flex gap-2">
+                          <Select value={scheduleTaskType} onValueChange={(val) => {
+                            setScheduleTaskType(val);
+                            // Auto enable Meet for meetings
+                            if (val === "meeting") {
+                              setAddMeetToSchedule(true);
+                            } else {
+                              setAddMeetToSchedule(false);
+                            }
+                          }}>
+                            <SelectTrigger className="flex-1">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="follow_up">Follow-up</SelectItem>
+                              <SelectItem value="call">Ligação</SelectItem>
+                              <SelectItem value="meeting">Reunião</SelectItem>
+                              <SelectItem value="email">Email</SelectItem>
+                              <SelectItem value="task">Tarefa</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        <div className="flex gap-2 flex-wrap">
+                          <Popover open={scheduleOpen} onOpenChange={setScheduleOpen}>
+                            <PopoverTrigger asChild>
+                              <Button variant="outline" size="sm" className={cn("flex-1", !scheduleDate && "text-muted-foreground")}>
+                                <CalendarIcon className="h-4 w-4 mr-2" />
+                                {scheduleDate ? format(scheduleDate, "dd/MM", { locale: ptBR }) : "Data"}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0 z-[100]" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={scheduleDate}
+                                onSelect={(d) => {
+                                  setScheduleDate(d);
+                                  setScheduleOpen(false);
+                                }}
+                                disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                                locale={ptBR}
+                                initialFocus
+                                className="p-3 pointer-events-auto"
+                              />
+                            </PopoverContent>
+                          </Popover>
+                          
+                          <Input
+                            type="time"
+                            value={scheduleTime}
+                            onChange={(e) => setScheduleTime(e.target.value)}
+                            className="w-24"
+                          />
+                          
+                          {scheduleTaskType === "meeting" && (
+                            <>
+                              <span className="text-muted-foreground text-sm self-center">até</span>
+                              <Input
+                                type="time"
+                                value={scheduleEndTime}
+                                onChange={(e) => setScheduleEndTime(e.target.value)}
+                                className="w-24"
+                              />
+                            </>
+                          )}
+                        </div>
+                        
+                        {/* Meeting options - only show for meeting type */}
+                        {scheduleTaskType === "meeting" && (
+                          <div className="flex items-center gap-2 pt-1">
+                            <Checkbox
+                              id="add-meet"
+                              checked={addMeetToSchedule}
+                              onCheckedChange={(checked) => setAddMeetToSchedule(checked as boolean)}
                             />
-                          </>
+                            <label htmlFor="add-meet" className="flex items-center gap-1.5 text-sm cursor-pointer">
+                              <Video className="h-4 w-4 text-green-600" />
+                              Google Meet
+                            </label>
+                          </div>
                         )}
+                        
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id="send-whats-after"
+                            checked={sendWhatsAppAfter}
+                            onCheckedChange={(checked) => setSendWhatsAppAfter(checked as boolean)}
+                          />
+                          <label htmlFor="send-whats-after" className="flex items-center gap-1.5 text-xs cursor-pointer text-muted-foreground">
+                            Ir para chat após agendar
+                          </label>
+                        </div>
+                        
+                        <Button 
+                          onClick={handleScheduleReturn} 
+                          disabled={!scheduleDate || !scheduleTaskTitle.trim() || isScheduling}
+                          className="w-full"
+                          size="sm"
+                        >
+                          {isScheduling ? (
+                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          ) : scheduleTaskType === "meeting" && addMeetToSchedule ? (
+                            <Video className="h-4 w-4 mr-2" />
+                          ) : (
+                            <CalendarIcon className="h-4 w-4 mr-2" />
+                          )}
+                          {scheduleTaskType === "meeting" && addMeetToSchedule ? "Agendar Reunião" : "Agendar Tarefa"}
+                        </Button>
                       </div>
-                      
-                      <Input
-                        placeholder="Nota do retorno..."
-                        value={scheduleNote}
-                        onChange={(e) => setScheduleNote(e.target.value)}
-                        className="flex-1 min-w-[180px]"
-                      />
                     </div>
                     
-                    {/* Options Row */}
-                    <div className="flex flex-wrap items-center gap-6">
-                      <div className="flex items-center gap-2">
-                        <Checkbox
-                          id="add-meet"
-                          checked={addMeetToSchedule}
-                          onCheckedChange={(checked) => setAddMeetToSchedule(checked as boolean)}
-                        />
-                        <label htmlFor="add-meet" className="flex items-center gap-1.5 text-sm cursor-pointer">
-                          <Video className="h-4 w-4 text-green-600" />
-                          Criar reunião no Google Meet
-                        </label>
-                      </div>
+                    {/* Agendar Mensagem WhatsApp Section */}
+                    <div className="space-y-3 p-3 bg-muted/30 rounded-lg">
+                      <h5 className="text-sm font-medium flex items-center gap-2">
+                        <Send className="h-4 w-4 text-green-600" />
+                        Agendar Mensagem WhatsApp
+                      </h5>
                       
-                      <div className="flex items-center gap-2">
-                        <Checkbox
-                          id="send-whats"
-                          checked={sendWhatsAppAfter}
-                          onCheckedChange={(checked) => setSendWhatsAppAfter(checked as boolean)}
+                      <div className="space-y-2">
+                        <Textarea
+                          placeholder="Digite a mensagem..."
+                          value={whatsAppContent}
+                          onChange={(e) => setWhatsAppContent(e.target.value)}
+                          rows={2}
+                          className="text-sm resize-none"
                         />
-                        <label htmlFor="send-whats" className="flex items-center gap-1.5 text-sm cursor-pointer">
-                          <MessageSquare className="h-4 w-4 text-green-600" />
-                          Enviar WhatsApp após agendar
-                        </label>
-                      </div>
-                      
-                      <Button 
-                        onClick={handleScheduleReturn} 
-                        disabled={!scheduleDate || isScheduling}
-                        className="ml-auto"
-                      >
-                        {isScheduling ? (
-                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                        ) : addMeetToSchedule ? (
-                          <Video className="h-4 w-4 mr-2" />
-                        ) : (
-                          <CalendarIcon className="h-4 w-4 mr-2" />
+                        
+                        <div className="flex gap-2 flex-wrap">
+                          <Popover open={whatsAppCalendarOpen} onOpenChange={setWhatsAppCalendarOpen}>
+                            <PopoverTrigger asChild>
+                              <Button variant="outline" size="sm" className={cn("flex-1", !whatsAppDate && "text-muted-foreground")}>
+                                <CalendarIcon className="h-4 w-4 mr-2" />
+                                {whatsAppDate ? format(whatsAppDate, "dd/MM", { locale: ptBR }) : "Data"}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0 z-[100]" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={whatsAppDate}
+                                onSelect={(d) => {
+                                  setWhatsAppDate(d);
+                                  setWhatsAppCalendarOpen(false);
+                                }}
+                                disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                                locale={ptBR}
+                                initialFocus
+                                className="p-3 pointer-events-auto"
+                              />
+                            </PopoverContent>
+                          </Popover>
+                          
+                          <Input
+                            type="time"
+                            value={whatsAppTime}
+                            onChange={(e) => setWhatsAppTime(e.target.value)}
+                            className="w-24"
+                          />
+                        </div>
+                        
+                        <Button 
+                          onClick={async () => {
+                            if (!whatsAppDate || !whatsAppContent.trim()) {
+                              toast.error("Preencha a mensagem e selecione uma data");
+                              return;
+                            }
+                            
+                            const primaryContact = currentDeal?.contacts?.find(c => c.is_primary) || currentDeal?.contacts?.[0];
+                            if (!primaryContact?.phone) {
+                              toast.error("Nenhum contato vinculado à negociação");
+                              return;
+                            }
+                            
+                            setIsSchedulingWhatsApp(true);
+                            try {
+                              const [hours, minutes] = whatsAppTime.split(":").map(Number);
+                              const scheduledDate = new Date(whatsAppDate);
+                              scheduledDate.setHours(hours, minutes, 0, 0);
+                              
+                              await api("/api/chat/schedule-message-by-phone", {
+                                method: "POST",
+                                body: {
+                                  phone: primaryContact.phone,
+                                  content: whatsAppContent,
+                                  scheduled_at: scheduledDate.toISOString(),
+                                },
+                              });
+                              
+                              toast.success("Mensagem agendada!");
+                              setWhatsAppContent("");
+                              setWhatsAppDate(undefined);
+                              setWhatsAppTime("09:00");
+                              
+                              // Reload scheduled messages
+                              loadScheduledMessages();
+                            } catch (error: any) {
+                              toast.error(error.message || "Erro ao agendar mensagem");
+                            } finally {
+                              setIsSchedulingWhatsApp(false);
+                            }
+                          }}
+                          disabled={!whatsAppDate || !whatsAppContent.trim() || isSchedulingWhatsApp || !currentDeal?.contacts?.length}
+                          className="w-full"
+                          size="sm"
+                        >
+                          {isSchedulingWhatsApp ? (
+                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          ) : (
+                            <Send className="h-4 w-4 mr-2" />
+                          )}
+                          Agendar Mensagem
+                        </Button>
+                        
+                        {!currentDeal?.contacts?.length && (
+                          <p className="text-xs text-muted-foreground text-center">
+                            Vincule um contato para agendar mensagens
+                          </p>
                         )}
-                        {addMeetToSchedule ? "Agendar com Meet" : "Agendar"}
-                      </Button>
+                      </div>
+                      
+                      {/* Scheduled WhatsApp messages list */}
+                      {scheduledWhatsAppMessages.length > 0 && (
+                        <div className="mt-3 pt-3 border-t space-y-2">
+                          <p className="text-xs text-muted-foreground">Mensagens agendadas:</p>
+                          {scheduledWhatsAppMessages.slice(0, 3).map((msg) => (
+                            <div key={msg.id} className="flex items-center gap-2 text-xs p-2 bg-background rounded">
+                              <Send className="h-3 w-3 text-green-600" />
+                              <span className="font-medium">
+                                {format(parseISO(msg.scheduled_at), "dd/MM HH:mm", { locale: ptBR })}
+                              </span>
+                              <span className="text-muted-foreground truncate flex-1">
+                                {msg.content?.slice(0, 30)}...
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </Card>
