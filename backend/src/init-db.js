@@ -1440,6 +1440,14 @@ CREATE TABLE IF NOT EXISTS crm_task_types (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Add unique constraint for global task types (only one per name when is_global=true)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_crm_task_types_global_name 
+  ON crm_task_types (name) WHERE is_global = true;
+
+-- Add unique constraint for organization task types
+CREATE UNIQUE INDEX IF NOT EXISTS idx_crm_task_types_org_name 
+  ON crm_task_types (organization_id, name) WHERE organization_id IS NOT NULL;
+
 -- Segments/Tags for Deals
 CREATE TABLE IF NOT EXISTS crm_segments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1488,7 +1496,7 @@ CREATE INDEX IF NOT EXISTS idx_crm_deal_segments_segment ON crm_deal_segments(se
 CREATE INDEX IF NOT EXISTS idx_crm_custom_fields_org ON crm_custom_fields(organization_id);
 CREATE INDEX IF NOT EXISTS idx_crm_custom_fields_entity ON crm_custom_fields(entity_type);
 
--- Insert default global task types
+-- Insert default global task types (with conflict handling)
 INSERT INTO crm_task_types (name, icon, color, is_global, position) VALUES
     ('Tarefa', 'check-square', '#6366f1', true, 0),
     ('Ligação', 'phone', '#22c55e', true, 1),
@@ -1496,7 +1504,7 @@ INSERT INTO crm_task_types (name, icon, color, is_global, position) VALUES
     ('Reunião', 'calendar', '#8b5cf6', true, 3),
     ('WhatsApp', 'message-circle', '#25d366', true, 4),
     ('Follow-up', 'repeat', '#ec4899', true, 5)
-ON CONFLICT DO NOTHING;
+ON CONFLICT (name) WHERE is_global = true DO NOTHING;
 
 -- Loss Reasons (motivos de perda)
 CREATE TABLE IF NOT EXISTS crm_loss_reasons (

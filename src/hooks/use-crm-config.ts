@@ -96,7 +96,20 @@ export function useCRMTaskTypeMutations() {
     },
   });
 
-  return { createTaskType, updateTaskType, deleteTaskType };
+  const cleanupDuplicates = useMutation({
+    mutationFn: async () => {
+      return api<{ success: boolean; deleted_count: number }>("/api/crm/config/task-types/cleanup", { method: "POST" });
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["crm-task-types"] });
+      toast({ title: "Limpeza concluída", description: `${data.deleted_count} tipo(s) duplicado(s) removido(s)` });
+    },
+    onError: (error: any) => {
+      toast({ title: "Erro na limpeza", description: error.message, variant: "destructive" });
+    },
+  });
+
+  return { createTaskType, updateTaskType, deleteTaskType, cleanupDuplicates };
 }
 
 // Segments

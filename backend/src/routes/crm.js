@@ -1561,6 +1561,50 @@ router.delete('/config/task-types/:id', async (req, res) => {
   }
 });
 
+// Cleanup duplicate global task types (keep only the first one per name)
+router.post('/config/task-types/cleanup', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org || !canManage(org.role)) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+
+    // Delete duplicate global task types, keeping only the oldest one per name
+    const deletedResult = await query(`
+      DELETE FROM crm_task_types
+      WHERE id IN (
+        SELECT id FROM (
+          SELECT id, 
+                 ROW_NUMBER() OVER (PARTITION BY name ORDER BY created_at ASC) as rn
+          FROM crm_task_types
+          WHERE is_global = true
+        ) sub
+        WHERE rn > 1
+      )
+      RETURNING id, name
+    `);
+
+    // Create unique index if not exists (for future prevention)
+    try {
+      await query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_crm_task_types_global_name 
+        ON crm_task_types (name) WHERE is_global = true
+      `);
+    } catch (e) {
+      // Ignore if already exists or fails due to remaining duplicates
+    }
+
+    res.json({ 
+      success: true, 
+      deleted_count: deletedResult.rows.length,
+      deleted: deletedResult.rows
+    });
+  } catch (error) {
+    console.error('Error cleaning up task types:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Get all segments (global + org-specific)
 router.get('/config/segments', async (req, res) => {
   try {
@@ -3007,12 +3051,13 @@ router.get('/intelligence/pipeline-velocity', async (req, res) => {
     }
 
     // Velocity metrics
+    // Use won_at/lost_at instead of closed_at (which doesn't exist in this schema)
     const velocityMetrics = await query(
       `SELECT 
         COUNT(*) FILTER (WHERE status = 'won') as won_deals,
         COUNT(*) FILTER (WHERE status = 'open') as open_deals,
         AVG(value) FILTER (WHERE status = 'won') as avg_deal_value,
-        AVG(EXTRACT(EPOCH FROM (closed_at - created_at)) / 86400) FILTER (WHERE status = 'won' AND closed_at IS NOT NULL) as avg_cycle_days,
+        AVG(EXTRACT(EPOCH FROM (${closedAtSql('d')} - d.created_at)) / 86400) FILTER (WHERE status = 'won' AND ${closedAtSql('d')} IS NOT NULL) as avg_cycle_days,
         (COUNT(*) FILTER (WHERE status = 'won')::decimal / NULLIF(COUNT(*) FILTER (WHERE status IN ('won', 'lost')), 0)) * 100 as win_rate
        FROM crm_deals d
        WHERE d.organization_id = $1 ${funnelFilter}`,

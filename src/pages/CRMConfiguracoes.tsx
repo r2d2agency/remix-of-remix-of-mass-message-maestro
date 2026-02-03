@@ -94,7 +94,7 @@ export default function CRMConfiguracoes() {
   
   // Task Types
   const { data: taskTypes, isLoading: loadingTaskTypes } = useCRMTaskTypes();
-  const { createTaskType, updateTaskType, deleteTaskType } = useCRMTaskTypeMutations();
+  const { createTaskType, updateTaskType, deleteTaskType, cleanupDuplicates } = useCRMTaskTypeMutations();
   const [taskTypeDialog, setTaskTypeDialog] = useState(false);
   const [editingTaskType, setEditingTaskType] = useState<CRMTaskType | null>(null);
   const [taskTypeForm, setTaskTypeForm] = useState({ name: "", icon: "check-square", color: "#6366f1" });
@@ -513,10 +513,26 @@ export default function CRMConfiguracoes() {
                     Configure os tipos de tarefas disponíveis (Ligação, WhatsApp, Reunião, etc.)
                   </CardDescription>
                 </div>
-                <Button onClick={() => openTaskTypeDialog()}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Novo Tipo
-                </Button>
+                <div className="flex gap-2">
+                  {taskTypes && taskTypes.filter(t => t.is_global && t.name === 'Tarefa').length > 1 && (
+                    <Button 
+                      variant="outline" 
+                      onClick={() => cleanupDuplicates.mutate()}
+                      disabled={cleanupDuplicates.isPending}
+                    >
+                      {cleanupDuplicates.isPending ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4 mr-2" />
+                      )}
+                      Limpar Duplicados
+                    </Button>
+                  )}
+                  <Button onClick={() => openTaskTypeDialog()}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Novo Tipo
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 {loadingTaskTypes ? (
