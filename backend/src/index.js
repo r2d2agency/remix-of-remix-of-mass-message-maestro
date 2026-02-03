@@ -42,6 +42,7 @@ import { executeScheduledMessages } from './scheduled-messages.js';
 import { syncTodaysDueBoletos, checkPaymentStatusUpdates } from './asaas-auto-sync.js';
 import { executeCRMAutomations } from './crm-automation-scheduler.js';
 import { processEmailQueue } from './email-scheduler.js';
+import { executeNurturing } from './nurturing-scheduler.js';
 import { requestContext } from './request-context.js';
 import { log, logError } from './logger.js';
 
@@ -312,6 +313,21 @@ initDatabase().then((ok) => {
       timezone: 'America/Sao_Paulo'
     });
 
+    // ============================================
+    // NURTURING SEQUENCES SCHEDULER
+    // ============================================
+
+    // Schedule nurturing sequences - runs every 2 minutes
+    cron.schedule('*/2 * * * *', async () => {
+      try {
+        await executeNurturing();
+      } catch (error) {
+        console.error('🔄 [CRON] Error executing nurturing sequences:', error);
+      }
+    }, {
+      timezone: 'America/Sao_Paulo'
+    });
+
     console.log('⏰ Notification scheduler started - checks every hour (timezone: America/Sao_Paulo)');
     console.log('📤 Campaign scheduler started - checks every 30 seconds');
     console.log('📅 Scheduled messages started - checks every minute');
@@ -319,5 +335,6 @@ initDatabase().then((ok) => {
     console.log('☀️ Asaas status check started - runs at 8:00 AM daily');
     console.log('🤖 CRM automation started - checks every 2 minutes');
     console.log('📧 Email queue processor started - checks every minute');
+    console.log('🔄 Nurturing sequences started - checks every 2 minutes');
   });
 });
