@@ -2195,7 +2195,7 @@ router.post('/schedule-message-by-phone', authenticate, async (req, res) => {
     console.error('Schedule message by phone error:', error);
     res.status(500).json({ error: 'Erro ao agendar mensagem' });
   }
-}
+});
 
 // Update scheduled message
 router.patch('/scheduled/:messageId', authenticate, async (req, res) => {
