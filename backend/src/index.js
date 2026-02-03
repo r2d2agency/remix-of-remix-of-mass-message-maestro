@@ -33,6 +33,7 @@ import leadDistributionRoutes from './routes/lead-distribution.js';
 import leadWebhooksRoutes from './routes/lead-webhooks.js';
 import leadScoringRoutes from './routes/lead-scoring.js';
 import conversationSummaryRoutes from './routes/conversation-summary.js';
+import nurturingRoutes from './routes/nurturing.js';
 import { initDatabase } from './init-db.js';
 import { executeNotifications } from './scheduler.js';
 import { executeCampaignMessages } from './campaign-scheduler.js';
@@ -179,8 +180,8 @@ app.use('/api/lead-distribution', leadDistributionRoutes);
 app.use('/api/lead-webhooks', leadWebhooksRoutes);
 app.use('/api/lead-scoring', leadScoringRoutes);
 app.use('/api/conversation-summary', conversationSummaryRoutes);
+app.use('/api/nurturing', nurturingRoutes);
 
-// Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });

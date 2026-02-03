@@ -2472,6 +2472,111 @@ BEGIN
 END $$;
 `;
 
+// Step 30: Nurturing Sequences
+const step30NurturingSequences = `
+-- Nurturing sequences
+CREATE TABLE IF NOT EXISTS nurturing_sequences (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    trigger_type VARCHAR(50) NOT NULL DEFAULT 'manual',
+    trigger_config JSONB DEFAULT '{}',
+    is_active BOOLEAN DEFAULT true,
+    pause_on_reply BOOLEAN DEFAULT true,
+    pause_on_deal_won BOOLEAN DEFAULT true,
+    exit_on_reply BOOLEAN DEFAULT false,
+    contacts_enrolled INTEGER DEFAULT 0,
+    contacts_completed INTEGER DEFAULT 0,
+    contacts_converted INTEGER DEFAULT 0,
+    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Sequence steps
+CREATE TABLE IF NOT EXISTS nurturing_sequence_steps (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    sequence_id UUID NOT NULL REFERENCES nurturing_sequences(id) ON DELETE CASCADE,
+    step_order INTEGER NOT NULL DEFAULT 1,
+    delay_value INTEGER NOT NULL DEFAULT 1,
+    delay_unit VARCHAR(20) NOT NULL DEFAULT 'days',
+    channel VARCHAR(20) NOT NULL,
+    whatsapp_content TEXT,
+    whatsapp_media_url TEXT,
+    whatsapp_media_type VARCHAR(50),
+    email_subject VARCHAR(500),
+    email_body TEXT,
+    email_template_id UUID,
+    conditions JSONB DEFAULT '{}',
+    skip_if_replied BOOLEAN DEFAULT true,
+    sent_count INTEGER DEFAULT 0,
+    opened_count INTEGER DEFAULT 0,
+    clicked_count INTEGER DEFAULT 0,
+    replied_count INTEGER DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(sequence_id, step_order)
+);
+
+-- Enrollments
+CREATE TABLE IF NOT EXISTS nurturing_enrollments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    sequence_id UUID NOT NULL REFERENCES nurturing_sequences(id) ON DELETE CASCADE,
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    contact_phone VARCHAR(50),
+    contact_email VARCHAR(255),
+    contact_name VARCHAR(255),
+    conversation_id UUID REFERENCES conversations(id) ON DELETE SET NULL,
+    deal_id UUID,
+    current_step INTEGER DEFAULT 0,
+    status VARCHAR(30) NOT NULL DEFAULT 'active',
+    pause_reason VARCHAR(100),
+    next_step_at TIMESTAMP WITH TIME ZONE,
+    enrolled_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    paused_at TIMESTAMP WITH TIME ZONE,
+    completed_at TIMESTAMP WITH TIME ZONE,
+    last_activity_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    variables JSONB DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Step logs
+CREATE TABLE IF NOT EXISTS nurturing_step_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    enrollment_id UUID NOT NULL REFERENCES nurturing_enrollments(id) ON DELETE CASCADE,
+    step_id UUID NOT NULL REFERENCES nurturing_sequence_steps(id) ON DELETE CASCADE,
+    channel VARCHAR(20) NOT NULL,
+    status VARCHAR(30) NOT NULL,
+    error_message TEXT,
+    sent_at TIMESTAMP WITH TIME ZONE,
+    opened_at TIMESTAMP WITH TIME ZONE,
+    clicked_at TIMESTAMP WITH TIME ZONE,
+    replied_at TIMESTAMP WITH TIME ZONE,
+    message_id VARCHAR(255),
+    email_id VARCHAR(255),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_sequences_org ON nurturing_sequences(organization_id);
+CREATE INDEX IF NOT EXISTS idx_steps_sequence ON nurturing_sequence_steps(sequence_id, step_order);
+CREATE INDEX IF NOT EXISTS idx_enrollments_sequence ON nurturing_enrollments(sequence_id);
+CREATE INDEX IF NOT EXISTS idx_enrollments_status ON nurturing_enrollments(status);
+CREATE INDEX IF NOT EXISTS idx_enrollments_next ON nurturing_enrollments(next_step_at) WHERE status = 'active';
+CREATE INDEX IF NOT EXISTS idx_enrollments_phone ON nurturing_enrollments(contact_phone);
+CREATE INDEX IF NOT EXISTS idx_step_logs_enrollment ON nurturing_step_logs(enrollment_id);
+
+-- Add has_nurturing to plans
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'plans' AND column_name = 'has_nurturing') THEN
+        ALTER TABLE plans ADD COLUMN has_nurturing BOOLEAN DEFAULT false;
+    END IF;
+END $$;
+`;
+
 // Migration steps in order of execution
 const migrationSteps = [
   { name: 'Enums', sql: step1Enums, critical: true },
@@ -2504,6 +2609,7 @@ const migrationSteps = [
   { name: 'Lead Distribution', sql: step27LeadDistribution, critical: false },
   { name: 'Lead Scoring', sql: step28LeadScoring, critical: false },
   { name: 'Conversation Summaries', sql: step29ConversationSummaries, critical: false },
+  { name: 'Nurturing Sequences', sql: step30NurturingSequences, critical: false },
 ];
 
 export async function initDatabase() {
