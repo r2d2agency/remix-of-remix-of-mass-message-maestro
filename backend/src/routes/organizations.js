@@ -621,4 +621,160 @@ router.delete('/:id/members/:userId', async (req, res) => {
   }
 });
 
+// ========================================
+// AI Configuration Endpoints
+// ========================================
+
+// Get AI config for user's current organization
+router.get('/ai-config', async (req, res) => {
+  try {
+    // Get user's organization
+    const orgResult = await query(
+      `SELECT o.id, o.ai_provider, o.ai_model, o.ai_api_key
+       FROM organizations o
+       JOIN organization_members om ON om.organization_id = o.id
+       WHERE om.user_id = $1
+       ORDER BY om.created_at
+       LIMIT 1`,
+      [req.userId]
+    );
+
+    if (orgResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Organização não encontrada' });
+    }
+
+    const org = orgResult.rows[0];
+    res.json({
+      ai_provider: org.ai_provider || 'none',
+      ai_model: org.ai_model || '',
+      ai_api_key: org.ai_api_key ? '••••••••' + org.ai_api_key.slice(-4) : '',
+    });
+  } catch (error) {
+    console.error('Get AI config error:', error);
+    res.status(500).json({ error: 'Erro ao buscar configurações de IA' });
+  }
+});
+
+// Update AI config for user's organization
+router.put('/ai-config', async (req, res) => {
+  try {
+    const { ai_provider, ai_model, ai_api_key } = req.body;
+
+    // Get user's organization and check if admin
+    const orgResult = await query(
+      `SELECT o.id, om.role, o.ai_api_key as existing_key
+       FROM organizations o
+       JOIN organization_members om ON om.organization_id = o.id
+       WHERE om.user_id = $1 AND om.role IN ('owner', 'admin')
+       ORDER BY om.created_at
+       LIMIT 1`,
+      [req.userId]
+    );
+
+    if (orgResult.rows.length === 0) {
+      return res.status(403).json({ error: 'Apenas admins podem alterar configurações de IA' });
+    }
+
+    const orgId = orgResult.rows[0].id;
+    const existingKey = orgResult.rows[0].existing_key;
+
+    // Determine the actual API key to save
+    // If the key is masked (starts with ••), keep the existing one
+    let actualApiKey = ai_api_key;
+    if (ai_api_key && ai_api_key.startsWith('••')) {
+      actualApiKey = existingKey;
+    }
+
+    await query(
+      `UPDATE organizations 
+       SET ai_provider = $1, ai_model = $2, ai_api_key = $3, updated_at = NOW()
+       WHERE id = $4`,
+      [ai_provider || 'none', ai_model || null, actualApiKey || null, orgId]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Update AI config error:', error);
+    res.status(500).json({ error: 'Erro ao salvar configurações de IA' });
+  }
+});
+
+// Test AI connection
+router.post('/ai-config/test', async (req, res) => {
+  try {
+    const { ai_provider, ai_model, ai_api_key } = req.body;
+
+    if (!ai_provider || ai_provider === 'none' || !ai_api_key) {
+      return res.status(400).json({ error: 'Provedor e API Key são obrigatórios' });
+    }
+
+    // If key is masked, get the real one from DB
+    let actualApiKey = ai_api_key;
+    if (ai_api_key.startsWith('••')) {
+      const orgResult = await query(
+        `SELECT o.ai_api_key
+         FROM organizations o
+         JOIN organization_members om ON om.organization_id = o.id
+         WHERE om.user_id = $1
+         ORDER BY om.created_at
+         LIMIT 1`,
+        [req.userId]
+      );
+      if (orgResult.rows.length === 0 || !orgResult.rows[0].ai_api_key) {
+        return res.status(400).json({ error: 'API Key não encontrada' });
+      }
+      actualApiKey = orgResult.rows[0].ai_api_key;
+    }
+
+    // Test the connection based on provider
+    let testResponse;
+    if (ai_provider === 'openai') {
+      testResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${actualApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: ai_model || 'gpt-4o-mini',
+          messages: [{ role: 'user', content: 'Diga apenas "OK"' }],
+          max_tokens: 5,
+        }),
+      });
+    } else if (ai_provider === 'gemini') {
+      const geminiModel = ai_model || 'gemini-1.5-flash';
+      testResponse = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${actualApiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: 'Diga apenas "OK"' }] }],
+            generationConfig: { maxOutputTokens: 5 },
+          }),
+        }
+      );
+    } else {
+      return res.status(400).json({ error: 'Provedor não suportado' });
+    }
+
+    if (!testResponse.ok) {
+      const errorText = await testResponse.text();
+      console.error('AI test failed:', testResponse.status, errorText);
+      return res.status(400).json({ 
+        error: testResponse.status === 401 
+          ? 'API Key inválida' 
+          : testResponse.status === 429 
+            ? 'Rate limit excedido, tente novamente'
+            : 'Falha na conexão com a IA'
+      });
+    }
+
+    res.json({ success: true, message: 'Conexão testada com sucesso' });
+  } catch (error) {
+    console.error('Test AI config error:', error);
+    res.status(500).json({ error: 'Erro ao testar conexão' });
+  }
+});
+
 export default router;
