@@ -31,6 +31,7 @@ import {
   Zap,
   Bell,
   Lock,
+  Webhook,
 } from "lucide-react";
 import { API_URL, getAuthToken } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -96,6 +97,7 @@ const navSections: NavSection[] = [
       { name: "Mensagens", href: "/mensagens", icon: MessageSquare },
       { name: "Campanhas", href: "/campanhas", icon: Send },
       { name: "Fluxos Externos", href: "/fluxos-externos", icon: FileText, adminOnly: true },
+      { name: "Webhooks", href: "/lead-webhooks", icon: Webhook, adminOnly: true },
     ],
   },
   {

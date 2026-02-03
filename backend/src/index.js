@@ -30,6 +30,8 @@ import transcribeRoutes from './routes/transcribe.js';
 import aiAgentsRoutes from './routes/ai-agents.js';
 import externalFormsRoutes from './routes/external-forms.js';
 import leadDistributionRoutes from './routes/lead-distribution.js';
+import leadWebhooksRoutes from './routes/lead-webhooks.js';
+import { initDatabase } from './init-db.js';
 import { initDatabase } from './init-db.js';
 import { executeNotifications } from './scheduler.js';
 import { executeCampaignMessages } from './campaign-scheduler.js';
@@ -173,6 +175,7 @@ app.use('/api/transcribe-audio', transcribeRoutes);
 app.use('/api/ai-agents', aiAgentsRoutes);
 app.use('/api/external-forms', externalFormsRoutes);
 app.use('/api/lead-distribution', leadDistributionRoutes);
+app.use('/api/lead-webhooks', leadWebhooksRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
