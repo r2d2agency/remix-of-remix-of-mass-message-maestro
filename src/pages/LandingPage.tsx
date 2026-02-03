@@ -174,11 +174,6 @@ const featureCategories = [
         title: "Agenda Integrada",
         description: "Reuniões, tarefas e follow-ups com Google Calendar.",
       },
-      {
-        icon: CreditCard,
-        title: "Cobrança Asaas",
-        description: "Sincronize cobranças e envie lembretes automáticos.",
-      },
     ],
   },
   {
@@ -256,8 +251,8 @@ const pricingPlans = [
       { text: "Chatbots básicos", included: true },
       { text: "Webhooks e integrações", included: true },
       { text: "500 mensagens/mês", included: true },
+      { text: "CRM Kanban básico", included: true },
       { text: "Campanhas em massa", included: false },
-      { text: "CRM Kanban", included: false },
       { text: "Agentes de IA", included: false },
       { text: "Lead Scoring", included: false },
     ],
