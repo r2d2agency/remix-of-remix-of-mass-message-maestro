@@ -3,7 +3,12 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useBranding } from "@/hooks/use-branding";
+import { API_URL } from "@/lib/api";
+import { toast } from "sonner";
 import {
   MessageSquare,
   Users,
@@ -17,10 +22,9 @@ import {
   Workflow,
   CheckCircle2,
   ArrowRight,
-  Play,
-  Star,
   Menu,
   X,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import systemPreviewChat from "@/assets/system-preview-chat.png";
@@ -94,6 +98,64 @@ export default function LandingPage() {
   const { branding } = useBranding();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeScreen, setActiveScreen] = useState("chat");
+  
+  // Pre-register form state
+  const [showPreRegister, setShowPreRegister] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    whatsapp: "",
+  });
+
+  const handlePreRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!formData.name.trim() || !formData.email.trim() || !formData.whatsapp.trim()) {
+      toast.error("Por favor, preencha todos os campos");
+      return;
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      toast.error("Por favor, insira um email válido");
+      return;
+    }
+
+    // Basic phone validation (at least 10 digits)
+    const phone = formData.whatsapp.replace(/\D/g, "");
+    if (phone.length < 10) {
+      toast.error("Por favor, insira um WhatsApp válido");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const response = await fetch(`${API_URL}/api/public/pre-register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: formData.name.trim(),
+          email: formData.email.trim(),
+          whatsapp: phone,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Erro ao enviar cadastro");
+      }
+
+      toast.success("Cadastro recebido! Entraremos em contato em breve.");
+      setShowPreRegister(false);
+      setFormData({ name: "", email: "", whatsapp: "" });
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao enviar cadastro");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -136,12 +198,10 @@ export default function LandingPage() {
                   Entrar
                 </Button>
               </Link>
-              <Link to="/cadastro">
-                <Button size="sm" className="gap-2">
-                  Testar Grátis
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-              </Link>
+              <Button size="sm" className="gap-2" onClick={() => setShowPreRegister(true)}>
+                Testar Grátis
+                <ArrowRight className="h-4 w-4" />
+              </Button>
             </div>
 
             {/* Mobile Menu Button */}
@@ -174,9 +234,9 @@ export default function LandingPage() {
                   <Link to="/login" className="flex-1">
                     <Button variant="outline" className="w-full">Entrar</Button>
                   </Link>
-                  <Link to="/cadastro" className="flex-1">
-                    <Button className="w-full">Testar Grátis</Button>
-                  </Link>
+                  <Button className="flex-1" onClick={() => { setMobileMenuOpen(false); setShowPreRegister(true); }}>
+                    Testar Grátis
+                  </Button>
                 </div>
               </div>
             </div>
@@ -204,15 +264,13 @@ export default function LandingPage() {
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link to="/cadastro">
-                <Button size="lg" className="gap-2 px-8 h-12 text-base w-full sm:w-auto">
-                  Testar 3 Dias Grátis
-                  <ArrowRight className="h-5 w-5" />
-                </Button>
-              </Link>
-              <Button variant="outline" size="lg" className="gap-2 px-8 h-12 text-base">
-                <Play className="h-5 w-5" />
-                Ver Demonstração
+              <Button 
+                size="lg" 
+                className="gap-2 px-8 h-12 text-base w-full sm:w-auto"
+                onClick={() => setShowPreRegister(true)}
+              >
+                Testar 3 Dias Grátis
+                <ArrowRight className="h-5 w-5" />
               </Button>
             </div>
 
@@ -360,12 +418,15 @@ export default function LandingPage() {
             Comece agora com 3 dias grátis. Sem compromisso, sem cartão de crédito.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link to="/cadastro">
-              <Button size="lg" variant="secondary" className="gap-2 px-8 h-12 text-base w-full sm:w-auto">
-                Começar Teste Grátis
-                <ArrowRight className="h-5 w-5" />
-              </Button>
-            </Link>
+            <Button 
+              size="lg" 
+              variant="secondary" 
+              className="gap-2 px-8 h-12 text-base w-full sm:w-auto"
+              onClick={() => setShowPreRegister(true)}
+            >
+              Começar Teste Grátis
+              <ArrowRight className="h-5 w-5" />
+            </Button>
             <Link to="/login">
               <Button size="lg" variant="outline" className="gap-2 px-8 h-12 text-base w-full sm:w-auto border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10">
                 Já tenho conta
@@ -414,6 +475,81 @@ export default function LandingPage() {
           </div>
         </div>
       </footer>
+
+      {/* Pre-Register Dialog */}
+      <Dialog open={showPreRegister} onOpenChange={setShowPreRegister}>
+        <DialogContent className="sm:max-w-md" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Zap className="h-5 w-5 text-primary" />
+              Teste Grátis por 3 Dias
+            </DialogTitle>
+            <DialogDescription>
+              Preencha seus dados e nossa equipe entrará em contato para liberar seu acesso.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <form onSubmit={handlePreRegister} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Nome completo *</Label>
+              <Input
+                id="name"
+                placeholder="Seu nome"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                disabled={isSubmitting}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="email">E-mail *</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="seu@email.com"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                disabled={isSubmitting}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="whatsapp">WhatsApp *</Label>
+              <Input
+                id="whatsapp"
+                placeholder="(11) 99999-9999"
+                value={formData.whatsapp}
+                onChange={(e) => setFormData({ ...formData, whatsapp: e.target.value })}
+                disabled={isSubmitting}
+              />
+            </div>
+
+            <DialogFooter className="pt-4">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => setShowPreRegister(false)}
+                disabled={isSubmitting}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={isSubmitting} className="gap-2">
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Enviando...
+                  </>
+                ) : (
+                  <>
+                    Solicitar Acesso
+                    <ArrowRight className="h-4 w-4" />
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
