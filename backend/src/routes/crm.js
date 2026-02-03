@@ -2492,7 +2492,73 @@ router.get('/map-data', async (req, res) => {
       TO: { lat: -10.1689, lng: -48.3317 },
     };
 
+    // Common city coordinates
+    const CITY_COORDS = {
+      'são paulo': { lat: -23.5505, lng: -46.6333 },
+      'sao paulo': { lat: -23.5505, lng: -46.6333 },
+      'rio de janeiro': { lat: -22.9068, lng: -43.1729 },
+      'belo horizonte': { lat: -19.9167, lng: -43.9345 },
+      'brasília': { lat: -15.8267, lng: -47.9218 },
+      'brasilia': { lat: -15.8267, lng: -47.9218 },
+      'salvador': { lat: -12.9714, lng: -38.5014 },
+      'fortaleza': { lat: -3.7172, lng: -38.5433 },
+      'curitiba': { lat: -25.4195, lng: -49.2646 },
+      'recife': { lat: -8.0476, lng: -34.8770 },
+      'porto alegre': { lat: -30.0346, lng: -51.2177 },
+      'manaus': { lat: -3.1190, lng: -60.0217 },
+      'belém': { lat: -1.4558, lng: -48.4902 },
+      'belem': { lat: -1.4558, lng: -48.4902 },
+      'goiânia': { lat: -16.6864, lng: -49.2643 },
+      'goiania': { lat: -16.6864, lng: -49.2643 },
+      'guarulhos': { lat: -23.4543, lng: -46.5337 },
+      'campinas': { lat: -22.9099, lng: -47.0626 },
+      'florianópolis': { lat: -27.5954, lng: -48.5480 },
+      'florianopolis': { lat: -27.5954, lng: -48.5480 },
+      'natal': { lat: -5.7945, lng: -35.2110 },
+      'joão pessoa': { lat: -7.1195, lng: -34.8450 },
+      'joao pessoa': { lat: -7.1195, lng: -34.8450 },
+      'vitória': { lat: -20.3155, lng: -40.3128 },
+      'vitoria': { lat: -20.3155, lng: -40.3128 },
+      'cuiabá': { lat: -15.5989, lng: -56.0949 },
+      'cuiaba': { lat: -15.5989, lng: -56.0949 },
+      'campo grande': { lat: -20.4697, lng: -54.6201 },
+      'são luís': { lat: -2.5387, lng: -44.2826 },
+      'sao luis': { lat: -2.5387, lng: -44.2826 },
+      'maceió': { lat: -9.6499, lng: -35.7089 },
+      'maceio': { lat: -9.6499, lng: -35.7089 },
+      'teresina': { lat: -5.0892, lng: -42.8019 },
+      'aracaju': { lat: -10.9472, lng: -37.0731 },
+      'londrina': { lat: -23.3103, lng: -51.1628 },
+      'uberlândia': { lat: -18.9113, lng: -48.2622 },
+      'uberlandia': { lat: -18.9113, lng: -48.2622 },
+      'sorocaba': { lat: -23.5015, lng: -47.4526 },
+      'ribeirão preto': { lat: -21.1775, lng: -47.8103 },
+      'ribeirao preto': { lat: -21.1775, lng: -47.8103 },
+      'contagem': { lat: -19.9318, lng: -44.0539 },
+      'niterói': { lat: -22.8838, lng: -43.1038 },
+      'niteroi': { lat: -22.8838, lng: -43.1038 },
+      'joinville': { lat: -26.3045, lng: -48.8487 },
+      'santos': { lat: -23.9619, lng: -46.3342 },
+      'são josé dos campos': { lat: -23.1896, lng: -45.8841 },
+      'sao jose dos campos': { lat: -23.1896, lng: -45.8841 },
+      'osasco': { lat: -23.5329, lng: -46.7917 },
+      'santo andré': { lat: -23.6737, lng: -46.5432 },
+      'santo andre': { lat: -23.6737, lng: -46.5432 },
+      'são bernardo do campo': { lat: -23.7117, lng: -46.5653 },
+      'sao bernardo do campo': { lat: -23.7117, lng: -46.5653 },
+    };
+
     const getCoords = (city, state) => {
+      // Try city first
+      if (city) {
+        const cityLower = city.toLowerCase().trim();
+        if (CITY_COORDS[cityLower]) {
+          const cap = CITY_COORDS[cityLower];
+          const offset = () => (Math.random() - 0.5) * 0.02;
+          return { lat: cap.lat + offset(), lng: cap.lng + offset() };
+        }
+      }
+      // Fallback to state capital
       if (state && STATE_CAPITALS[state.toUpperCase()]) {
         const cap = STATE_CAPITALS[state.toUpperCase()];
         const offset = () => (Math.random() - 0.5) * 0.1;

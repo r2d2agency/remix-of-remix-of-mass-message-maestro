@@ -165,6 +165,15 @@ export default function Mapa() {
               <div className="h-full flex items-center justify-center min-h-[400px]">
                 <Skeleton className="w-full h-full" />
               </div>
+            ) : filteredLocations.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center min-h-[400px] text-muted-foreground">
+                <MapPin className="h-12 w-12 mb-4 opacity-30" />
+                <p className="text-lg font-medium">Nenhuma localização encontrada</p>
+                <p className="text-sm mt-2 max-w-md text-center">
+                  Para visualizar dados no mapa, adicione cidade e/ou estado nos registros de 
+                  Negociações, Prospects ou Empresas no CRM.
+                </p>
+              </div>
             ) : (
               <LeafletMap locations={filteredLocations} />
             )}
