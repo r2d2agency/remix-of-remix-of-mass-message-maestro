@@ -1,7 +1,7 @@
 import express from 'express';
 import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
-import { logInfo, logError } from '../logger.js';
+import { log, logError } from '../logger.js';
 
 const router = express.Router();
 router.use(authenticate);
