@@ -63,6 +63,7 @@ import { api } from "@/lib/api";
 import { TaskDialog } from "@/components/crm/TaskDialog";
 import { MeetingScheduleDialog } from "./MeetingScheduleDialog";
 import { SendEmailDialog } from "@/components/email/SendEmailDialog";
+import { DealDetailDialog } from "@/components/crm/DealDetailDialog";
 
 interface CRMSidePanelProps {
   conversationId: string;
@@ -136,6 +137,7 @@ export function CRMSidePanel({
   const [showTaskDialog, setShowTaskDialog] = useState(false);
   const [showMeetingDialog, setShowMeetingDialog] = useState(false);
   const [showEmailDialog, setShowEmailDialog] = useState(false);
+  const [showDealDetailDialog, setShowDealDetailDialog] = useState(false);
 
   // Inline deal creation state
   const [showCreateDeal, setShowCreateDeal] = useState(false);
@@ -282,9 +284,9 @@ export function CRMSidePanel({
     }).format(value);
   };
 
-  const openDealInCRM = () => {
+  const openDealDetail = () => {
     if (selectedDeal) {
-      navigate(`/crm/negociacoes?deal=${selectedDeal.id}`);
+      setShowDealDetailDialog(true);
     }
   };
 
@@ -402,7 +404,7 @@ export function CRMSidePanel({
               variant="ghost" 
               size="sm" 
               className="h-7 text-xs gap-1"
-              onClick={openDealInCRM}
+              onClick={openDealDetail}
             >
               <ExternalLink className="h-3 w-3" />
               Abrir
@@ -1143,6 +1145,18 @@ export function CRMSidePanel({
           nome: contactName || "",
           telefone: contactPhone || "",
           empresa: company?.name || "",
+        }}
+      />
+
+      {/* Deal Detail Dialog */}
+      <DealDetailDialog
+        deal={selectedDeal || null}
+        open={showDealDetailDialog}
+        onOpenChange={(open) => {
+          setShowDealDetailDialog(open);
+          if (!open) {
+            refetchDeals();
+          }
         }}
       />
     </div>
