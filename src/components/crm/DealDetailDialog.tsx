@@ -488,8 +488,8 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
           </div>
         </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
-          <TabsList>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <TabsList className="flex-shrink-0">
             <TabsTrigger value="details">Detalhes</TabsTrigger>
             <TabsTrigger value="tasks">
               Tarefas
@@ -511,7 +511,7 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
             <TabsTrigger value="history">Histórico</TabsTrigger>
           </TabsList>
 
-          <ScrollArea className="flex-1 mt-4">
+          <ScrollArea className="flex-1 mt-4 h-[calc(90vh-280px)]">
             <TabsContent value="details" className="m-0">
               <div className="grid grid-cols-2 gap-4">
                 <Card className="p-4">
