@@ -100,6 +100,7 @@ import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { QuickRepliesPanel } from "./QuickRepliesPanel";
 import { ConversationSummaryPanel, SummaryBadge } from "./ConversationSummaryPanel";
+import { SentimentIndicator } from "./SentimentIndicator";
 import { useFinishWithSummary, useGenerateSummary } from "@/hooks/use-conversation-summary";
 import { NotesPanel } from "./NotesPanel";
 import { AudioWaveform } from "./AudioWaveform";
@@ -1118,6 +1119,11 @@ export function ChatArea({
                 <RefreshCw className="h-4 w-4" />
               )}
             </Button>
+          )}
+
+          {/* Sentiment Indicator - show when there are messages */}
+          {!isMobile && messages.length > 3 && (
+            <SentimentIndicator messages={messages} compact />
           )}
 
           {/* Tags - hide on mobile, show only in menu */}
