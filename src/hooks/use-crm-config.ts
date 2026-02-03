@@ -302,5 +302,18 @@ export function useCRMLossReasonMutations() {
     },
   });
 
-  return { createLossReason, updateLossReason, deleteLossReason, resetToDefaults };
+  const cleanupDuplicates = useMutation({
+    mutationFn: async () => {
+      return api<{ success: boolean; deleted_count: number }>("/api/crm/config/loss-reasons/cleanup", { method: "POST" });
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["crm-loss-reasons"] });
+      toast({ title: "Limpeza concluída", description: `${data.deleted_count} motivo(s) duplicado(s) removido(s)` });
+    },
+    onError: (error: any) => {
+      toast({ title: "Erro na limpeza", description: error.message, variant: "destructive" });
+    },
+  });
+
+  return { createLossReason, updateLossReason, deleteLossReason, resetToDefaults, cleanupDuplicates };
 }

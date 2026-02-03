@@ -1521,6 +1521,24 @@ CREATE TABLE IF NOT EXISTS crm_loss_reasons (
 
 CREATE INDEX IF NOT EXISTS idx_crm_loss_reasons_org ON crm_loss_reasons(organization_id);
 
+-- Cleanup duplicate global loss reasons (in case init ran multiple times)
+DELETE FROM crm_loss_reasons
+WHERE id IN (
+  SELECT id FROM (
+    SELECT id,
+           ROW_NUMBER() OVER (PARTITION BY name ORDER BY created_at ASC) AS rn
+    FROM crm_loss_reasons
+    WHERE organization_id IS NULL
+  ) t
+  WHERE rn > 1
+);
+
+-- Unique constraints to prevent duplicates
+CREATE UNIQUE INDEX IF NOT EXISTS idx_crm_loss_reasons_global_name
+  ON crm_loss_reasons (name) WHERE organization_id IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_crm_loss_reasons_org_name
+  ON crm_loss_reasons (organization_id, name) WHERE organization_id IS NOT NULL;
+
 -- Add loss_reason_id to crm_deals if not exists
 DO $$ BEGIN
     ALTER TABLE crm_deals ADD COLUMN IF NOT EXISTS loss_reason_id UUID REFERENCES crm_loss_reasons(id) ON DELETE SET NULL;
@@ -1537,7 +1555,7 @@ INSERT INTO crm_loss_reasons (name, description, is_active, position) VALUES
     ('Não respondeu', 'Cliente parou de responder às tentativas de contato', true, 4),
     ('Mudança de prioridades', 'O projeto/necessidade deixou de ser prioridade', true, 5),
     ('Proposta não atende', 'Produto/serviço não atende às necessidades do cliente', true, 6)
-ON CONFLICT DO NOTHING;
+ON CONFLICT (name) WHERE organization_id IS NULL DO NOTHING;
 `;
 
 // Step 17: Departments / Queues System (depends on organizations, users, conversations)

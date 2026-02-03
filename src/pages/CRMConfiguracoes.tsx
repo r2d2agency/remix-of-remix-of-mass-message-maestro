@@ -142,10 +142,21 @@ export default function CRMConfiguracoes() {
 
   // Loss Reasons
   const { data: lossReasons, isLoading: loadingLossReasons } = useCRMLossReasons();
-  const { createLossReason, updateLossReason, deleteLossReason, resetToDefaults } = useCRMLossReasonMutations();
+  const { createLossReason, updateLossReason, deleteLossReason, resetToDefaults, cleanupDuplicates: cleanupLossReasonDuplicates } = useCRMLossReasonMutations();
   const [lossReasonDialog, setLossReasonDialog] = useState(false);
   const [editingLossReason, setEditingLossReason] = useState<CRMLossReason | null>(null);
   const [lossReasonForm, setLossReasonForm] = useState({ name: "", description: "" });
+
+  const hasLossReasonDuplicates = (() => {
+    if (!lossReasons?.length) return false;
+    const seen = new Set<string>();
+    for (const r of lossReasons) {
+      const key = `${r.organization_id ?? 'global'}::${String(r.name || '').trim().toLowerCase()}`;
+      if (seen.has(key)) return true;
+      seen.add(key);
+    }
+    return false;
+  })();
 
   // Funnels
   const { data: funnels, isLoading: loadingFunnels } = useCRMFunnels();
@@ -782,6 +793,20 @@ export default function CRMConfiguracoes() {
                   </CardDescription>
                 </div>
                 <div className="flex gap-2">
+                  {hasLossReasonDuplicates && (
+                    <Button
+                      variant="outline"
+                      onClick={() => cleanupLossReasonDuplicates.mutate()}
+                      disabled={cleanupLossReasonDuplicates.isPending}
+                    >
+                      {cleanupLossReasonDuplicates.isPending ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4 mr-2" />
+                      )}
+                      Limpar Duplicados
+                    </Button>
+                  )}
                   <Button 
                     variant="outline" 
                     onClick={() => {

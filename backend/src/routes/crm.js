@@ -2887,6 +2887,74 @@ router.post('/config/loss-reasons/reset-defaults', async (req, res) => {
   }
 });
 
+// Cleanup duplicate loss reasons (global + organization)
+router.post('/config/loss-reasons/cleanup', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org) return res.status(403).json({ error: 'No organization' });
+    if (!canManage(org.role)) return res.status(403).json({ error: 'Not authorized' });
+
+    // 1) Remove duplicate global reasons (organization_id IS NULL), keep oldest per name
+    const deletedGlobal = await query(`
+      DELETE FROM crm_loss_reasons
+      WHERE id IN (
+        SELECT id FROM (
+          SELECT id,
+                 ROW_NUMBER() OVER (PARTITION BY name ORDER BY created_at ASC) AS rn
+          FROM crm_loss_reasons
+          WHERE organization_id IS NULL
+        ) t
+        WHERE rn > 1
+      )
+      RETURNING id, name
+    `);
+
+    // 2) Remove duplicate org reasons, keep oldest per name
+    const deletedOrg = await query(
+      `DELETE FROM crm_loss_reasons
+       WHERE id IN (
+         SELECT id FROM (
+           SELECT id,
+                  ROW_NUMBER() OVER (PARTITION BY organization_id, name ORDER BY created_at ASC) AS rn
+           FROM crm_loss_reasons
+           WHERE organization_id = $1
+         ) t
+         WHERE rn > 1
+       )
+       RETURNING id, name`,
+      [org.organization_id]
+    );
+
+    // Best-effort: ensure unique indexes exist (won't expose 500 if already there)
+    try {
+      await query(
+        `CREATE UNIQUE INDEX IF NOT EXISTS idx_crm_loss_reasons_global_name
+         ON crm_loss_reasons (name) WHERE organization_id IS NULL`
+      );
+    } catch {
+      // ignore
+    }
+    try {
+      await query(
+        `CREATE UNIQUE INDEX IF NOT EXISTS idx_crm_loss_reasons_org_name
+         ON crm_loss_reasons (organization_id, name) WHERE organization_id IS NOT NULL`
+      );
+    } catch {
+      // ignore
+    }
+
+    res.json({
+      success: true,
+      deleted_count: deletedGlobal.rows.length + deletedOrg.rows.length,
+      deleted_global_count: deletedGlobal.rows.length,
+      deleted_org_count: deletedOrg.rows.length,
+    });
+  } catch (error) {
+    console.error('Error cleaning up loss reasons:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ============================================
 // REVENUE INTELLIGENCE
 // ============================================
