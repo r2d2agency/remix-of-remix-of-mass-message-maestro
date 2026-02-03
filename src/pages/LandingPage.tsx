@@ -428,7 +428,7 @@ export default function LandingPage() {
               <ArrowRight className="h-5 w-5" />
             </Button>
             <Link to="/login">
-              <Button size="lg" variant="outline" className="gap-2 px-8 h-12 text-base w-full sm:w-auto border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10">
+              <Button size="lg" variant="ghost" className="gap-2 px-8 h-12 text-base w-full sm:w-auto border-2 border-white/40 text-white hover:bg-white/10 hover:text-white">
                 Já tenho conta
               </Button>
             </Link>
