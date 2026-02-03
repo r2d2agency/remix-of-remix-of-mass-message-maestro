@@ -666,6 +666,18 @@ router.get('/funnels/:funnelId/deals', async (req, res) => {
         g.name as group_name,
         (SELECT COUNT(*) FROM crm_tasks WHERE deal_id = d.id AND status = 'pending') as pending_tasks,
         (SELECT COUNT(*) FROM google_calendar_events WHERE crm_deal_id = d.id AND event_start > NOW() AND sync_status = 'synced') as upcoming_meetings,
+        (SELECT COUNT(*) 
+         FROM scheduled_messages sm
+         JOIN conversations conv ON conv.id = sm.conversation_id
+         WHERE sm.status = 'pending'
+           AND EXISTS (
+             SELECT 1 FROM crm_deal_contacts dc
+             JOIN contacts cnt ON cnt.id = dc.contact_id
+             WHERE dc.deal_id = d.id
+               AND regexp_replace(COALESCE(cnt.phone, ''), '\\D', '', 'g') 
+                   LIKE '%' || regexp_replace(conv.contact_phone, '\\D', '', 'g') || '%'
+           )
+        ) as scheduled_messages,
         (SELECT json_agg(json_build_object('id', dc.contact_id, 'name', cnt.name, 'phone', cnt.phone, 'is_primary', dc.is_primary))
          FROM crm_deal_contacts dc
          JOIN contacts cnt ON cnt.id = dc.contact_id
