@@ -1,6 +1,4 @@
 import { forwardRef } from "react";
-import { useSortable } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CRMDeal } from "@/hooks/use-crm";
@@ -16,24 +14,7 @@ interface DealCardProps {
 }
 
 export const DealCard = forwardRef<HTMLDivElement, DealCardProps>(
-  function DealCard({ deal, isDragging: isDraggingProp, onClick, isNewWin }, ref) {
-    const {
-      attributes,
-      listeners,
-      setNodeRef,
-      transform,
-      transition,
-      isDragging,
-      isOver,
-    } = useSortable({ id: deal.id });
-
-    // Smooth transform with better easing
-    const style = {
-      transform: CSS.Transform.toString(transform),
-      transition: transition || 'transform 250ms cubic-bezier(0.25, 1, 0.5, 1)',
-      zIndex: isDragging ? 50 : undefined,
-    };
-
+  function DealCard({ deal, isDragging, onClick, isNewWin }, ref) {
     // Calculate inactivity
     const hoursInactive = differenceInHours(new Date(), parseISO(deal.last_activity_at));
     const isInactive = deal.inactivity_hours && hoursInactive >= deal.inactivity_hours;
@@ -85,20 +66,8 @@ export const DealCard = forwardRef<HTMLDivElement, DealCardProps>(
 
     const borderColor = getBorderColor();
 
-    // Merge styles with smooth transitions
     const cardStyle = {
-      ...style,
       borderLeftColor: borderColor,
-    };
-
-    // Combine refs
-    const setRefs = (node: HTMLDivElement) => {
-      setNodeRef(node);
-      if (typeof ref === 'function') {
-        ref(node);
-      } else if (ref) {
-        ref.current = node;
-      }
     };
 
     // Status badge
@@ -130,21 +99,16 @@ export const DealCard = forwardRef<HTMLDivElement, DealCardProps>(
       return null;
     };
 
-    // Combined dragging state (from prop or from useSortable)
-    const isCurrentlyDragging = isDraggingProp || isDragging;
-
     return (
       <Card
-        ref={setRefs}
+        ref={ref}
         style={cardStyle}
-        {...attributes}
-        {...listeners}
         onClick={onClick}
         className={cn(
-          "p-3 cursor-grab active:cursor-grabbing transition-all duration-200",
+          "p-3 cursor-grab active:cursor-grabbing",
+          "transition-all duration-200 ease-out",
           "hover:shadow-md hover:-translate-y-0.5",
-          isCurrentlyDragging && "opacity-80 shadow-xl scale-105 rotate-1 ring-2 ring-primary/50",
-          isOver && "ring-2 ring-primary/30 bg-primary/5",
+          isDragging && "shadow-2xl scale-105 rotate-2 ring-2 ring-primary/50 cursor-grabbing",
           borderColor && "border-l-4",
           getStatusStyles(),
           isNewWin && "animate-scale-in"

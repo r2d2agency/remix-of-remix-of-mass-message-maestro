@@ -1,4 +1,6 @@
 import { useDroppable } from "@dnd-kit/core";
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { DealCard } from "./DealCard";
 import { CRMDeal, CRMStage } from "@/hooks/use-crm";
 import { cn } from "@/lib/utils";
@@ -15,12 +17,133 @@ interface KanbanColumnProps {
   onDealClick: (deal: CRMDeal) => void;
   onStatusChange?: (dealId: string, status: 'won' | 'lost' | 'paused' | 'open') => void;
   newWinDealId?: string | null;
+  activeId?: string | null;
+  overId?: string | null;
 }
 
-export function KanbanColumn({ stage, deals, totalValue, onDealClick, onStatusChange, newWinDealId }: KanbanColumnProps) {
+// Sortable Deal Item wrapper for smooth animations
+function SortableDealItem({ 
+  deal, 
+  onDealClick, 
+  onStatusChange, 
+  isNewWin,
+  isActive,
+  isOver
+}: { 
+  deal: CRMDeal; 
+  onDealClick: (deal: CRMDeal) => void;
+  onStatusChange?: (dealId: string, status: 'won' | 'lost' | 'paused' | 'open') => void;
+  isNewWin?: boolean;
+  isActive?: boolean;
+  isOver?: boolean;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ 
+    id: deal.id,
+    transition: {
+      duration: 250,
+      easing: 'cubic-bezier(0.25, 1, 0.5, 1)',
+    },
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+    zIndex: isDragging ? 10 : undefined,
+  };
+
+  return (
+    <div 
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className={cn(
+        "relative group touch-manipulation",
+        "transition-[margin,transform] duration-200 ease-out",
+        isOver && !isDragging && "mt-20",
+        isDragging && "opacity-40"
+      )}
+    >
+      <DealCard
+        deal={deal}
+        onClick={() => onDealClick(deal)}
+        isNewWin={isNewWin}
+        isDragging={isDragging}
+      />
+      {/* Quick actions menu */}
+      {onStatusChange && !isDragging && (
+        <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button 
+                variant="secondary" 
+                size="icon" 
+                className="h-6 w-6"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <MoreHorizontal className="h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+              {deal.status !== 'won' && (
+                <DropdownMenuItem onClick={() => onStatusChange(deal.id, 'won')}>
+                  <Trophy className="h-4 w-4 mr-2 text-green-500" />
+                  Marcar como Ganho
+                </DropdownMenuItem>
+              )}
+              {deal.status !== 'lost' && (
+                <DropdownMenuItem onClick={() => onStatusChange(deal.id, 'lost')}>
+                  <XCircle className="h-4 w-4 mr-2 text-red-500" />
+                  Marcar como Perdido
+                </DropdownMenuItem>
+              )}
+              {deal.status !== 'paused' && deal.status !== 'won' && deal.status !== 'lost' && (
+                <DropdownMenuItem onClick={() => onStatusChange(deal.id, 'paused')}>
+                  <Pause className="h-4 w-4 mr-2 text-gray-500" />
+                  Pausar Negociação
+                </DropdownMenuItem>
+              )}
+              {(deal.status === 'paused' || deal.status === 'won' || deal.status === 'lost') && (
+                <DropdownMenuItem onClick={() => onStatusChange(deal.id, 'open')}>
+                  <Play className="h-4 w-4 mr-2 text-blue-500" />
+                  Reabrir Negociação
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function KanbanColumn({ 
+  stage, 
+  deals, 
+  totalValue, 
+  onDealClick, 
+  onStatusChange, 
+  newWinDealId,
+  activeId,
+  overId 
+}: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: stage.id!,
   });
+
+  // Check if dragging over this column (either the column itself or a card in it)
+  const isDraggingOverColumn = isOver || deals.some(d => d.id === overId);
+  
+  // Check if the active item belongs to this column
+  const hasActiveItem = deals.some(d => d.id === activeId);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("pt-BR", {
@@ -33,8 +156,10 @@ export function KanbanColumn({ stage, deals, totalValue, onDealClick, onStatusCh
     <div
       ref={setNodeRef}
       className={cn(
-        "flex flex-col w-[300px] min-w-[300px] bg-muted/50 rounded-lg border transition-all duration-300",
-        isOver && "ring-2 ring-primary bg-primary/5 shadow-lg scale-[1.01]"
+        "flex flex-col w-[300px] min-w-[300px] bg-muted/50 rounded-lg border",
+        "transition-all duration-300 ease-out",
+        isDraggingOverColumn && !hasActiveItem && "ring-2 ring-primary bg-primary/5 shadow-lg scale-[1.02]",
+        hasActiveItem && "opacity-90"
       )}
     >
       {/* Header */}
@@ -56,72 +181,49 @@ export function KanbanColumn({ stage, deals, totalValue, onDealClick, onStatusCh
       {/* Cards */}
       <ScrollArea className="flex-1 max-h-[calc(100vh-280px)]">
         <div className="p-2 space-y-2">
-          {/* Drop indicator when hovering over empty area */}
-          {isOver && deals.length === 0 && (
-            <div className="h-24 rounded-lg border-2 border-dashed border-primary/50 bg-primary/5 flex items-center justify-center animate-pulse">
-              <span className="text-sm text-primary/70">Soltar aqui</span>
+          {/* Drop indicator when hovering over empty column */}
+          {isDraggingOverColumn && deals.length === 0 && !hasActiveItem && (
+            <div 
+              className={cn(
+                "h-28 rounded-lg border-2 border-dashed border-primary/50 bg-primary/10",
+                "flex items-center justify-center",
+                "transition-all duration-300 ease-out",
+                "animate-pulse"
+              )}
+            >
+              <span className="text-sm text-primary font-medium">Soltar aqui</span>
             </div>
           )}
-          {deals.length === 0 && !isOver ? (
+          
+          {deals.length === 0 && !isDraggingOverColumn ? (
             <div className="py-8 text-center text-muted-foreground text-sm">
               Nenhuma negociação
             </div>
           ) : (
-            deals.map((deal) => (
-              <div 
-                key={deal.id} 
-                className="relative group transition-all duration-200"
-              >
-                <DealCard
-                  deal={deal}
-                  onClick={() => onDealClick(deal)}
-                  isNewWin={newWinDealId === deal.id}
-                />
-                {/* Quick actions menu */}
-                {onStatusChange && (
-                  <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button 
-                          variant="secondary" 
-                          size="icon" 
-                          className="h-6 w-6"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <MoreHorizontal className="h-3 w-3" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                        {deal.status !== 'won' && (
-                          <DropdownMenuItem onClick={() => onStatusChange(deal.id, 'won')}>
-                            <Trophy className="h-4 w-4 mr-2 text-green-500" />
-                            Marcar como Ganho
-                          </DropdownMenuItem>
-                        )}
-                        {deal.status !== 'lost' && (
-                          <DropdownMenuItem onClick={() => onStatusChange(deal.id, 'lost')}>
-                            <XCircle className="h-4 w-4 mr-2 text-red-500" />
-                            Marcar como Perdido
-                          </DropdownMenuItem>
-                        )}
-                        {deal.status !== 'paused' && deal.status !== 'won' && deal.status !== 'lost' && (
-                          <DropdownMenuItem onClick={() => onStatusChange(deal.id, 'paused')}>
-                            <Pause className="h-4 w-4 mr-2 text-gray-500" />
-                            Pausar Negociação
-                          </DropdownMenuItem>
-                        )}
-                        {(deal.status === 'paused' || deal.status === 'won' || deal.status === 'lost') && (
-                          <DropdownMenuItem onClick={() => onStatusChange(deal.id, 'open')}>
-                            <Play className="h-4 w-4 mr-2 text-blue-500" />
-                            Reabrir Negociação
-                          </DropdownMenuItem>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                )}
-              </div>
+            deals.map((deal, index) => (
+              <SortableDealItem
+                key={deal.id}
+                deal={deal}
+                onDealClick={onDealClick}
+                onStatusChange={onStatusChange}
+                isNewWin={newWinDealId === deal.id}
+                isActive={activeId === deal.id}
+                isOver={overId === deal.id}
+              />
             ))
+          )}
+          
+          {/* Drop indicator at the bottom when dragging over column with cards */}
+          {isDraggingOverColumn && deals.length > 0 && !hasActiveItem && !deals.some(d => d.id === overId) && (
+            <div 
+              className={cn(
+                "h-20 rounded-lg border-2 border-dashed border-primary/40 bg-primary/5",
+                "flex items-center justify-center mt-2",
+                "transition-all duration-300 ease-out"
+              )}
+            >
+              <span className="text-xs text-primary/70">Soltar aqui</span>
+            </div>
           )}
         </div>
       </ScrollArea>

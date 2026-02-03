@@ -1,5 +1,16 @@
 import { useState, useMemo } from "react";
-import { DndContext, DragOverlay, closestCorners, DragStartEvent, DragEndEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { 
+  DndContext, 
+  DragOverlay, 
+  closestCorners, 
+  DragStartEvent, 
+  DragEndEvent, 
+  DragOverEvent,
+  PointerSensor, 
+  useSensor, 
+  useSensors,
+  MeasuringStrategy
+} from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { KanbanColumn } from "./KanbanColumn";
 import { DealCard } from "./DealCard";
@@ -16,12 +27,13 @@ interface KanbanBoardProps {
 
 export function KanbanBoard({ stages, dealsByStage, onDealClick, onStatusChange, newWinDealId }: KanbanBoardProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
   const { moveDeal } = useCRMDealMutations();
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8,
+        distance: 5,
       },
     })
   );
@@ -39,14 +51,19 @@ export function KanbanBoard({ stages, dealsByStage, onDealClick, onStatusChange,
     setActiveId(event.active.id as string);
   }
 
+  function handleDragOver(event: DragOverEvent) {
+    setOverId(event.over?.id as string || null);
+  }
+
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     setActiveId(null);
+    setOverId(null);
 
     if (!over) return;
 
     const dealId = active.id as string;
-    const overId = over.id as string;
+    const targetId = over.id as string;
 
     // Find the current stage of the dragged deal
     let currentStageId: string | null = null;
@@ -58,17 +75,16 @@ export function KanbanBoard({ stages, dealsByStage, onDealClick, onStatusChange,
     }
 
     // Check if dropped on a stage column directly
-    const isStageColumn = stages.some((s) => s.id === overId);
+    const isStageColumn = stages.some((s) => s.id === targetId);
     
     let targetStageId: string | null = null;
     
     if (isStageColumn) {
-      // Dropped directly on a stage column
-      targetStageId = overId;
+      targetStageId = targetId;
     } else {
       // Dropped on another deal - find which stage that deal belongs to
       for (const [stageId, deals] of Object.entries(dealsByStage)) {
-        if (deals.some((d) => d.id === overId)) {
+        if (deals.some((d) => d.id === targetId)) {
           targetStageId = stageId;
           break;
         }
@@ -80,12 +96,27 @@ export function KanbanBoard({ stages, dealsByStage, onDealClick, onStatusChange,
     }
   }
 
+  function handleDragCancel() {
+    setActiveId(null);
+    setOverId(null);
+  }
+
+  // Configure measuring for smoother animations
+  const measuringConfig = {
+    droppable: {
+      strategy: MeasuringStrategy.Always,
+    },
+  };
+
   return (
     <DndContext
       sensors={sensors}
       collisionDetection={closestCorners}
       onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
+      measuring={measuringConfig}
     >
       <ScrollArea className="w-full">
         <div className="flex gap-4 p-4 min-w-max">
@@ -106,6 +137,8 @@ export function KanbanBoard({ stages, dealsByStage, onDealClick, onStatusChange,
                   onDealClick={onDealClick}
                   onStatusChange={onStatusChange}
                   newWinDealId={newWinDealId}
+                  activeId={activeId}
+                  overId={overId}
                 />
               </SortableContext>
             );
@@ -114,12 +147,15 @@ export function KanbanBoard({ stages, dealsByStage, onDealClick, onStatusChange,
         <ScrollBar orientation="horizontal" />
       </ScrollArea>
 
-      <DragOverlay dropAnimation={{
-        duration: 250,
-        easing: 'cubic-bezier(0.25, 1, 0.5, 1)',
-      }}>
+      <DragOverlay 
+        dropAnimation={{
+          duration: 200,
+          easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
+        }}
+        style={{ cursor: 'grabbing' }}
+      >
         {activeDeal ? (
-          <div className="animate-scale-in">
+          <div className="rotate-2 scale-105 shadow-2xl">
             <DealCard deal={activeDeal} isDragging onClick={() => {}} />
           </div>
         ) : null}
