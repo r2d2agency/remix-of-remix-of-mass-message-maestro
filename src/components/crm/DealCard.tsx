@@ -1,10 +1,11 @@
-import { forwardRef } from "react";
+import { forwardRef, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CRMDeal } from "@/hooks/use-crm";
 import { cn } from "@/lib/utils";
-import { Building2, User, Clock, AlertTriangle, CheckSquare, Trophy, XCircle, Pause, Video, CalendarClock, Flame, Thermometer, Snowflake } from "lucide-react";
+import { Building2, User, Clock, AlertTriangle, CheckSquare, Trophy, XCircle, Pause, Video, CalendarClock, Flame, Thermometer, Snowflake, TrendingUp, TrendingDown, Activity } from "lucide-react";
 import { differenceInHours, parseISO } from "date-fns";
+import { analyzeDeal } from "./PredictiveAnalytics";
 
 interface DealCardProps {
   deal: CRMDeal & { lead_score?: number; lead_score_label?: string };
@@ -30,6 +31,21 @@ export const DealCard = forwardRef<HTMLDivElement, DealCardProps>(
     // Scheduled WhatsApp messages count
     const scheduledMessagesCount = Number(deal.scheduled_messages) || 0;
     const hasScheduledMessages = scheduledMessagesCount > 0;
+
+    // Calculate predictive insights
+    const predictiveInsights = useMemo(() => {
+      return analyzeDeal({
+        id: deal.id,
+        title: deal.title,
+        value: deal.value,
+        status: deal.status,
+        created_at: deal.created_at,
+        updated_at: deal.last_activity_at,
+        last_activity_at: deal.last_activity_at,
+        tasks_pending: pendingTasksCount,
+        meetings_scheduled: upcomingMeetingsCount,
+      });
+    }, [deal, pendingTasksCount, upcomingMeetingsCount]);
 
     const formatCurrency = (value: number) => {
       return new Intl.NumberFormat("pt-BR", {
@@ -189,7 +205,25 @@ export const DealCard = forwardRef<HTMLDivElement, DealCardProps>(
               </Badge>
             )}
 
-            {/* Probability - hide for closed deals */}
+            {/* Health Score (Predictive) - show for open deals without lead score */}
+            {!isWon && !isLost && (!deal.lead_score || deal.lead_score === 0) && (
+              <Badge 
+                variant="secondary"
+                className={cn(
+                  "text-[10px] px-1.5 flex items-center gap-0.5",
+                  predictiveInsights.healthScore >= 70 && "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+                  predictiveInsights.healthScore >= 40 && predictiveInsights.healthScore < 70 && "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+                  predictiveInsights.healthScore < 40 && "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                )}
+                title={`Health Score: ${predictiveInsights.healthScore}% | Prob. Fechamento: ${predictiveInsights.closeProbability}%`}
+              >
+                {predictiveInsights.healthScore >= 70 && <TrendingUp className="h-3 w-3" />}
+                {predictiveInsights.healthScore >= 40 && predictiveInsights.healthScore < 70 && <Activity className="h-3 w-3" />}
+                {predictiveInsights.healthScore < 40 && <TrendingDown className="h-3 w-3" />}
+                <span>{predictiveInsights.healthScore}%</span>
+              </Badge>
+            )}
+
             {!isWon && !isLost && (
               <Badge 
                 variant="secondary" 

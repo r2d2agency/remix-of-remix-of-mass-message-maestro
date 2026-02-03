@@ -28,6 +28,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useDealScore, useRecalculateDealScore } from "@/hooks/use-lead-scoring";
 import { LeadScoreDetail, LeadScoreBadge } from "./LeadScoreBadge";
+import { PredictiveAnalyticsCard } from "./PredictiveAnalytics";
 
 interface ChatContact {
   id: string;
@@ -599,6 +600,29 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
                     </div>
                     <LeadScoreDetail scoreData={dealScore} />
                   </Card>
+                )}
+
+                {/* Predictive Analytics */}
+                {currentDeal && (
+                  <div className="col-span-2">
+                    <PredictiveAnalyticsCard
+                      deal={{
+                        id: currentDeal.id,
+                        title: currentDeal.title,
+                        value: currentDeal.value,
+                        status: currentDeal.status,
+                        stage_name: currentDeal.stage_name,
+                        stage_position: stages.findIndex(s => s.id === currentDeal.stage_id) + 1,
+                        total_stages: stages?.length || 1,
+                        created_at: currentDeal.created_at,
+                        updated_at: currentDeal.last_activity_at || currentDeal.created_at,
+                        last_activity_at: currentDeal.last_activity_at,
+                        contact_phone: currentDeal.contacts?.[0]?.phone || undefined,
+                        tasks_pending: currentDeal.pending_tasks || 0,
+                        meetings_scheduled: currentDeal.upcoming_meetings || 0,
+                      }}
+                    />
+                  </div>
                 )}
 
                 {/* Ações Rápidas Card */}
