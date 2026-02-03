@@ -41,14 +41,15 @@ interface FieldMapping {
 }
 
 const RESERVED_FIELDS = [
-  { key: "name", label: "Nome", required: true },
-  { key: "phone", label: "Telefone", required: true },
-  { key: "source", label: "Origem", required: false },
-  { key: "city", label: "Cidade", required: false },
-  { key: "state", label: "Estado", required: false },
-  { key: "address", label: "Endereço", required: false },
-  { key: "zip_code", label: "CEP", required: false },
-  { key: "is_company", label: "É Empresa", required: false },
+  { key: "name", label: "Nome", required: true, patterns: ["nome", "name", "cliente", "razao", "razão"] },
+  { key: "phone", label: "Telefone", required: true, patterns: ["telefone", "phone", "celular", "whatsapp", "fone", "mobile", "tel"] },
+  { key: "email", label: "E-mail", required: false, patterns: ["email", "e-mail", "mail", "correio"] },
+  { key: "source", label: "Origem", required: false, patterns: ["origem", "source", "fonte", "canal", "campanha"] },
+  { key: "city", label: "Cidade", required: false, patterns: ["cidade", "city", "municipio", "município"] },
+  { key: "state", label: "Estado", required: false, patterns: ["estado", "state", "uf"] },
+  { key: "address", label: "Endereço", required: false, patterns: ["endereco", "endereço", "address", "logradouro", "rua", "avenida"] },
+  { key: "zip_code", label: "CEP", required: false, patterns: ["cep", "zip", "postal", "codigo postal"] },
+  { key: "is_company", label: "É Empresa", required: false, patterns: ["empresa", "company", "pj", "cnpj", "corporativo"] },
 ];
 
 export default function ProspectImportDialog({ open, onOpenChange }: Props) {
@@ -100,30 +101,31 @@ export default function ProspectImportDialog({ open, onOpenChange }: Props) {
       setColumns(headers);
       setData(rows);
 
-      // Auto-detect mappings
+      // Auto-detect mappings using improved pattern matching
       const initialMappings: FieldMapping[] = [];
+      const usedFields = new Set<string>();
       
       headers.forEach(col => {
-        const colLower = col.toLowerCase();
+        const colLower = col.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
         
-        // Try to match reserved fields
-        if (/nome|name|cliente/i.test(colLower)) {
-          initialMappings.push({ column: col, targetField: "name", isNew: false });
-        } else if (/telefone|phone|celular|whatsapp|fone/i.test(colLower)) {
-          initialMappings.push({ column: col, targetField: "phone", isNew: false });
-        } else if (/origem|source|fonte|canal/i.test(colLower)) {
-          initialMappings.push({ column: col, targetField: "source", isNew: false });
-        } else if (/cidade|city/i.test(colLower)) {
-          initialMappings.push({ column: col, targetField: "city", isNew: false });
-        } else if (/estado|state|uf/i.test(colLower)) {
-          initialMappings.push({ column: col, targetField: "state", isNew: false });
-        } else if (/endere[çc]o|address|logradouro|rua/i.test(colLower)) {
-          initialMappings.push({ column: col, targetField: "address", isNew: false });
-        } else if (/cep|zip|postal/i.test(colLower)) {
-          initialMappings.push({ column: col, targetField: "zip_code", isNew: false });
-        } else if (/empresa|company|pj|cnpj/i.test(colLower)) {
-          initialMappings.push({ column: col, targetField: "is_company", isNew: false });
-        } else {
+        // Try to match reserved fields using patterns
+        let matched = false;
+        for (const field of RESERVED_FIELDS) {
+          if (usedFields.has(field.key)) continue;
+          
+          const matchesPattern = field.patterns.some(pattern => 
+            colLower.includes(pattern) || pattern.includes(colLower)
+          );
+          
+          if (matchesPattern) {
+            initialMappings.push({ column: col, targetField: field.key, isNew: false });
+            usedFields.add(field.key);
+            matched = true;
+            break;
+          }
+        }
+        
+        if (!matched) {
           // Check if matches existing custom field
           const existingField = customFields.find(f => 
             f.field_key === colLower.replace(/\s+/g, '_') || 
@@ -243,8 +245,8 @@ export default function ProspectImportDialog({ open, onOpenChange }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) resetState(); }}>
-      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
-        <DialogHeader>
+      <DialogContent className="max-w-3xl h-[85vh] flex flex-col overflow-hidden">
+        <DialogHeader className="shrink-0">
           <DialogTitle>Importar Prospects</DialogTitle>
         </DialogHeader>
 
@@ -277,51 +279,56 @@ export default function ProspectImportDialog({ open, onOpenChange }: Props) {
         )}
 
         {step === "mapping" && (
-          <div className="flex flex-col flex-1 min-h-0 space-y-4">
-            <div className="p-3 bg-muted rounded-lg flex items-center gap-2 shrink-0">
+          <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+            <div className="p-3 bg-muted rounded-lg flex items-center gap-2 shrink-0 mb-4">
               <Check className="h-4 w-4 text-green-600" />
               <span className="text-sm">
                 <strong>{fileName}</strong> - {data.length} linhas encontradas
               </span>
             </div>
 
-            {/* Mapping Table */}
-            <ScrollArea className="flex-1 border rounded-lg">
-              <div className="p-4 space-y-3">
-                <div className="grid grid-cols-[1fr,auto,1fr] gap-2 items-center text-sm font-medium text-muted-foreground pb-2 border-b">
-                  <span>Coluna do Arquivo</span>
-                  <span></span>
-                  <span>Campo no Sistema</span>
-                </div>
-                
-                {columns.map((col) => {
-                  const mapping = getCurrentMapping(col);
-                  const availableTargets = getAvailableTargets(col);
-                  const reservedField = RESERVED_FIELDS.find(f => f.key === mapping?.targetField);
-                  const customField = customFields.find(f => f.field_key === mapping?.targetField);
+            {/* Mapping Table with proper scroll */}
+            <div className="flex-1 min-h-0 border rounded-lg overflow-hidden mb-4">
+              <ScrollArea className="h-full">
+                <div className="p-4 space-y-3">
+                  <div className="grid grid-cols-[1fr,auto,1fr,auto] gap-2 items-center text-sm font-medium text-muted-foreground pb-2 border-b sticky top-0 bg-background z-10">
+                    <span>Coluna do Arquivo</span>
+                    <span></span>
+                    <span>Campo no Sistema</span>
+                    <span></span>
+                  </div>
                   
-                  return (
-                    <div key={col} className="grid grid-cols-[1fr,auto,1fr] gap-2 items-center">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="secondary" className="font-mono text-xs">
-                          {col}
-                        </Badge>
-                        <span className="text-xs text-muted-foreground truncate">
-                          {data[0]?.[col]?.substring(0, 20)}...
-                        </span>
-                      </div>
-                      
-                      <span className="text-muted-foreground">→</span>
-                      
-                      <div className="flex items-center gap-2">
+                  {columns.map((col) => {
+                    const mapping = getCurrentMapping(col);
+                    const availableTargets = getAvailableTargets(col);
+                    
+                    return (
+                      <div key={col} className="grid grid-cols-[1fr,auto,1fr,auto] gap-2 items-center py-1">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Badge variant="secondary" className="font-mono text-xs shrink-0">
+                            {col}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground truncate">
+                            {data[0]?.[col]?.substring(0, 20)}...
+                          </span>
+                        </div>
+                        
+                        <span className="text-muted-foreground shrink-0">→</span>
+                        
                         <Select
                           value={mapping?.targetField || "ignore"}
                           onValueChange={(v) => updateMapping(col, v, false)}
                         >
-                          <SelectTrigger className="flex-1">
+                          <SelectTrigger className="w-full">
                             <SelectValue placeholder="Selecione..." />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent 
+                            position="popper" 
+                            side="bottom" 
+                            align="start"
+                            className="z-[100]"
+                            sideOffset={4}
+                          >
                             <SelectItem value="ignore">
                               <span className="text-muted-foreground">Ignorar</span>
                             </SelectItem>
@@ -340,33 +347,36 @@ export default function ProspectImportDialog({ open, onOpenChange }: Props) {
                           </SelectContent>
                         </Select>
                         
-                        {!mapping && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => addAsNewField(col)}
-                            title="Criar novo campo"
-                          >
-                            <Plus className="h-4 w-4" />
-                          </Button>
-                        )}
-                        
-                        {mapping?.isNew && (
-                          <Badge variant="default" className="bg-green-600 text-xs">
-                            Novo
-                          </Badge>
-                        )}
+                        <div className="flex items-center gap-1 shrink-0">
+                          {!mapping && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => addAsNewField(col)}
+                              title="Criar novo campo"
+                            >
+                              <Plus className="h-4 w-4" />
+                            </Button>
+                          )}
+                          
+                          {mapping?.isNew && (
+                            <Badge variant="default" className="bg-green-600 text-xs">
+                              Novo
+                            </Badge>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </ScrollArea>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+            </div>
 
             {/* New Fields Preview */}
             {newFieldsToCreate.length > 0 && (
-              <div className="p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800 shrink-0">
+              <div className="p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800 shrink-0 mb-4">
                 <p className="text-sm font-medium text-green-700 dark:text-green-400 mb-2">
                   Novos campos a serem criados:
                 </p>
@@ -381,11 +391,11 @@ export default function ProspectImportDialog({ open, onOpenChange }: Props) {
             )}
 
             {/* Preview */}
-            <div className="space-y-2 shrink-0">
+            <div className="shrink-0 space-y-2">
               <Label>Prévia (3 primeiros)</Label>
               <Card>
                 <CardContent className="p-0">
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto max-h-32">
                     <table className="w-full text-sm">
                       <thead className="bg-muted">
                         <tr>
@@ -426,7 +436,7 @@ export default function ProspectImportDialog({ open, onOpenChange }: Props) {
               </div>
             )}
 
-            <div className="flex justify-between shrink-0 pt-2">
+            <div className="flex justify-between shrink-0 pt-4 border-t mt-auto">
               <Button variant="outline" onClick={resetState}>
                 Voltar
               </Button>
