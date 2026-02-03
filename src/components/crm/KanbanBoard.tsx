@@ -11,7 +11,7 @@ import {
   useSensors,
   MeasuringStrategy
 } from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { SortableContext, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
 import { KanbanColumn } from "./KanbanColumn";
 import { DealCard } from "./DealCard";
 import { CRMDeal, CRMStage, useCRMDealMutations } from "@/hooks/use-crm";
@@ -47,6 +47,16 @@ export function KanbanBoard({ stages, dealsByStage, onDealClick, onStatusChange,
     return null;
   }, [activeId, dealsByStage]);
 
+  // Find which stage a deal belongs to
+  const findStageForDeal = (dealId: string): string | null => {
+    for (const [stageId, deals] of Object.entries(dealsByStage)) {
+      if (deals.some((d) => d.id === dealId)) {
+        return stageId;
+      }
+    }
+    return null;
+  };
+
   function handleDragStart(event: DragStartEvent) {
     setActiveId(event.active.id as string);
   }
@@ -65,34 +75,42 @@ export function KanbanBoard({ stages, dealsByStage, onDealClick, onStatusChange,
     const dealId = active.id as string;
     const targetId = over.id as string;
 
+    // Don't do anything if dropped on itself
+    if (dealId === targetId) return;
+
     // Find the current stage of the dragged deal
-    let currentStageId: string | null = null;
-    for (const [stageId, deals] of Object.entries(dealsByStage)) {
-      if (deals.some((d) => d.id === dealId)) {
-        currentStageId = stageId;
-        break;
-      }
-    }
+    const currentStageId = findStageForDeal(dealId);
+    if (!currentStageId) return;
 
     // Check if dropped on a stage column directly
     const isStageColumn = stages.some((s) => s.id === targetId);
     
     let targetStageId: string | null = null;
+    let targetDealId: string | null = null;
     
     if (isStageColumn) {
       targetStageId = targetId;
     } else {
       // Dropped on another deal - find which stage that deal belongs to
-      for (const [stageId, deals] of Object.entries(dealsByStage)) {
-        if (deals.some((d) => d.id === targetId)) {
-          targetStageId = stageId;
-          break;
-        }
-      }
+      targetStageId = findStageForDeal(targetId);
+      targetDealId = targetId;
     }
 
-    if (targetStageId && currentStageId !== targetStageId) {
-      moveDeal.mutate({ id: dealId, stage_id: targetStageId });
+    if (!targetStageId) return;
+
+    // Same column - reorder within column
+    if (currentStageId === targetStageId && targetDealId) {
+      moveDeal.mutate({ 
+        id: dealId, 
+        over_deal_id: targetDealId 
+      });
+    } 
+    // Different column - move to new stage
+    else if (currentStageId !== targetStageId) {
+      moveDeal.mutate({ 
+        id: dealId, 
+        stage_id: targetStageId 
+      });
     }
   }
 
@@ -149,8 +167,8 @@ export function KanbanBoard({ stages, dealsByStage, onDealClick, onStatusChange,
 
       <DragOverlay 
         dropAnimation={{
-          duration: 200,
-          easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
+          duration: 250,
+          easing: 'cubic-bezier(0.25, 1, 0.5, 1)',
         }}
         style={{ cursor: 'grabbing' }}
       >

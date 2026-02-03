@@ -1,5 +1,5 @@
 import { useDroppable } from "@dnd-kit/core";
-import { useSortable } from "@dnd-kit/sortable";
+import { useSortable, SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { DealCard } from "./DealCard";
 import { CRMDeal, CRMStage } from "@/hooks/use-crm";
@@ -28,7 +28,8 @@ function SortableDealItem({
   onStatusChange, 
   isNewWin,
   isActive,
-  isOver
+  isOver,
+  activeId
 }: { 
   deal: CRMDeal; 
   onDealClick: (deal: CRMDeal) => void;
@@ -36,6 +37,7 @@ function SortableDealItem({
   isNewWin?: boolean;
   isActive?: boolean;
   isOver?: boolean;
+  activeId?: string | null;
 }) {
   const {
     attributes,
@@ -44,20 +46,22 @@ function SortableDealItem({
     transform,
     transition,
     isDragging,
+    isSorting,
   } = useSortable({ 
     id: deal.id,
     transition: {
-      duration: 250,
+      duration: 200,
       easing: 'cubic-bezier(0.25, 1, 0.5, 1)',
     },
   });
 
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.4 : 1,
-    zIndex: isDragging ? 10 : undefined,
+    transition: isDragging ? undefined : transition,
   };
+
+  // Show drop indicator line when another item is being dragged over this one
+  const showDropIndicator = isOver && !isDragging && activeId && activeId !== deal.id;
 
   return (
     <div 
@@ -67,17 +71,23 @@ function SortableDealItem({
       {...listeners}
       className={cn(
         "relative group touch-manipulation",
-        "transition-[margin,transform] duration-200 ease-out",
-        isOver && !isDragging && "mt-20",
-        isDragging && "opacity-40"
+        "transition-all duration-200 ease-out",
+        isDragging && "opacity-30 scale-95",
+        isSorting && !isDragging && "transition-transform"
       )}
     >
+      {/* Drop indicator line above */}
+      {showDropIndicator && (
+        <div className="absolute -top-1 left-0 right-0 h-1 bg-primary rounded-full animate-pulse z-20" />
+      )}
+      
       <DealCard
         deal={deal}
         onClick={() => onDealClick(deal)}
         isNewWin={isNewWin}
         isDragging={isDragging}
       />
+      
       {/* Quick actions menu */}
       {onStatusChange && !isDragging && (
         <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
@@ -200,7 +210,7 @@ export function KanbanColumn({
               Nenhuma negociação
             </div>
           ) : (
-            deals.map((deal, index) => (
+            deals.map((deal) => (
               <SortableDealItem
                 key={deal.id}
                 deal={deal}
@@ -209,6 +219,7 @@ export function KanbanColumn({
                 isNewWin={newWinDealId === deal.id}
                 isActive={activeId === deal.id}
                 isOver={overId === deal.id}
+                activeId={activeId}
               />
             ))
           )}

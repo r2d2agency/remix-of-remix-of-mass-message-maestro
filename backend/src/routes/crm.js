@@ -964,34 +964,96 @@ router.put('/deals/:id', async (req, res) => {
   }
 });
 
-// Move deal (drag & drop)
+// Move deal (drag & drop) - supports stage change and position reorder
 router.post('/deals/:id/move', async (req, res) => {
   try {
     const org = await getUserOrg(req.userId);
     if (!org) return res.status(403).json({ error: 'No organization' });
 
-    const { stage_id } = req.body;
+    const { stage_id, position, over_deal_id } = req.body;
 
-    // Get current stage
-    const current = await query(`SELECT stage_id FROM crm_deals WHERE id = $1`, [req.params.id]);
+    // Get current deal info
+    const current = await query(`SELECT stage_id, position FROM crm_deals WHERE id = $1`, [req.params.id]);
     if (!current.rows[0]) return res.status(404).json({ error: 'Deal not found' });
 
     const oldStageId = current.rows[0].stage_id;
+    const oldPosition = current.rows[0].position || 0;
+    const isStageChange = stage_id && oldStageId !== stage_id;
+    const isSameColumn = !stage_id || oldStageId === stage_id;
 
-    // Update stage
-    await query(
-      `UPDATE crm_deals SET stage_id = $1, last_activity_at = NOW(), updated_at = NOW() 
-       WHERE id = $2 AND organization_id = $3`,
-      [stage_id, req.params.id, org.organization_id]
-    );
+    // Handle reordering within the same column
+    if (isSameColumn && over_deal_id && over_deal_id !== req.params.id) {
+      // Get position of the target deal
+      const targetDeal = await query(
+        `SELECT position FROM crm_deals WHERE id = $1`,
+        [over_deal_id]
+      );
+      
+      if (targetDeal.rows[0]) {
+        const targetPosition = targetDeal.rows[0].position || 0;
+        const targetStageId = stage_id || oldStageId;
+        
+        if (oldPosition < targetPosition) {
+          // Moving down: shift items between old+1 and target up by 1
+          await query(
+            `UPDATE crm_deals 
+             SET position = position - 1, updated_at = NOW()
+             WHERE stage_id = $1 AND position > $2 AND position <= $3 AND organization_id = $4`,
+            [targetStageId, oldPosition, targetPosition, org.organization_id]
+          );
+        } else {
+          // Moving up: shift items between target and old-1 down by 1
+          await query(
+            `UPDATE crm_deals 
+             SET position = position + 1, updated_at = NOW()
+             WHERE stage_id = $1 AND position >= $2 AND position < $3 AND organization_id = $4`,
+            [targetStageId, targetPosition, oldPosition, org.organization_id]
+          );
+        }
+        
+        // Update the dragged deal's position
+        await query(
+          `UPDATE crm_deals SET position = $1, last_activity_at = NOW(), updated_at = NOW() 
+           WHERE id = $2 AND organization_id = $3`,
+          [targetPosition, req.params.id, org.organization_id]
+        );
+      }
+      
+      return res.json({ success: true, reordered: true });
+    }
 
-    // Log history
-    const oldStage = await query(`SELECT name FROM crm_stages WHERE id = $1`, [oldStageId]);
-    const newStage = await query(`SELECT name FROM crm_stages WHERE id = $1`, [stage_id]);
-    await query(
-      `INSERT INTO crm_deal_history (deal_id, user_id, action, from_value, to_value) VALUES ($1, $2, 'stage_changed', $3, $4)`,
-      [req.params.id, req.userId, oldStage.rows[0]?.name, newStage.rows[0]?.name]
-    );
+    // Handle stage change
+    if (isStageChange) {
+      // Get max position in new stage
+      const maxPosResult = await query(
+        `SELECT COALESCE(MAX(position), -1) + 1 as new_position 
+         FROM crm_deals WHERE stage_id = $1 AND organization_id = $2`,
+        [stage_id, org.organization_id]
+      );
+      const newPosition = maxPosResult.rows[0].new_position;
+
+      // Shift positions in old stage
+      await query(
+        `UPDATE crm_deals 
+         SET position = position - 1, updated_at = NOW()
+         WHERE stage_id = $1 AND position > $2 AND organization_id = $3`,
+        [oldStageId, oldPosition, org.organization_id]
+      );
+
+      // Update stage and position
+      await query(
+        `UPDATE crm_deals SET stage_id = $1, position = $2, last_activity_at = NOW(), updated_at = NOW() 
+         WHERE id = $3 AND organization_id = $4`,
+        [stage_id, newPosition, req.params.id, org.organization_id]
+      );
+
+      // Log history
+      const oldStage = await query(`SELECT name FROM crm_stages WHERE id = $1`, [oldStageId]);
+      const newStage = await query(`SELECT name FROM crm_stages WHERE id = $1`, [stage_id]);
+      await query(
+        `INSERT INTO crm_deal_history (deal_id, user_id, action, from_value, to_value) VALUES ($1, $2, 'stage_changed', $3, $4)`,
+        [req.params.id, req.userId, oldStage.rows[0]?.name, newStage.rows[0]?.name]
+      );
 
     // Trigger automation for new stage (if configured)
     if (oldStageId !== stage_id) {

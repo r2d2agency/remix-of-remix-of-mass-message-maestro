@@ -414,8 +414,11 @@ export function useCRMDealMutations() {
   });
 
   const moveDeal = useMutation({
-    mutationFn: async ({ id, stage_id }: { id: string; stage_id: string }) => {
-      return api<{ success: boolean }>(`/api/crm/deals/${id}/move`, { method: "POST", body: { stage_id } });
+    mutationFn: async ({ id, stage_id, over_deal_id }: { id: string; stage_id?: string; over_deal_id?: string }) => {
+      return api<{ success: boolean; reordered?: boolean }>(`/api/crm/deals/${id}/move`, { 
+        method: "POST", 
+        body: { stage_id, over_deal_id } 
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["crm-deals"] });
