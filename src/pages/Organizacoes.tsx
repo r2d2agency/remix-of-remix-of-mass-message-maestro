@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,7 +16,8 @@ import { useOrganizations } from '@/hooks/use-organizations';
 import { useSuperadmin } from '@/hooks/use-superadmin';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
-import { Building2, Plus, Users, Trash2, UserPlus, Crown, Shield, User, Briefcase, Loader2, Pencil, Link2, Settings, KeyRound, Megaphone, Receipt, UsersRound, CalendarClock, Bot, Layers, MessagesSquare } from 'lucide-react';
+import { Building2, Plus, Users, Trash2, UserPlus, Crown, Shield, User, Briefcase, Loader2, Pencil, Link2, Settings, KeyRound, Megaphone, Receipt, UsersRound, CalendarClock, Bot, Layers, MessagesSquare, Upload, Image } from 'lucide-react';
+import { useUpload } from '@/hooks/use-upload';
 
 interface Organization {
   id: string;
@@ -89,6 +90,8 @@ export default function Organizacoes() {
   // Edit org dialog
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editOrgName, setEditOrgName] = useState('');
+  const [editOrgLogo, setEditOrgLogo] = useState<string | null>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
   
   // Create user dialog
   const [createUserDialogOpen, setCreateUserDialogOpen] = useState(false);
@@ -237,15 +240,32 @@ export default function Organizacoes() {
     }
   };
 
+  const { uploadFile, isUploading: isUploadingLogo } = useUpload();
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const url = await uploadFile(file);
+      if (url) setEditOrgLogo(url);
+    } catch {
+      toast.error('Erro ao enviar logo');
+    }
+    if (logoInputRef.current) logoInputRef.current.value = '';
+  };
+
   const handleUpdateOrg = async () => {
     if (!selectedOrg || !editOrgName) return;
     
-    const updated = await updateOrganization(selectedOrg.id, { name: editOrgName });
+    const data: { name?: string; logo_url?: string } = { name: editOrgName };
+    if (editOrgLogo !== undefined) data.logo_url = editOrgLogo || '';
+    
+    const updated = await updateOrganization(selectedOrg.id, data);
     if (updated) {
       toast.success('Organização atualizada!');
       setEditDialogOpen(false);
       loadOrganizations();
-      setSelectedOrg({ ...selectedOrg, name: editOrgName });
+      setSelectedOrg({ ...selectedOrg, name: editOrgName, logo_url: editOrgLogo });
     } else if (error) {
       toast.error(error);
     }
@@ -504,9 +524,13 @@ export default function Organizacoes() {
                   <CardHeader className="p-4 sm:p-6">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                       <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-                        <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                          <Building2 className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
-                        </div>
+                        {selectedOrg.logo_url ? (
+                          <img src={selectedOrg.logo_url} alt={selectedOrg.name} className="h-12 w-12 sm:h-16 sm:w-16 rounded-xl object-contain shrink-0" />
+                        ) : (
+                          <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                            <Building2 className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
+                          </div>
+                        )}
                         <div className="min-w-0">
                           <CardTitle className="text-xl sm:text-2xl truncate">{selectedOrg.name}</CardTitle>
                           <CardDescription className="truncate">/{selectedOrg.slug}</CardDescription>
@@ -515,7 +539,7 @@ export default function Organizacoes() {
                       {canManageOrg && (
                         <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
                           <DialogTrigger asChild>
-                            <Button variant="outline" size="sm" onClick={() => setEditOrgName(selectedOrg.name)} className="shrink-0 w-full sm:w-auto">
+                            <Button variant="outline" size="sm" onClick={() => { setEditOrgName(selectedOrg.name); setEditOrgLogo(selectedOrg.logo_url); }} className="shrink-0 w-full sm:w-auto">
                               <Pencil className="h-4 w-4 mr-2" />
                               Editar
                             </Button>
@@ -531,6 +555,43 @@ export default function Organizacoes() {
                                   value={editOrgName}
                                   onChange={(e) => setEditOrgName(e.target.value)}
                                 />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Logo</Label>
+                                <input
+                                  ref={logoInputRef}
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={handleLogoUpload}
+                                />
+                                {editOrgLogo ? (
+                                  <div className="space-y-2">
+                                    <div className="rounded-lg border bg-muted/50 p-3 flex items-center justify-center">
+                                      <img src={editOrgLogo} alt="Logo" className="max-h-20 max-w-full object-contain" />
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <Button type="button" variant="outline" size="sm" className="flex-1" onClick={() => logoInputRef.current?.click()} disabled={isUploadingLogo}>
+                                        {isUploadingLogo ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Upload className="h-4 w-4 mr-1" />}
+                                        Alterar
+                                      </Button>
+                                      <Button type="button" variant="outline" size="sm" onClick={() => setEditOrgLogo(null)} className="text-destructive hover:text-destructive">
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <Button type="button" variant="outline" className="w-full h-20 border-dashed flex flex-col gap-1" onClick={() => logoInputRef.current?.click()} disabled={isUploadingLogo}>
+                                    {isUploadingLogo ? (
+                                      <Loader2 className="h-5 w-5 animate-spin" />
+                                    ) : (
+                                      <>
+                                        <Image className="h-5 w-5" />
+                                        <span className="text-xs">Clique para enviar logo</span>
+                                      </>
+                                    )}
+                                  </Button>
+                                )}
                               </div>
                             </div>
                             <DialogFooter>
