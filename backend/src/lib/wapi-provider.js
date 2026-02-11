@@ -321,7 +321,6 @@ export async function checkStatus(instanceId, token) {
  */
 export async function getQRCode(instanceId, token) {
   try {
-    // W-API uses qr-code (with hyphen) and &image=enable for base64 image
     const url = `${W_API_BASE_URL}/instance/qr-code?instanceId=${instanceId}&image=enable`;
     logInfo('wapi.qrcode_request', { instance_id: instanceId, url });
 
@@ -343,47 +342,81 @@ export async function getQRCode(instanceId, token) {
       status: response.status,
       body_length: rawText.length,
       body_preview: rawText.slice(0, 500),
-      keys: 'parsing...',
     });
+
+    const normalizeQrString = (value) => {
+      if (typeof value !== 'string') return null;
+      const s = value.trim();
+      if (!s) return null;
+      if (s.startsWith('data:image/')) return s;
+      // Raw base64 should be long enough to represent a PNG
+      if (s.length >= 200) return s;
+      return null;
+    };
+
+    // If API returns a plain string
+    const directText = normalizeQrString(rawText);
+    if (directText) return directText;
 
     let data;
     try {
       data = JSON.parse(rawText);
     } catch (e) {
-      logWarn('wapi.qrcode_not_json', { instance_id: instanceId, body_preview: rawText.slice(0, 300) });
-      // Maybe the response IS the base64 image directly
-      if (rawText.startsWith('data:image') || rawText.length > 1000) {
-        return rawText;
-      }
+      logWarn('wapi.qrcode_not_json', {
+        instance_id: instanceId,
+        body_preview: rawText.slice(0, 300),
+      });
+      return null;
+    }
+
+    if (!data || typeof data !== 'object') {
+      logWarn('wapi.qrcode_unexpected_shape', {
+        instance_id: instanceId,
+        type: typeof data,
+      });
       return null;
     }
 
     logInfo('wapi.qrcode_parsed', {
       instance_id: instanceId,
       keys: Object.keys(data),
-      has_qrcode: Boolean(data.qrcode),
-      has_base64: Boolean(data.base64),
-      has_qr: Boolean(data.qr),
-      has_image: Boolean(data.image),
-      has_data: Boolean(data.data),
-      has_result: Boolean(data.result),
     });
 
-    // Try all possible field names
-    const qr = data.qrcode || data.base64 || data.qr || data.image || data.data || data.result || null;
-    
-    // If it's an object with nested fields, try deeper
-    if (!qr && typeof data === 'object') {
-      for (const key of Object.keys(data)) {
-        const val = data[key];
-        if (typeof val === 'string' && (val.startsWith('data:image') || val.length > 500)) {
-          logInfo('wapi.qrcode_found_in_field', { field: key, length: val.length });
-          return val;
+    // Common direct fields
+    const direct =
+      normalizeQrString(data.qrcode) ||
+      normalizeQrString(data.base64) ||
+      normalizeQrString(data.qr) ||
+      normalizeQrString(data.image);
+
+    if (direct) return direct;
+
+    // Shallow nested scan (some APIs wrap payload under data/result/etc)
+    for (const key of Object.keys(data)) {
+      const val = data[key];
+
+      const found = normalizeQrString(val);
+      if (found) {
+        logInfo('wapi.qrcode_found_in_field', { instance_id: instanceId, field: key, length: found.length });
+        return found;
+      }
+
+      if (val && typeof val === 'object') {
+        const nested =
+          normalizeQrString(val.qrcode) ||
+          normalizeQrString(val.base64) ||
+          normalizeQrString(val.qr) ||
+          normalizeQrString(val.image);
+
+        if (nested) {
+          logInfo('wapi.qrcode_found_in_nested_field', { instance_id: instanceId, field: key, length: nested.length });
+          return nested;
         }
       }
     }
 
-    return qr;
+    // IMPORTANT: do not return numbers/booleans like `1` (they break the <img> src)
+    return null;
   } catch (error) {
     logError('wapi.qrcode_error', error, { instance_id: instanceId });
     return null;
