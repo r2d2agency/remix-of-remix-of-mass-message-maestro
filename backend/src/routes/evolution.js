@@ -605,24 +605,42 @@ router.post('/:connectionId/logout', authenticate, async (req, res) => {
   }
 });
 
-// Restart instance (reconnect)
+// Restart instance (reconnect) - supports both Evolution API and W-API
 router.post('/:connectionId/restart', authenticate, async (req, res) => {
   try {
     const { connectionId } = req.params;
 
-    // Get connection
-    const connResult = await query(
-      'SELECT * FROM connections WHERE id = $1 AND user_id = $2',
-      [connectionId, req.userId]
-    );
-
-    if (connResult.rows.length === 0) {
+    const connection = await getAccessibleConnection(connectionId, req.userId);
+    if (!connection) {
       return res.status(404).json({ error: 'Conexão não encontrada' });
     }
 
-    const connection = connResult.rows[0];
+    const provider = whatsappProvider.detectProvider(connection);
 
-    // Restart instance on Evolution
+    // Update status in database
+    await query(
+      'UPDATE connections SET status = $1, updated_at = NOW() WHERE id = $2',
+      ['disconnected', connectionId]
+    );
+
+    if (provider === 'wapi') {
+      // W-API: disconnect first, then get new QR code
+      try {
+        await whatsappProvider.disconnect(connection);
+      } catch (e) {
+        // Ignore disconnect errors - instance may already be disconnected
+      }
+
+      // Get new QR code via unified provider
+      const qrCode = await whatsappProvider.getQRCode(connection);
+
+      return res.json({
+        success: true,
+        qrCode: qrCode || null,
+      });
+    }
+
+    // Evolution API flow
     try {
       await evolutionRequest(`/instance/restart/${connection.instance_name}`, 'PUT');
     } catch (e) {
@@ -633,12 +651,6 @@ router.post('/:connectionId/restart', authenticate, async (req, res) => {
         integration: 'WHATSAPP-BAILEYS',
       });
     }
-
-    // Update status in database
-    await query(
-      'UPDATE connections SET status = $1, updated_at = NOW() WHERE id = $2',
-      ['disconnected', connectionId]
-    );
 
     // Get new QR code
     const qrResult = await evolutionRequest(`/instance/connect/${connection.instance_name}`, 'GET');
