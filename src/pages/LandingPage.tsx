@@ -748,8 +748,8 @@ export default function LandingPage() {
             </Card>
             <Card className="p-6">
               <Zap className="h-8 w-8 mx-auto text-primary mb-3" />
-              <h3 className="font-semibold mb-1">Setup em 5min</h3>
-              <p className="text-sm text-muted-foreground">Conecte seu WhatsApp e comece a usar imediatamente</p>
+              <h3 className="font-semibold mb-1">Setup Personalizado</h3>
+              <p className="text-sm text-muted-foreground">Configuração sob medida para a realidade do seu escritório</p>
             </Card>
           </div>
         </div>
