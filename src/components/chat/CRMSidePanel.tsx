@@ -41,6 +41,9 @@ import {
   ClipboardList,
   ArrowLeft,
   RefreshCw,
+  Bot,
+  Sparkles,
+  Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -61,6 +64,7 @@ import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
+import { useAIAgents, AIAgent } from "@/hooks/use-ai-agents";
 import { TaskDialog } from "@/components/crm/TaskDialog";
 import { MeetingScheduleDialog } from "./MeetingScheduleDialog";
 import { SendEmailDialog } from "@/components/email/SendEmailDialog";
@@ -120,6 +124,12 @@ export function CRMSidePanel({
   const [savingNote, setSavingNote] = useState(false);
   const { getNotes, createNote } = useChat();
 
+  // AI Agents
+  const { getAgents } = useAIAgents();
+  const [aiAgents, setAiAgents] = useState<AIAgent[]>([]);
+  const [loadingAgents, setLoadingAgents] = useState(false);
+  const [activatingAgent, setActivatingAgent] = useState<string | null>(null);
+
   // Edit states
   const [isEditingDeal, setIsEditingDeal] = useState(false);
   const [dealForm, setDealForm] = useState({
@@ -178,6 +188,7 @@ export function CRMSidePanel({
   useEffect(() => {
     if (isOpen && conversationId) {
       loadNotes();
+      loadAgents();
     }
   }, [isOpen, conversationId]);
 
@@ -190,6 +201,40 @@ export function CRMSidePanel({
       console.error("Error loading notes:", error);
     } finally {
       setLoadingNotes(false);
+    }
+  };
+
+  const loadAgents = async () => {
+    setLoadingAgents(true);
+    try {
+      const data = await getAgents();
+      setAiAgents(data.filter(a => a.is_active));
+    } catch (error) {
+      console.error("Error loading AI agents:", error);
+    } finally {
+      setLoadingAgents(false);
+    }
+  };
+
+  const handleActivateAgent = async (agent: AIAgent) => {
+    setActivatingAgent(agent.id);
+    try {
+      // Start an AI agent session for this conversation
+      await api('/api/ai-agents/' + agent.id + '/sessions', {
+        method: 'POST',
+        body: {
+          conversation_id: conversationId,
+          contact_phone: contactPhone,
+          contact_name: contactName,
+        },
+        auth: true,
+      });
+      toast.success(`Agente "${agent.name}" ativado para esta conversa!`);
+    } catch (error) {
+      console.error("Error activating agent:", error);
+      toast.error("Erro ao ativar agente de IA");
+    } finally {
+      setActivatingAgent(null);
     }
   };
 
@@ -1123,6 +1168,78 @@ export function CRMSidePanel({
                       </div>
                     )}
                   </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              {/* AI Agents */}
+              <AccordionItem value="ai-agents" className="border rounded-lg px-3">
+                <AccordionTrigger className="py-2 hover:no-underline">
+                  <div className="flex items-center gap-2 text-sm">
+                    <Bot className="h-4 w-4 text-primary" />
+                    <span>Agentes IA</span>
+                    {aiAgents.length > 0 && (
+                      <Badge variant="secondary" className="text-[10px] px-1.5">{aiAgents.length}</Badge>
+                    )}
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="pb-3">
+                  {loadingAgents ? (
+                    <div className="flex justify-center py-4">
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : aiAgents.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-2">
+                      Nenhum agente ativo disponível
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {aiAgents.map((agent) => (
+                        <div
+                          key={agent.id}
+                          className="flex items-center gap-2 p-2 rounded-lg border bg-muted/20 hover:bg-muted/40 transition-colors"
+                        >
+                          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                            <Sparkles className="h-4 w-4 text-primary" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium truncate">{agent.name}</p>
+                            {agent.description && (
+                              <p className="text-[10px] text-muted-foreground truncate">{agent.description}</p>
+                            )}
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {agent.capabilities.slice(0, 3).map((cap) => (
+                                <Badge key={cap} variant="outline" className="text-[9px] px-1 py-0">
+                                  {cap === 'respond_messages' ? 'Respostas' :
+                                   cap === 'qualify_leads' ? 'Qualificar' :
+                                   cap === 'create_deals' ? 'Negociações' :
+                                   cap === 'summarize_history' ? 'Resumos' :
+                                   cap === 'suggest_actions' ? 'Sugestões' :
+                                   cap === 'generate_content' ? 'Conteúdo' :
+                                   cap === 'schedule_meetings' ? 'Reuniões' :
+                                   cap === 'read_files' ? 'Arquivos' :
+                                   cap}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="default"
+                            className="h-7 text-[10px] px-2 gap-1 flex-shrink-0"
+                            onClick={() => handleActivateAgent(agent)}
+                            disabled={activatingAgent === agent.id}
+                          >
+                            {activatingAgent === agent.id ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <Zap className="h-3 w-3" />
+                            )}
+                            Ativar
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </AccordionContent>
               </AccordionItem>
             </Accordion>
