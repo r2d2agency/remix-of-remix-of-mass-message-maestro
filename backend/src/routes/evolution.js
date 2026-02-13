@@ -413,7 +413,10 @@ router.post('/create', authenticate, async (req, res) => {
     // Create instance on Evolution API with webhook configuration
     const createPayload = {
       instanceName,
+      integration: 'WHATSAPP-BAILEYS',
       qrcode: true,
+      reject_call: false,
+      groupsIgnore: true,
     };
 
     console.log('[Evolution] Creating instance with payload:', JSON.stringify(createPayload), 'URL:', EVOLUTION_API_URL);
