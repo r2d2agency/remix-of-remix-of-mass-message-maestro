@@ -51,170 +51,170 @@ import heroImage from "@/assets/hero-lawtech.jpg";
 
 const featureCategories = [
   {
-    category: "Gestão Processual",
-    icon: Scale,
-    color: "text-amber-500",
-    bgColor: "bg-amber-500/10",
-    features: [
-      {
-        icon: FolderOpen,
-        title: "Kanban de Processos",
-        description: "Acompanhe cada processo por etapa: petição inicial, audiência, recurso e sentença em painel visual.",
-      },
-      {
-        icon: ClipboardList,
-        title: "Tarefas & Prazos",
-        description: "Controle prazos processuais, audiências e diligências com alertas automáticos.",
-      },
-      {
-        icon: Calendar,
-        title: "Agenda Jurídica",
-        description: "Audiências, reuniões com clientes e prazos integrados ao Google Calendar.",
-      },
-      {
-        icon: FileText,
-        title: "Documentos & Petições",
-        description: "Anexe documentos, petições e pareceres diretamente no processo.",
-      },
-    ],
-  },
-  {
-    category: "Atendimento",
+    category: "WhatsApp Organizado",
     icon: MessageSquare,
     color: "text-blue-500",
     bgColor: "bg-blue-500/10",
     features: [
       {
         icon: MessageSquare,
-        title: "WhatsApp Unificado",
-        description: "Centralize conversas de clientes, parceiros e tribunais em uma única interface.",
+        title: "Chat Centralizado",
+        description: "Todas as conversas de clientes em um único painel, sem perder nenhuma mensagem.",
       },
       {
         icon: Users,
         title: "Multi-Advogados",
-        description: "Distribua atendimentos entre sócios e associados com filas e transferências.",
-      },
-      {
-        icon: Building2,
-        title: "Áreas de Atuação",
-        description: "Organize por áreas: cível, trabalhista, criminal, tributário e família.",
+        description: "Cada advogado atende seus clientes com filas organizadas e transferências.",
       },
       {
         icon: Bell,
-        title: "Notificações de Solicitações",
-        description: "Alertas instantâneos quando clientes enviam documentos ou fazem solicitações.",
+        title: "Solicitações de Clientes",
+        description: "Receba alertas quando clientes enviam documentos, dúvidas ou novas demandas.",
+      },
+      {
+        icon: Building2,
+        title: "Setores do Escritório",
+        description: "Separe atendimento por área: cível, trabalhista, família, criminal.",
+      },
+    ],
+  },
+  {
+    category: "Organização Interna",
+    icon: FolderOpen,
+    color: "text-amber-500",
+    bgColor: "bg-amber-500/10",
+    features: [
+      {
+        icon: FolderOpen,
+        title: "Kanban de Demandas",
+        description: "Organize solicitações e demandas dos clientes em quadros visuais por status.",
+      },
+      {
+        icon: ClipboardList,
+        title: "Tarefas da Equipe",
+        description: "Atribua e acompanhe tarefas entre advogados, estagiários e secretaria.",
+      },
+      {
+        icon: Users,
+        title: "Gestão de Grupos",
+        description: "Grupos internos por caso ou área para comunicação rápida da equipe.",
+      },
+      {
+        icon: Lock,
+        title: "Permissões por Cargo",
+        description: "Controle quem vê o quê: sócios, associados, estagiários e secretaria.",
+      },
+    ],
+  },
+  {
+    category: "Lembretes & Agenda",
+    icon: Clock,
+    color: "text-emerald-500",
+    bgColor: "bg-emerald-500/10",
+    features: [
+      {
+        icon: Bell,
+        title: "Lembretes Automáticos",
+        description: "Crie lembretes para compromissos, reuniões e retornos a clientes.",
+      },
+      {
+        icon: Clock,
+        title: "Mensagens Agendadas",
+        description: "Programe mensagens para clientes em datas e horários específicos.",
+      },
+      {
+        icon: Calendar,
+        title: "Agenda do Escritório",
+        description: "Visualize compromissos de toda a equipe em um calendário integrado.",
+      },
+      {
+        icon: RefreshCw,
+        title: "Follow-up Automático",
+        description: "Sequências de acompanhamento para clientes que não responderam.",
+      },
+    ],
+  },
+  {
+    category: "IA Jurídica",
+    icon: Brain,
+    color: "text-violet-500",
+    bgColor: "bg-violet-500/10",
+    features: [
+      {
+        icon: Brain,
+        title: "Assistente para Peças",
+        description: "IA que ajuda a redigir petições, contestações e pareceres dentro do sistema.",
+      },
+      {
+        icon: Sparkles,
+        title: "Tira-Dúvidas Jurídico",
+        description: "Pergunte sobre legislação, jurisprudência e procedimentos diretamente no chat.",
+      },
+      {
+        icon: Bot,
+        title: "Chatbot para Clientes",
+        description: "Atenda clientes 24h com triagem automática e coleta de informações.",
+      },
+      {
+        icon: FileText,
+        title: "Resumos de Conversas",
+        description: "IA resume conversas longas com clientes destacando os pontos importantes.",
       },
     ],
   },
   {
     category: "Automação",
     icon: Zap,
-    color: "text-emerald-500",
-    bgColor: "bg-emerald-500/10",
-    features: [
-      {
-        icon: Bot,
-        title: "Chatbot Jurídico",
-        description: "Atenda clientes 24h com triagem automática, coleta de dados e agendamento.",
-      },
-      {
-        icon: Brain,
-        title: "IA para Advocacia",
-        description: "Assistente que responde dúvidas sobre andamento processual e agenda.",
-      },
-      {
-        icon: Clock,
-        title: "Mensagens Agendadas",
-        description: "Lembretes automáticos de audiências, prazos e pagamentos de honorários.",
-      },
-      {
-        icon: RefreshCw,
-        title: "Follow-up Automático",
-        description: "Sequências de contato para acompanhamento de clientes e prospects.",
-      },
-    ],
-  },
-  {
-    category: "Grupos & Equipe",
-    icon: Users,
-    color: "text-violet-500",
-    bgColor: "bg-violet-500/10",
-    features: [
-      {
-        icon: Users,
-        title: "Gestão de Grupos",
-        description: "Organize grupos por caso, área ou cliente para comunicação interna eficiente.",
-      },
-      {
-        icon: UserCheck,
-        title: "Distribuição de Casos",
-        description: "Round-robin automático de novos casos entre advogados disponíveis.",
-      },
-      {
-        icon: AlertTriangle,
-        title: "Alertas Internos",
-        description: "Notificações de urgência para prazos críticos e audiências iminentes.",
-      },
-      {
-        icon: Lock,
-        title: "Permissões por Cargo",
-        description: "Controle de acesso para sócios, associados, estagiários e secretaria.",
-      },
-    ],
-  },
-  {
-    category: "Inteligência",
-    icon: Brain,
     color: "text-rose-500",
     bgColor: "bg-rose-500/10",
     features: [
       {
+        icon: Bot,
+        title: "Fluxos de Atendimento",
+        description: "Crie menus automáticos para triagem: tipo de caso, urgência e área.",
+      },
+      {
+        icon: Send,
+        title: "Disparos em Massa",
+        description: "Envie comunicados e informativos para toda sua base de clientes.",
+      },
+      {
+        icon: UserCheck,
+        title: "Distribuição Automática",
+        description: "Novos contatos são distribuídos automaticamente entre os advogados.",
+      },
+      {
         icon: Target,
-        title: "Scoring de Clientes",
-        description: "Classifique clientes por potencial de fidelização e valor de causa.",
-      },
-      {
-        icon: BarChart3,
-        title: "Relatórios Gerenciais",
-        description: "Dashboards de produtividade, processos ganhos e receita por área.",
-      },
-      {
-        icon: TrendingUp,
-        title: "Análise de Performance",
-        description: "Métricas de tempo médio por etapa processual e taxa de êxito.",
-      },
-      {
-        icon: Search,
-        title: "Busca Inteligente",
-        description: "Encontre processos, clientes e documentos em segundos com busca avançada.",
+        title: "Tags e Segmentação",
+        description: "Classifique clientes por tipo de caso, status e prioridade.",
       },
     ],
   },
   {
-    category: "Integrações",
-    icon: Globe,
+    category: "Relatórios",
+    icon: BarChart3,
     color: "text-cyan-500",
     bgColor: "bg-cyan-500/10",
     features: [
       {
+        icon: BarChart3,
+        title: "Dashboard do Escritório",
+        description: "Visão geral de atendimentos, demandas abertas e performance da equipe.",
+      },
+      {
+        icon: TrendingUp,
+        title: "Métricas de Atendimento",
+        description: "Tempo de resposta, volume de conversas e satisfação dos clientes.",
+      },
+      {
+        icon: Search,
+        title: "Busca de Conversas",
+        description: "Encontre qualquer conversa, cliente ou mensagem em segundos.",
+      },
+      {
         icon: Globe,
         title: "Formulários de Captação",
-        description: "Landing pages para captar clientes com formulários integrados ao sistema.",
-      },
-      {
-        icon: Layers,
-        title: "Webhooks & APIs",
-        description: "Integre com sistemas de tribunais, Zapier, Make e ferramentas externas.",
-      },
-      {
-        icon: Send,
-        title: "Campanhas Informativas",
-        description: "Dispare informativos jurídicos e newsletters para sua base de clientes.",
-      },
-      {
-        icon: Briefcase,
-        title: "Gestão Financeira",
-        description: "Controle honorários, custas processuais e cobranças automatizadas.",
+        description: "Capte novos clientes com formulários online integrados ao WhatsApp.",
       },
     ],
   },
@@ -223,7 +223,7 @@ const featureCategories = [
 const pricingPlans = [
   {
     name: "Solo",
-    description: "Para advogados autônomos e pequenos escritórios",
+    description: "Para advogados autônomos começando a organizar",
     price: "R$ 197",
     period: "/mês",
     popular: false,
@@ -231,19 +231,18 @@ const pricingPlans = [
     features: [
       { text: "1 conexão WhatsApp", included: true },
       { text: "2 usuários", included: true },
-      { text: "Chat unificado com clientes", included: true },
-      { text: "Kanban de processos", included: true },
+      { text: "Chat centralizado", included: true },
+      { text: "Kanban de demandas", included: true },
+      { text: "Lembretes e agendamentos", included: true },
       { text: "Chatbot de triagem", included: true },
-      { text: "Agendamentos e lembretes", included: true },
-      { text: "100 processos ativos", included: true },
-      { text: "IA jurídica", included: false },
+      { text: "IA para peças jurídicas", included: false },
       { text: "Gestão de grupos", included: false },
     ],
     color: "border-border",
   },
   {
     name: "Escritório",
-    description: "Para escritórios em crescimento com equipe",
+    description: "Para escritórios com equipe e múltiplas áreas",
     price: "R$ 397",
     period: "/mês",
     popular: true,
@@ -252,18 +251,17 @@ const pricingPlans = [
       { text: "3 conexões WhatsApp", included: true },
       { text: "8 usuários", included: true },
       { text: "Tudo do Solo +", included: true },
-      { text: "Áreas de atuação", included: true },
-      { text: "Distribuição de casos", included: true },
-      { text: "Gestão de grupos", included: true },
-      { text: "500 processos ativos", included: true },
-      { text: "Campanhas informativas", included: true },
-      { text: "IA jurídica", included: false },
+      { text: "Setores e áreas de atuação", included: true },
+      { text: "Distribuição de clientes", included: true },
+      { text: "Gestão de grupos internos", included: true },
+      { text: "Disparos em massa", included: true },
+      { text: "IA para peças jurídicas", included: false },
     ],
     color: "border-primary ring-2 ring-primary/20",
   },
   {
     name: "Premium",
-    description: "Para operações avançadas com IA e analytics",
+    description: "Para escritórios que querem IA e automação total",
     price: "R$ 697",
     period: "/mês",
     popular: false,
@@ -273,10 +271,9 @@ const pricingPlans = [
       { text: "20 usuários", included: true },
       { text: "Tudo do Escritório +", included: true },
       { text: "IA jurídica ilimitada", included: true },
+      { text: "Assistente para peças", included: true },
+      { text: "Resumos de conversas por IA", included: true },
       { text: "Relatórios gerenciais", included: true },
-      { text: "Scoring de clientes", included: true },
-      { text: "Processos ilimitados", included: true },
-      { text: "Webhooks & APIs", included: true },
       { text: "Suporte prioritário", included: true },
     ],
     color: "border-border",
@@ -292,8 +289,6 @@ const pricingPlans = [
       { text: "WhatsApps ilimitados", included: true },
       { text: "Usuários ilimitados", included: true },
       { text: "Tudo do Premium +", included: true },
-      { text: "Análise preditiva de casos", included: true },
-      { text: "Integrações customizadas", included: true },
       { text: "Onboarding dedicado", included: true },
       { text: "SLA garantido", included: true },
       { text: "Suporte 24/7", included: true },
@@ -306,7 +301,7 @@ const pricingPlans = [
 const stats = [
   { value: "2.000+", label: "Escritórios ativos" },
   { value: "99.9%", label: "Uptime garantido" },
-  { value: "50k+", label: "Processos gerenciados" },
+  { value: "30k+", label: "Conversas organizadas/dia" },
   { value: "<3s", label: "Tempo de resposta" },
 ];
 
@@ -314,24 +309,24 @@ const testimonials = [
   {
     name: "Dr. Ricardo Almeida",
     role: "Sócio - Almeida & Barros Advogados",
-    text: "Reduziu em 40% nosso tempo de resposta a clientes. Agora gerenciamos 300+ processos sem perder prazos.",
+    text: "Organizamos todo o WhatsApp do escritório. Cada advogado atende seus clientes sem confusão e a IA ajuda a redigir peças.",
   },
   {
     name: "Dra. Camila Santos",
     role: "Advogada Autônoma - Direito de Família",
-    text: "O chatbot jurídico atende meus clientes 24h e já agenda consultas automaticamente. Revolucionou meu escritório.",
+    text: "Os lembretes automáticos e o chatbot de triagem mudaram minha rotina. Nunca mais perdi um retorno a cliente.",
   },
   {
     name: "Dr. Fernando Costa",
     role: "Diretor - Costa & Associados",
-    text: "A gestão de grupos e distribuição de casos entre 15 advogados ficou completamente automatizada.",
+    text: "A gestão de grupos internos e a distribuição automática de clientes entre 15 advogados ficou impecável.",
   },
 ];
 
 export default function LandingPage() {
   const { branding } = useBranding();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [activeCategory, setActiveCategory] = useState("Gestão Processual");
+  const [activeCategory, setActiveCategory] = useState("WhatsApp Organizado");
 
   const [showPreRegister, setShowPreRegister] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -472,15 +467,15 @@ export default function LandingPage() {
             </Badge>
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6">
-              Seu escritório no{" "}
-              <span className="text-primary">WhatsApp</span>{" "}
-              com gestão completa de{" "}
-              <span className="text-primary">processos</span>
+              Organize seu{" "}
+              <span className="text-primary">WhatsApp jurídico</span>{" "}
+              com IA e gestão{" "}
+              <span className="text-primary">inteligente</span>
             </h1>
 
             <p className="text-lg sm:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-              Atenda clientes, gerencie processos, controle prazos e organize sua equipe jurídica
-              — tudo integrado ao WhatsApp com inteligência artificial.
+              Centralize conversas de clientes, crie lembretes, organize solicitações e use
+              inteligência artificial para ajudar com peças jurídicas — tudo dentro do sistema.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -529,7 +524,7 @@ export default function LandingPage() {
                   <div className="w-3 h-3 rounded-full bg-green-500" />
                 </div>
                 <div className="flex-1 text-center text-xs text-muted-foreground">
-                  {branding.company_name || "JurisWhats"} — Gestão Processual & WhatsApp
+                  {branding.company_name || "JurisWhats"} — WhatsApp Jurídico Organizado
                 </div>
               </div>
               <img src={heroImage} alt="Plataforma de gestão jurídica com WhatsApp integrado" className="w-full h-auto" />
@@ -546,12 +541,12 @@ export default function LandingPage() {
           </h2>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {[
-              { icon: Clock, title: "Prazos perdidos", desc: "Alertas automáticos para prazos processuais, audiências e diligências." },
-              { icon: MessageSquare, title: "Clientes sem resposta", desc: "Chatbot 24h + fila de atendimento distribuída entre advogados." },
-              { icon: FolderOpen, title: "Processos desorganizados", desc: "Kanban visual com etapas customizáveis e documentos anexados." },
-              { icon: Users, title: "Equipe descoordenada", desc: "Grupos por caso, alertas internos e distribuição automática." },
-              { icon: BarChart3, title: "Sem visão gerencial", desc: "Relatórios de produtividade, taxa de êxito e receita por área." },
-              { icon: Shield, title: "Dados sensíveis expostos", desc: "Criptografia, permissões por cargo e controle de acesso total." },
+              { icon: MessageSquare, title: "WhatsApp caótico", desc: "Centralize todas as conversas de clientes em um único painel organizado." },
+              { icon: Clock, title: "Esqueceu de retornar", desc: "Lembretes automáticos para retornos, reuniões e compromissos." },
+              { icon: FolderOpen, title: "Solicitações perdidas", desc: "Kanban visual para organizar demandas e solicitações dos clientes." },
+              { icon: Users, title: "Equipe descoordenada", desc: "Grupos internos, distribuição automática e alertas entre advogados." },
+              { icon: Brain, title: "Demora em peças", desc: "IA que ajuda a redigir petições, contestações e pareceres rapidamente." },
+              { icon: Shield, title: "Dados sensíveis", desc: "Permissões por cargo e controle de acesso para proteger informações." },
             ].map((item, i) => (
               <div key={i} className="flex items-start gap-3 p-4 rounded-lg bg-background border">
                 <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
@@ -571,12 +566,12 @@ export default function LandingPage() {
       <section id="funcionalidades" className="py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
-            <Badge variant="outline" className="mb-4">+30 Funcionalidades Jurídicas</Badge>
+            <Badge variant="outline" className="mb-4">+25 Funcionalidades</Badge>
             <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-              Feito sob medida para a advocacia
+              Tudo que seu escritório precisa no WhatsApp
             </h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Da captação de clientes à conclusão do processo, cobrimos todo o ciclo jurídico.
+              Da organização de conversas à IA para peças jurídicas, tudo em um só lugar.
             </p>
           </div>
 
