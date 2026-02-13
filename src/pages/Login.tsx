@@ -96,7 +96,7 @@ const Login = () => {
                   </div>
                 )}
               </div>
-              <CardTitle className="text-2xl neon-text">Lower Whats</CardTitle>
+              
               <CardDescription>
                 Plataforma completa de CRM e automação de WhatsApp para gerenciar contatos, 
                 campanhas e atendimento ao cliente
