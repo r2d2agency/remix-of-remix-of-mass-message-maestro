@@ -979,7 +979,7 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
                   size="sm"
                   onClick={async () => {
                     try {
-                      const resp = await fetch(`${import.meta.env.VITE_API_URL || 'https://whastsale-backend.exf0ty.easypanel.host'}/api/asaas/fix-customer-names/${organizationId}`, {
+                      const resp = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/asaas/fix-customer-names/${organizationId}`, {
                         method: 'POST',
                         headers: {
                           'Content-Type': 'application/json',
