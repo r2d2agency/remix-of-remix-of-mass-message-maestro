@@ -24,9 +24,9 @@ const webhookEvents = []; // Array<{ at: string, instanceName: string|null, even
 
 const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL;
 const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY;
-const WEBHOOK_BASE_URL = process.env.WEBHOOK_BASE_URL || process.env.API_BASE_URL || 'https://whastsale-backend.exf0ty.easypanel.host';
+const WEBHOOK_BASE_URL = process.env.WEBHOOK_BASE_URL || process.env.API_BASE_URL || '';
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
-const API_BASE_URL = process.env.API_BASE_URL || 'https://whastsale-backend.exf0ty.easypanel.host';
+const API_BASE_URL = process.env.API_BASE_URL || '';
 
 // Ensure uploads directory exists
 if (!fs.existsSync(UPLOADS_DIR)) {

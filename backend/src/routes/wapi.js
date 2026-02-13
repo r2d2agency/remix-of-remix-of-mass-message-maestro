@@ -13,7 +13,7 @@ import https from 'https';
 const router = Router();
 
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
-const API_BASE_URL = process.env.API_BASE_URL || 'https://whastsale-backend.exf0ty.easypanel.host';
+const API_BASE_URL = process.env.API_BASE_URL || '';
 
 // In-memory webhook event buffer for diagnostics only (not persisted)
 const WEBHOOK_EVENTS_MAX = 200;

@@ -6,7 +6,7 @@ import http from 'http';
 import https from 'https';
 
 const W_API_BASE_URL = 'https://api.w-api.app/v1';
-const WEBHOOK_BASE_URL = process.env.WEBHOOK_BASE_URL || process.env.API_BASE_URL || 'https://whastsale-backend.exf0ty.easypanel.host';
+const WEBHOOK_BASE_URL = process.env.WEBHOOK_BASE_URL || process.env.API_BASE_URL || '';
 
 // In-memory send attempts buffer (for diagnostics only; not persisted)
 const SEND_ATTEMPTS_MAX = 200;

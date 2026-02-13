@@ -151,7 +151,7 @@ router.post('/', authenticate, (req, res) => {
       }
 
       // Build the public URL - use backend domain, not frontend
-      const baseUrl = process.env.API_BASE_URL || 'https://whastsale-backend.exf0ty.easypanel.host';
+      const baseUrl = process.env.API_BASE_URL || '';
       const fileUrl = `${baseUrl}/uploads/${req.file.filename}`;
 
       res.json({
@@ -232,7 +232,7 @@ router.get('/check/:filename', (req, res) => {
     
     if (exists) {
       const stats = fs.statSync(filePath);
-      const baseUrl = process.env.API_BASE_URL || 'https://whastsale-backend.exf0ty.easypanel.host';
+      const baseUrl = process.env.API_BASE_URL || '';
       res.json({ 
         exists: true, 
         size: stats.size,
