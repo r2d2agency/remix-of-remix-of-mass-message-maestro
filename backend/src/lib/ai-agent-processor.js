@@ -34,10 +34,18 @@ export async function processIncomingWithAgent({
   contactName,
   messageContent,
   messageType,
+  mediaUrl,
+  mediaMimetype,
+  mediaFilename,
 }) {
   try {
-    // Only process text messages for now
-    if (messageType !== 'text' || !messageContent) {
+    // Supported message types
+    const supportedTypes = ['text', 'image', 'audio', 'video', 'document', 'sticker'];
+    if (!supportedTypes.includes(messageType)) {
+      return { handled: false };
+    }
+    // Need at least content or media
+    if (!messageContent && !mediaUrl && messageType === 'text') {
       return { handled: false };
     }
 
@@ -99,18 +107,56 @@ export async function processIncomingWithAgent({
 
     const agent = agentResult.rows[0];
 
-    // 4. Check handoff keywords
+    // 4. Check handoff keywords (only for text messages)
     const handoffKeywords = parseArray(agent.handoff_keywords, ['humano', 'atendente', 'pessoa']);
-    const lowerContent = messageContent.toLowerCase();
-    const handoffTriggered = handoffKeywords.some(kw => lowerContent.includes(kw.toLowerCase()));
+    if (messageContent && messageType === 'text') {
+      const lowerContent = messageContent.toLowerCase();
+      const handoffTriggered = handoffKeywords.some(kw => lowerContent.includes(kw.toLowerCase()));
 
-    if (handoffTriggered) {
-      await handleHandoff(session, agent, connection, contactPhone);
-      return { handled: true, agentId: agent.id, response: agent.handoff_message };
+      if (handoffTriggered) {
+        await handleHandoff(session, agent, connection, contactPhone);
+        return { handled: true, agentId: agent.id, response: agent.handoff_message };
+      }
     }
 
-    // 5. Save user message
-    await saveAgentMessage(session.id, 'user', messageContent, 0);
+    // 5. Process media content - build a user message with context
+    let userMessageForHistory = messageContent || '';
+    let userMessageForAI = null; // Will be a string or multimodal content array
+
+    if (messageType === 'audio' && mediaUrl) {
+      // Transcribe audio using Lovable AI
+      const transcript = await transcribeAudio(mediaUrl, mediaMimetype);
+      if (transcript) {
+        userMessageForHistory = `[Áudio transcrito]: ${transcript}`;
+        userMessageForAI = transcript;
+      } else {
+        userMessageForHistory = messageContent || '[Mensagem de áudio recebida - não foi possível transcrever]';
+        userMessageForAI = userMessageForHistory;
+      }
+    } else if (messageType === 'image' && mediaUrl) {
+      const caption = messageContent || '';
+      userMessageForHistory = caption ? `[Imagem com legenda]: ${caption}` : '[Imagem recebida]';
+      // Build multimodal message for AI
+      userMessageForAI = buildImageMessage(mediaUrl, caption);
+    } else if (messageType === 'video' && mediaUrl) {
+      const caption = messageContent || '';
+      userMessageForHistory = caption ? `[Vídeo com legenda]: ${caption}` : '[Vídeo recebido]';
+      userMessageForAI = caption || '[O cliente enviou um vídeo. Responda reconhecendo o recebimento do vídeo.]';
+    } else if (messageType === 'document' && mediaUrl) {
+      const filename = mediaFilename || 'documento';
+      userMessageForHistory = messageContent 
+        ? `[Documento: ${filename}]: ${messageContent}` 
+        : `[Documento recebido: ${filename}]`;
+      userMessageForAI = userMessageForHistory;
+    } else if (messageType === 'sticker') {
+      userMessageForHistory = '[Sticker recebido]';
+      userMessageForAI = '[O cliente enviou um sticker/figurinha. Responda de forma leve e amigável.]';
+    } else {
+      userMessageForAI = messageContent;
+    }
+
+    // 5b. Save user message to history
+    await saveAgentMessage(session.id, 'user', userMessageForHistory, 0);
 
     // 6. Build conversation history from session
     const history = await getSessionHistory(session.id, agent.context_window || 10);
@@ -122,8 +168,14 @@ export async function processIncomingWithAgent({
     const messages = [
       { role: 'system', content: systemPrompt },
       ...history,
-      { role: 'user', content: messageContent },
     ];
+
+    // Add current user message (might be multimodal for images)
+    if (Array.isArray(userMessageForAI)) {
+      messages.push({ role: 'user', content: userMessageForAI });
+    } else {
+      messages.push({ role: 'user', content: userMessageForAI || userMessageForHistory });
+    }
 
     // 9. Build tools based on capabilities
     const capabilities = parseArray(agent.capabilities, ['respond_messages']);
@@ -1144,4 +1196,100 @@ function parseArray(value, defaultValue) {
     }
   }
   return defaultValue;
+}
+
+// ==================== MEDIA HELPERS ====================
+
+/**
+ * Transcribe audio using Lovable AI (Gemini)
+ */
+async function transcribeAudio(audioUrl, mimetype) {
+  try {
+    const LOVABLE_API_KEY = process.env.LOVABLE_API_KEY;
+    if (!LOVABLE_API_KEY) {
+      logInfo('ai_agent_processor.transcribe_no_api_key', {});
+      return null;
+    }
+
+    // Download audio to base64
+    const audioResponse = await fetch(audioUrl);
+    if (!audioResponse.ok) {
+      logError('ai_agent_processor.transcribe_download_failed', new Error(`HTTP ${audioResponse.status}`));
+      return null;
+    }
+
+    const audioBuffer = await audioResponse.arrayBuffer();
+    const base64Audio = Buffer.from(audioBuffer).toString('base64');
+    const mimeType = mimetype || 'audio/ogg';
+
+    logInfo('ai_agent_processor.transcribe_start', { size: audioBuffer.byteLength, mimetype: mimeType });
+
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-2.5-flash',
+        messages: [
+          {
+            role: 'system',
+            content: 'Você é um transcritor de áudio. Transcreva o áudio com precisão. Retorne APENAS o texto transcrito, sem explicações. Se inaudível, retorne "[Áudio inaudível]".'
+          },
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: 'Transcreva este áudio:' },
+              {
+                type: 'input_audio',
+                input_audio: {
+                  data: base64Audio,
+                  format: mimeType.includes('mp3') ? 'mp3' :
+                          mimeType.includes('wav') ? 'wav' :
+                          mimeType.includes('ogg') ? 'ogg' :
+                          mimeType.includes('webm') ? 'webm' : 'mp3'
+                }
+              }
+            ]
+          }
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      logError('ai_agent_processor.transcribe_ai_error', new Error(`AI error ${response.status}`));
+      return null;
+    }
+
+    const data = await response.json();
+    const transcript = data.choices?.[0]?.message?.content?.trim() || null;
+
+    logInfo('ai_agent_processor.transcribe_success', { length: transcript?.length });
+    return transcript;
+  } catch (error) {
+    logError('ai_agent_processor.transcribe_error', error);
+    return null;
+  }
+}
+
+/**
+ * Build a multimodal message content array for image messages
+ * Compatible with OpenAI vision API format
+ */
+function buildImageMessage(imageUrl, caption) {
+  const content = [];
+
+  if (caption) {
+    content.push({ type: 'text', text: caption });
+  } else {
+    content.push({ type: 'text', text: 'O cliente enviou esta imagem. Descreva o que você vê e responda adequadamente.' });
+  }
+
+  content.push({
+    type: 'image_url',
+    image_url: { url: imageUrl },
+  });
+
+  return content;
 }

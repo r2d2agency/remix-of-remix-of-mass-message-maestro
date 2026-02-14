@@ -1868,6 +1868,9 @@ async function handleMessageUpsert(connection, data) {
               contactName: pushName || senderName || contactPhone,
               messageContent: content,
               messageType,
+              mediaUrl: mediaUrl || null,
+              mediaMimetype: mediaMimetype || null,
+              mediaFilename: msgContent?.documentMessage?.fileName || null,
             }).then(result => {
               if (result.handled) {
                 console.log('[Evolution] AI Agent handled message, agent:', result.agentId);

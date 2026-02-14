@@ -1385,6 +1385,9 @@ async function handleIncomingMessage(connection, payload) {
           contactName: payload.sender?.pushName || payload.pushName || payload.name || cleanPhone,
           messageContent: content,
           messageType,
+          mediaUrl: effectiveMediaUrl || null,
+          mediaMimetype: effectiveMediaMimetype || null,
+          mediaFilename: payload.msgContent?.documentMessage?.fileName || null,
         }).then(result => {
           if (result.handled) {
             console.log('[W-API] AI Agent handled message, agent:', result.agentId);
