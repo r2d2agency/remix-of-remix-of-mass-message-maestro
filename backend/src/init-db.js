@@ -91,6 +91,7 @@ DO $$ BEGIN
     ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_departments BOOLEAN DEFAULT true;
     ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_lead_scoring BOOLEAN DEFAULT true;
     ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_ai_summary BOOLEAN DEFAULT true;
+    ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_group_secretary BOOLEAN DEFAULT false;
 EXCEPTION
     WHEN duplicate_column THEN null;
 END $$;

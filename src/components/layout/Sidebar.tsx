@@ -47,7 +47,7 @@ interface NavItem {
   name: string;
   href: string;
   icon: any;
-  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents';
+  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents' | 'group_secretary';
   adminOnly?: boolean; // Requires owner, admin, or manager role
   superadminOnly?: boolean; // Requires superadmin
 }
@@ -56,7 +56,7 @@ interface NavSection {
   title: string;
   icon: any;
   items: NavItem[];
-  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents';
+  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents' | 'group_secretary';
   adminOnly?: boolean; // Entire section requires admin role
 }
 
@@ -66,7 +66,7 @@ const navSections: NavSection[] = [
     icon: MessagesSquare,
     items: [
       { name: "Chat", href: "/chat", icon: MessagesSquare, moduleKey: 'chat' },
-      { name: "Secretária IA", href: "/secretaria-grupos", icon: Bot, adminOnly: true },
+      { name: "Secretária IA", href: "/secretaria-grupos", icon: Bot, moduleKey: 'group_secretary', adminOnly: true },
       { name: "Agentes IA", href: "/agentes-ia", icon: Sparkles, superadminOnly: true },
       { name: "Chatbots", href: "/chatbots", icon: Bot, moduleKey: 'chatbots', adminOnly: true },
       { name: "Fluxos", href: "/fluxos", icon: GitBranch, moduleKey: 'chatbots', adminOnly: true },
