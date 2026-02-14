@@ -3,6 +3,7 @@ import { authenticate } from '../middleware/auth.js';
 import { query } from '../db.js';
 import { logInfo, logError } from '../logger.js';
 import { callAI, callAIWithTools } from '../lib/ai-caller.js';
+import { processKnowledgeSource, searchKnowledge } from '../lib/knowledge-processor.js';
 
 const router = Router();
 
@@ -343,8 +344,10 @@ router.post('/:id/knowledge', authenticate, async (req, res) => {
       userCtx.id
     ]);
 
-    // TODO: Disparar processamento assíncrono para chunking
-    // processKnowledgeSource(result.rows[0].id);
+    // Disparar processamento assíncrono para chunking + embeddings
+    processKnowledgeSource(result.rows[0].id).catch(err => {
+      logError('ai_agents.knowledge_process_background_error', err);
+    });
 
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -424,13 +427,68 @@ router.post('/:id/knowledge/:sourceId/reprocess', authenticate, async (req, res)
       return res.status(404).json({ error: 'Fonte não encontrada' });
     }
 
-    // TODO: Disparar reprocessamento
-    // processKnowledgeSource(req.params.sourceId);
+    // Disparar reprocessamento assíncrono
+    processKnowledgeSource(req.params.sourceId).catch(err => {
+      logError('ai_agents.knowledge_reprocess_background_error', err);
+    });
 
     res.json(result.rows[0]);
   } catch (error) {
     logError('ai_agents.knowledge_reprocess_error', error);
     res.status(500).json({ error: 'Erro ao reprocessar fonte' });
+  }
+});
+
+// Buscar na base de conhecimento (RAG search)
+router.post('/:id/knowledge/search', authenticate, async (req, res) => {
+  try {
+    const userCtx = await getUserContext(req.userId);
+    if (!userCtx?.organization_id) {
+      return res.status(403).json({ error: 'Usuário não pertence a uma organização' });
+    }
+
+    const { query: searchQuery, top_k = 5 } = req.body;
+    if (!searchQuery) {
+      return res.status(400).json({ error: 'Query é obrigatória' });
+    }
+
+    // Get agent and AI config
+    const agentResult = await query(
+      `SELECT a.*, org.ai_provider as org_ai_provider, org.ai_api_key as org_ai_api_key
+       FROM ai_agents a
+       JOIN organizations org ON org.id = a.organization_id
+       WHERE a.id = $1 AND a.organization_id = $2`,
+      [req.params.id, userCtx.organization_id]
+    );
+
+    if (agentResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Agente não encontrado' });
+    }
+
+    const agent = agentResult.rows[0];
+    const provider = agent.ai_provider || agent.org_ai_provider || 'openai';
+    const apiKey = agent.ai_api_key || agent.org_ai_api_key;
+
+    if (!apiKey) {
+      return res.status(400).json({ error: 'Nenhuma API key configurada' });
+    }
+
+    const results = await searchKnowledge(req.params.id, searchQuery, { provider, apiKey }, top_k);
+    res.json({ results });
+  } catch (error) {
+    logError('ai_agents.knowledge_search_error', error);
+    res.status(500).json({ error: 'Erro ao buscar na base de conhecimento' });
+  }
+});
+
+// Processar fonte manualmente
+router.post('/:id/knowledge/:sourceId/process', authenticate, async (req, res) => {
+  try {
+    const result = await processKnowledgeSource(req.params.sourceId);
+    res.json(result);
+  } catch (error) {
+    logError('ai_agents.knowledge_process_error', error);
+    res.status(500).json({ error: 'Erro ao processar fonte' });
   }
 });
 

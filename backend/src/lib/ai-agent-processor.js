@@ -12,6 +12,7 @@
 import { query } from '../db.js';
 import { callAI, callAIWithTools } from './ai-caller.js';
 import { logInfo, logError } from '../logger.js';
+import { searchKnowledge } from './knowledge-processor.js';
 import * as whatsappProvider from './whatsapp-provider.js';
 
 // ==================== MAIN ENTRY POINT ====================
@@ -161,8 +162,9 @@ export async function processIncomingWithAgent({
     // 6. Build conversation history from session
     const history = await getSessionHistory(session.id, agent.context_window || 10);
 
-    // 7. Build system prompt with knowledge base
-    const systemPrompt = await buildSystemPrompt(agent, organizationId, contactName);
+    // 7. Build system prompt with RAG knowledge base
+    const aiConfig = await getAgentAIConfig(agent, organizationId);
+    const systemPrompt = await buildSystemPrompt(agent, organizationId, contactName, userMessageForAI || userMessageForHistory, aiConfig);
 
     // 8. Build messages array
     const messages = [
@@ -181,8 +183,8 @@ export async function processIncomingWithAgent({
     const capabilities = parseArray(agent.capabilities, ['respond_messages']);
     const tools = await buildToolsForAgent(agent, capabilities, organizationId);
 
-    // 10. Get AI config
-    const aiConfig = await getAgentAIConfig(agent, organizationId);
+    // 10. Get AI config (already loaded above)
+    // const aiConfig = await getAgentAIConfig(agent, organizationId);  // reuse from above
 
     // 11. Call AI
     let result;
@@ -460,7 +462,7 @@ async function sendAgentMessage(connection, contactPhone, text, sessionId) {
 
 // ==================== SYSTEM PROMPT ====================
 
-async function buildSystemPrompt(agent, organizationId, contactName) {
+async function buildSystemPrompt(agent, organizationId, contactName, userMessage, aiConfig) {
   let prompt = agent.system_prompt || 'Você é um assistente virtual profissional e prestativo.';
 
   // Add personality traits
@@ -469,15 +471,48 @@ async function buildSystemPrompt(agent, organizationId, contactName) {
     prompt += `\n\nTraços de personalidade: ${traits.join(', ')}`;
   }
 
-  // Add knowledge base
-  const knowledgeResult = await query(
-    `SELECT source_content FROM ai_knowledge_sources WHERE agent_id = $1 AND is_active = true ORDER BY priority DESC`,
-    [agent.id]
-  );
+  // RAG: Search knowledge base using semantic similarity
+  if (userMessage && aiConfig?.apiKey) {
+    try {
+      const ragResults = await searchKnowledge(agent.id, 
+        typeof userMessage === 'string' ? userMessage : JSON.stringify(userMessage), 
+        { provider: aiConfig.provider, apiKey: aiConfig.apiKey }, 
+        5
+      );
 
-  if (knowledgeResult.rows.length > 0) {
-    const knowledgeContext = knowledgeResult.rows.map(k => k.source_content).join('\n\n');
-    prompt += `\n\nBase de Conhecimento (use estas informações para responder):\n${knowledgeContext}`;
+      if (ragResults.length > 0) {
+        const knowledgeContext = ragResults
+          .map((r, i) => {
+            const label = r.metadata?.name ? ` (Fonte: ${r.metadata.name})` : '';
+            const sim = r.metadata?.fallback ? '' : ` [relevância: ${(r.similarity * 100).toFixed(0)}%]`;
+            return `--- Trecho ${i + 1}${label}${sim} ---\n${r.content}`;
+          })
+          .join('\n\n');
+
+        prompt += `\n\nBase de Conhecimento (use estas informações para responder quando relevante):\n${knowledgeContext}`;
+      }
+    } catch (err) {
+      logError('ai_agent_processor.rag_search_error', err);
+      // Fallback to old behavior
+      const knowledgeResult = await query(
+        `SELECT source_content FROM ai_knowledge_sources WHERE agent_id = $1 AND is_active = true ORDER BY priority DESC LIMIT 3`,
+        [agent.id]
+      );
+      if (knowledgeResult.rows.length > 0) {
+        const knowledgeContext = knowledgeResult.rows.map(k => k.source_content.substring(0, 2000)).join('\n\n');
+        prompt += `\n\nBase de Conhecimento:\n${knowledgeContext}`;
+      }
+    }
+  } else {
+    // No AI config for embeddings - use raw content (original behavior)
+    const knowledgeResult = await query(
+      `SELECT source_content, extracted_text FROM ai_knowledge_sources WHERE agent_id = $1 AND is_active = true ORDER BY priority DESC`,
+      [agent.id]
+    );
+    if (knowledgeResult.rows.length > 0) {
+      const knowledgeContext = knowledgeResult.rows.map(k => (k.extracted_text || k.source_content || '').substring(0, 2000)).join('\n\n');
+      prompt += `\n\nBase de Conhecimento:\n${knowledgeContext}`;
+    }
   }
 
   // Add context about the contact
