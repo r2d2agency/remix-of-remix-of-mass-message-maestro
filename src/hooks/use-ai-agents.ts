@@ -73,6 +73,20 @@ export type AgentCapability =
   | 'qualify_leads'
   | 'call_agent';
 
+export interface CallAgentRule {
+  agent_id: string;
+  agent_name?: string;
+  trigger: 'auto' | 'keyword' | 'topic';
+  keywords?: string[];
+  topic_description?: string;
+}
+
+export interface CallAgentConfig {
+  allowed_agent_ids?: string[];
+  rules?: CallAgentRule[];
+  allow_all?: boolean;
+}
+
 export interface AIAgent {
   id: string;
   organization_id: string;
@@ -98,6 +112,7 @@ export interface AIAgent {
   default_department_id: string | null;
   default_user_id: string | null;
   lead_scoring_criteria: Record<string, unknown>;
+  call_agent_config: CallAgentConfig;
   auto_create_deal_funnel_id: string | null;
   auto_create_deal_stage_id: string | null;
   total_conversations: number;

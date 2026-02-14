@@ -108,7 +108,8 @@ router.post('/', authenticate, async (req, res) => {
       default_user_id,
       lead_scoring_criteria = {},
       auto_create_deal_funnel_id,
-      auto_create_deal_stage_id
+      auto_create_deal_stage_id,
+      call_agent_config = {}
     } = req.body;
 
     if (!name) {
@@ -125,11 +126,12 @@ router.post('/', authenticate, async (req, res) => {
         handoff_keywords, auto_handoff_after_failures,
         default_department_id, default_user_id,
         lead_scoring_criteria, auto_create_deal_funnel_id, auto_create_deal_stage_id,
+        call_agent_config,
         created_by
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
          $11, $12, $13, $14::agent_capability[], $15, $16, $17, $18::text[], $19,
-        $20, $21, $22, $23, $24, $25
+        $20, $21, $22, $23, $24, $25, $26
       ) RETURNING *
     `, [
       userCtx.organization_id, name, description, avatar_url,
@@ -141,6 +143,7 @@ router.post('/', authenticate, async (req, res) => {
       handoff_keywords, auto_handoff_after_failures,
       default_department_id, default_user_id,
       JSON.stringify(lead_scoring_criteria), auto_create_deal_funnel_id, auto_create_deal_stage_id,
+      JSON.stringify(call_agent_config),
       userCtx.id
     ]);
 
@@ -178,7 +181,8 @@ router.patch('/:id', authenticate, async (req, res) => {
       'capabilities', 'greeting_message', 'fallback_message', 'handoff_message',
       'handoff_keywords', 'auto_handoff_after_failures',
       'default_department_id', 'default_user_id',
-      'lead_scoring_criteria', 'auto_create_deal_funnel_id', 'auto_create_deal_stage_id'
+      'lead_scoring_criteria', 'auto_create_deal_funnel_id', 'auto_create_deal_stage_id',
+      'call_agent_config'
     ];
 
     const updates = [];
@@ -194,7 +198,7 @@ router.patch('/:id', authenticate, async (req, res) => {
 
          updates.push(assignment);
         let value = req.body[field];
-        if (['personality_traits', 'lead_scoring_criteria'].includes(field) && typeof value === 'object') {
+        if (['personality_traits', 'lead_scoring_criteria', 'call_agent_config'].includes(field) && typeof value === 'object') {
           value = JSON.stringify(value);
         }
         values.push(value);
@@ -766,15 +770,42 @@ router.post('/:id/test', authenticate, async (req, res) => {
     let tools = null;
 
     if (hasCallAgent) {
-      // Get other active agents in the org (exclude current agent)
+      // Parse call_agent_config
+      const callConfig = typeof agent.call_agent_config === 'string' 
+        ? JSON.parse(agent.call_agent_config || '{}') 
+        : (agent.call_agent_config || {});
+      
+      let agentFilter = `organization_id = $1 AND id != $2 AND is_active = true`;
+      const params = [userCtx.organization_id, agent.id];
+
+      // Filter by allowed agent IDs if configured (and not allow_all)
+      if (!callConfig.allow_all && callConfig.allowed_agent_ids && callConfig.allowed_agent_ids.length > 0) {
+        agentFilter += ` AND id = ANY($3)`;
+        params.push(callConfig.allowed_agent_ids);
+      }
+
       const otherAgentsResult = await query(
-        `SELECT id, name, description, system_prompt FROM ai_agents 
-         WHERE organization_id = $1 AND id != $2 AND is_active = true`,
-        [userCtx.organization_id, agent.id]
+        `SELECT id, name, description, system_prompt FROM ai_agents WHERE ${agentFilter}`,
+        params
       );
 
       if (otherAgentsResult.rows.length > 0) {
-        tools = [buildCallAgentTool(otherAgentsResult.rows)];
+        // Build enhanced tool description with rules if configured
+        const rules = callConfig.rules || [];
+        let toolAgents = otherAgentsResult.rows;
+        
+        // Enrich agents with rule info for better AI context
+        if (rules.length > 0) {
+          toolAgents = toolAgents.map(a => {
+            const rule = rules.find(r => r.agent_id === a.id);
+            if (rule && rule.topic_description) {
+              return { ...a, description: `${a.description || ''} | Consultar quando: ${rule.topic_description}` };
+            }
+            return a;
+          });
+        }
+
+        tools = [buildCallAgentTool(toolAgents)];
       }
     }
 

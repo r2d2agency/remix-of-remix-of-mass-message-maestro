@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -26,7 +26,7 @@ import {
   Bot, Brain, MessageSquare, Settings, Zap, Shield,
   Sparkles, X, Plus, Save, Loader2
 } from 'lucide-react';
-import { useAIAgents, AIAgent, AgentCapability, AIModels } from '@/hooks/use-ai-agents';
+import { useAIAgents, AIAgent, AgentCapability, AIModels, CallAgentConfig, CallAgentRule } from '@/hooks/use-ai-agents';
 import { toast } from 'sonner';
 
 interface AgentEditorDialogProps {
@@ -94,6 +94,7 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
   const [saving, setSaving] = useState(false);
   const [models, setModels] = useState<AIModels>({ openai: [], gemini: [] });
   const [handoffKeyword, setHandoffKeyword] = useState('');
+  const [availableAgents, setAvailableAgents] = useState<AIAgent[]>([]);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -114,21 +115,28 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
     handoff_message: 'Vou transferir você para um atendente humano.',
     handoff_keywords: ['humano', 'atendente', 'pessoa'] as string[],
     auto_handoff_after_failures: 3,
+    call_agent_config: { allow_all: true, allowed_agent_ids: [], rules: [] } as CallAgentConfig,
   });
 
-  const { createAgent, updateAgent, getAIModels } = useAIAgents();
+  const { createAgent, updateAgent, getAIModels, getAgents } = useAIAgents();
+
+  const defaultCallAgentConfig: CallAgentConfig = { allow_all: true, allowed_agent_ids: [], rules: [] };
 
   useEffect(() => {
     if (open) {
       loadModels();
+      loadAvailableAgents();
       if (agent && agent.id) {
+        const parsedConfig = typeof agent.call_agent_config === 'string'
+          ? JSON.parse(agent.call_agent_config || '{}')
+          : (agent.call_agent_config || {});
         setFormData({
           name: agent.name,
           description: agent.description || '',
           avatar_url: agent.avatar_url || '',
           ai_provider: agent.ai_provider,
           ai_model: agent.ai_model,
-          ai_api_key: '', // Não expor a chave existente
+          ai_api_key: '',
           system_prompt: agent.system_prompt,
           personality_traits: normalizeArray<string>(agent.personality_traits, []),
           language: agent.language,
@@ -141,9 +149,9 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
           handoff_message: agent.handoff_message,
           handoff_keywords: normalizeArray<string>(agent.handoff_keywords, ['humano', 'atendente', 'pessoa']),
           auto_handoff_after_failures: normalizeNumber(agent.auto_handoff_after_failures, 3),
+          call_agent_config: { ...defaultCallAgentConfig, ...parsedConfig },
         });
       } else {
-        // Reset para valores padrão
         setFormData({
           name: agent?.name || '',
           description: agent?.description || '',
@@ -163,6 +171,7 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
           handoff_message: 'Vou transferir você para um atendente humano.',
           handoff_keywords: ['humano', 'atendente', 'pessoa'],
           auto_handoff_after_failures: 3,
+          call_agent_config: defaultCallAgentConfig,
         });
       }
     }
@@ -171,6 +180,42 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
   const loadModels = async () => {
     const data = await getAIModels();
     setModels(data);
+  };
+
+  const loadAvailableAgents = async () => {
+    const agents = await getAgents();
+    // Exclude current agent from the list
+    setAvailableAgents(agents.filter(a => a.id !== agent?.id));
+  };
+
+  const toggleAllowedAgent = (agentId: string) => {
+    setFormData(prev => {
+      const current = prev.call_agent_config.allowed_agent_ids || [];
+      const updated = current.includes(agentId)
+        ? current.filter(id => id !== agentId)
+        : [...current, agentId];
+      return {
+        ...prev,
+        call_agent_config: { ...prev.call_agent_config, allowed_agent_ids: updated },
+      };
+    });
+  };
+
+  const updateAgentRule = (agentId: string, field: string, value: string) => {
+    setFormData(prev => {
+      const rules = [...(prev.call_agent_config.rules || [])];
+      const idx = rules.findIndex(r => r.agent_id === agentId);
+      if (idx >= 0) {
+        rules[idx] = { ...rules[idx], [field]: value };
+      } else {
+        const agentInfo = availableAgents.find(a => a.id === agentId);
+        rules.push({ agent_id: agentId, agent_name: agentInfo?.name || '', trigger: 'auto', [field]: value } as CallAgentRule);
+      }
+      return {
+        ...prev,
+        call_agent_config: { ...prev.call_agent_config, rules },
+      };
+    });
   };
 
   const handleSave = async () => {
@@ -477,6 +522,76 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
                     </div>
                   ))}
                 </div>
+
+                {/* Call Agent Configuration */}
+                {formData.capabilities.includes('call_agent') && (
+                  <div className="mt-4 space-y-3 border-t pt-4">
+                    <div className="flex items-center gap-2">
+                      <Brain className="h-4 w-4 text-primary" />
+                      <h4 className="font-medium text-sm">Configuração: Chamar Outro Agente</h4>
+                    </div>
+
+                    <div className="flex items-center justify-between p-3 rounded-lg border">
+                      <div>
+                        <p className="font-medium text-sm">Permitir todos os agentes</p>
+                        <p className="text-xs text-muted-foreground">A IA decide automaticamente qual agente consultar</p>
+                      </div>
+                      <Switch
+                        checked={formData.call_agent_config.allow_all ?? true}
+                        onCheckedChange={(v) => setFormData(prev => ({
+                          ...prev,
+                          call_agent_config: { ...prev.call_agent_config, allow_all: v },
+                        }))}
+                      />
+                    </div>
+
+                    {!formData.call_agent_config.allow_all && (
+                      <div className="space-y-2">
+                        <p className="text-xs text-muted-foreground">Selecione quais agentes podem ser consultados e defina quando:</p>
+                        {availableAgents.length === 0 ? (
+                          <p className="text-xs text-muted-foreground italic p-3 border rounded-lg">
+                            Nenhum outro agente disponível. Crie mais agentes para usar esta funcionalidade.
+                          </p>
+                        ) : (
+                          availableAgents.map((ag) => {
+                            const isSelected = (formData.call_agent_config.allowed_agent_ids || []).includes(ag.id);
+                            const rule = (formData.call_agent_config.rules || []).find(r => r.agent_id === ag.id);
+                            return (
+                              <div key={ag.id} className={`rounded-lg border p-3 space-y-2 transition-colors ${isSelected ? 'border-primary bg-primary/5' : ''}`}>
+                                <div className="flex items-center justify-between">
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-medium text-sm">{ag.name}</p>
+                                    <p className="text-xs text-muted-foreground truncate">{ag.description || 'Sem descrição'}</p>
+                                  </div>
+                                  <Switch
+                                    checked={isSelected}
+                                    onCheckedChange={() => toggleAllowedAgent(ag.id)}
+                                  />
+                                </div>
+                                {isSelected && (
+                                  <div className="pt-2 border-t space-y-2">
+                                    <div>
+                                      <Label className="text-xs">Quando consultar este agente?</Label>
+                                      <Input
+                                        placeholder="Ex: Quando o cliente perguntar sobre questões jurídicas, contratos..."
+                                        value={rule?.topic_description || ''}
+                                        onChange={(e) => updateAgentRule(ag.id, 'topic_description', e.target.value)}
+                                        className="mt-1 text-xs h-8"
+                                      />
+                                      <p className="text-xs text-muted-foreground mt-1">
+                                        Descreva em quais situações a IA deve consultar este agente
+                                      </p>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </TabsContent>
 
               {/* Handoff Tab */}
