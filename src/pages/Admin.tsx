@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { FileUploadInput } from '@/components/ui/file-upload-input';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -1204,12 +1205,13 @@ export default function Admin() {
                     <div className="space-y-2">
                       <Label className="flex items-center gap-2">
                         <Image className="h-4 w-4" />
-                        URL do Logo (opcional)
+                        Logo (opcional)
                       </Label>
-                      <Input
-                        placeholder="https://example.com/logo.png"
+                      <FileUploadInput
                         value={newOrgLogo}
-                        onChange={(e) => setNewOrgLogo(e.target.value)}
+                        onChange={(url) => setNewOrgLogo(url)}
+                        accept="image/*"
+                        placeholder="https://example.com/logo.png"
                       />
                     </div>
                   </div>
@@ -1648,10 +1650,11 @@ export default function Admin() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label>URL do Logo</Label>
-              <Input
+              <Label>Logo</Label>
+              <FileUploadInput
                 value={editOrgLogo}
-                onChange={(e) => setEditOrgLogo(e.target.value)}
+                onChange={(url) => setEditOrgLogo(url)}
+                accept="image/*"
                 placeholder="https://example.com/logo.png"
               />
               {editOrgLogo && (

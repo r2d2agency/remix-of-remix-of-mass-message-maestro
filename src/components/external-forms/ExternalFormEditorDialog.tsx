@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { FileUploadInput } from "@/components/ui/file-upload-input";
 import {
   Dialog,
   DialogContent,
@@ -391,10 +392,11 @@ export function ExternalFormEditorDialog({
             <ScrollArea className="h-[calc(90vh-280px)] min-h-[250px]">
               <div className="pr-4 space-y-4">
                 <div className="grid gap-2">
-                  <Label>URL da Logo (opcional)</Label>
-                  <Input
+                  <Label>Logo (opcional)</Label>
+                  <FileUploadInput
                     value={formData.logo_url}
-                    onChange={(e) => setFormData({ ...formData, logo_url: e.target.value })}
+                    onChange={(url) => setFormData({ ...formData, logo_url: url })}
+                    accept="image/*"
                     placeholder="https://exemplo.com/logo.png"
                   />
                 </div>
