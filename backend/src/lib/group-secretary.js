@@ -3,10 +3,12 @@
  * 
  * Monitors WhatsApp group messages, detects requests/mentions,
  * identifies the responsible team member, and creates CRM tasks + popup alerts.
+ * Supports external WhatsApp notifications.
  */
 
 import { query } from '../db.js';
 import { logInfo, logError } from '../logger.js';
+import * as whatsappProvider from './whatsapp-provider.js';
 
 /**
  * Analyze a group message with AI to detect requests and identify mentioned members
@@ -142,6 +144,19 @@ Mensagem: "${messageContent}"`;
         groupName: groupName || 'Grupo',
         request: aiResult.detected_request || messageContent,
         conversationId,
+      });
+    }
+
+    // 10b. Notify external WhatsApp number if enabled
+    if (config.notify_external_enabled && config.notify_external_phone) {
+      await notifyExternalNumber({
+        organizationId,
+        phone: config.notify_external_phone,
+        senderName: senderName || 'Alguém',
+        groupName: groupName || 'Grupo',
+        request: aiResult.detected_request || messageContent,
+        matchedUser: matchedMember?.user_name || 'Não identificado',
+        confidence: aiResult.confidence,
       });
     }
 
@@ -314,5 +329,38 @@ async function createPopupAlert({ userId, senderName, groupName, request, conver
   } catch (error) {
     logError('group_secretary.create_alert_error', error);
     return null;
+  }
+}
+
+/**
+ * Notify an external WhatsApp number about a detected request
+ */
+async function notifyExternalNumber({ organizationId, phone, senderName, groupName, request, matchedUser, confidence }) {
+  try {
+    // Get the first active connection of the org to send the message
+    const connResult = await query(
+      `SELECT * FROM connections WHERE organization_id = $1 AND status = 'connected' LIMIT 1`,
+      [organizationId]
+    );
+
+    if (connResult.rows.length === 0) {
+      logError('group_secretary.notify_external', new Error('No active connection found'));
+      return;
+    }
+
+    const connection = connResult.rows[0];
+    const confPercent = Math.round((confidence || 0) * 100);
+
+    const message = `📋 *Secretária IA - Detecção*\n\n` +
+      `📱 *Grupo:* ${groupName}\n` +
+      `👤 *Solicitante:* ${senderName}\n` +
+      `🎯 *Responsável:* ${matchedUser}\n` +
+      `📊 *Confiança:* ${confPercent}%\n\n` +
+      `💬 *Solicitação:*\n${(request || '').substring(0, 500)}`;
+
+    await whatsappProvider.sendMessage(connection, phone, message, 'text', null);
+    logInfo('group_secretary.external_notified', { phone, groupName });
+  } catch (error) {
+    logError('group_secretary.notify_external_error', error);
   }
 }

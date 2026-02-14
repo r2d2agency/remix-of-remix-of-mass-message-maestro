@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import {
-  Bot, Users, Settings, Activity, Plus, Trash2, Save, Loader2, Shield, Clock, MessageSquare
+  Bot, Users, Settings, Activity, Plus, Trash2, Save, Loader2, Shield, Clock, MessageSquare, BellRing, Phone
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -30,6 +30,7 @@ export default function SecretariaGrupos() {
     is_active: false, connection_ids: null, group_jids: null,
     create_crm_task: true, show_popup_alert: true, min_confidence: 0.6,
     ai_provider: null, ai_model: null,
+    notify_external_enabled: false, notify_external_phone: '',
   });
   const [members, setMembers] = useState<SecretaryMember[]>([]);
   const [logs, setLogs] = useState<SecretaryLog[]>([]);
@@ -394,6 +395,42 @@ export default function SecretariaGrupos() {
                   <p className="text-xs text-muted-foreground">
                     Quanto maior, mais preciso mas pode perder detecções sutis
                   </p>
+                </div>
+
+                {/* External notification */}
+                <div className="border-t pt-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <BellRing className="h-4 w-4 text-primary" />
+                    <Label className="font-medium">Notificação Externa via WhatsApp</Label>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label>Ativar notificação externa</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Envia detecções para um número externo via WhatsApp
+                      </p>
+                    </div>
+                    <Switch
+                      checked={config.notify_external_enabled || false}
+                      onCheckedChange={(v) => setConfig((c) => ({ ...c, notify_external_enabled: v }))}
+                    />
+                  </div>
+                  {config.notify_external_enabled && (
+                    <div className="space-y-1.5">
+                      <Label className="flex items-center gap-1">
+                        <Phone className="h-3.5 w-3.5" />
+                        Número WhatsApp
+                      </Label>
+                      <Input
+                        placeholder="5511999999999 (com DDI)"
+                        value={config.notify_external_phone || ''}
+                        onChange={(e) => setConfig((c) => ({ ...c, notify_external_phone: e.target.value }))}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Número completo com DDI. A cada detecção de solicitação, um resumo será enviado.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

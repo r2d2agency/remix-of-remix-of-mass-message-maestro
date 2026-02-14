@@ -12,6 +12,8 @@ export interface SecretaryConfig {
   ai_provider: string | null;
   ai_model: string | null;
   ai_api_key?: string | null;
+  notify_external_enabled?: boolean;
+  notify_external_phone?: string;
 }
 
 export interface SecretaryMember {

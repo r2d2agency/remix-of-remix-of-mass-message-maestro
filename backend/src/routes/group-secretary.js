@@ -69,6 +69,7 @@ router.put('/config', async (req, res) => {
       is_active, connection_ids, group_jids,
       create_crm_task, show_popup_alert, min_confidence,
       ai_provider, ai_model, ai_api_key,
+      notify_external_enabled, notify_external_phone,
     } = req.body;
 
     // Handle masked API key
@@ -83,8 +84,8 @@ router.put('/config', async (req, res) => {
 
     const result = await query(
       `INSERT INTO group_secretary_config 
-       (organization_id, is_active, connection_ids, group_jids, create_crm_task, show_popup_alert, min_confidence, ai_provider, ai_model, ai_api_key)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       (organization_id, is_active, connection_ids, group_jids, create_crm_task, show_popup_alert, min_confidence, ai_provider, ai_model, ai_api_key, notify_external_enabled, notify_external_phone)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        ON CONFLICT (organization_id) DO UPDATE SET
          is_active = EXCLUDED.is_active,
          connection_ids = EXCLUDED.connection_ids,
@@ -95,6 +96,8 @@ router.put('/config', async (req, res) => {
          ai_provider = EXCLUDED.ai_provider,
          ai_model = EXCLUDED.ai_model,
          ai_api_key = EXCLUDED.ai_api_key,
+         notify_external_enabled = EXCLUDED.notify_external_enabled,
+         notify_external_phone = EXCLUDED.notify_external_phone,
          updated_at = NOW()
        RETURNING *`,
       [
@@ -103,6 +106,7 @@ router.put('/config', async (req, res) => {
         create_crm_task ?? true, show_popup_alert ?? true,
         min_confidence ?? 0.6,
         ai_provider || null, ai_model || null, actualApiKey || null,
+        notify_external_enabled ?? false, notify_external_phone || null,
       ]
     );
 

@@ -217,10 +217,20 @@ export async function processIncomingWithAgent({
     // 13. Send response via WhatsApp
     await sendAgentMessage(connection, contactPhone, responseText, session.id);
 
-    // 14. Update session stats
+    // 14. Notify external number if enabled
+    if (agent.notify_external_enabled && agent.notify_external_phone) {
+      const summary = agent.notify_external_summary !== false
+        ? `📋 *Resumo do Atendimento IA*\n\n👤 *Cliente:* ${contactName || contactPhone}\n📱 *Telefone:* ${contactPhone}\n🤖 *Agente:* ${agent.name}\n\n💬 *Solicitação:* ${typeof userMessageForAI === 'string' ? userMessageForAI : messageContent}\n\n📝 *Resposta do Agente:* ${responseText.substring(0, 500)}`
+        : `🔔 *Nova interação*\n\n👤 ${contactName || contactPhone} enviou mensagem para o agente *${agent.name}*.`;
+      
+      sendAgentMessage(connection, agent.notify_external_phone, summary, session.id)
+        .catch(err => logError('ai_agent_processor.external_notify_error', err));
+    }
+
+    // 15. Update session stats
     await updateSessionStats(session.id, result.tokensUsed || 0, responseTime);
 
-    // 15. Update agent stats
+    // 16. Update agent stats
     await updateAgentStats(agent.id, result.tokensUsed || 0, responseTime, toolCallsExecuted);
 
     // 16. Check failure count (if response was fallback)

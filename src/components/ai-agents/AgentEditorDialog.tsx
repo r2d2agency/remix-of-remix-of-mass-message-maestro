@@ -24,7 +24,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
   Bot, Brain, MessageSquare, Settings, Zap, Shield,
-  Sparkles, X, Plus, Save, Loader2
+  Sparkles, X, Plus, Save, Loader2, Phone, BellRing
 } from 'lucide-react';
 import { useAIAgents, AIAgent, AgentCapability, AIModels, CallAgentConfig, CallAgentRule } from '@/hooks/use-ai-agents';
 import { toast } from 'sonner';
@@ -116,6 +116,9 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
     handoff_keywords: ['humano', 'atendente', 'pessoa'] as string[],
     auto_handoff_after_failures: 3,
     call_agent_config: { allow_all: true, allowed_agent_ids: [], rules: [] } as CallAgentConfig,
+    notify_external_enabled: false,
+    notify_external_phone: '',
+    notify_external_summary: true,
   });
 
   const { createAgent, updateAgent, getAIModels, getAgents } = useAIAgents();
@@ -150,6 +153,9 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
           handoff_keywords: normalizeArray<string>(agent.handoff_keywords, ['humano', 'atendente', 'pessoa']),
           auto_handoff_after_failures: normalizeNumber(agent.auto_handoff_after_failures, 3),
           call_agent_config: { ...defaultCallAgentConfig, ...parsedConfig },
+          notify_external_enabled: (agent as any).notify_external_enabled || false,
+          notify_external_phone: (agent as any).notify_external_phone || '',
+          notify_external_summary: (agent as any).notify_external_summary !== false,
         });
       } else {
         setFormData({
@@ -172,6 +178,9 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
           handoff_keywords: ['humano', 'atendente', 'pessoa'],
           auto_handoff_after_failures: 3,
           call_agent_config: defaultCallAgentConfig,
+          notify_external_enabled: false,
+          notify_external_phone: '',
+          notify_external_summary: true,
         });
       }
     }
@@ -651,6 +660,59 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
                     <p className="text-xs text-muted-foreground">
                       Número de vezes que o agente pode falhar antes de transferir automaticamente
                     </p>
+                  </div>
+
+                  {/* External Notification */}
+                  <div className="border-t pt-4 space-y-4">
+                    <div className="flex items-center gap-2">
+                      <BellRing className="h-4 w-4 text-primary" />
+                      <h4 className="font-medium text-sm">Notificação Externa via WhatsApp</h4>
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label>Ativar notificação externa</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Envia um resumo do atendimento para um número externo
+                        </p>
+                      </div>
+                      <Switch
+                        checked={formData.notify_external_enabled}
+                        onCheckedChange={(v) => setFormData(prev => ({ ...prev, notify_external_enabled: v }))}
+                      />
+                    </div>
+
+                    {formData.notify_external_enabled && (
+                      <>
+                        <div className="grid gap-2">
+                          <Label className="flex items-center gap-1">
+                            <Phone className="h-3.5 w-3.5" />
+                            Número WhatsApp
+                          </Label>
+                          <Input
+                            placeholder="5511999999999 (com DDI)"
+                            value={formData.notify_external_phone}
+                            onChange={(e) => setFormData(prev => ({ ...prev, notify_external_phone: e.target.value }))}
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Número completo com DDI (ex: 5511999999999)
+                          </p>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <Label>Enviar resumo completo</Label>
+                            <p className="text-xs text-muted-foreground">
+                              Inclui a solicitação do cliente e resposta do agente
+                            </p>
+                          </div>
+                          <Switch
+                            checked={formData.notify_external_summary}
+                            onCheckedChange={(v) => setFormData(prev => ({ ...prev, notify_external_summary: v }))}
+                          />
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               </TabsContent>
