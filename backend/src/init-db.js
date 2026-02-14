@@ -2801,6 +2801,35 @@ export async function initDatabase() {
   } else {
     console.log('⚠️ Database initialized with warnings (some non-critical steps failed)');
   }
+
+  // Ensure all users have an organization (fix orphaned users)
+  try {
+    const orphans = await pool.query(
+      `SELECT u.id, u.name, u.email FROM users u
+       WHERE NOT EXISTS (
+         SELECT 1 FROM organization_members om WHERE om.user_id = u.id
+       )`
+    );
+    for (const user of orphans.rows) {
+      const slug = (user.name || 'org').toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+        + '-' + Date.now().toString(36);
+      const orgRes = await pool.query(
+        `INSERT INTO organizations (name, slug, modules_enabled)
+         VALUES ($1, $2, '{"campaigns":true,"billing":true,"groups":true,"scheduled_messages":true,"chatbots":true,"chat":true,"crm":true}'::jsonb)
+         RETURNING id`,
+        [user.name || 'Organização', slug]
+      );
+      await pool.query(
+        `INSERT INTO organization_members (organization_id, user_id, role) VALUES ($1, $2, 'owner')`,
+        [orgRes.rows[0].id, user.id]
+      );
+      console.log(`  🏢 Created organization for orphaned user: ${user.email}`);
+    }
+  } catch (e) {
+    console.error('  ⚠️ Failed to fix orphaned users:', e.message);
+  }
   
   return true;
 }
