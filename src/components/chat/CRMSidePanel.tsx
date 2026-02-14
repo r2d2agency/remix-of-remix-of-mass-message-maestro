@@ -44,6 +44,10 @@ import {
   Bot,
   Sparkles,
   Zap,
+  MessageSquare,
+  Send,
+  Copy,
+  Brain,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -77,6 +81,7 @@ interface CRMSidePanelProps {
   contactName: string | null;
   isOpen: boolean;
   onToggle: () => void;
+  chatMessages?: Array<{ id: string; content: string; sender: string; timestamp: string }>;
 }
 
 export function CRMSidePanel({ 
@@ -84,7 +89,8 @@ export function CRMSidePanel({
   contactPhone, 
   contactName,
   isOpen, 
-  onToggle 
+  onToggle,
+  chatMessages = [],
 }: CRMSidePanelProps) {
   const isMobile = useIsMobile();
   const navigate = useNavigate();
@@ -129,6 +135,12 @@ export function CRMSidePanel({
   const [aiAgents, setAiAgents] = useState<AIAgent[]>([]);
   const [loadingAgents, setLoadingAgents] = useState(false);
   const [activatingAgent, setActivatingAgent] = useState<string | null>(null);
+
+  // AI Consultation
+  const [consultAgent, setConsultAgent] = useState<AIAgent | null>(null);
+  const [consultPrompt, setConsultPrompt] = useState("");
+  const [consultResponse, setConsultResponse] = useState("");
+  const [consulting, setConsulting] = useState(false);
 
   // Edit states
   const [isEditingDeal, setIsEditingDeal] = useState(false);
@@ -236,6 +248,40 @@ export function CRMSidePanel({
     } finally {
       setActivatingAgent(null);
     }
+  };
+
+  const handleConsultAgent = async (prompt?: string) => {
+    if (!consultAgent) return;
+    const actualPrompt = prompt || consultPrompt.trim();
+    if (!actualPrompt && !chatMessages.length) return;
+
+    setConsulting(true);
+    setConsultResponse("");
+    try {
+      const data = await api<{ response: string; agent_name: string }>(`/api/ai-agents/${consultAgent.id}/consult`, {
+        method: 'POST',
+        body: {
+          messages: chatMessages.slice(-30).map(m => ({
+            content: m.content,
+            sender: m.sender,
+          })),
+          custom_prompt: actualPrompt || undefined,
+        },
+        auth: true,
+      });
+      setConsultResponse(data.response || 'Sem resposta');
+    } catch (error) {
+      console.error("Error consulting agent:", error);
+      toast.error("Erro ao consultar agente de IA");
+      setConsultResponse("");
+    } finally {
+      setConsulting(false);
+    }
+  };
+
+  const handleCopyResponse = () => {
+    navigator.clipboard.writeText(consultResponse);
+    toast.success("Resposta copiada!");
   };
 
   const handleCreateNote = async () => {
@@ -1191,12 +1237,144 @@ export function CRMSidePanel({
                     <p className="text-xs text-muted-foreground text-center py-2">
                       Nenhum agente ativo disponível
                     </p>
+                  ) : consultAgent ? (
+                    /* ===== AI Consultation Panel ===== */
+                    <div className="space-y-3">
+                      {/* Header with selected agent */}
+                      <div className="flex items-center gap-2">
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setConsultAgent(null); setConsultResponse(""); setConsultPrompt(""); }}>
+                          <ArrowLeft className="h-4 w-4" />
+                        </Button>
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                            <Brain className="h-3.5 w-3.5 text-primary" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium truncate">{consultAgent.name}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Quick action buttons */}
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-[10px] gap-1"
+                          onClick={() => handleConsultAgent("Analise esta conversa e me dê um resumo do que o cliente precisa e sugestões de como proceder.")}
+                          disabled={consulting}
+                        >
+                          <Sparkles className="h-3 w-3" />
+                          Analisar
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-[10px] gap-1"
+                          onClick={() => handleConsultAgent("Elabore uma resposta profissional e empática para enviar ao cliente baseada no contexto da conversa.")}
+                          disabled={consulting}
+                        >
+                          <MessageSquare className="h-3 w-3" />
+                          Elaborar resposta
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-[10px] gap-1"
+                          onClick={() => handleConsultAgent("Me ajude a fechar esta negociação. Sugira argumentos de venda, gatilhos mentais e frases de fechamento adequadas ao contexto.")}
+                          disabled={consulting}
+                        >
+                          <Trophy className="h-3 w-3" />
+                          Ajuda fechamento
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-[10px] gap-1"
+                          onClick={() => handleConsultAgent("Qualifique este lead baseado na conversa. Identifique nível de interesse, urgência, orçamento e próximos passos recomendados.")}
+                          disabled={consulting}
+                        >
+                          <ClipboardList className="h-3 w-3" />
+                          Qualificar lead
+                        </Button>
+                      </div>
+
+                      {/* Custom prompt */}
+                      <div className="flex gap-1.5">
+                        <Textarea
+                          placeholder="Ou digite sua pergunta..."
+                          value={consultPrompt}
+                          onChange={(e) => setConsultPrompt(e.target.value)}
+                          rows={2}
+                          className="resize-none text-xs flex-1"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey && consultPrompt.trim()) {
+                              e.preventDefault();
+                              handleConsultAgent();
+                            }
+                          }}
+                        />
+                        <Button
+                          size="icon"
+                          className="h-auto w-8 flex-shrink-0"
+                          onClick={() => handleConsultAgent()}
+                          disabled={consulting || !consultPrompt.trim()}
+                        >
+                          {consulting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                        </Button>
+                      </div>
+
+                      {/* AI Response */}
+                      {consulting && (
+                        <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                          <Loader2 className="h-4 w-4 animate-spin text-primary flex-shrink-0" />
+                          <p className="text-xs text-muted-foreground">Analisando conversa...</p>
+                        </div>
+                      )}
+
+                      {consultResponse && !consulting && (
+                        <div className="space-y-2">
+                          <div className="p-3 rounded-lg bg-muted/50 border text-xs leading-relaxed whitespace-pre-wrap max-h-[300px] overflow-y-auto">
+                            {consultResponse}
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full h-7 text-[10px] gap-1"
+                            onClick={handleCopyResponse}
+                          >
+                            <Copy className="h-3 w-3" />
+                            Copiar resposta
+                          </Button>
+                        </div>
+                      )}
+
+                      {/* Activate for autonomous mode */}
+                      <div className="pt-2 border-t">
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className="w-full h-7 text-[10px] gap-1"
+                          onClick={() => handleActivateAgent(consultAgent)}
+                          disabled={activatingAgent === consultAgent.id}
+                        >
+                          {activatingAgent === consultAgent.id ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Zap className="h-3 w-3" />
+                          )}
+                          Ativar atendimento autônomo
+                        </Button>
+                      </div>
+                    </div>
                   ) : (
+                    /* ===== Agent List ===== */
                     <div className="space-y-2">
                       {aiAgents.map((agent) => (
                         <div
                           key={agent.id}
-                          className="flex items-center gap-2 p-2 rounded-lg border bg-muted/20 hover:bg-muted/40 transition-colors"
+                          className="flex items-center gap-2 p-2 rounded-lg border bg-muted/20 hover:bg-muted/40 transition-colors cursor-pointer"
+                          onClick={() => setConsultAgent(agent)}
                         >
                           <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
                             <Sparkles className="h-4 w-4 text-primary" />
@@ -1222,20 +1400,7 @@ export function CRMSidePanel({
                               ))}
                             </div>
                           </div>
-                          <Button
-                            size="sm"
-                            variant="default"
-                            className="h-7 text-[10px] px-2 gap-1 flex-shrink-0"
-                            onClick={() => handleActivateAgent(agent)}
-                            disabled={activatingAgent === agent.id}
-                          >
-                            {activatingAgent === agent.id ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                            ) : (
-                              <Zap className="h-3 w-3" />
-                            )}
-                            Ativar
-                          </Button>
+                          <Brain className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                         </div>
                       ))}
                     </div>

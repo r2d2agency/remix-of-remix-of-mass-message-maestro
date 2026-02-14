@@ -865,6 +865,7 @@ const Chat = () => {
               contactName={selectedConversation.contact_name || selectedConversation.group_name || null}
               isOpen={crmPanelOpen}
               onToggle={() => setCrmPanelOpen(!crmPanelOpen)}
+              chatMessages={messages.map(m => ({ id: m.id, content: m.content || '', sender: m.from_me ? 'me' : 'contact', timestamp: m.timestamp }))}
             />
           )}
         </div>

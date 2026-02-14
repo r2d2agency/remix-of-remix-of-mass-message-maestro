@@ -493,6 +493,101 @@ router.post('/:id/knowledge/:sourceId/process', authenticate, async (req, res) =
   }
 });
 
+// ==================== CONSULTA IA (Chat Sidebar) ====================
+
+// Consultar agente de IA com contexto de conversa
+router.post('/:id/consult', authenticate, async (req, res) => {
+  try {
+    const userCtx = await getUserContext(req.userId);
+    if (!userCtx?.organization_id) {
+      return res.status(403).json({ error: 'Usuário não pertence a uma organização' });
+    }
+
+    const { messages: chatMessages, custom_prompt } = req.body;
+    if (!chatMessages || !Array.isArray(chatMessages) || chatMessages.length === 0) {
+      return res.status(400).json({ error: 'Mensagens da conversa são obrigatórias' });
+    }
+
+    // Get agent with org AI config fallback
+    const agentResult = await query(
+      `SELECT a.*, org.ai_provider as org_ai_provider, org.ai_api_key as org_ai_api_key
+       FROM ai_agents a
+       JOIN organizations org ON org.id = a.organization_id
+       WHERE a.id = $1 AND a.organization_id = $2`,
+      [req.params.id, userCtx.organization_id]
+    );
+
+    if (agentResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Agente não encontrado' });
+    }
+
+    const agent = agentResult.rows[0];
+    const provider = agent.ai_provider || agent.org_ai_provider || 'openai';
+    const apiKey = agent.ai_api_key || agent.org_ai_api_key;
+
+    if (!apiKey) {
+      return res.status(400).json({ error: 'Nenhuma API key configurada para este agente' });
+    }
+
+    // Build conversation context string
+    const conversationContext = chatMessages
+      .slice(-30) // last 30 messages
+      .map(m => `[${m.sender === 'me' ? 'Atendente' : 'Cliente'}]: ${m.content || '(mídia)'}`)
+      .join('\n');
+
+    // Search knowledge base for relevant context
+    let knowledgeContext = '';
+    if (custom_prompt) {
+      try {
+        const knowledgeResults = await searchKnowledge(req.params.id, custom_prompt, { provider, apiKey }, 3);
+        if (knowledgeResults.length > 0) {
+          knowledgeContext = '\n\n--- Base de Conhecimento ---\n' +
+            knowledgeResults.map(r => r.content).join('\n---\n');
+        }
+      } catch (e) {
+        logError('ai_agents.consult_knowledge_error', e);
+      }
+    }
+
+    // Build the system prompt for consultation
+    const systemPrompt = `${agent.system_prompt}
+
+Você está sendo consultado por um atendente humano que precisa de sua ajuda durante um atendimento ao cliente.
+Analise o histórico da conversa abaixo e responda à solicitação do atendente.
+
+Seja direto, prático e forneça sugestões acionáveis.
+Se for pedido de ajuda com fechamento, sugira frases e argumentos.
+Se for elaboração de resposta, escreva a resposta pronta para enviar.
+Se for análise, forneça insights sobre o cliente e a situação.
+${knowledgeContext}
+
+--- Histórico da Conversa ---
+${conversationContext}
+--- Fim do Histórico ---`;
+
+    const aiMessages = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: custom_prompt || 'Analise esta conversa e me dê sugestões de como proceder com este atendimento.' },
+    ];
+
+    const result = await callAI(
+      { provider, model: agent.ai_model, apiKey },
+      aiMessages,
+      { temperature: agent.temperature || 0.7, maxTokens: agent.max_tokens || 1500 }
+    );
+
+    res.json({
+      response: result.content,
+      tokens_used: result.tokensUsed,
+      model: result.model,
+      agent_name: agent.name,
+    });
+  } catch (error) {
+    logError('ai_agents.consult_error', error);
+    res.status(500).json({ error: 'Erro ao consultar agente de IA' });
+  }
+});
+
 // ==================== CONEXÕES WHATSAPP ====================
 
 // Listar conexões vinculadas ao agente
