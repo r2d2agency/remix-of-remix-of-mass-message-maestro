@@ -16,7 +16,7 @@ import { Progress } from '@/components/ui/progress';
 import { 
   Database, FileText, Globe, Type, Plus, Trash2, 
   RefreshCw, Upload, Loader2, CheckCircle, XCircle, Clock,
-  ExternalLink, File, X, Search, Sparkles
+  ExternalLink, File, X, Search, Sparkles, Cpu, Layers, Zap
 } from 'lucide-react';
 import { useAIAgents, AIAgent, KnowledgeSource } from '@/hooks/use-ai-agents';
 import { api } from '@/lib/api';
@@ -644,7 +644,11 @@ export function KnowledgeBaseDialog({ open, onOpenChange, agent }: KnowledgeBase
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {sources.map((source) => (
+                  {sources.map((source) => {
+                    const isProcessing = source.status === 'processing';
+                    const isCompleted = source.status === 'completed';
+                    const isPending = source.status === 'pending';
+                    return (
                     <div
                       key={source.id}
                       className="flex items-start gap-4 p-4 border rounded-lg"
@@ -662,7 +666,19 @@ export function KnowledgeBaseDialog({ open, onOpenChange, agent }: KnowledgeBase
                             {source.description}
                           </p>
                         )}
-                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+
+                        {/* Processing progress bar */}
+                        {(isProcessing || isPending) && (
+                          <div className="mb-2 space-y-1">
+                            <div className="flex justify-between text-xs text-muted-foreground">
+                              <span>{isProcessing ? 'Processando...' : 'Aguardando processamento'}</span>
+                              {isProcessing && <span className="animate-pulse">Extraindo e gerando embeddings</span>}
+                            </div>
+                            <Progress value={isProcessing ? 50 : 0} className="h-1.5" />
+                          </div>
+                        )}
+
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                           {source.source_type === 'file' && source.file_size && (
                             <span>{formatBytes(source.file_size)}</span>
                           )}
@@ -678,10 +694,28 @@ export function KnowledgeBaseDialog({ open, onOpenChange, agent }: KnowledgeBase
                             </a>
                           )}
                           {source.chunk_count > 0 && (
-                            <span>{source.chunk_count} chunks</span>
+                            <span className="flex items-center gap-1">
+                              <Layers className="h-3 w-3" />
+                              {source.chunk_count} chunks
+                            </span>
                           )}
                           {source.total_tokens > 0 && (
-                            <span>{source.total_tokens.toLocaleString()} tokens</span>
+                            <span className="flex items-center gap-1">
+                              <Zap className="h-3 w-3" />
+                              {source.total_tokens.toLocaleString()} tokens
+                            </span>
+                          )}
+                          {isCompleted && source.embedding_model && (
+                            <span className="flex items-center gap-1">
+                              <Cpu className="h-3 w-3" />
+                              {source.embedding_model}
+                              {source.embedding_dimensions ? ` (${source.embedding_dimensions}d)` : ''}
+                            </span>
+                          )}
+                          {source.processed_at && (
+                            <span>
+                              Processado em {new Date(source.processed_at).toLocaleDateString('pt-BR')}
+                            </span>
                           )}
                         </div>
                         {source.error_message && (
@@ -708,7 +742,8 @@ export function KnowledgeBaseDialog({ open, onOpenChange, agent }: KnowledgeBase
                         </Button>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </ScrollArea>

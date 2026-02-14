@@ -150,6 +150,9 @@ export interface KnowledgeSource {
   created_by_name?: string;
   created_at: string;
   updated_at: string;
+  embedding_model?: string | null;
+  embedding_dimensions?: number | null;
+  extracted_text?: string | null;
 }
 
 export interface AgentConnection {
