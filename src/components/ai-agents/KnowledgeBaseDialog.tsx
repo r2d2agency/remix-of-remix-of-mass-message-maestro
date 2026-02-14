@@ -16,9 +16,10 @@ import { Progress } from '@/components/ui/progress';
 import { 
   Database, FileText, Globe, Type, Plus, Trash2, 
   RefreshCw, Upload, Loader2, CheckCircle, XCircle, Clock,
-  ExternalLink, File, X
+  ExternalLink, File, X, Search, Sparkles
 } from 'lucide-react';
 import { useAIAgents, AIAgent, KnowledgeSource } from '@/hooks/use-ai-agents';
+import { api } from '@/lib/api';
 import { useUpload } from '@/hooks/use-upload';
 import { toast } from 'sonner';
 import {
@@ -59,6 +60,12 @@ export function KnowledgeBaseDialog({ open, onOpenChange, agent }: KnowledgeBase
   // Drag and drop
   const [isDragOver, setIsDragOver] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  // Search test panel
+  const [showTestPanel, setShowTestPanel] = useState(false);
+  const [testQuery, setTestQuery] = useState('');
+  const [testResults, setTestResults] = useState<Array<{ chunk_id: string; source_id: string; content: string; similarity: number; metadata?: any }>>([]);
+  const [searching, setSearching] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -242,6 +249,27 @@ export function KnowledgeBaseDialog({ open, onOpenChange, agent }: KnowledgeBase
       source_content: '',
       priority: 0,
     });
+  };
+
+  const handleTestSearch = async () => {
+    if (!agent || !testQuery.trim()) return;
+    setSearching(true);
+    setTestResults([]);
+    try {
+      const data = await api<{ results: typeof testResults }>(`/api/ai-agents/${agent.id}/knowledge/search`, {
+        method: 'POST',
+        body: { query: testQuery, top_k: 5 },
+        auth: true,
+      });
+      setTestResults(data.results || []);
+      if (!data.results?.length) {
+        toast.info('Nenhum chunk encontrado para essa busca');
+      }
+    } catch (err) {
+      toast.error('Erro ao buscar na base de conhecimento');
+    } finally {
+      setSearching(false);
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -519,7 +547,88 @@ export function KnowledgeBaseDialog({ open, onOpenChange, agent }: KnowledgeBase
               </div>
             )}
 
+            {/* Test Search Panel */}
+            {showTestPanel && (
+              <div className="border rounded-lg p-4 mb-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-medium flex items-center gap-2">
+                    <Search className="h-4 w-4 text-primary" />
+                    Teste de Busca RAG
+                  </h3>
+                  <Button variant="ghost" size="sm" onClick={() => { setShowTestPanel(false); setTestResults([]); setTestQuery(''); }}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Digite uma pergunta para testar a busca..."
+                    value={testQuery}
+                    onChange={(e) => setTestQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && testQuery.trim()) handleTestSearch();
+                    }}
+                  />
+                  <Button
+                    onClick={handleTestSearch}
+                    disabled={searching || !testQuery.trim()}
+                    size="sm"
+                    className="shrink-0"
+                  >
+                    {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                  </Button>
+                </div>
+
+                {testResults.length > 0 && (
+                  <ScrollArea className="h-[250px]">
+                    <div className="space-y-3">
+                      {testResults.map((result, idx) => {
+                        const sourceName = sources.find(s => s.id === result.source_id)?.name || 'Fonte desconhecida';
+                        const simPercent = (result.similarity * 100).toFixed(1);
+                        const barColor = result.similarity >= 0.7 ? 'bg-green-500' : result.similarity >= 0.5 ? 'bg-yellow-500' : 'bg-orange-500';
+                        return (
+                          <div key={result.chunk_id || idx} className="border rounded-lg p-3 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline" className="text-xs font-mono">#{idx + 1}</Badge>
+                                <span className="text-xs text-muted-foreground truncate max-w-[180px]">{sourceName}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="w-16 h-2 rounded-full bg-muted overflow-hidden">
+                                  <div className={`h-full rounded-full ${barColor}`} style={{ width: `${simPercent}%` }} />
+                                </div>
+                                <Badge variant="secondary" className="text-xs font-mono">{simPercent}%</Badge>
+                              </div>
+                            </div>
+                            <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap line-clamp-4">
+                              {result.content}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </ScrollArea>
+                )}
+
+                {testResults.length === 0 && !searching && testQuery && (
+                  <p className="text-xs text-muted-foreground text-center py-4">
+                    Nenhum resultado. Verifique se as fontes foram processadas.
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Sources List */}
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-medium text-muted-foreground">
+                {sources.length} fonte{sources.length !== 1 ? 's' : ''}
+              </h3>
+              {sources.length > 0 && !showTestPanel && (
+                <Button variant="outline" size="sm" onClick={() => setShowTestPanel(true)} className="gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Testar Busca
+                </Button>
+              )}
+            </div>
             <ScrollArea className="h-[300px]">
               {loading ? (
                 <div className="flex items-center justify-center py-12">
