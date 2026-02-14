@@ -4,6 +4,7 @@ import { authenticate } from '../middleware/auth.js';
 import { getSendAttempts, clearSendAttempts, downloadMedia as wapiDownloadMedia, getChats as wapiGetChats, getGroupInfo as wapiGetGroupInfo, getGroups as wapiGetGroups } from '../lib/wapi-provider.js';
 import { executeFlow, continueFlowWithInput } from '../lib/flow-executor.js';
 import { pauseNurturingOnReply } from './nurturing.js';
+import { processIncomingWithAgent } from '../lib/ai-agent-processor.js';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
@@ -958,10 +959,10 @@ function detectEventType(payload) {
  */
 async function checkAndTriggerFlow(connection, conversationId, messageContent) {
   try {
-    if (!messageContent || typeof messageContent !== 'string') return;
+    if (!messageContent || typeof messageContent !== 'string') return false;
     
     const messageLower = messageContent.trim().toLowerCase();
-    if (!messageLower) return;
+    if (!messageLower) return false;
 
     console.log('[Flow Trigger] Checking keywords for message:', messageLower.slice(0, 50));
 
@@ -984,7 +985,7 @@ async function checkAndTriggerFlow(connection, conversationId, messageContent) {
 
     if (flowsResult.rows.length === 0) {
       console.log('[Flow Trigger] No active flows with triggers for this connection');
-      return;
+      return false;
     }
 
     // Check each flow for keyword match
@@ -1027,11 +1028,12 @@ async function checkAndTriggerFlow(connection, conversationId, messageContent) {
         }
         
         // Only trigger the first matching flow
-        return;
+        return true;
       }
     }
 
     console.log('[Flow Trigger] No keyword match found');
+    return false;
   } catch (error) {
     console.error('[Flow Trigger] Error checking/triggering flow:', error);
   }
@@ -1371,7 +1373,26 @@ async function handleIncomingMessage(connection, payload) {
       
       // If no active flow, check for keyword-triggered flows
       console.log('[W-API] No active flow, checking keywords...');
-      await checkAndTriggerFlow(connection, conversationId, content);
+      const flowTriggered = await checkAndTriggerFlow(connection, conversationId, content);
+      
+      // If no flow triggered, check AI agent processing
+      if (!flowTriggered) {
+        console.log('[W-API] No flow triggered, checking AI agent...');
+        processIncomingWithAgent({
+          connection,
+          conversationId,
+          contactPhone: cleanPhone,
+          contactName: payload.sender?.pushName || payload.pushName || payload.name || cleanPhone,
+          messageContent: content,
+          messageType,
+        }).then(result => {
+          if (result.handled) {
+            console.log('[W-API] AI Agent handled message, agent:', result.agentId);
+          }
+        }).catch(err => {
+          console.error('[W-API] AI Agent processing error:', err.message);
+        });
+      }
     }
 
     // Cache media in background for reliability (CORS/expiração de URL)
