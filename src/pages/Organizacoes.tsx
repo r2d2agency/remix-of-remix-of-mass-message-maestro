@@ -124,6 +124,7 @@ export default function Organizacoes() {
     chatbots: true,
     chat: true,
     crm: true,
+    group_secretary: false,
   });
   const [savingModules, setSavingModules] = useState(false);
 
@@ -196,6 +197,7 @@ export default function Organizacoes() {
         chatbots: modules.chatbots ?? true,
         chat: modules.chat ?? true,
         crm: modules.crm ?? true,
+        group_secretary: modules.group_secretary ?? false,
       });
     } catch (error) {
       console.error('Error loading modules:', error);
@@ -1036,6 +1038,26 @@ export default function Organizacoes() {
                           <Switch
                             checked={modulesEnabled.crm}
                             onCheckedChange={(checked) => setModulesEnabled(prev => ({ ...prev, crm: checked }))}
+                            disabled={!canManageOrg}
+                          />
+                        </div>
+
+                        {/* Group Secretary */}
+                        <div className="flex items-center justify-between rounded-lg border p-4">
+                          <div className="flex items-center gap-4">
+                            <div className="h-10 w-10 rounded-lg bg-teal-500/10 flex items-center justify-center">
+                              <Bot className="h-5 w-5 text-teal-500" />
+                            </div>
+                            <div>
+                              <p className="font-medium">Secretária IA de Grupos</p>
+                              <p className="text-sm text-muted-foreground">
+                                Monitora grupos e notifica quando alguém é mencionado
+                              </p>
+                            </div>
+                          </div>
+                          <Switch
+                            checked={modulesEnabled.group_secretary}
+                            onCheckedChange={(checked) => setModulesEnabled(prev => ({ ...prev, group_secretary: checked }))}
                             disabled={!canManageOrg}
                           />
                         </div>

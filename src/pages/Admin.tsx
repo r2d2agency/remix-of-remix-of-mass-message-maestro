@@ -60,6 +60,7 @@ interface Plan {
   has_departments: boolean;
   has_lead_scoring: boolean;
   has_ai_summary: boolean;
+  has_group_secretary: boolean;
   price: number;
   billing_period: string;
   is_active: boolean;
@@ -149,6 +150,7 @@ export default function Admin() {
   const [newPlanDepartments, setNewPlanDepartments] = useState(true);
   const [newPlanLeadScoring, setNewPlanLeadScoring] = useState(true);
   const [newPlanAISummary, setNewPlanAISummary] = useState(true);
+  const [newPlanGroupSecretary, setNewPlanGroupSecretary] = useState(false);
   const [newPlanPeriod, setNewPlanPeriod] = useState('monthly');
   const [newPlanVisibleOnSignup, setNewPlanVisibleOnSignup] = useState(false);
   const [newPlanTrialDays, setNewPlanTrialDays] = useState('3');
@@ -305,6 +307,7 @@ export default function Admin() {
       has_departments: newPlanDepartments,
       has_lead_scoring: newPlanLeadScoring,
       has_ai_summary: newPlanAISummary,
+      has_group_secretary: newPlanGroupSecretary,
       price: parseFloat(newPlanPrice) || 0,
       billing_period: newPlanPeriod,
       visible_on_signup: newPlanVisibleOnSignup,
@@ -340,6 +343,7 @@ export default function Admin() {
     setNewPlanDepartments(true);
     setNewPlanLeadScoring(true);
     setNewPlanAISummary(true);
+    setNewPlanGroupSecretary(false);
     setNewPlanPeriod('monthly');
     setNewPlanVisibleOnSignup(false);
     setNewPlanTrialDays('3');
@@ -366,6 +370,7 @@ export default function Admin() {
       has_departments: editingPlan.has_departments,
       has_lead_scoring: editingPlan.has_lead_scoring,
       has_ai_summary: editingPlan.has_ai_summary,
+      has_group_secretary: editingPlan.has_group_secretary,
       price: editingPlan.price,
       billing_period: editingPlan.billing_period,
       is_active: editingPlan.is_active,
@@ -881,6 +886,17 @@ export default function Admin() {
                           onCheckedChange={setNewPlanAISummary}
                         />
                       </div>
+                      <div className="flex items-center justify-between rounded-lg border p-3">
+                        <div className="flex items-center gap-2">
+                          <Bot className="h-4 w-4 text-muted-foreground" />
+                          <Label htmlFor="group-secretary-switch">Secretária IA de Grupos</Label>
+                        </div>
+                        <Switch
+                          id="group-secretary-switch"
+                          checked={newPlanGroupSecretary}
+                          onCheckedChange={setNewPlanGroupSecretary}
+                        />
+                      </div>
                     </div>
                     <div className="border-t pt-4 space-y-4">
                       <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 p-3">
@@ -1012,6 +1028,9 @@ export default function Admin() {
                         )}
                         {plan.has_ai_summary && (
                           <Badge variant="secondary" className="text-xs">Resumo IA</Badge>
+                        )}
+                        {plan.has_group_secretary && (
+                          <Badge variant="secondary" className="text-xs">Secretária IA</Badge>
                         )}
                       </div>
                       <div className="flex items-center justify-between pt-2 border-t">
@@ -1817,6 +1836,14 @@ export default function Admin() {
                     id="edit-departments"
                     checked={editingPlan.has_departments}
                     onCheckedChange={(v) => setEditingPlan({ ...editingPlan, has_departments: v })}
+                  />
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <Label htmlFor="edit-group-secretary">Secretária IA de Grupos</Label>
+                  <Switch
+                    id="edit-group-secretary"
+                    checked={editingPlan.has_group_secretary}
+                    onCheckedChange={(v) => setEditingPlan({ ...editingPlan, has_group_secretary: v })}
                   />
                 </div>
                 <div className="flex items-center justify-between rounded-lg border p-3">
