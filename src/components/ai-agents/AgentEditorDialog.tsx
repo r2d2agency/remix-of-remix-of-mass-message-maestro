@@ -265,7 +265,7 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
             </TabsList>
           </div>
 
-          <ScrollArea className="flex-1 max-h-[calc(85vh-280px)]">
+          <ScrollArea className="flex-1 max-h-[calc(85vh-220px)]">
             <div className="p-6 pt-4">
               {/* Basic Tab */}
               <TabsContent value="basic" className="space-y-4 mt-0">
@@ -454,21 +454,21 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
               </TabsContent>
 
               {/* Capabilities Tab */}
-              <TabsContent value="capabilities" className="space-y-4 mt-0">
-                <div className="grid gap-3">
+              <TabsContent value="capabilities" className="space-y-2 mt-0">
+                <div className="grid gap-2">
                   {ALL_CAPABILITIES.map((cap) => (
                     <div
                       key={cap.id}
-                      className={`flex items-center justify-between p-4 rounded-lg border cursor-pointer transition-colors ${
+                      className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
                         formData.capabilities.includes(cap.id)
                           ? 'border-primary bg-primary/5'
                           : 'hover:border-muted-foreground/50'
                       }`}
                       onClick={() => toggleCapability(cap.id)}
                     >
-                      <div className="flex-1">
-                        <p className="font-medium">{cap.label}</p>
-                        <p className="text-sm text-muted-foreground">{cap.description}</p>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm">{cap.label}</p>
+                        <p className="text-xs text-muted-foreground">{cap.description}</p>
                       </div>
                       <Switch
                         checked={formData.capabilities.includes(cap.id)}
