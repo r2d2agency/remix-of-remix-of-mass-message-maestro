@@ -146,7 +146,7 @@ function SidebarContentComponent({ isExpanded, isSuperadmin, onNavigate }: Sideb
   const filteredSections = navSections
     .filter(section => {
       // Check module access
-      if (section.moduleKey && !modulesEnabled[section.moduleKey]) return false;
+      if (section.moduleKey && !modulesEnabled[section.moduleKey] && !isSuperadmin) return false;
       // Check admin-only section
       if (section.adminOnly && !userIsAdmin) return false;
       return true;
@@ -155,7 +155,7 @@ function SidebarContentComponent({ isExpanded, isSuperadmin, onNavigate }: Sideb
       ...section,
       items: section.items.filter(item => {
         // Check module access
-        if (item.moduleKey && !modulesEnabled[item.moduleKey]) return false;
+        if (item.moduleKey && !modulesEnabled[item.moduleKey] && !isSuperadmin) return false;
         // Check superadmin-only item
         if (item.superadminOnly && !isSuperadmin) return false;
         // Check admin-only item
