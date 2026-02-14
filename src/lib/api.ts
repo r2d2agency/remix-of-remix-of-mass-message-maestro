@@ -29,25 +29,35 @@ export const api = async <T>(endpoint: string, options: ApiOptions = {}): Promis
   const contentType = response.headers.get('content-type') || '';
   let data: any = null;
 
-  if (contentType.includes('application/json')) {
-    data = await response.json().catch(() => null);
-  } else {
-    const text = await response.text().catch(() => '');
+  // Read body as text first for safer parsing
+  const rawText = await response.text().catch(() => '');
+
+  if (contentType.includes('application/json') || rawText.trim().startsWith('{') || rawText.trim().startsWith('[')) {
     try {
-      data = JSON.parse(text);
+      data = JSON.parse(rawText);
     } catch {
-      data = { raw: text };
+      data = { raw: rawText };
     }
+  } else {
+    // Got HTML or unexpected format – log for debugging
+    if (rawText.trim().startsWith('<!') || rawText.includes('<html')) {
+      console.error('[api] Got HTML instead of JSON', {
+        url: `${API_URL}${endpoint}`,
+        status: response.status,
+        preview: rawText.substring(0, 300),
+      });
+    }
+    data = { raw: rawText };
   }
 
   if (!response.ok) {
     const baseMsg = data?.error || data?.message || `Erro na requisição (${response.status})`;
     const details = data?.details ? `: ${data.details}` : '';
-    // Helpful for debugging backend issues (keeps UI behavior the same but exposes context in console)
     // eslint-disable-next-line no-console
     console.error('[api] request failed', {
       url: `${API_URL}${endpoint}`,
       status: response.status,
+      contentType,
       body,
       response: data,
     });
