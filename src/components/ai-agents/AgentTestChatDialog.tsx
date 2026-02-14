@@ -25,8 +25,8 @@ interface AgentTestChatDialogProps {
 }
 
 interface ToolCallInfo {
-  agent_consulted: string;
-  question: string;
+  tool: string;
+  arguments: Record<string, unknown>;
   response_preview: string;
 }
 
@@ -109,13 +109,22 @@ export function AgentTestChatDialog({ open, onOpenChange, agent }: AgentTestChat
 
       const processingTime = Date.now() - startTime;
 
-      // Show tool call info if agents were consulted
+      // Show tool call info
       if (response.tool_calls && response.tool_calls.length > 0) {
         for (const tc of response.tool_calls) {
+          const toolLabels: Record<string, string> = {
+            consult_specialist_agent: `🤖 Consultou agente "${tc.arguments?.agent_name}": "${tc.arguments?.question}"`,
+            create_deal: `📊 Criou negócio: "${tc.arguments?.title}" (R$ ${tc.arguments?.value || 0})`,
+            manage_tasks: tc.arguments?.action === 'create' 
+              ? `📋 Criou tarefa: "${tc.arguments?.title}"` 
+              : `📋 Listou tarefas pendentes`,
+            qualify_lead: `🎯 Qualificou lead: ${tc.arguments?.qualification} (score: ${tc.arguments?.score})`,
+            summarize_conversation: `📝 Resumiu conversa (sentimento: ${tc.arguments?.customer_sentiment})`,
+          };
           setMessages(prev => [...prev, {
-            id: `tool-${Date.now()}-${tc.agent_consulted}`,
+            id: `tool-${Date.now()}-${tc.tool}`,
             role: 'system',
-            content: `🤖 Consultou agente "${tc.agent_consulted}": "${tc.question}"`,
+            content: toolLabels[tc.tool] || `🔧 ${tc.tool}`,
             timestamp: new Date(),
           }]);
         }

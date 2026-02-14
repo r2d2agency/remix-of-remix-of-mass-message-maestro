@@ -660,6 +660,180 @@ function buildCallAgentTool(availableAgents) {
   };
 }
 
+// ==================== TOOL: CREATE DEAL ====================
+
+function buildCreateDealTool(funnels) {
+  const funnelDesc = funnels.map(f => `- Funil "${f.name}" (id: ${f.id}), etapas: ${f.stages.map(s => `"${s.name}" (id: ${s.id})`).join(', ')}`).join('\n');
+  return {
+    type: 'function',
+    function: {
+      name: 'create_deal',
+      description: `Cria um novo negócio/deal no CRM. Funis disponíveis:\n${funnelDesc}`,
+      parameters: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: 'Título do negócio' },
+          value: { type: 'number', description: 'Valor do negócio em reais' },
+          funnel_id: { type: 'string', description: 'ID do funil' },
+          stage_id: { type: 'string', description: 'ID da etapa no funil' },
+          description: { type: 'string', description: 'Descrição do negócio' },
+          expected_close_date: { type: 'string', description: 'Data prevista de fechamento (YYYY-MM-DD)' },
+        },
+        required: ['title', 'funnel_id', 'stage_id'],
+      },
+    },
+  };
+}
+
+async function executeCreateDeal(organizationId, userId, args) {
+  try {
+    const result = await query(`
+      INSERT INTO crm_deals (organization_id, funnel_id, stage_id, title, value, description, expected_close_date, created_by, owner_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
+      RETURNING id, title, value, status
+    `, [
+      organizationId, args.funnel_id, args.stage_id, args.title,
+      args.value || 0, args.description || null,
+      args.expected_close_date || null, userId
+    ]);
+    const deal = result.rows[0];
+    logInfo('ai_agents.tool_create_deal', { dealId: deal.id, title: deal.title });
+    return `Negócio "${deal.title}" criado com sucesso (ID: ${deal.id}, valor: R$ ${deal.value})`;
+  } catch (error) {
+    logError('ai_agents.tool_create_deal_error', error);
+    return `Erro ao criar negócio: ${error.message}`;
+  }
+}
+
+// ==================== TOOL: MANAGE TASKS ====================
+
+function buildManageTasksTool() {
+  return {
+    type: 'function',
+    function: {
+      name: 'manage_tasks',
+      description: 'Cria ou lista tarefas no CRM. Use action "create" para criar ou "list" para listar tarefas pendentes.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: { type: 'string', enum: ['create', 'list'], description: 'Ação: create ou list' },
+          title: { type: 'string', description: 'Título da tarefa (para create)' },
+          description: { type: 'string', description: 'Descrição da tarefa (para create)' },
+          priority: { type: 'string', enum: ['low', 'medium', 'high', 'urgent'], description: 'Prioridade (para create)' },
+          type: { type: 'string', enum: ['task', 'call', 'meeting', 'email', 'follow_up'], description: 'Tipo da tarefa (para create)' },
+          due_date: { type: 'string', description: 'Data de vencimento ISO 8601 (para create)' },
+          limit: { type: 'number', description: 'Quantidade máxima de tarefas a listar (para list, padrão 10)' },
+        },
+        required: ['action'],
+      },
+    },
+  };
+}
+
+async function executeManageTasks(organizationId, userId, args) {
+  try {
+    if (args.action === 'create') {
+      if (!args.title) return 'Título da tarefa é obrigatório';
+      const result = await query(`
+        INSERT INTO crm_tasks (organization_id, assigned_to, created_by, title, description, type, priority, due_date)
+        VALUES ($1, $2, $2, $3, $4, $5, $6, $7)
+        RETURNING id, title, priority, due_date, status
+      `, [
+        organizationId, userId, args.title, args.description || null,
+        args.type || 'task', args.priority || 'medium', args.due_date || null
+      ]);
+      const task = result.rows[0];
+      logInfo('ai_agents.tool_create_task', { taskId: task.id });
+      return `Tarefa "${task.title}" criada (ID: ${task.id}, prioridade: ${task.priority}, vencimento: ${task.due_date || 'sem data'})`;
+    } else {
+      const limit = Math.min(args.limit || 10, 20);
+      const result = await query(`
+        SELECT id, title, priority, type, due_date, status
+        FROM crm_tasks
+        WHERE organization_id = $1 AND status IN ('pending', 'in_progress')
+        ORDER BY CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, due_date ASC NULLS LAST
+        LIMIT $2
+      `, [organizationId, limit]);
+      if (result.rows.length === 0) return 'Nenhuma tarefa pendente encontrada.';
+      const list = result.rows.map(t => `- [${t.priority}] ${t.title} (${t.type}, vence: ${t.due_date || 'sem data'}, status: ${t.status})`).join('\n');
+      return `${result.rows.length} tarefas pendentes:\n${list}`;
+    }
+  } catch (error) {
+    logError('ai_agents.tool_manage_tasks_error', error);
+    return `Erro ao gerenciar tarefas: ${error.message}`;
+  }
+}
+
+// ==================== TOOL: QUALIFY LEADS ====================
+
+function buildQualifyLeadsTool() {
+  return {
+    type: 'function',
+    function: {
+      name: 'qualify_lead',
+      description: 'Qualifica um lead atribuindo uma pontuação de 0 a 100 com base na conversa. Use para avaliar o potencial do lead como cliente.',
+      parameters: {
+        type: 'object',
+        properties: {
+          score: { type: 'number', description: 'Pontuação de 0 a 100 (0=frio, 100=muito quente)' },
+          qualification: { type: 'string', enum: ['cold', 'warm', 'hot', 'very_hot'], description: 'Classificação do lead' },
+          reasoning: { type: 'string', description: 'Justificativa da qualificação em 1-2 frases' },
+          recommended_action: { type: 'string', description: 'Ação recomendada (ex: agendar reunião, enviar proposta, nurturing)' },
+          key_interests: { type: 'string', description: 'Interesses principais identificados, separados por vírgula' },
+        },
+        required: ['score', 'qualification', 'reasoning'],
+      },
+    },
+  };
+}
+
+async function executeQualifyLead(organizationId, args) {
+  // This tool returns the qualification data for the AI to incorporate in response
+  // In real chat flow, this would also update the contact's lead score in DB
+  logInfo('ai_agents.tool_qualify_lead', { score: args.score, qualification: args.qualification });
+  return JSON.stringify({
+    score: args.score,
+    qualification: args.qualification,
+    reasoning: args.reasoning,
+    recommended_action: args.recommended_action || 'Sem ação definida',
+    key_interests: args.key_interests || '',
+  });
+}
+
+// ==================== TOOL: SUMMARIZE HISTORY ====================
+
+function buildSummarizeHistoryTool() {
+  return {
+    type: 'function',
+    function: {
+      name: 'summarize_conversation',
+      description: 'Gera um resumo estruturado da conversa atual com pontos-chave, próximos passos e sentimento do cliente.',
+      parameters: {
+        type: 'object',
+        properties: {
+          summary: { type: 'string', description: 'Resumo da conversa em 2-3 parágrafos' },
+          key_points: { type: 'string', description: 'Pontos-chave da conversa, separados por |' },
+          customer_sentiment: { type: 'string', enum: ['very_negative', 'negative', 'neutral', 'positive', 'very_positive'], description: 'Sentimento geral do cliente' },
+          next_steps: { type: 'string', description: 'Próximos passos recomendados, separados por |' },
+          topics_discussed: { type: 'string', description: 'Temas discutidos, separados por vírgula' },
+        },
+        required: ['summary', 'key_points', 'customer_sentiment'],
+      },
+    },
+  };
+}
+
+async function executeSummarizeHistory(args) {
+  logInfo('ai_agents.tool_summarize', { sentiment: args.customer_sentiment });
+  return JSON.stringify({
+    summary: args.summary,
+    key_points: (args.key_points || '').split('|').map(s => s.trim()).filter(Boolean),
+    customer_sentiment: args.customer_sentiment,
+    next_steps: (args.next_steps || '').split('|').map(s => s.trim()).filter(Boolean),
+    topics_discussed: (args.topics_discussed || '').split(',').map(s => s.trim()).filter(Boolean),
+  });
+}
+
 /**
  * Execute a consult to another specialist agent
  */
@@ -765,12 +939,11 @@ router.post('/:id/test', authenticate, async (req, res) => {
       ? agent.capabilities 
       : (typeof agent.capabilities === 'string' ? agent.capabilities.replace(/[{}]/g, '').split(',') : ['respond_messages']);
 
-    // Check if call_agent is enabled
-    const hasCallAgent = capabilities.includes('call_agent');
-    let tools = null;
+    // Check capabilities and build tools
+    let tools = [];
 
-    if (hasCallAgent) {
-      // Parse call_agent_config
+    // CALL_AGENT tool
+    if (capabilities.includes('call_agent')) {
       const callConfig = typeof agent.call_agent_config === 'string' 
         ? JSON.parse(agent.call_agent_config || '{}') 
         : (agent.call_agent_config || {});
@@ -778,7 +951,6 @@ router.post('/:id/test', authenticate, async (req, res) => {
       let agentFilter = `organization_id = $1 AND id != $2 AND is_active = true`;
       const params = [userCtx.organization_id, agent.id];
 
-      // Filter by allowed agent IDs if configured (and not allow_all)
       if (!callConfig.allow_all && callConfig.allowed_agent_ids && callConfig.allowed_agent_ids.length > 0) {
         agentFilter += ` AND id = ANY($3)`;
         params.push(callConfig.allowed_agent_ids);
@@ -790,11 +962,8 @@ router.post('/:id/test', authenticate, async (req, res) => {
       );
 
       if (otherAgentsResult.rows.length > 0) {
-        // Build enhanced tool description with rules if configured
         const rules = callConfig.rules || [];
         let toolAgents = otherAgentsResult.rows;
-        
-        // Enrich agents with rule info for better AI context
         if (rules.length > 0) {
           toolAgents = toolAgents.map(a => {
             const rule = rules.find(r => r.agent_id === a.id);
@@ -804,21 +973,60 @@ router.post('/:id/test', authenticate, async (req, res) => {
             return a;
           });
         }
-
-        tools = [buildCallAgentTool(toolAgents)];
+        tools.push(buildCallAgentTool(toolAgents));
       }
+    }
+
+    // CREATE_DEALS tool
+    if (capabilities.includes('create_deals')) {
+      const funnelsResult = await query(
+        `SELECT f.id, f.name, json_agg(json_build_object('id', s.id, 'name', s.name) ORDER BY s.position) as stages
+         FROM crm_funnels f
+         JOIN crm_stages s ON s.funnel_id = f.id
+         WHERE f.organization_id = $1
+         GROUP BY f.id, f.name`,
+        [userCtx.organization_id]
+      );
+      if (funnelsResult.rows.length > 0) {
+        tools.push(buildCreateDealTool(funnelsResult.rows));
+      }
+    }
+
+    // MANAGE_TASKS tool
+    if (capabilities.includes('manage_tasks')) {
+      tools.push(buildManageTasksTool());
+    }
+
+    // QUALIFY_LEADS tool
+    if (capabilities.includes('qualify_leads')) {
+      tools.push(buildQualifyLeadsTool());
+    }
+
+    // SUMMARIZE_HISTORY tool
+    if (capabilities.includes('summarize_history')) {
+      tools.push(buildSummarizeHistoryTool());
     }
 
     let result;
     let toolCallsExecuted = [];
 
-    if (tools) {
+    if (tools.length > 0) {
       // Use tool-calling flow
       const toolExecutor = async (toolName, args) => {
-        if (toolName === 'consult_specialist_agent') {
-          return await executeCallAgent(userCtx.organization_id, args.agent_name, args.question);
+        switch (toolName) {
+          case 'consult_specialist_agent':
+            return await executeCallAgent(userCtx.organization_id, args.agent_name, args.question);
+          case 'create_deal':
+            return await executeCreateDeal(userCtx.organization_id, userCtx.id, args);
+          case 'manage_tasks':
+            return await executeManageTasks(userCtx.organization_id, userCtx.id, args);
+          case 'qualify_lead':
+            return await executeQualifyLead(userCtx.organization_id, args);
+          case 'summarize_conversation':
+            return await executeSummarizeHistory(args);
+          default:
+            return 'Ferramenta desconhecida';
         }
-        return 'Ferramenta desconhecida';
       };
 
       result = await callAIWithTools(aiConfig, messages, {
@@ -849,9 +1057,9 @@ router.post('/:id/test', authenticate, async (req, res) => {
       model_used: result.model || aiConfig.model,
       sources_used: knowledgeResult.rows.length > 0 ? ['knowledge_base'] : [],
       tool_calls: toolCallsExecuted.map(tc => ({
-        agent_consulted: tc.arguments?.agent_name,
-        question: tc.arguments?.question,
-        response_preview: typeof tc.result === 'string' ? tc.result.substring(0, 200) : '',
+        tool: tc.name,
+        arguments: tc.arguments,
+        response_preview: typeof tc.result === 'string' ? tc.result.substring(0, 300) : JSON.stringify(tc.result).substring(0, 300),
       })),
     });
   } catch (error) {

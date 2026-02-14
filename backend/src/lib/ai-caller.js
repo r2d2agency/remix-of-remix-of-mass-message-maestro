@@ -86,7 +86,7 @@ export async function callAIWithTools(config, messages, options, toolExecutor, m
         // For Gemini, append as user context
         currentMessages.push({
           role: 'user',
-          content: `[Resultado da consulta ao agente especialista "${toolCall.arguments?.agent_name || 'desconhecido'}"]: ${typeof toolResult === 'string' ? toolResult : JSON.stringify(toolResult)}`,
+          content: `[Resultado da ferramenta "${toolCall.name}"]: ${typeof toolResult === 'string' ? toolResult : JSON.stringify(toolResult)}`,
         });
       }
     }
