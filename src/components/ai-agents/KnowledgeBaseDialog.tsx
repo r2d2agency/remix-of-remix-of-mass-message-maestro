@@ -66,6 +66,8 @@ export function KnowledgeBaseDialog({ open, onOpenChange, agent }: KnowledgeBase
   const [testQuery, setTestQuery] = useState('');
   const [testResults, setTestResults] = useState<Array<{ chunk_id: string; source_id: string; content: string; similarity: number; metadata?: any }>>([]);
   const [searching, setSearching] = useState(false);
+  const [testFilterSource, setTestFilterSource] = useState<string>('all');
+  const [testTopK, setTestTopK] = useState(5);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -258,7 +260,7 @@ export function KnowledgeBaseDialog({ open, onOpenChange, agent }: KnowledgeBase
     try {
       const data = await api<{ results: typeof testResults }>(`/api/ai-agents/${agent.id}/knowledge/search`, {
         method: 'POST',
-        body: { query: testQuery, top_k: 5 },
+        body: { query: testQuery, top_k: testTopK },
         auth: true,
       });
       setTestResults(data.results || []);
@@ -555,10 +557,12 @@ export function KnowledgeBaseDialog({ open, onOpenChange, agent }: KnowledgeBase
                     <Search className="h-4 w-4 text-primary" />
                     Teste de Busca RAG
                   </h3>
-                  <Button variant="ghost" size="sm" onClick={() => { setShowTestPanel(false); setTestResults([]); setTestQuery(''); }}>
+                  <Button variant="ghost" size="sm" onClick={() => { setShowTestPanel(false); setTestResults([]); setTestQuery(''); setTestFilterSource('all'); setTestTopK(5); }}>
                     <X className="h-4 w-4" />
                   </Button>
                 </div>
+
+                {/* Search input + top_k */}
                 <div className="flex gap-2">
                   <Input
                     placeholder="Digite uma pergunta para testar a busca..."
@@ -567,7 +571,18 @@ export function KnowledgeBaseDialog({ open, onOpenChange, agent }: KnowledgeBase
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && testQuery.trim()) handleTestSearch();
                     }}
+                    className="flex-1"
                   />
+                  <select
+                    value={testTopK}
+                    onChange={(e) => setTestTopK(Number(e.target.value))}
+                    className="h-9 rounded-md border border-input bg-background px-2 text-xs"
+                  >
+                    <option value={3}>Top 3</option>
+                    <option value={5}>Top 5</option>
+                    <option value={10}>Top 10</option>
+                    <option value={20}>Top 20</option>
+                  </select>
                   <Button
                     onClick={handleTestSearch}
                     disabled={searching || !testQuery.trim()}
@@ -578,10 +593,43 @@ export function KnowledgeBaseDialog({ open, onOpenChange, agent }: KnowledgeBase
                   </Button>
                 </div>
 
+                {/* Filter by source */}
                 {testResults.length > 0 && (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs text-muted-foreground">Filtrar:</span>
+                    <Badge
+                      variant={testFilterSource === 'all' ? 'default' : 'outline'}
+                      className="cursor-pointer text-xs"
+                      onClick={() => setTestFilterSource('all')}
+                    >
+                      Todas ({testResults.length})
+                    </Badge>
+                    {Array.from(new Set(testResults.map(r => r.source_id))).map(sid => {
+                      const name = sources.find(s => s.id === sid)?.name || 'Desconhecida';
+                      const count = testResults.filter(r => r.source_id === sid).length;
+                      return (
+                        <Badge
+                          key={sid}
+                          variant={testFilterSource === sid ? 'default' : 'outline'}
+                          className="cursor-pointer text-xs truncate max-w-[150px]"
+                          onClick={() => setTestFilterSource(sid)}
+                        >
+                          {name} ({count})
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Results */}
+                {testResults.length > 0 && (() => {
+                  const filtered = testFilterSource === 'all'
+                    ? testResults
+                    : testResults.filter(r => r.source_id === testFilterSource);
+                  return (
                   <ScrollArea className="h-[250px]">
                     <div className="space-y-3">
-                      {testResults.map((result, idx) => {
+                      {filtered.map((result, idx) => {
                         const sourceName = sources.find(s => s.id === result.source_id)?.name || 'Fonte desconhecida';
                         const simPercent = (result.similarity * 100).toFixed(1);
                         const barColor = result.similarity >= 0.7 ? 'bg-green-500' : result.similarity >= 0.5 ? 'bg-yellow-500' : 'bg-orange-500';
@@ -605,9 +653,15 @@ export function KnowledgeBaseDialog({ open, onOpenChange, agent }: KnowledgeBase
                           </div>
                         );
                       })}
+                      {filtered.length === 0 && (
+                        <p className="text-xs text-muted-foreground text-center py-4">
+                          Nenhum resultado para esta fonte.
+                        </p>
+                      )}
                     </div>
                   </ScrollArea>
-                )}
+                  );
+                })()}
 
                 {testResults.length === 0 && !searching && testQuery && (
                   <p className="text-xs text-muted-foreground text-center py-4">
