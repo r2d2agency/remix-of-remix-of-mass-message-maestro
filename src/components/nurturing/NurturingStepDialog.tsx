@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,10 +19,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MessageSquare, Mail, Clock, Loader2, Image, Paperclip } from "lucide-react";
+import { MessageSquare, Mail, Clock, Loader2, Upload, X, FileText, ImageIcon, Video, Music } from "lucide-react";
 import { NurturingStep, useNurturingMutations } from "@/hooks/use-nurturing";
+import { RichEmailEditor } from "@/components/email/RichEmailEditor";
+import { useUpload } from "@/hooks/use-upload";
+import { resolveMediaUrl } from "@/lib/media";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface NurturingStepDialogProps {
   open: boolean;
@@ -33,6 +36,20 @@ interface NurturingStepDialogProps {
   onSuccess?: () => void;
 }
 
+const MEDIA_TYPE_ICONS: Record<string, React.ElementType> = {
+  image: ImageIcon,
+  video: Video,
+  audio: Music,
+  document: FileText,
+};
+
+const MEDIA_TYPE_ACCEPT: Record<string, string> = {
+  image: "image/*",
+  video: "video/*",
+  audio: "audio/*",
+  document: ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv",
+};
+
 export function NurturingStepDialog({
   open,
   onOpenChange,
@@ -42,6 +59,8 @@ export function NurturingStepDialog({
   onSuccess,
 }: NurturingStepDialogProps) {
   const { addStep, updateStep } = useNurturingMutations();
+  const { uploadFile, isUploading, progress } = useUpload();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const isEditing = !!step;
 
   // Form state
@@ -73,7 +92,6 @@ export function NurturingStepDialog({
         setEmailSubject(step.email_subject || "");
         setEmailBody(step.email_body || "");
       } else {
-        // Reset to defaults
         setChannel("whatsapp");
         setDelayValue("1");
         setDelayUnit("days");
@@ -123,11 +141,41 @@ export function NurturingStepDialog({
     }
   };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const url = await uploadFile(file);
+      if (url) {
+        setWhatsappMediaUrl(url);
+        // Auto-detect media type
+        if (file.type.startsWith("image/")) setWhatsappMediaType("image");
+        else if (file.type.startsWith("video/")) setWhatsappMediaType("video");
+        else if (file.type.startsWith("audio/")) setWhatsappMediaType("audio");
+        else setWhatsappMediaType("document");
+        toast.success("Arquivo enviado com sucesso!");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao enviar arquivo");
+    }
+
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const clearMedia = () => {
+    setWhatsappMediaUrl("");
+    setWhatsappMediaType("");
+  };
+
   const isValid =
     (channel === "whatsapp" && whatsappContent.trim()) ||
     (channel === "email" && emailSubject.trim() && emailBody.trim());
 
   const isPending = addStep.isPending || updateStep.isPending;
+
+  const MediaIcon = whatsappMediaType ? MEDIA_TYPE_ICONS[whatsappMediaType] || FileText : FileText;
+  const resolvedUrl = resolveMediaUrl(whatsappMediaUrl);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -222,36 +270,108 @@ export function NurturingStepDialog({
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Paperclip className="h-4 w-4" />
-                    URL da Mídia (opcional)
-                  </Label>
-                  <Input
-                    placeholder="https://..."
-                    value={whatsappMediaUrl}
-                    onChange={(e) => setWhatsappMediaUrl(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Tipo da Mídia</Label>
-                  <Select
-                    value={whatsappMediaType || "none"}
-                    onValueChange={(v) => setWhatsappMediaType(v === "none" ? "" : v)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Nenhuma</SelectItem>
-                      <SelectItem value="image">Imagem</SelectItem>
-                      <SelectItem value="video">Vídeo</SelectItem>
-                      <SelectItem value="audio">Áudio</SelectItem>
-                      <SelectItem value="document">Documento</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              {/* Media Upload Section */}
+              <div className="space-y-3">
+                <Label className="flex items-center gap-2">
+                  <Upload className="h-4 w-4" />
+                  Mídia (opcional)
+                </Label>
+
+                {whatsappMediaUrl ? (
+                  <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
+                    {/* Preview */}
+                    {whatsappMediaType === "image" && resolvedUrl ? (
+                      <img
+                        src={resolvedUrl}
+                        alt="preview"
+                        className="h-16 w-16 rounded-lg object-cover border flex-shrink-0"
+                      />
+                    ) : (
+                      <div className="h-16 w-16 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+                        <MediaIcon className="h-6 w-6 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">
+                        {whatsappMediaType === "image" ? "Imagem" :
+                         whatsappMediaType === "video" ? "Vídeo" :
+                         whatsappMediaType === "audio" ? "Áudio" : "Documento"}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">{whatsappMediaUrl}</p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 flex-shrink-0 text-muted-foreground hover:text-destructive"
+                      onClick={clearMedia}
+                      type="button"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {/* Upload button */}
+                    <div
+                      className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      {isUploading ? (
+                        <div className="space-y-2">
+                          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+                          <p className="text-sm text-muted-foreground">Enviando... {progress}%</p>
+                        </div>
+                      ) : (
+                        <>
+                          <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                          <p className="text-sm font-medium">Clique para enviar arquivo</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Imagem, vídeo, áudio ou documento
+                          </p>
+                        </>
+                      )}
+                    </div>
+
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
+
+                    {/* Or paste URL */}
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-px bg-border" />
+                      <span className="text-xs text-muted-foreground">ou cole a URL</span>
+                      <div className="flex-1 h-px bg-border" />
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="https://..."
+                        value={whatsappMediaUrl}
+                        onChange={(e) => setWhatsappMediaUrl(e.target.value)}
+                        className="flex-1"
+                      />
+                      <Select
+                        value={whatsappMediaType || "none"}
+                        onValueChange={(v) => setWhatsappMediaType(v === "none" ? "" : v)}
+                      >
+                        <SelectTrigger className="w-36">
+                          <SelectValue placeholder="Tipo" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Tipo...</SelectItem>
+                          <SelectItem value="image">Imagem</SelectItem>
+                          <SelectItem value="video">Vídeo</SelectItem>
+                          <SelectItem value="audio">Áudio</SelectItem>
+                          <SelectItem value="document">Documento</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           ) : (
@@ -267,15 +387,13 @@ export function NurturingStepDialog({
 
               <div className="space-y-2">
                 <Label>Corpo do Email</Label>
-                <Textarea
-                  placeholder="Olá {{nome}},&#10;&#10;Espero que esteja bem!&#10;&#10;Gostaria de apresentar uma oportunidade..."
+                <RichEmailEditor
                   value={emailBody}
-                  onChange={(e) => setEmailBody(e.target.value)}
-                  rows={8}
-                  className="resize-none"
+                  onChange={setEmailBody}
+                  placeholder="Comece a escrever seu email..."
                 />
                 <p className="text-xs text-muted-foreground">
-                  Use {"{{variavel}}"} para personalização. Suporta HTML básico.
+                  Use {"{{variavel}}"} para personalização. Ex: {"{{nome}}"}, {"{{empresa}}"}
                 </p>
               </div>
             </div>

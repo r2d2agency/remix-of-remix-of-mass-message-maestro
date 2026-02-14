@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmailTemplate, useEmailTemplateMutations } from "@/hooks/use-email";
 import { RichEmailEditor } from "./RichEmailEditor";
 import { EMAIL_TEMPLATE_PRESETS, EmailTemplatePreset } from "./email-template-presets";
-import { Loader2, Sparkles, FileText, Mail, ShoppingCart, Book, Users, Briefcase, Eye } from "lucide-react";
+import { Loader2, Sparkles, FileText, Mail, ShoppingCart, Book, Users, Briefcase, Eye, Scale } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface EmailTemplateEditorProps {
@@ -38,6 +38,7 @@ const CATEGORIES = [
   { value: "crm", label: "CRM", icon: Briefcase },
   { value: "campaign", label: "Campanhas", icon: ShoppingCart },
   { value: "flow", label: "Fluxos", icon: FileText },
+  { value: "juridico", label: "Jurídico", icon: Scale },
 ];
 
 const getCategoryIcon = (category: string) => {
@@ -140,6 +141,7 @@ export function EmailTemplateEditor({ template, open, onOpenChange }: EmailTempl
     course: EMAIL_TEMPLATE_PRESETS.filter(p => p.id.includes("course")),
     ebook: EMAIL_TEMPLATE_PRESETS.filter(p => p.id.includes("ebook")),
     crm: EMAIL_TEMPLATE_PRESETS.filter(p => p.id.includes("crm")),
+    legal: EMAIL_TEMPLATE_PRESETS.filter(p => p.category === "juridico"),
   };
 
   return (
@@ -222,6 +224,19 @@ export function EmailTemplateEditor({ template, open, onOpenChange }: EmailTempl
                       </h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {groupedPresets.crm.map((preset) => (
+                          <PresetCard key={preset.id} preset={preset} onUse={usePreset} />
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Legal Templates */}
+                    <div>
+                      <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <Scale className="h-5 w-5 text-slate-500" />
+                        Jurídico
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {groupedPresets.legal.map((preset) => (
                           <PresetCard key={preset.id} preset={preset} onUse={usePreset} />
                         ))}
                       </div>
