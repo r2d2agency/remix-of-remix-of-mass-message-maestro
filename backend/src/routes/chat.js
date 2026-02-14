@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import * as whatsappProvider from '../lib/whatsapp-provider.js';
+import { startAgentSession, stopAgentSession, getActiveAgentSession } from '../lib/ai-agent-processor.js';
 
 const router = Router();
 
@@ -2916,6 +2917,74 @@ router.post('/conversations/:id/call-log', authenticate, async (req, res) => {
   } catch (error) {
     console.error('Log call error:', error);
     res.status(500).json({ error: 'Erro ao registrar chamada' });
+  }
+});
+
+// ==========================================
+// AI AGENT SESSIONS (manual control from chat)
+// ==========================================
+
+// Get active agent session for a conversation
+router.get('/conversations/:id/agent-session', authenticate, async (req, res) => {
+  try {
+    const session = await getActiveAgentSession(req.params.id);
+    res.json(session || null);
+  } catch (error) {
+    console.error('Get agent session error:', error);
+    res.status(500).json({ error: 'Erro ao buscar sessão do agente' });
+  }
+});
+
+// Start an agent session for a conversation
+router.post('/conversations/:id/agent-session', authenticate, async (req, res) => {
+  try {
+    const { agent_id } = req.body;
+    if (!agent_id) {
+      return res.status(400).json({ error: 'agent_id é obrigatório' });
+    }
+
+    // Get conversation info
+    const convResult = await query(
+      `SELECT contact_phone, contact_name FROM conversations WHERE id = $1`,
+      [req.params.id]
+    );
+    if (convResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Conversa não encontrada' });
+    }
+
+    const conv = convResult.rows[0];
+    const session = await startAgentSession(
+      agent_id,
+      req.params.id,
+      conv.contact_phone,
+      conv.contact_name
+    );
+
+    // Return with agent info
+    const agentResult = await query(
+      `SELECT name, avatar_url FROM ai_agents WHERE id = $1`,
+      [agent_id]
+    );
+
+    res.json({
+      ...session,
+      agent_name: agentResult.rows[0]?.name,
+      agent_avatar: agentResult.rows[0]?.avatar_url,
+    });
+  } catch (error) {
+    console.error('Start agent session error:', error);
+    res.status(500).json({ error: 'Erro ao iniciar sessão do agente' });
+  }
+});
+
+// Stop agent session for a conversation
+router.delete('/conversations/:id/agent-session', authenticate, async (req, res) => {
+  try {
+    const result = await stopAgentSession(req.params.id);
+    res.json({ success: true, stopped: result });
+  } catch (error) {
+    console.error('Stop agent session error:', error);
+    res.status(500).json({ error: 'Erro ao encerrar sessão do agente' });
   }
 });
 

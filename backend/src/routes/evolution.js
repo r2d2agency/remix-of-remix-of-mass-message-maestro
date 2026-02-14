@@ -9,6 +9,7 @@ import { executeFlow, continueFlowWithInput } from '../lib/flow-executor.js';
 import { logError, logInfo } from '../logger.js';
 import { pauseNurturingOnReply } from './nurturing.js';
 import { analyzeGroupMessage } from '../lib/group-secretary.js';
+import { processIncomingWithAgent } from '../lib/ai-agent-processor.js';
 
 
 const router = Router();
@@ -1248,10 +1249,10 @@ function isLocalUploadsUrl(url) {
  */
 async function checkAndTriggerFlow(connection, conversationId, messageContent) {
   try {
-    if (!messageContent || typeof messageContent !== 'string') return;
+    if (!messageContent || typeof messageContent !== 'string') return false;
     
     const messageLower = messageContent.trim().toLowerCase();
-    if (!messageLower) return;
+    if (!messageLower) return false;
 
     console.log('[Flow Trigger] Checking keywords for message:', messageLower.slice(0, 50));
 
@@ -1274,7 +1275,7 @@ async function checkAndTriggerFlow(connection, conversationId, messageContent) {
 
     if (flowsResult.rows.length === 0) {
       console.log('[Flow Trigger] No active flows with triggers for this connection');
-      return;
+      return false;
     }
 
     // Check each flow for keyword match
@@ -1319,11 +1320,12 @@ async function checkAndTriggerFlow(connection, conversationId, messageContent) {
         });
         
         // Only trigger the first matching flow
-        return;
+        return true;
       }
     }
 
     console.log('[Flow Trigger] No keyword match found');
+    return false;
   } catch (error) {
     console.error('[Flow Trigger] Error checking/triggering flow:', error);
   }
@@ -1854,7 +1856,26 @@ async function handleMessageUpsert(connection, data) {
           
           // If no active flow, check for keyword-triggered flows
           console.log('[Evolution] No active flow, checking keywords...');
-          checkAndTriggerFlow(connection, conversationId, content);
+          const flowTriggered = await checkAndTriggerFlow(connection, conversationId, content);
+          
+          // If no flow triggered, check AI agent processing
+          if (!flowTriggered) {
+            console.log('[Evolution] No flow triggered, checking AI agent...');
+            processIncomingWithAgent({
+              connection,
+              conversationId,
+              contactPhone,
+              contactName: pushName || senderName || contactPhone,
+              messageContent: content,
+              messageType,
+            }).then(result => {
+              if (result.handled) {
+                console.log('[Evolution] AI Agent handled message, agent:', result.agentId);
+              }
+            }).catch(err => {
+              console.error('[Evolution] AI Agent processing error:', err.message);
+            });
+          }
         }
       }
     } catch (insertError) {
