@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { API_URL, getAuthToken } from '@/lib/api';
 import {
   Accordion,
   AccordionContent,
@@ -242,15 +243,27 @@ const allFeatures: FeatureDoc[] = [
   },
 ];
 
-export function FeaturesDocumentation() {
+export function FeaturesDocumentation({ showAll = false }: { showAll?: boolean }) {
   const { modulesEnabled } = useAuth();
+  const [isSuperadmin, setIsSuperadmin] = useState(false);
 
-  // Filter features based on enabled modules
-  const visibleFeatures = allFeatures.filter((feature) => {
-    // Features without moduleKey are always visible (like settings, reports)
+  useEffect(() => {
+    const check = async () => {
+      try {
+        const token = getAuthToken();
+        if (!token) return;
+        const res = await fetch(`${API_URL}/api/admin/check`, { headers: { Authorization: `Bearer ${token}` } });
+        if (res.ok) { const data = await res.json(); setIsSuperadmin(data.isSuperadmin); }
+      } catch {}
+    };
+    check();
+  }, []);
+
+  const shouldShowAll = showAll || isSuperadmin;
+
+  // Filter features based on enabled modules (superadmin sees all)
+  const visibleFeatures = shouldShowAll ? allFeatures : allFeatures.filter((feature) => {
     if (!feature.moduleKey) return true;
-    
-    // Check if module is enabled
     return modulesEnabled[feature.moduleKey as keyof typeof modulesEnabled];
   });
 
