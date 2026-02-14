@@ -124,6 +124,8 @@ export function AgentTestChatDialog({ open, onOpenChange, agent }: AgentTestChat
             schedule_meeting: `📅 Agendou reunião: "${tc.arguments?.title}" em ${tc.arguments?.date}`,
             google_calendar_event: tc.arguments?.action === 'create'
               ? `📆 Criou evento no Calendar: "${tc.arguments?.title}"`
+              : tc.arguments?.action === 'find_available_slots'
+              ? `📆 Buscou horários disponíveis (${tc.arguments?.preferred_period || 'qualquer período'})`
               : `📆 Listou eventos do Calendar`,
             suggest_actions: `💡 Sugeriu ações (${tc.arguments?.urgency}): ${tc.arguments?.context_summary}`,
             generate_content: `✍️ Gerou conteúdo: ${tc.arguments?.content_type} - "${tc.arguments?.title}"`,

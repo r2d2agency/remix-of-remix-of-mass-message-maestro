@@ -143,6 +143,20 @@ DO $$ BEGIN
     ALTER TABLE organizations ADD COLUMN IF NOT EXISTS ai_model VARCHAR(100);
     ALTER TABLE organizations ADD COLUMN IF NOT EXISTS ai_api_key TEXT;
 EXCEPTION WHEN duplicate_column THEN null; END $$;
+
+-- Organização: horário de trabalho para agendamento inteligente
+DO $$ BEGIN
+    ALTER TABLE organizations ADD COLUMN IF NOT EXISTS work_schedule JSONB DEFAULT '{
+      "timezone": "America/Sao_Paulo",
+      "work_days": [1,2,3,4,5],
+      "work_start": "08:00",
+      "work_end": "18:00",
+      "lunch_start": "12:00",
+      "lunch_end": "13:00",
+      "slot_duration_minutes": 60,
+      "buffer_minutes": 15
+    }'::jsonb;
+EXCEPTION WHEN duplicate_column THEN null; END $$;
 `;
 
 // ============================================

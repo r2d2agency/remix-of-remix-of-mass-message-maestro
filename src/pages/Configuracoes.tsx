@@ -18,6 +18,7 @@ import { SMTPConfigPanel } from "@/components/email/SMTPConfigPanel";
 import { EmailTemplatesPanel } from "@/components/email/EmailTemplatesPanel";
 import { FeaturesDocumentation } from "@/components/admin/FeaturesDocumentation";
 import { AIConfigPanel } from "@/components/settings/AIConfigPanel";
+import { WorkSchedulePanel } from "@/components/settings/WorkSchedulePanel";
 
 const Configuracoes = () => {
   const { user } = useAuth();
@@ -589,8 +590,9 @@ const Configuracoes = () => {
           </TabsContent>
 
           {/* AI Settings Tab */}
-          <TabsContent value="ia" className="mt-6">
+          <TabsContent value="ia" className="mt-6 space-y-6">
             <AIConfigPanel />
+            <WorkSchedulePanel />
           </TabsContent>
 
           {/* Email Settings Tab */}

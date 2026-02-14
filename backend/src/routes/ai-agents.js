@@ -913,23 +913,28 @@ async function executeScheduleMeeting(organizationId, userId, args) {
   }
 }
 
-// ==================== TOOL: GOOGLE CALENDAR ====================
+// ==================== TOOL: GOOGLE CALENDAR (SMART) ====================
 
 function buildGoogleCalendarTool() {
   return {
     type: 'function',
     function: {
       name: 'google_calendar_event',
-      description: 'Cria ou lista eventos no Google Calendar vinculado. Use action "create" para criar evento ou "list" para listar próximos eventos.',
+      description: `Gerencia agenda inteligente. Ações disponíveis:
+- "find_available_slots": Busca horários livres respeitando horário comercial e conflitos. USE ESTA AÇÃO quando o cliente quiser agendar algo — NUNCA sugira horários sem consultar antes.
+- "create": Cria evento em horário específico (verifica conflitos automaticamente).
+- "list": Lista próximos eventos agendados.`,
       parameters: {
         type: 'object',
         properties: {
-          action: { type: 'string', enum: ['create', 'list'], description: 'Ação: create ou list' },
+          action: { type: 'string', enum: ['create', 'list', 'find_available_slots'], description: 'Ação a executar' },
           title: { type: 'string', description: 'Título do evento (para create)' },
-          start_time: { type: 'string', description: 'Início do evento ISO 8601 (para create)' },
-          end_time: { type: 'string', description: 'Fim do evento ISO 8601 (para create)' },
+          start_time: { type: 'string', description: 'Início ISO 8601 (para create)' },
+          end_time: { type: 'string', description: 'Fim ISO 8601 (para create)' },
           description: { type: 'string', description: 'Descrição do evento (para create)' },
-          days_ahead: { type: 'number', description: 'Listar eventos dos próximos N dias (para list, padrão 7)' },
+          duration_minutes: { type: 'number', description: 'Duração desejada em minutos (para find_available_slots, padrão: slot_duration da org)' },
+          days_ahead: { type: 'number', description: 'Buscar nos próximos N dias (para list/find_available_slots, padrão 7)' },
+          preferred_period: { type: 'string', enum: ['morning', 'afternoon', 'any'], description: 'Preferência de período (para find_available_slots)' },
         },
         required: ['action'],
       },
@@ -937,11 +942,159 @@ function buildGoogleCalendarTool() {
   };
 }
 
+/**
+ * Get work schedule config for an organization
+ */
+async function getWorkSchedule(organizationId) {
+  const result = await query(
+    `SELECT work_schedule FROM organizations WHERE id = $1`,
+    [organizationId]
+  );
+  const raw = result.rows[0]?.work_schedule;
+  const schedule = typeof raw === 'string' ? JSON.parse(raw) : (raw || {});
+  return {
+    timezone: schedule.timezone || 'America/Sao_Paulo',
+    work_days: schedule.work_days || [1, 2, 3, 4, 5],
+    work_start: schedule.work_start || '08:00',
+    work_end: schedule.work_end || '18:00',
+    lunch_start: schedule.lunch_start || '12:00',
+    lunch_end: schedule.lunch_end || '13:00',
+    slot_duration_minutes: schedule.slot_duration_minutes || 60,
+    buffer_minutes: schedule.buffer_minutes || 15,
+  };
+}
+
+function timeToMinutes(timeStr) {
+  const [h, m] = timeStr.split(':').map(Number);
+  return h * 60 + m;
+}
+
+async function findAvailableSlots(organizationId, daysAhead, durationMinutes, preferredPeriod) {
+  const schedule = await getWorkSchedule(organizationId);
+  const slotDuration = durationMinutes || schedule.slot_duration_minutes;
+  const buffer = schedule.buffer_minutes;
+
+  const existingResult = await query(`
+    SELECT due_date, 
+           due_date + interval '1 hour' as estimated_end
+    FROM crm_tasks
+    WHERE organization_id = $1 
+      AND type = 'meeting' 
+      AND status = 'pending'
+      AND due_date >= NOW() 
+      AND due_date <= NOW() + interval '1 day' * $2
+    ORDER BY due_date ASC
+  `, [organizationId, daysAhead]);
+
+  const existingEvents = existingResult.rows.map(e => ({
+    start: new Date(e.due_date).getTime(),
+    end: new Date(e.estimated_end).getTime(),
+  }));
+
+  const workStartMin = timeToMinutes(schedule.work_start);
+  const workEndMin = timeToMinutes(schedule.work_end);
+  const lunchStartMin = timeToMinutes(schedule.lunch_start);
+  const lunchEndMin = timeToMinutes(schedule.lunch_end);
+
+  const slots = [];
+  const now = new Date();
+  const maxSlots = 10;
+
+  for (let d = 0; d < daysAhead && slots.length < maxSlots; d++) {
+    const date = new Date(now);
+    date.setDate(date.getDate() + d);
+    const dayOfWeek = date.getDay();
+
+    if (!schedule.work_days.includes(dayOfWeek)) continue;
+
+    for (let min = workStartMin; min + slotDuration <= workEndMin && slots.length < maxSlots; min += slotDuration + buffer) {
+      // Skip lunch block
+      if (min < lunchEndMin && min + slotDuration > lunchStartMin) {
+        min = lunchEndMin - slotDuration - buffer;
+        continue;
+      }
+
+      if (preferredPeriod === 'morning' && min >= lunchStartMin) continue;
+      if (preferredPeriod === 'afternoon' && min < lunchEndMin) continue;
+
+      const slotStart = new Date(date);
+      slotStart.setHours(Math.floor(min / 60), min % 60, 0, 0);
+      const slotEnd = new Date(slotStart.getTime() + slotDuration * 60000);
+
+      if (slotStart.getTime() < now.getTime() + 30 * 60000) continue;
+
+      const hasConflict = existingEvents.some(e => 
+        slotStart.getTime() < e.end && slotEnd.getTime() > e.start
+      );
+      if (hasConflict) continue;
+
+      const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+      slots.push({
+        date: slotStart.toISOString().split('T')[0],
+        day_of_week: dayNames[slotStart.getDay()],
+        start: `${String(slotStart.getHours()).padStart(2, '0')}:${String(slotStart.getMinutes()).padStart(2, '0')}`,
+        end: `${String(slotEnd.getHours()).padStart(2, '0')}:${String(slotEnd.getMinutes()).padStart(2, '0')}`,
+        start_iso: slotStart.toISOString(),
+        end_iso: slotEnd.toISOString(),
+      });
+    }
+  }
+
+  return slots;
+}
+
 async function executeGoogleCalendar(organizationId, userId, args) {
   try {
+    if (args.action === 'find_available_slots') {
+      const daysAhead = args.days_ahead || 7;
+      const slots = await findAvailableSlots(organizationId, daysAhead, args.duration_minutes, args.preferred_period);
+      
+      if (slots.length === 0) {
+        return `Nenhum horário disponível encontrado nos próximos ${daysAhead} dias.`;
+      }
+      
+      const schedule = await getWorkSchedule(organizationId);
+      const slotList = slots.map((s, i) => 
+        `${i + 1}. ${s.day_of_week} ${s.date} das ${s.start} às ${s.end}`
+      ).join('\n');
+      
+      return `Horários disponíveis (expediente ${schedule.work_start}-${schedule.work_end}, intervalo ${schedule.lunch_start}-${schedule.lunch_end}):\n${slotList}\n\nPara agendar, use a ação "create" com o start_time e end_time do slot escolhido.`;
+    }
+    
     if (args.action === 'create') {
       if (!args.title || !args.start_time) return 'Título e horário de início são obrigatórios para criar evento';
-      // Create as a CRM task of type meeting + record in google_calendar_events
+      
+      // Verify work hours
+      const schedule = await getWorkSchedule(organizationId);
+      const startDate = new Date(args.start_time);
+      const dayOfWeek = startDate.getDay();
+      
+      if (!schedule.work_days.includes(dayOfWeek)) {
+        const dayNames = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+        return `⚠️ ${dayNames[dayOfWeek]} não é dia de trabalho. Dias disponíveis: ${schedule.work_days.map(d => dayNames[d]).join(', ')}. Use find_available_slots.`;
+      }
+      
+      const startMinutes = startDate.getHours() * 60 + startDate.getMinutes();
+      const workStart = timeToMinutes(schedule.work_start);
+      const workEnd = timeToMinutes(schedule.work_end);
+      
+      if (startMinutes < workStart || startMinutes >= workEnd) {
+        return `⚠️ Horário ${startDate.getHours()}:${String(startDate.getMinutes()).padStart(2, '0')} fora do expediente (${schedule.work_start}-${schedule.work_end}). Use find_available_slots.`;
+      }
+      
+      // Check conflicts
+      const conflictResult = await query(`
+        SELECT id, title, due_date FROM crm_tasks
+        WHERE organization_id = $1 AND type = 'meeting' AND status = 'pending'
+          AND due_date >= $2::timestamp - interval '1 hour'
+          AND due_date <= $2::timestamp + interval '1 hour'
+      `, [organizationId, args.start_time]);
+      
+      if (conflictResult.rows.length > 0) {
+        const conflicts = conflictResult.rows.map(c => `"${c.title}" (${c.due_date})`).join(', ');
+        return `⚠️ Conflito com: ${conflicts}. Use find_available_slots para horários livres.`;
+      }
+      
       const taskResult = await query(`
         INSERT INTO crm_tasks (organization_id, assigned_to, created_by, title, description, type, priority, due_date)
         VALUES ($1, $2, $2, $3, $4, 'meeting', 'medium', $5)
@@ -950,19 +1103,17 @@ async function executeGoogleCalendar(organizationId, userId, args) {
       
       const task = taskResult.rows[0];
       
-      // Also record in google_calendar_events for sync
       try {
         await query(`
           INSERT INTO google_calendar_events (user_id, crm_task_id, google_event_id, google_calendar_id, event_summary, event_start, event_end)
           VALUES ($1, $2, $3, 'primary', $4, $5, $6)
         `, [userId, task.id, `ai-agent-${task.id}`, args.title, args.start_time, args.end_time || args.start_time]);
       } catch (e) {
-        // Calendar table might not exist, continue anyway
         logInfo('ai_agents.google_calendar_record_skip', { error: e.message });
       }
       
       logInfo('ai_agents.tool_google_calendar_create', { taskId: task.id });
-      return `Evento "${task.title}" criado para ${args.start_time}${args.end_time ? ` até ${args.end_time}` : ''} (ID: ${task.id})`;
+      return `✅ Evento "${task.title}" agendado para ${args.start_time}${args.end_time ? ` até ${args.end_time}` : ''} (ID: ${task.id}). Sem conflitos.`;
     } else {
       const daysAhead = args.days_ahead || 7;
       const result = await query(`

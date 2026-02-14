@@ -849,4 +849,74 @@ router.post('/ai-config/test', async (req, res) => {
   }
 });
 
+// ==================== WORK SCHEDULE ====================
+
+// Get work schedule
+router.get('/work-schedule', async (req, res) => {
+  try {
+    const memberResult = await query(
+      `SELECT om.organization_id FROM organization_members om WHERE om.user_id = $1 LIMIT 1`,
+      [req.userId]
+    );
+    if (memberResult.rows.length === 0) return res.status(403).json({ error: 'Sem organização' });
+
+    const orgId = memberResult.rows[0].organization_id;
+    const result = await query(`SELECT work_schedule FROM organizations WHERE id = $1`, [orgId]);
+    const raw = result.rows[0]?.work_schedule;
+    const schedule = typeof raw === 'string' ? JSON.parse(raw) : (raw || {});
+
+    res.json({
+      timezone: schedule.timezone || 'America/Sao_Paulo',
+      work_days: schedule.work_days || [1, 2, 3, 4, 5],
+      work_start: schedule.work_start || '08:00',
+      work_end: schedule.work_end || '18:00',
+      lunch_start: schedule.lunch_start || '12:00',
+      lunch_end: schedule.lunch_end || '13:00',
+      slot_duration_minutes: schedule.slot_duration_minutes || 60,
+      buffer_minutes: schedule.buffer_minutes || 15,
+    });
+  } catch (error) {
+    console.error('Get work schedule error:', error);
+    res.status(500).json({ error: 'Erro ao buscar horário de trabalho' });
+  }
+});
+
+// Update work schedule
+router.put('/work-schedule', async (req, res) => {
+  try {
+    const memberResult = await query(
+      `SELECT om.organization_id, om.role FROM organization_members om WHERE om.user_id = $1 LIMIT 1`,
+      [req.userId]
+    );
+    if (memberResult.rows.length === 0) return res.status(403).json({ error: 'Sem organização' });
+    if (!['admin', 'superadmin'].includes(memberResult.rows[0].role)) {
+      return res.status(403).json({ error: 'Apenas admins podem alterar horário de trabalho' });
+    }
+
+    const orgId = memberResult.rows[0].organization_id;
+    const { timezone, work_days, work_start, work_end, lunch_start, lunch_end, slot_duration_minutes, buffer_minutes } = req.body;
+
+    const schedule = {
+      timezone: timezone || 'America/Sao_Paulo',
+      work_days: work_days || [1, 2, 3, 4, 5],
+      work_start: work_start || '08:00',
+      work_end: work_end || '18:00',
+      lunch_start: lunch_start || '12:00',
+      lunch_end: lunch_end || '13:00',
+      slot_duration_minutes: slot_duration_minutes || 60,
+      buffer_minutes: buffer_minutes || 15,
+    };
+
+    await query(
+      `UPDATE organizations SET work_schedule = $1, updated_at = NOW() WHERE id = $2`,
+      [JSON.stringify(schedule), orgId]
+    );
+
+    res.json(schedule);
+  } catch (error) {
+    console.error('Update work schedule error:', error);
+    res.status(500).json({ error: 'Erro ao atualizar horário de trabalho' });
+  }
+});
+
 export default router;
