@@ -128,8 +128,25 @@ async function downloadAndSaveMedia(connection, messageObj, messageType) {
     else if (mimetype.includes('video/webm')) ext = '.webm';
     else if (mimetype.includes('video/')) ext = '.mp4';
     else if (mimetype.includes('application/pdf')) ext = '.pdf';
+    else if (mimetype.includes('spreadsheetml') || mimetype.includes('excel') || mimetype.includes('ms-excel')) ext = '.xlsx';
+    else if (mimetype.includes('wordprocessingml') || mimetype.includes('msword')) ext = '.docx';
+    else if (mimetype.includes('presentationml') || mimetype.includes('powerpoint') || mimetype.includes('ms-powerpoint')) ext = '.pptx';
+    else if (mimetype.includes('text/plain')) ext = '.txt';
+    else if (mimetype.includes('text/csv') || mimetype.includes('application/csv')) ext = '.csv';
+    else if (mimetype.includes('application/zip') || mimetype.includes('x-zip')) ext = '.zip';
+    else if (mimetype.includes('application/rar') || mimetype.includes('x-rar')) ext = '.rar';
 
-    const filename = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${ext}`;
+    // For documents, try to use the original filename from the message if available
+    const msgContent = messageObj?.message?.message || messageObj?.message || messageObj;
+    const originalFileName = msgContent?.documentMessage?.fileName;
+    let filename;
+    if (originalFileName && messageType === 'document') {
+      // Use original filename with a unique prefix to avoid collisions
+      const safeName = String(originalFileName).replace(/[^a-zA-Z0-9._-]/g, '_');
+      filename = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}-${safeName}`;
+    } else {
+      filename = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${ext}`;
+    }
     const filePath = path.join(UPLOADS_DIR, filename);
 
     const buffer = Buffer.from(base64, 'base64');
