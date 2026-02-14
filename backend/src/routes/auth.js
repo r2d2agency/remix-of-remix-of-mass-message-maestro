@@ -69,17 +69,29 @@ router.post('/register', async (req, res) => {
 
     const user = result.rows[0];
 
-    // If plan selected, create organization with trial period
-    if (selectedPlan) {
-      const slug = name.toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '')
-        + '-' + Date.now().toString(36);
+    // Create organization (always, even without a plan)
+    const slug = name.toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      + '-' + Date.now().toString(36);
 
+    let modulesEnabled = {
+      campaigns: true,
+      billing: true,
+      groups: true,
+      scheduled_messages: true,
+      chatbots: true,
+      chat: true,
+      crm: true
+    };
+
+    let expiresAt = null;
+
+    if (selectedPlan) {
       const trialDays = selectedPlan.trial_days || 3;
-      const expiresAt = new Date();
+      expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + trialDays);
 
       // Get plan modules for organization
@@ -87,16 +99,6 @@ router.post('/register', async (req, res) => {
          `SELECT has_campaigns, has_asaas_integration, has_whatsapp_groups, has_scheduled_messages, has_chatbots, has_chat, has_crm FROM plans WHERE id = $1`,
         [selectedPlan.id]
       );
-      
-      let modulesEnabled = {
-        campaigns: true,
-        billing: true,
-        groups: true,
-        scheduled_messages: true,
-        chatbots: true,
-         chat: true,
-         crm: true
-      };
       
       if (planModulesResult.rows.length > 0) {
         const plan = planModulesResult.rows[0];
@@ -106,26 +108,26 @@ router.post('/register', async (req, res) => {
           groups: plan.has_whatsapp_groups ?? true,
           scheduled_messages: plan.has_scheduled_messages ?? true,
           chatbots: plan.has_chatbots ?? true,
-           chat: plan.has_chat ?? true,
-           crm: plan.has_crm ?? true
+          chat: plan.has_chat ?? true,
+          crm: plan.has_crm ?? true
         };
       }
-
-      // Create organization with modules from plan
-      const orgResult = await query(
-        `INSERT INTO organizations (name, slug, plan_id, expires_at, modules_enabled) 
-         VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-        [name, slug, selectedPlan.id, expiresAt.toISOString(), JSON.stringify(modulesEnabled)]
-      );
-
-      const orgId = orgResult.rows[0].id;
-
-      // Add user as owner
-      await query(
-        `INSERT INTO organization_members (organization_id, user_id, role) VALUES ($1, $2, 'owner')`,
-        [orgId, user.id]
-      );
     }
+
+    // Create organization with modules
+    const orgResult = await query(
+      `INSERT INTO organizations (name, slug, plan_id, expires_at, modules_enabled) 
+       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+      [name, slug, selectedPlan?.id || null, expiresAt?.toISOString() || null, JSON.stringify(modulesEnabled)]
+    );
+
+    const orgId = orgResult.rows[0].id;
+
+    // Add user as owner
+    await query(
+      `INSERT INTO organization_members (organization_id, user_id, role) VALUES ($1, $2, 'owner')`,
+      [orgId, user.id]
+    );
 
     // Generate token
     const token = jwt.sign(
