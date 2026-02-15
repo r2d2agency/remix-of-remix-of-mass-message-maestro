@@ -832,9 +832,7 @@ export default function Organizacoes() {
                                     {canManageOrg && (
                                       <TableCell>
                                         <div className="flex items-center gap-1">
-                                          {member.role !== 'owner' && (
-                                            <>
-                                              <Button 
+                                          <Button 
                                                 variant="ghost" 
                                                 size="icon"
                                               onClick={() => handleOpenEditMember(member)}
@@ -842,6 +840,8 @@ export default function Organizacoes() {
                                             >
                                                 <Settings className="h-4 w-4" />
                                               </Button>
+                                          {member.role !== 'owner' && (
+                                            <>
                                               <Button 
                                                 variant="ghost" 
                                                 size="icon"
