@@ -14,6 +14,8 @@ export interface SecretaryConfig {
   ai_api_key?: string | null;
   notify_external_enabled?: boolean;
   notify_external_phone?: string;
+  notify_members_whatsapp?: boolean;
+  default_connection_id?: string | null;
 }
 
 export interface SecretaryMember {

@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import {
-  Bot, Users, Settings, Activity, Plus, Trash2, Save, Loader2, Shield, Clock, MessageSquare, BellRing, Phone
+  Bot, Users, Settings, Activity, Plus, Trash2, Save, Loader2, Shield, Clock, MessageSquare, BellRing, Phone, Smartphone, Wifi
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -31,6 +31,7 @@ export default function SecretariaGrupos() {
     create_crm_task: true, show_popup_alert: true, min_confidence: 0.6,
     ai_provider: null, ai_model: null,
     notify_external_enabled: false, notify_external_phone: '',
+    notify_members_whatsapp: false, default_connection_id: null,
   });
   const [members, setMembers] = useState<SecretaryMember[]>([]);
   const [logs, setLogs] = useState<SecretaryLog[]>([]);
@@ -397,17 +398,71 @@ export default function SecretariaGrupos() {
                   </p>
                 </div>
 
+                {/* Notify matched member via WhatsApp */}
+                <div className="border-t pt-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Smartphone className="h-4 w-4 text-primary" />
+                    <Label className="font-medium">Notificar Responsável via WhatsApp</Label>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label>Ativar notificação ao responsável</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Quando a IA detecta uma solicitação, envia mensagem no WhatsApp pessoal do membro identificado
+                      </p>
+                    </div>
+                    <Switch
+                      checked={config.notify_members_whatsapp || false}
+                      onCheckedChange={(v) => setConfig((c) => ({ ...c, notify_members_whatsapp: v }))}
+                    />
+                  </div>
+                </div>
+
+                {/* Default connection */}
+                {(config.notify_members_whatsapp || config.notify_external_enabled) && (
+                  <div className="border-t pt-4 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Wifi className="h-4 w-4 text-primary" />
+                      <Label className="font-medium">Conexão Padrão para Notificações</Label>
+                    </div>
+                    <Select
+                      value={config.default_connection_id || "auto"}
+                      onValueChange={(v) => setConfig((c) => ({ ...c, default_connection_id: v === "auto" ? null : v }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Automática (primeira disponível)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="auto">Automática (primeira disponível)</SelectItem>
+                        {allGroups
+                          .reduce((acc, g) => {
+                            if (!acc.find(c => c.id === g.connection_id)) {
+                              acc.push({ id: g.connection_id, name: g.connection_name });
+                            }
+                            return acc;
+                          }, [] as { id: string; name: string }[])
+                          .map(conn => (
+                            <SelectItem key={conn.id} value={conn.id}>{conn.name}</SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Define qual conexão WhatsApp será usada para enviar as notificações
+                    </p>
+                  </div>
+                )}
+
                 {/* External notification */}
                 <div className="border-t pt-4 space-y-3">
                   <div className="flex items-center gap-2">
                     <BellRing className="h-4 w-4 text-primary" />
-                    <Label className="font-medium">Notificação Externa via WhatsApp</Label>
+                    <Label className="font-medium">Notificação Externa (Número Fixo)</Label>
                   </div>
                   <div className="flex items-center justify-between">
                     <div>
                       <Label>Ativar notificação externa</Label>
                       <p className="text-xs text-muted-foreground">
-                        Envia detecções para um número externo via WhatsApp
+                        Envia detecções para um número externo adicional (ex: gestor)
                       </p>
                     </div>
                     <Switch
@@ -427,7 +482,7 @@ export default function SecretariaGrupos() {
                         onChange={(e) => setConfig((c) => ({ ...c, notify_external_phone: e.target.value }))}
                       />
                       <p className="text-xs text-muted-foreground">
-                        Número completo com DDI. A cada detecção de solicitação, um resumo será enviado.
+                        Número completo com DDI. A cada detecção, um resumo será enviado além da notificação ao responsável.
                       </p>
                     </div>
                   )}

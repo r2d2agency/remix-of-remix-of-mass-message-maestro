@@ -147,7 +147,21 @@ Mensagem: "${messageContent}"`;
       });
     }
 
-    // 10b. Notify external WhatsApp number if enabled
+    // 10b. Notify matched member via WhatsApp if enabled
+    if (config.notify_members_whatsapp && matchedMember) {
+      await notifyMatchedMember({
+        organizationId,
+        matchedUserId: matchedMember.user_id,
+        matchedUserName: matchedMember.user_name,
+        senderName: senderName || 'Alguém',
+        groupName: groupName || 'Grupo',
+        request: aiResult.detected_request || messageContent,
+        confidence: aiResult.confidence,
+        defaultConnectionId: config.default_connection_id,
+      });
+    }
+
+    // 10c. Notify external WhatsApp number if enabled
     if (config.notify_external_enabled && config.notify_external_phone) {
       await notifyExternalNumber({
         organizationId,
@@ -157,6 +171,7 @@ Mensagem: "${messageContent}"`;
         request: aiResult.detected_request || messageContent,
         matchedUser: matchedMember?.user_name || 'Não identificado',
         confidence: aiResult.confidence,
+        defaultConnectionId: config.default_connection_id,
       });
     }
 
@@ -333,22 +348,51 @@ async function createPopupAlert({ userId, senderName, groupName, request, conver
 }
 
 /**
+ * Notify the matched member via their personal WhatsApp
+ */
+async function notifyMatchedMember({ organizationId, matchedUserId, matchedUserName, senderName, groupName, request, confidence, defaultConnectionId }) {
+  try {
+    // Get user's phone
+    const userResult = await query(
+      `SELECT phone, whatsapp_phone FROM users WHERE id = $1`,
+      [matchedUserId]
+    );
+    let phone = userResult.rows[0]?.whatsapp_phone || userResult.rows[0]?.phone;
+    if (!phone) {
+      logInfo('group_secretary', `No phone for user ${matchedUserName}, skipping WhatsApp notification`);
+      return;
+    }
+    phone = phone.replace(/\D/g, '');
+    if (!phone) return;
+
+    const connection = await getNotificationConnection(organizationId, defaultConnectionId);
+    if (!connection) return;
+
+    const confPercent = Math.round((confidence || 0) * 100);
+    const message = `📋 *Secretária IA - Solicitação para você*\n\n` +
+      `📱 *Grupo:* ${groupName}\n` +
+      `👤 *Solicitante:* ${senderName}\n` +
+      `📊 *Confiança:* ${confPercent}%\n\n` +
+      `💬 *Solicitação:*\n${(request || '').substring(0, 500)}`;
+
+    await whatsappProvider.sendMessage(connection, phone, message, 'text', null);
+    logInfo('group_secretary.member_notified', { phone, matchedUserName, groupName });
+  } catch (error) {
+    logError('group_secretary.notify_member_error', error);
+  }
+}
+
+/**
  * Notify an external WhatsApp number about a detected request
  */
-async function notifyExternalNumber({ organizationId, phone, senderName, groupName, request, matchedUser, confidence }) {
+async function notifyExternalNumber({ organizationId, phone, senderName, groupName, request, matchedUser, confidence, defaultConnectionId }) {
   try {
-    // Get the first active connection of the org to send the message
-    const connResult = await query(
-      `SELECT * FROM connections WHERE organization_id = $1 AND status = 'connected' LIMIT 1`,
-      [organizationId]
-    );
-
-    if (connResult.rows.length === 0) {
+    const connection = await getNotificationConnection(organizationId, defaultConnectionId);
+    if (!connection) {
       logError('group_secretary.notify_external', new Error('No active connection found'));
       return;
     }
 
-    const connection = connResult.rows[0];
     const confPercent = Math.round((confidence || 0) * 100);
 
     const message = `📋 *Secretária IA - Detecção*\n\n` +
@@ -362,5 +406,29 @@ async function notifyExternalNumber({ organizationId, phone, senderName, groupNa
     logInfo('group_secretary.external_notified', { phone, groupName });
   } catch (error) {
     logError('group_secretary.notify_external_error', error);
+  }
+}
+
+/**
+ * Get the connection to use for sending notifications (default or first available)
+ */
+async function getNotificationConnection(organizationId, defaultConnectionId) {
+  try {
+    if (defaultConnectionId) {
+      const result = await query(
+        `SELECT * FROM connections WHERE id = $1 AND organization_id = $2 AND status = 'connected'`,
+        [defaultConnectionId, organizationId]
+      );
+      if (result.rows.length > 0) return result.rows[0];
+    }
+    // Fallback: first active connection
+    const result = await query(
+      `SELECT * FROM connections WHERE organization_id = $1 AND status = 'connected' ORDER BY created_at ASC LIMIT 1`,
+      [organizationId]
+    );
+    return result.rows[0] || null;
+  } catch (error) {
+    logError('group_secretary.get_connection_error', error);
+    return null;
   }
 }
