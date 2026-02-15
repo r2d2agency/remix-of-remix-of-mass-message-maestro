@@ -19,6 +19,7 @@ export async function analyzeGroupMessage({
   messageContent,
   senderName,
   groupName,
+  mentionedJids = [],
 }) {
   const startTime = Date.now();
 
@@ -114,6 +115,25 @@ Retorne SOMENTE um JSON válido:
   "reason": "breve explicação da detecção"
 }`;
 
+    // Pre-process: resolve mentionedJids to member names for direct matching
+    const mentionedMembers = [];
+    if (mentionedJids && mentionedJids.length > 0) {
+      for (const jid of mentionedJids) {
+        const jidPhone = (jid || '').replace(/[@s.whatsapp.net]/g, '').replace(/\D/g, '');
+        if (jidPhone.length >= 8) {
+          const matched = members.find(m => {
+            const mPhone = (m.whatsapp_phone || '').replace(/\D/g, '');
+            return mPhone && (mPhone.includes(jidPhone) || jidPhone.includes(mPhone) ||
+              mPhone.slice(-9) === jidPhone.slice(-9));
+          });
+          if (matched) {
+            mentionedMembers.push(matched);
+            logInfo('group_secretary', `Resolved mentionedJid ${jid} -> ${matched.user_name}`);
+          }
+        }
+      }
+    }
+
     // Pre-process message: replace phone mentions with names for better AI understanding
     let processedMessage = messageContent || '';
     for (const m of members) {
@@ -155,13 +175,29 @@ Mensagem: "${processedMessage}"`;
     }
 
     const matchedMembers = [];
+    
+    // First: add members resolved directly from mentionedJids (most reliable)
+    for (const m of mentionedMembers) {
+      if (!matchedMembers.find(mm => mm.user_id === m.user_id)) {
+        matchedMembers.push(m);
+        logInfo('group_secretary', `Matched member from mentionedJid: ${m.user_name}`);
+      }
+    }
+
+    // Then: process AI matches for any additional members
     for (const match of rawMatches) {
+      // Skip if already matched via mentionedJid
+      if (matchedMembers.find(mm => mm.user_id === match.user_id)) continue;
+      
       let member = members.find(m => m.user_id === match.user_id);
       if (!member && match.user_name) {
-        // Try matching by name
-        member = members.find(m =>
-          m.user_name.toLowerCase().includes((match.user_name || '').toLowerCase())
-        );
+        // Try matching by name (case-insensitive, accent-insensitive)
+        const normalize = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const matchName = normalize(match.user_name);
+        member = members.find(m => {
+          const mName = normalize(m.user_name);
+          return mName.includes(matchName) || matchName.includes(mName);
+        });
       }
       if (!member && match.user_name) {
         // Try matching by phone number (WhatsApp mentions often use phone numbers)
@@ -174,13 +210,19 @@ Mensagem: "${processedMessage}"`;
         }
       }
       if (!member && match.user_name) {
-        // Try matching by aliases
+        // Try matching by aliases (accent-insensitive)
+        const normalize = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const matchName = normalize(match.user_name);
         member = members.find(m =>
-          (m.aliases || []).some(a => a.toLowerCase().includes((match.user_name || '').toLowerCase()) ||
-            (match.user_name || '').toLowerCase().includes(a.toLowerCase()))
+          (m.aliases || []).some(a => {
+            const na = normalize(a);
+            return na.includes(matchName) || matchName.includes(na);
+          })
         );
       }
-      if (member) matchedMembers.push(member);
+      if (member && !matchedMembers.find(mm => mm.user_id === member.user_id)) {
+        matchedMembers.push(member);
+      }
     }
 
     // Determine priority from AI (with fallback)

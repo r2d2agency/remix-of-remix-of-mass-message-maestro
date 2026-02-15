@@ -1848,14 +1848,18 @@ async function handleMessageUpsert(connection, data) {
         }
 
         // ======= GROUP SECRETARY: AI analysis for group messages =======
-        if (isGroup && !fromMe && content && connection.organization_id) {
+         if (isGroup && !fromMe && content && connection.organization_id) {
           const groupNameForSecretary = data.groupMetadata?.subject || data.groupSubject || message.groupMetadata?.subject || 'Grupo';
+          // Extract mentionedJids from contextInfo
+          const ctxInfo = msgContent.extendedTextMessage?.contextInfo || msgContent.conversation?.contextInfo || {};
+          const mentionedJids = ctxInfo.mentionedJid || ctxInfo.mentionedJids || data.mentionedJids || [];
           analyzeGroupMessage({
             organizationId: connection.organization_id,
             conversationId,
             messageContent: content,
             senderName: pushName || senderName || 'Desconhecido',
             groupName: groupNameForSecretary,
+            mentionedJids: Array.isArray(mentionedJids) ? mentionedJids : [],
           }).catch(err => console.error('[GroupSecretary] Error:', err.message));
         }
 
