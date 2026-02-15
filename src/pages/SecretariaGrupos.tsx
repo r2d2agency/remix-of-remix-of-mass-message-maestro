@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -727,6 +728,57 @@ export default function SecretariaGrupos() {
                     <p className="text-xs text-muted-foreground">Tempo médio</p>
                   </CardContent></Card>
                 </div>
+
+                {stats.daily && stats.daily.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Evolução Diária</CardTitle>
+                      <CardDescription>Detecções e solicitações prioritárias nos últimos 7 dias</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-[280px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={stats.daily.map(d => ({
+                            date: new Date(d.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+                            total: parseInt(d.count),
+                            prioritarias: parseInt(d.priority_count),
+                          }))}>
+                            <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
+                            <XAxis dataKey="date" className="text-xs fill-muted-foreground" tick={{ fontSize: 12 }} />
+                            <YAxis allowDecimals={false} className="text-xs fill-muted-foreground" tick={{ fontSize: 12 }} />
+                            <Tooltip
+                              contentStyle={{
+                                backgroundColor: 'hsl(var(--background))',
+                                border: '1px solid hsl(var(--border))',
+                                borderRadius: '8px',
+                                fontSize: '12px',
+                              }}
+                            />
+                            <Legend wrapperStyle={{ fontSize: '12px' }} />
+                            <Line
+                              type="monotone"
+                              dataKey="total"
+                              name="Total"
+                              stroke="hsl(var(--primary))"
+                              strokeWidth={2}
+                              dot={{ r: 4, fill: 'hsl(var(--primary))' }}
+                              activeDot={{ r: 6 }}
+                            />
+                            <Line
+                              type="monotone"
+                              dataKey="prioritarias"
+                              name="Prioritárias"
+                              stroke="hsl(var(--destructive))"
+                              strokeWidth={2}
+                              dot={{ r: 4, fill: 'hsl(var(--destructive))' }}
+                              activeDot={{ r: 6 }}
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
 
                 <Card>
                   <CardHeader><CardTitle className="text-base">Carga por Membro</CardTitle></CardHeader>
