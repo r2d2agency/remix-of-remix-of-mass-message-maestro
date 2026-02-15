@@ -1552,6 +1552,72 @@ export function ChatArea({
         <AIAgentBanner conversationId={conversation.id} isGroup={conversation.is_group} />
       )}
 
+      {/* Mobile Quick Actions Bar */}
+      {isMobile && (
+        <div className="flex items-center gap-1.5 px-2 py-1.5 border-b bg-muted/20 overflow-x-auto flex-shrink-0">
+          {onOpenCRM && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs gap-1 flex-shrink-0 border-primary/30 text-primary"
+              onClick={onOpenCRM}
+            >
+              <Briefcase className="h-3 w-3" />
+              CRM
+            </Button>
+          )}
+          {onOpenCRM && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs gap-1 flex-shrink-0 border-violet-400/50 text-violet-600 dark:text-violet-400"
+              onClick={() => {
+                onOpenCRM?.();
+              }}
+            >
+              <Sparkles className="h-3 w-3" />
+              IA Consulta
+            </Button>
+          )}
+          {!isViewOnly && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs gap-1 flex-shrink-0"
+              onClick={handleOpenTransferDialog}
+            >
+              <ArrowLeftRight className="h-3 w-3" />
+              Transferir
+            </Button>
+          )}
+          {!isViewOnly && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs gap-1 flex-shrink-0"
+              onClick={() => setShowDepartmentDialog(true)}
+            >
+              <Building2 className="h-3 w-3" />
+              Depto
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs gap-1 flex-shrink-0"
+            onClick={() => setShowNotes(!showNotes)}
+          >
+            <StickyNote className="h-3 w-3" />
+            Notas
+            {notesCount > 0 && (
+              <Badge variant="secondary" className="h-4 px-1 text-[9px] ml-0.5">
+                {notesCount}
+              </Badge>
+            )}
+          </Button>
+        </div>
+      )}
+
       {/* Search Bar */}
       {showSearch && (
         <div className="flex items-center gap-2 px-4 py-2 border-b bg-muted/50">

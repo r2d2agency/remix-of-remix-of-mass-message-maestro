@@ -855,7 +855,7 @@ const Chat = () => {
               onDepartmentChange={() => loadConversations()}
               isMobile={isMobile}
               onMobileBack={handleMobileBack}
-              onOpenCRM={modulesEnabled.crm && !selectedConversation?.is_group ? () => setCrmPanelOpen(true) : undefined}
+              onOpenCRM={modulesEnabled.crm ? () => setCrmPanelOpen(true) : undefined}
             />
           )}
 
