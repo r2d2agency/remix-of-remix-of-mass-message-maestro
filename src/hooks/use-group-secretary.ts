@@ -116,6 +116,13 @@ export const useGroupSecretary = () => {
     return data;
   }, []);
 
+  const updateMemberPhone = useCallback(async (userId: string, whatsappPhone: string): Promise<void> => {
+    await api(`/api/group-secretary/members/${userId}/phone`, {
+      method: 'PUT',
+      body: { whatsapp_phone: whatsappPhone },
+    });
+  }, []);
+
   return {
     loading,
     setLoading,
@@ -127,5 +134,6 @@ export const useGroupSecretary = () => {
     getLogs,
     getAvailableUsers,
     getGroups,
+    updateMemberPhone,
   };
 };

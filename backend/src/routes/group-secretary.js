@@ -273,4 +273,37 @@ router.get('/groups', async (req, res) => {
   }
 });
 
+// Update a user's WhatsApp phone (for notification purposes)
+router.put('/members/:userId/phone', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org) return res.status(403).json({ error: 'Sem organização' });
+    if (!['owner', 'admin'].includes(org.role)) {
+      return res.status(403).json({ error: 'Sem permissão' });
+    }
+
+    const { whatsapp_phone } = req.body;
+    const targetUserId = req.params.userId;
+
+    // Verify user belongs to org
+    const memberCheck = await query(
+      `SELECT 1 FROM organization_members WHERE organization_id = $1 AND user_id = $2`,
+      [org.organization_id, targetUserId]
+    );
+    if (memberCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Usuário não encontrado na organização' });
+    }
+
+    await query(
+      `UPDATE users SET whatsapp_phone = $1, updated_at = NOW() WHERE id = $2`,
+      [whatsapp_phone || null, targetUserId]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Update member phone error:', error);
+    res.status(500).json({ error: 'Erro ao atualizar telefone' });
+  }
+});
+
 export default router;

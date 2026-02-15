@@ -24,7 +24,7 @@ import { ptBR } from "date-fns/locale";
 
 export default function SecretariaGrupos() {
   const {
-    getConfig, saveConfig, getMembers, addMember, removeMember, getLogs, getAvailableUsers, getGroups
+    getConfig, saveConfig, getMembers, addMember, removeMember, getLogs, getAvailableUsers, getGroups, updateMemberPhone
   } = useGroupSecretary();
 
   const [config, setConfig] = useState<SecretaryConfig>({
@@ -43,6 +43,9 @@ export default function SecretariaGrupos() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [phoneDialogOpen, setPhoneDialogOpen] = useState(false);
+  const [editingPhoneMember, setEditingPhoneMember] = useState<{ user_id: string; user_name: string } | null>(null);
+  const [editingPhone, setEditingPhone] = useState("");
   const [newMember, setNewMember] = useState({
     user_id: "", aliases: "", role_description: "", departments: "",
   });
@@ -111,6 +114,28 @@ export default function SecretariaGrupos() {
       toast.success("Membro removido");
     } catch (err: any) {
       toast.error(err.message || "Erro ao remover");
+    }
+  };
+
+  const openPhoneDialog = (userId: string, userName: string) => {
+    setEditingPhoneMember({ user_id: userId, user_name: userName });
+    setEditingPhone("");
+    setPhoneDialogOpen(true);
+  };
+
+  const handleSavePhone = async () => {
+    if (!editingPhoneMember || !editingPhone.trim()) {
+      toast.error("Informe o número");
+      return;
+    }
+    try {
+      await updateMemberPhone(editingPhoneMember.user_id, editingPhone.trim());
+      toast.success(`Telefone de ${editingPhoneMember.user_name} atualizado!`);
+      setPhoneDialogOpen(false);
+      const mems = await getMembers();
+      setMembers(mems);
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao salvar telefone");
     }
   };
 
@@ -184,10 +209,24 @@ export default function SecretariaGrupos() {
               return (
                 <Alert variant="destructive" className="border-destructive/30 bg-destructive/5">
                   <AlertTriangle className="h-4 w-4" />
-                  <AlertDescription className="text-sm">
-                    <strong>{noPhone.length} membro(s)</strong> sem telefone cadastrado e não receberão notificações WhatsApp:{" "}
-                    <span className="font-medium">{noPhone.map(m => m.user_name).join(", ")}</span>.
-                    Cadastre o telefone no perfil do usuário.
+                  <AlertDescription className="text-sm space-y-2">
+                    <p>
+                      <strong>{noPhone.length} membro(s)</strong> sem telefone cadastrado e não receberão notificações WhatsApp:
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {noPhone.map(m => (
+                        <Button
+                          key={m.user_id}
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs gap-1 border-destructive/30 hover:bg-destructive/10"
+                          onClick={() => openPhoneDialog(m.user_id, m.user_name)}
+                        >
+                          <Phone className="h-3 w-3" />
+                          {m.user_name}
+                        </Button>
+                      ))}
+                    </div>
                   </AlertDescription>
                 </Alert>
               );
@@ -713,6 +752,35 @@ export default function SecretariaGrupos() {
                 Cancelar
               </Button>
               <Button onClick={handleAddMember}>Adicionar</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* EDIT PHONE DIALOG */}
+        <Dialog open={phoneDialogOpen} onOpenChange={setPhoneDialogOpen}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Phone className="h-4 w-4" />
+                Cadastrar WhatsApp
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Informe o número WhatsApp de <strong>{editingPhoneMember?.user_name}</strong> para receber notificações da Secretária IA.
+              </p>
+              <div className="space-y-1.5">
+                <Label>Número WhatsApp</Label>
+                <Input
+                  value={editingPhone}
+                  onChange={(e) => setEditingPhone(e.target.value)}
+                  placeholder="5511999999999 (com DDI)"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setPhoneDialogOpen(false)}>Cancelar</Button>
+              <Button onClick={handleSavePhone}>Salvar</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
