@@ -71,6 +71,9 @@ router.put('/config', async (req, res) => {
       ai_provider, ai_model, ai_api_key,
       notify_external_enabled, notify_external_phone,
       notify_members_whatsapp, default_connection_id,
+      followup_enabled, followup_hours,
+      daily_digest_enabled, daily_digest_hour,
+      auto_reply_enabled, auto_reply_message,
     } = req.body;
 
     // Handle masked API key
@@ -85,8 +88,8 @@ router.put('/config', async (req, res) => {
 
     const result = await query(
       `INSERT INTO group_secretary_config 
-       (organization_id, is_active, connection_ids, group_jids, create_crm_task, show_popup_alert, min_confidence, ai_provider, ai_model, ai_api_key, notify_external_enabled, notify_external_phone, notify_members_whatsapp, default_connection_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+       (organization_id, is_active, connection_ids, group_jids, create_crm_task, show_popup_alert, min_confidence, ai_provider, ai_model, ai_api_key, notify_external_enabled, notify_external_phone, notify_members_whatsapp, default_connection_id, followup_enabled, followup_hours, daily_digest_enabled, daily_digest_hour, auto_reply_enabled, auto_reply_message)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
        ON CONFLICT (organization_id) DO UPDATE SET
          is_active = EXCLUDED.is_active,
          connection_ids = EXCLUDED.connection_ids,
@@ -101,6 +104,12 @@ router.put('/config', async (req, res) => {
          notify_external_phone = EXCLUDED.notify_external_phone,
          notify_members_whatsapp = EXCLUDED.notify_members_whatsapp,
          default_connection_id = EXCLUDED.default_connection_id,
+         followup_enabled = EXCLUDED.followup_enabled,
+         followup_hours = EXCLUDED.followup_hours,
+         daily_digest_enabled = EXCLUDED.daily_digest_enabled,
+         daily_digest_hour = EXCLUDED.daily_digest_hour,
+         auto_reply_enabled = EXCLUDED.auto_reply_enabled,
+         auto_reply_message = EXCLUDED.auto_reply_message,
          updated_at = NOW()
        RETURNING *`,
       [
@@ -111,6 +120,9 @@ router.put('/config', async (req, res) => {
         ai_provider || null, ai_model || null, actualApiKey || null,
         notify_external_enabled ?? false, notify_external_phone || null,
         notify_members_whatsapp ?? false, default_connection_id || null,
+        followup_enabled ?? false, followup_hours ?? 4,
+        daily_digest_enabled ?? false, daily_digest_hour ?? 8,
+        auto_reply_enabled ?? false, auto_reply_message || null,
       ]
     );
 
@@ -303,6 +315,88 @@ router.put('/members/:userId/phone', async (req, res) => {
   } catch (error) {
     console.error('Update member phone error:', error);
     res.status(500).json({ error: 'Erro ao atualizar telefone' });
+  }
+});
+
+// ==========================================
+// STATS (Dashboard de carga)
+// ==========================================
+
+router.get('/stats', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org) return res.status(403).json({ error: 'Sem organização' });
+
+    const days = Math.min(parseInt(req.query.days) || 7, 90);
+
+    // Per-member stats
+    const memberStats = await query(`
+      SELECT 
+        gsl.matched_user_id,
+        gsl.matched_user_name,
+        COUNT(*) as total_requests,
+        COUNT(CASE WHEN gsl.priority = 'urgent' THEN 1 END) as urgent_count,
+        COUNT(CASE WHEN gsl.priority = 'high' THEN 1 END) as high_count,
+        COUNT(CASE WHEN gsl.sentiment IN ('negative', 'urgent_negative') THEN 1 END) as negative_count,
+        ROUND(AVG(gsl.confidence)::numeric, 2) as avg_confidence
+      FROM group_secretary_logs gsl
+      WHERE gsl.organization_id = $1 
+        AND gsl.created_at >= NOW() - INTERVAL '1 day' * $2
+        AND gsl.matched_user_id IS NOT NULL
+      GROUP BY gsl.matched_user_id, gsl.matched_user_name
+      ORDER BY total_requests DESC
+    `, [org.organization_id, days]);
+
+    // Pending tasks from secretary
+    const pendingTasks = await query(`
+      SELECT 
+        t.assigned_to,
+        u.name as assigned_name,
+        COUNT(*) as pending_count
+      FROM crm_tasks t
+      LEFT JOIN users u ON u.id = t.assigned_to
+      WHERE t.organization_id = $1 
+        AND t.source = 'group_secretary'
+        AND t.status = 'pending'
+      GROUP BY t.assigned_to, u.name
+    `, [org.organization_id]);
+
+    // Overall stats
+    const overall = await query(`
+      SELECT 
+        COUNT(*) as total,
+        COUNT(CASE WHEN matched_user_id IS NOT NULL THEN 1 END) as matched,
+        COUNT(CASE WHEN priority = 'urgent' THEN 1 END) as urgent,
+        COUNT(CASE WHEN priority = 'high' THEN 1 END) as high,
+        COUNT(CASE WHEN sentiment IN ('negative', 'urgent_negative') THEN 1 END) as negative,
+        ROUND(AVG(processing_time_ms)::numeric, 0) as avg_processing_ms,
+        ROUND(AVG(confidence)::numeric, 2) as avg_confidence
+      FROM group_secretary_logs
+      WHERE organization_id = $1 AND created_at >= NOW() - INTERVAL '1 day' * $2
+    `, [org.organization_id, days]);
+
+    // Daily breakdown
+    const daily = await query(`
+      SELECT 
+        DATE(created_at) as date,
+        COUNT(*) as count,
+        COUNT(CASE WHEN priority IN ('urgent', 'high') THEN 1 END) as priority_count
+      FROM group_secretary_logs
+      WHERE organization_id = $1 AND created_at >= NOW() - INTERVAL '1 day' * $2
+      GROUP BY DATE(created_at)
+      ORDER BY date DESC
+    `, [org.organization_id, days]);
+
+    res.json({
+      period_days: days,
+      overall: overall.rows[0],
+      members: memberStats.rows,
+      pending_tasks: pendingTasks.rows,
+      daily: daily.rows,
+    });
+  } catch (error) {
+    console.error('Get secretary stats error:', error);
+    res.status(500).json({ error: 'Erro ao buscar estatísticas' });
   }
 });
 

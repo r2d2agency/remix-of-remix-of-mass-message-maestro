@@ -16,6 +16,12 @@ export interface SecretaryConfig {
   notify_external_phone?: string;
   notify_members_whatsapp?: boolean;
   default_connection_id?: string | null;
+  followup_enabled?: boolean;
+  followup_hours?: number;
+  daily_digest_enabled?: boolean;
+  daily_digest_hour?: number;
+  auto_reply_enabled?: boolean;
+  auto_reply_message?: string;
 }
 
 export interface SecretaryMember {
@@ -45,7 +51,43 @@ export interface SecretaryLog {
   alert_id: string | null;
   group_name: string | null;
   processing_time_ms: number;
+  priority: string;
+  sentiment: string;
+  deadline: string | null;
+  matched_users_count: number;
   created_at: string;
+}
+
+export interface SecretaryStats {
+  period_days: number;
+  overall: {
+    total: string;
+    matched: string;
+    urgent: string;
+    high: string;
+    negative: string;
+    avg_processing_ms: string;
+    avg_confidence: string;
+  };
+  members: Array<{
+    matched_user_id: string;
+    matched_user_name: string;
+    total_requests: string;
+    urgent_count: string;
+    high_count: string;
+    negative_count: string;
+    avg_confidence: string;
+  }>;
+  pending_tasks: Array<{
+    assigned_to: string;
+    assigned_name: string;
+    pending_count: string;
+  }>;
+  daily: Array<{
+    date: string;
+    count: string;
+    priority_count: string;
+  }>;
 }
 
 export interface AvailableUser {
@@ -116,6 +158,11 @@ export const useGroupSecretary = () => {
     return data;
   }, []);
 
+  const getStats = useCallback(async (days = 7): Promise<SecretaryStats> => {
+    const data = await api<SecretaryStats>(`/api/group-secretary/stats?days=${days}`);
+    return data;
+  }, []);
+
   const updateMemberPhone = useCallback(async (userId: string, whatsappPhone: string): Promise<void> => {
     await api(`/api/group-secretary/members/${userId}/phone`, {
       method: 'PUT',
@@ -134,6 +181,7 @@ export const useGroupSecretary = () => {
     getLogs,
     getAvailableUsers,
     getGroups,
+    getStats,
     updateMemberPhone,
   };
 };

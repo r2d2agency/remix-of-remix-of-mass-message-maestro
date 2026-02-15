@@ -14,17 +14,17 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import {
-  Bot, Users, Settings, Activity, Plus, Trash2, Save, Loader2, Shield, Clock, MessageSquare, BellRing, Phone, Smartphone, Wifi, AlertTriangle, Pencil
+  Bot, Users, Settings, Activity, Plus, Trash2, Save, Loader2, Shield, Clock, MessageSquare, BellRing, Phone, Smartphone, Wifi, AlertTriangle, Pencil, BarChart3, RefreshCw, Timer
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { MainLayout } from "@/components/layout/MainLayout";
-import { useGroupSecretary, type SecretaryConfig, type SecretaryMember, type SecretaryLog, type AvailableUser, type MonitoredGroup } from "@/hooks/use-group-secretary";
+import { useGroupSecretary, type SecretaryConfig, type SecretaryMember, type SecretaryLog, type SecretaryStats, type AvailableUser, type MonitoredGroup } from "@/hooks/use-group-secretary";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 export default function SecretariaGrupos() {
   const {
-    getConfig, saveConfig, getMembers, addMember, removeMember, getLogs, getAvailableUsers, getGroups, updateMemberPhone
+    getConfig, saveConfig, getMembers, addMember, removeMember, getLogs, getAvailableUsers, getGroups, getStats, updateMemberPhone
   } = useGroupSecretary();
 
   const [config, setConfig] = useState<SecretaryConfig>({
@@ -33,9 +33,13 @@ export default function SecretariaGrupos() {
     ai_provider: null, ai_model: null,
     notify_external_enabled: false, notify_external_phone: '',
     notify_members_whatsapp: false, default_connection_id: null,
+    followup_enabled: false, followup_hours: 4,
+    daily_digest_enabled: false, daily_digest_hour: 8,
+    auto_reply_enabled: false, auto_reply_message: '',
   });
   const [members, setMembers] = useState<SecretaryMember[]>([]);
   const [logs, setLogs] = useState<SecretaryLog[]>([]);
+  const [stats, setStats] = useState<SecretaryStats | null>(null);
   const [availableUsers, setAvailableUsers] = useState<AvailableUser[]>([]);
   const [allGroups, setAllGroups] = useState<MonitoredGroup[]>([]);
   const [groupFilter, setGroupFilter] = useState("");
@@ -57,14 +61,15 @@ export default function SecretariaGrupos() {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [cfg, mems, lgs, users, groups] = await Promise.all([
-        getConfig(), getMembers(), getLogs(), getAvailableUsers(), getGroups(),
+      const [cfg, mems, lgs, users, groups, sts] = await Promise.all([
+        getConfig(), getMembers(), getLogs(), getAvailableUsers(), getGroups(), getStats().catch(() => null),
       ]);
       setConfig(cfg);
       setMembers(mems);
       setLogs(lgs);
       setAvailableUsers(users);
       setAllGroups(groups);
+      setStats(sts);
     } catch (err: any) {
       toast.error(err.message || "Erro ao carregar dados");
     } finally {
@@ -183,6 +188,10 @@ export default function SecretariaGrupos() {
             <TabsTrigger value="settings" className="gap-1">
               <Settings className="h-3.5 w-3.5" />
               Configurações
+            </TabsTrigger>
+            <TabsTrigger value="stats" className="gap-1">
+              <BarChart3 className="h-3.5 w-3.5" />
+              Dashboard
             </TabsTrigger>
             <TabsTrigger value="logs" className="gap-1">
               <Activity className="h-3.5 w-3.5" />
@@ -564,6 +573,74 @@ export default function SecretariaGrupos() {
                     </div>
                   )}
                 </div>
+
+                {/* Follow-up automático */}
+                <div className="border-t pt-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <RefreshCw className="h-4 w-4 text-primary" />
+                    <Label className="font-medium">Follow-up Automático</Label>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label>Ativar follow-up</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Envia lembrete ao responsável se a tarefa não for concluída
+                      </p>
+                    </div>
+                    <Switch
+                      checked={config.followup_enabled || false}
+                      onCheckedChange={(v) => setConfig((c) => ({ ...c, followup_enabled: v }))}
+                    />
+                  </div>
+                  {config.followup_enabled && (
+                    <div className="space-y-1.5">
+                      <Label>Horas para follow-up: {config.followup_hours || 4}h</Label>
+                      <Slider
+                        value={[config.followup_hours || 4]}
+                        min={1} max={48} step={1}
+                        onValueChange={([v]) => setConfig((c) => ({ ...c, followup_hours: v }))}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Resumo diário */}
+                <div className="border-t pt-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Timer className="h-4 w-4 text-primary" />
+                    <Label className="font-medium">Resumo Diário</Label>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label>Ativar resumo diário</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Envia resumo das detecções para o número externo todo dia
+                      </p>
+                    </div>
+                    <Switch
+                      checked={config.daily_digest_enabled || false}
+                      onCheckedChange={(v) => setConfig((c) => ({ ...c, daily_digest_enabled: v }))}
+                    />
+                  </div>
+                  {config.daily_digest_enabled && (
+                    <div className="space-y-1.5">
+                      <Label>Horário do envio</Label>
+                      <Select
+                        value={String(config.daily_digest_hour ?? 8)}
+                        onValueChange={(v) => setConfig((c) => ({ ...c, daily_digest_hour: parseInt(v) }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Array.from({ length: 24 }, (_, i) => (
+                            <SelectItem key={i} value={String(i)}>{String(i).padStart(2, '0')}:00</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
 
@@ -621,6 +698,72 @@ export default function SecretariaGrupos() {
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               Salvar Configurações
             </Button>
+          </TabsContent>
+
+          {/* STATS TAB */}
+          <TabsContent value="stats" className="space-y-4">
+            {!stats ? (
+              <Card><CardContent className="p-8 text-center text-muted-foreground">
+                <BarChart3 className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                <p>Nenhuma estatística disponível ainda</p>
+              </CardContent></Card>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <Card><CardContent className="p-4 text-center">
+                    <p className="text-2xl font-bold">{stats.overall.total}</p>
+                    <p className="text-xs text-muted-foreground">Detecções (7d)</p>
+                  </CardContent></Card>
+                  <Card><CardContent className="p-4 text-center">
+                    <p className="text-2xl font-bold">{stats.overall.matched}</p>
+                    <p className="text-xs text-muted-foreground">Com responsável</p>
+                  </CardContent></Card>
+                  <Card><CardContent className="p-4 text-center">
+                    <p className="text-2xl font-bold text-destructive">{stats.overall.urgent}</p>
+                    <p className="text-xs text-muted-foreground">Urgentes</p>
+                  </CardContent></Card>
+                  <Card><CardContent className="p-4 text-center">
+                    <p className="text-2xl font-bold">{stats.overall.avg_processing_ms}ms</p>
+                    <p className="text-xs text-muted-foreground">Tempo médio</p>
+                  </CardContent></Card>
+                </div>
+
+                <Card>
+                  <CardHeader><CardTitle className="text-base">Carga por Membro</CardTitle></CardHeader>
+                  <CardContent>
+                    {stats.members.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">Sem dados no período</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {stats.members.map((m) => {
+                          const pending = stats.pending_tasks.find(p => p.assigned_to === m.matched_user_id);
+                          return (
+                            <div key={m.matched_user_id} className="flex items-center justify-between p-2 rounded-md border">
+                              <div>
+                                <span className="font-medium text-sm">{m.matched_user_name}</span>
+                                <div className="flex gap-2 mt-0.5">
+                                  <Badge variant="secondary" className="text-xs">{m.total_requests} solicitações</Badge>
+                                  {parseInt(m.urgent_count) > 0 && <Badge variant="destructive" className="text-xs">{m.urgent_count} urgentes</Badge>}
+                                  {pending && <Badge variant="outline" className="text-xs">⏳ {pending.pending_count} pendentes</Badge>}
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className="w-24 bg-muted rounded-full h-2">
+                                  <div
+                                    className="bg-primary rounded-full h-2"
+                                    style={{ width: `${Math.min(100, (parseInt(m.total_requests) / Math.max(1, parseInt(stats.members[0]?.total_requests || '1'))) * 100)}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </>
+            )}
           </TabsContent>
 
           {/* LOGS TAB */}

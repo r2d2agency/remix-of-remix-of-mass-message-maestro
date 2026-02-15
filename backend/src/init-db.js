@@ -2816,13 +2816,35 @@ CREATE INDEX IF NOT EXISTS idx_group_secretary_logs_conv ON group_secretary_logs
 CREATE INDEX IF NOT EXISTS idx_group_secretary_logs_matched ON group_secretary_logs(matched_user_id);
 CREATE INDEX IF NOT EXISTS idx_group_secretary_logs_created ON group_secretary_logs(created_at);
 
--- Add new columns for member/external notifications
+-- Add new columns for member/external notifications and advanced features
 DO $$ BEGIN
     ALTER TABLE group_secretary_config ADD COLUMN IF NOT EXISTS notify_external_enabled BOOLEAN DEFAULT false;
     ALTER TABLE group_secretary_config ADD COLUMN IF NOT EXISTS notify_external_phone VARCHAR(50);
     ALTER TABLE group_secretary_config ADD COLUMN IF NOT EXISTS notify_members_whatsapp BOOLEAN DEFAULT false;
     ALTER TABLE group_secretary_config ADD COLUMN IF NOT EXISTS default_connection_id UUID;
+    ALTER TABLE group_secretary_config ADD COLUMN IF NOT EXISTS followup_enabled BOOLEAN DEFAULT false;
+    ALTER TABLE group_secretary_config ADD COLUMN IF NOT EXISTS followup_hours INTEGER DEFAULT 4;
+    ALTER TABLE group_secretary_config ADD COLUMN IF NOT EXISTS daily_digest_enabled BOOLEAN DEFAULT false;
+    ALTER TABLE group_secretary_config ADD COLUMN IF NOT EXISTS daily_digest_hour INTEGER DEFAULT 8;
+    ALTER TABLE group_secretary_config ADD COLUMN IF NOT EXISTS auto_reply_enabled BOOLEAN DEFAULT false;
+    ALTER TABLE group_secretary_config ADD COLUMN IF NOT EXISTS auto_reply_message TEXT;
 EXCEPTION WHEN duplicate_column THEN null; END $$;
+
+-- Add new columns to logs for priority, sentiment, deadline
+DO $$ BEGIN
+    ALTER TABLE group_secretary_logs ADD COLUMN IF NOT EXISTS priority VARCHAR(20) DEFAULT 'normal';
+    ALTER TABLE group_secretary_logs ADD COLUMN IF NOT EXISTS deadline TIMESTAMP WITH TIME ZONE;
+    ALTER TABLE group_secretary_logs ADD COLUMN IF NOT EXISTS sentiment VARCHAR(20) DEFAULT 'neutral';
+    ALTER TABLE group_secretary_logs ADD COLUMN IF NOT EXISTS matched_users_count INTEGER DEFAULT 1;
+EXCEPTION WHEN duplicate_column THEN null; END $$;
+
+-- Add source and followup columns to crm_tasks
+DO $$ BEGIN
+    ALTER TABLE crm_tasks ADD COLUMN IF NOT EXISTS source VARCHAR(50);
+    ALTER TABLE crm_tasks ADD COLUMN IF NOT EXISTS followup_sent_at TIMESTAMP WITH TIME ZONE;
+EXCEPTION WHEN duplicate_column THEN null; END $$;
+
+CREATE INDEX IF NOT EXISTS idx_crm_tasks_source ON crm_tasks(source);
 `;
 
 // Migration steps in order of execution

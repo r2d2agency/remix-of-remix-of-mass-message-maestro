@@ -45,6 +45,8 @@ import { executeCRMAutomations } from './crm-automation-scheduler.js';
 import { processEmailQueue } from './email-scheduler.js';
 import { executeNurturing } from './nurturing-scheduler.js';
 import { executeTaskReminders } from './task-reminder-scheduler.js';
+import { executeSecretaryFollowups } from './secretary-followup-scheduler.js';
+import { executeSecretaryDigest } from './secretary-digest-scheduler.js';
 import { requestContext } from './request-context.js';
 import { log, logError } from './logger.js';
 
@@ -342,6 +344,28 @@ initDatabase().then((ok) => {
       timezone: 'America/Sao_Paulo'
     });
 
+    // Secretary follow-up - checks every 30 minutes
+    cron.schedule('*/30 * * * *', async () => {
+      try {
+        await executeSecretaryFollowups();
+      } catch (error) {
+        console.error('📌 [CRON] Error executing secretary follow-ups:', error);
+      }
+    }, {
+      timezone: 'America/Sao_Paulo'
+    });
+
+    // Secretary daily digest - checks every hour (matches digest_hour config)
+    cron.schedule('0 * * * *', async () => {
+      try {
+        await executeSecretaryDigest();
+      } catch (error) {
+        console.error('📊 [CRON] Error executing secretary digest:', error);
+      }
+    }, {
+      timezone: 'America/Sao_Paulo'
+    });
+
     console.log('⏰ Notification scheduler started - checks every hour (timezone: America/Sao_Paulo)');
     console.log('📤 Campaign scheduler started - checks every 30 seconds');
     console.log('📅 Scheduled messages started - checks every minute');
@@ -351,5 +375,7 @@ initDatabase().then((ok) => {
     console.log('📧 Email queue processor started - checks every minute');
     console.log('🔄 Nurturing sequences started - checks every 2 minutes');
     console.log('⏰ Task reminders started - checks every minute');
+    console.log('📌 Secretary follow-up started - checks every 30 minutes');
+    console.log('📊 Secretary daily digest started - checks every hour');
   });
 });
