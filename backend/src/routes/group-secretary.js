@@ -145,7 +145,7 @@ router.get('/members', async (req, res) => {
     if (!org) return res.status(403).json({ error: 'Sem organização' });
 
     const result = await query(
-      `SELECT gsm.*, u.name as user_name, u.email, u.whatsapp_phone, u.phone
+      `SELECT gsm.*, u.name as user_name, u.email, u.whatsapp_phone
        FROM group_secretary_members gsm
        JOIN users u ON u.id = gsm.user_id
        WHERE gsm.organization_id = $1
