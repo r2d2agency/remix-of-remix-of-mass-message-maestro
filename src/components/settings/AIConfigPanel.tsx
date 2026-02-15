@@ -22,9 +22,9 @@ const AI_MODELS = {
     { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', description: 'Alta capacidade' },
   ],
   gemini: [
-    { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro (Recomendado)', description: 'Mais avançado' },
-    { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', description: 'Rápido e econômico' },
-    { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash', description: 'Experimental' },
+    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (Recomendado)', description: 'Rápido e poderoso' },
+    { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', description: 'Mais avançado' },
+    { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', description: 'Econômico' },
   ],
 };
 
@@ -136,7 +136,7 @@ export function AIConfigPanel() {
               setConfig(prev => ({
                 ...prev,
                 ai_provider: value,
-                ai_model: value === 'openai' ? 'gpt-4o-mini' : value === 'gemini' ? 'gemini-1.5-flash' : '',
+                ai_model: value === 'openai' ? 'gpt-4o-mini' : value === 'gemini' ? 'gemini-2.0-flash' : '',
               }));
               setTestResult(null);
             }}
