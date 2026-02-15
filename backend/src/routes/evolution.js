@@ -712,11 +712,26 @@ router.delete('/:connectionId', authenticate, async (req, res) => {
   try {
     const { connectionId } = req.params;
 
-    // Get connection
-    const connResult = await query(
-      'SELECT * FROM connections WHERE id = $1 AND user_id = $2',
-      [connectionId, req.userId]
+    // Get user's organization for org-level access
+    const orgResult = await query(
+      `SELECT om.organization_id, om.role FROM organization_members om WHERE om.user_id = $1 LIMIT 1`,
+      [req.userId]
     );
+    const org = orgResult.rows[0] || null;
+
+    // Allow delete if user owns connection OR belongs to same org (admin/owner/manager)
+    let connResult;
+    if (org && ['owner', 'admin', 'manager'].includes(org.role)) {
+      connResult = await query(
+        'SELECT * FROM connections WHERE id = $1 AND organization_id = $2',
+        [connectionId, org.organization_id]
+      );
+    } else {
+      connResult = await query(
+        'SELECT * FROM connections WHERE id = $1 AND user_id = $2',
+        [connectionId, req.userId]
+      );
+    }
 
     if (connResult.rows.length === 0) {
       return res.status(404).json({ error: 'Conexão não encontrada' });

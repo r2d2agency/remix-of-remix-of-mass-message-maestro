@@ -258,7 +258,11 @@ const handleGetQRCode = async (connection: Connection) => {
 
   const handleDelete = async (connection: Connection) => {
     try {
-      await api(`/api/evolution/${connection.id}`, { method: 'DELETE' });
+      const isWapi = connection.provider === 'wapi' || !!connection.instance_id;
+      const deleteUrl = isWapi 
+        ? `/api/connections/${connection.id}` 
+        : `/api/evolution/${connection.id}`;
+      await api(deleteUrl, { method: 'DELETE' });
       setConnections(prev => prev.filter(c => c.id !== connection.id));
       toast.success('Conexão excluída');
     } catch (error) {
