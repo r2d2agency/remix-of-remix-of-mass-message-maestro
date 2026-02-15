@@ -1457,35 +1457,61 @@ async function handleMessageUpsert(connection, data) {
       const editedMsg = proto.editedMessage;
       const protoType = proto.type;
       
-      // Handle message deletion (REVOKE)
-      if (protoType === 0 || protoType === 'REVOKE' || proto.key?.id && !editedMsg) {
-        const deletedMessageId = proto.key?.id;
-        if (deletedMessageId) {
-          console.log('Webhook: Message deleted by sender:', deletedMessageId);
-          await query(
-            `UPDATE chat_messages SET is_deleted = true WHERE message_id = $1`,
-            [deletedMessageId]
-          );
-        } else {
-          console.log('Webhook: Ignoring protocol message (early check)');
-        }
-      }
-      // Handle message edit
-      else if (editedMsg && proto.key?.id) {
-        const editedMessageId = proto.key.id;
+      console.log('Webhook: protocolMessage detected. type:', protoType, 'hasEditedMsg:', !!editedMsg, 'proto.key:', JSON.stringify(proto.key));
+      
+      // Handle message edit FIRST (check editedMsg before type/revoke)
+      if (editedMsg) {
+        const editedMessageId = proto.key?.id;
         const newContent = editedMsg.message?.conversation || 
                           editedMsg.message?.extendedTextMessage?.text || 
                           editedMsg.conversation || 
                           editedMsg.extendedTextMessage?.text || '';
-        if (newContent) {
+        if (newContent && editedMessageId) {
           console.log('Webhook: Message edited:', editedMessageId, 'New content:', newContent.substring(0, 50));
-          await query(
-            `UPDATE chat_messages SET content = $1, is_edited = true WHERE message_id = $2`,
+          const editResult = await query(
+            `UPDATE chat_messages SET content = $1, is_edited = true WHERE message_id = $2 RETURNING id`,
             [newContent, editedMessageId]
           );
+          console.log('Webhook: Edit update matched', editResult.rowCount, 'rows for message_id:', editedMessageId);
+          if (editResult.rowCount === 0) {
+            // Try broader match: search by conversation
+            const broadResult = await query(
+              `UPDATE chat_messages SET content = $1, is_edited = true 
+               WHERE message_id = $2 
+               OR message_id LIKE $3
+               RETURNING id`,
+              [newContent, editedMessageId, `%${editedMessageId}%`]
+            );
+            console.log('Webhook: Broad edit match:', broadResult.rowCount, 'rows');
+          }
+        } else {
+          console.log('Webhook: Edit detected but no content or messageId. editedMessageId:', proto.key?.id);
+        }
+      }
+      // Handle message deletion (REVOKE)
+      else if (protoType === 0 || protoType === 'REVOKE' || proto.key?.id) {
+        const deletedMessageId = proto.key?.id;
+        if (deletedMessageId) {
+          console.log('Webhook: Message deleted by sender:', deletedMessageId);
+          const delResult = await query(
+            `UPDATE chat_messages SET is_deleted = true WHERE message_id = $1 RETURNING id`,
+            [deletedMessageId]
+          );
+          console.log('Webhook: Delete update matched', delResult.rowCount, 'rows for message_id:', deletedMessageId);
+          if (delResult.rowCount === 0) {
+            const broadResult = await query(
+              `UPDATE chat_messages SET is_deleted = true 
+               WHERE message_id = $1 OR message_id LIKE $2
+               RETURNING id`,
+              [deletedMessageId, `%${deletedMessageId}%`]
+            );
+            console.log('Webhook: Broad delete match:', broadResult.rowCount, 'rows');
+          }
+        } else {
+          console.log('Webhook: Ignoring protocol message (no key id)');
         }
       } else {
-        console.log('Webhook: Ignoring protocol message (early check)');
+        console.log('Webhook: Ignoring protocol message (early check). type:', protoType);
       }
       return;
     }
@@ -1778,27 +1804,34 @@ async function handleMessageUpsert(connection, data) {
       const editedMsg = proto.editedMessage;
       const protoType = proto.type;
       
-      if (protoType === 0 || protoType === 'REVOKE' || proto.key?.id && !editedMsg) {
-        const deletedMessageId = proto.key?.id;
-        if (deletedMessageId) {
-          console.log('Webhook: Message deleted by sender (late):', deletedMessageId);
-          await query(
-            `UPDATE chat_messages SET is_deleted = true WHERE message_id = $1`,
-            [deletedMessageId]
-          );
-        }
-      } else if (editedMsg && proto.key?.id) {
-        const editedMessageId = proto.key.id;
+      console.log('Webhook (late): protocolMessage. type:', protoType, 'hasEditedMsg:', !!editedMsg, 'proto.key:', JSON.stringify(proto.key));
+      
+      // Handle edit FIRST
+      if (editedMsg) {
+        const editedMessageId = proto.key?.id;
         const newContent = editedMsg.message?.conversation || 
                           editedMsg.message?.extendedTextMessage?.text || 
                           editedMsg.conversation || 
                           editedMsg.extendedTextMessage?.text || '';
-        if (newContent) {
-          console.log('Webhook: Message edited (late):', editedMessageId);
-          await query(
-            `UPDATE chat_messages SET content = $1, is_edited = true WHERE message_id = $2`,
+        if (newContent && editedMessageId) {
+          console.log('Webhook (late): Message edited:', editedMessageId);
+          const editResult = await query(
+            `UPDATE chat_messages SET content = $1, is_edited = true WHERE message_id = $2 RETURNING id`,
             [newContent, editedMessageId]
           );
+          console.log('Webhook (late): Edit matched', editResult.rowCount, 'rows');
+        }
+      }
+      // Handle deletion
+      else if (protoType === 0 || protoType === 'REVOKE' || proto.key?.id) {
+        const deletedMessageId = proto.key?.id;
+        if (deletedMessageId) {
+          console.log('Webhook (late): Message deleted:', deletedMessageId);
+          const delResult = await query(
+            `UPDATE chat_messages SET is_deleted = true WHERE message_id = $1 RETURNING id`,
+            [deletedMessageId]
+          );
+          console.log('Webhook (late): Delete matched', delResult.rowCount, 'rows');
         }
       } else {
         console.log('Webhook: Ignoring protocol message');
