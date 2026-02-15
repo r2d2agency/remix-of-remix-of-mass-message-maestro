@@ -183,7 +183,16 @@ export default function SecretariaGrupos() {
             <Switch
               id="active"
               checked={config.is_active}
-              onCheckedChange={(v) => setConfig((c) => ({ ...c, is_active: v }))}
+              onCheckedChange={async (v) => {
+                setConfig((c) => ({ ...c, is_active: v }));
+                try {
+                  await saveConfig({ ...config, is_active: v });
+                  toast.success(v ? "Secretária ativada!" : "Secretária desativada!");
+                } catch (err: any) {
+                  setConfig((c) => ({ ...c, is_active: !v }));
+                  toast.error("Erro ao salvar status");
+                }
+              }}
             />
           </div>
         </div>
