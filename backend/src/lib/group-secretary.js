@@ -417,10 +417,10 @@ async function createPopupAlert({ userId, senderName, groupName, request, conver
 async function notifyMatchedMember({ organizationId, matchedUserId, matchedUserName, senderName, groupName, request, confidence, priority, defaultConnectionId }) {
   try {
     const userResult = await query(
-      `SELECT phone, whatsapp_phone FROM users WHERE id = $1`,
+      `SELECT whatsapp_phone FROM users WHERE id = $1`,
       [matchedUserId]
     );
-    let phone = userResult.rows[0]?.whatsapp_phone || userResult.rows[0]?.phone;
+    let phone = userResult.rows[0]?.whatsapp_phone;
     if (!phone) {
       logInfo('group_secretary', `No phone for user ${matchedUserName}, skipping WhatsApp notification`);
       return;
