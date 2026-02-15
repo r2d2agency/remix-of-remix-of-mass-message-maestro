@@ -1366,12 +1366,17 @@ async function handleIncomingMessage(connection, payload) {
     if (isGroup && content && connection.organization_id) {
       const convForGroup = await query(`SELECT group_name FROM conversations WHERE id = $1`, [conversationId]);
       const groupNameForSecretary = convForGroup.rows[0]?.group_name || 'Grupo';
+      // Extract mentionedJids from message content context
+      const msgContentObj = payload?.message || payload?.msgContent || {};
+      const ctxInfo = msgContentObj.extendedTextMessage?.contextInfo || {};
+      const mentionedJids = ctxInfo.mentionedJid || ctxInfo.mentionedJids || payload?.mentionedJids || [];
       analyzeGroupMessage({
         organizationId: connection.organization_id,
         conversationId,
         messageContent: content,
         senderName: senderName || 'Desconhecido',
         groupName: groupNameForSecretary,
+        mentionedJids: Array.isArray(mentionedJids) ? mentionedJids : [],
       }).catch(err => console.error('[W-API][GroupSecretary] Error:', err.message));
     }
 
