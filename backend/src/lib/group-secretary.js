@@ -46,7 +46,7 @@ export async function analyzeGroupMessage({
 
     // 3. Get team members with aliases
     const membersResult = await query(
-      `SELECT gsm.*, u.name as user_name, u.email
+      `SELECT gsm.*, u.name as user_name, u.email, u.whatsapp_phone
        FROM group_secretary_members gsm
        JOIN users u ON u.id = gsm.user_id
        WHERE gsm.organization_id = $1 AND gsm.is_active = true`,
@@ -68,7 +68,8 @@ export async function analyzeGroupMessage({
     const membersList = members.map(m => {
       const aliases = m.aliases?.length ? m.aliases.join(', ') : 'nenhum';
       const depts = m.departments?.length ? m.departments.join(', ') : 'não definido';
-      return `- ${m.user_name} (ID: ${m.user_id}) | Apelidos: ${aliases} | Áreas: ${depts} | Descrição: ${m.role_description || 'sem descrição'}`;
+      const phone = m.whatsapp_phone ? m.whatsapp_phone.replace(/\D/g, '') : '';
+      return `- ${m.user_name} (ID: ${m.user_id}) | Apelidos: ${aliases} | Telefone: ${phone || 'não cadastrado'} | Áreas: ${depts} | Descrição: ${m.role_description || 'sem descrição'}`;
     }).join('\n');
 
     const systemPrompt = `Você é uma secretária virtual inteligente que monitora grupos de WhatsApp de um escritório jurídico.
@@ -81,7 +82,8 @@ REGRAS:
 1. Analise se a mensagem contém um pedido, solicitação, tarefa ou menção a algum membro
 2. Identifique TODOS os membros responsáveis (pode ser mais de um) por:
    - Nome direto ou apelido
-   - @menção do WhatsApp (ex: @João)
+    - @menção do WhatsApp (ex: @João, @5511999999999 - no WhatsApp menções podem aparecer como número de telefone, compare com os telefones dos membros)
+   - Número de telefone mencionado com @ que corresponda ao telefone de um membro
    - Contexto + cargo/área (ex: "preciso do financeiro" → membro da área financeira)
 3. Se nenhum membro for identificado, retorne array vazio para matched_users
 4. Avalie a confiança da detecção de 0.0 a 1.0
@@ -112,9 +114,26 @@ Retorne SOMENTE um JSON válido:
   "reason": "breve explicação da detecção"
 }`;
 
+    // Pre-process message: replace phone mentions with names for better AI understanding
+    let processedMessage = messageContent || '';
+    for (const m of members) {
+      const memberPhone = (m.whatsapp_phone || '').replace(/\D/g, '');
+      if (memberPhone && memberPhone.length >= 8) {
+        // Replace @phone patterns with @name
+        processedMessage = processedMessage.replace(new RegExp(`@${memberPhone}`, 'g'), `@${m.user_name}`);
+        // Also try without country code (last 8-11 digits)
+        if (memberPhone.length > 8) {
+          const shortPhone = memberPhone.slice(-11);
+          processedMessage = processedMessage.replace(new RegExp(`@${shortPhone}`, 'g'), `@${m.user_name}`);
+          const shorterPhone = memberPhone.slice(-9);
+          processedMessage = processedMessage.replace(new RegExp(`@${shorterPhone}`, 'g'), `@${m.user_name}`);
+        }
+      }
+    }
+
     const userPrompt = `Grupo: ${groupName || 'Desconhecido'}
 Remetente: ${senderName || 'Desconhecido'}
-Mensagem: "${messageContent}"`;
+Mensagem: "${processedMessage}"`;
 
     // 6. Call AI
     const aiResult = await callAI(aiConfig, systemPrompt, userPrompt);
@@ -139,8 +158,26 @@ Mensagem: "${messageContent}"`;
     for (const match of rawMatches) {
       let member = members.find(m => m.user_id === match.user_id);
       if (!member && match.user_name) {
+        // Try matching by name
         member = members.find(m =>
           m.user_name.toLowerCase().includes((match.user_name || '').toLowerCase())
+        );
+      }
+      if (!member && match.user_name) {
+        // Try matching by phone number (WhatsApp mentions often use phone numbers)
+        const cleanPhone = (match.user_name || '').replace(/\D/g, '');
+        if (cleanPhone.length >= 8) {
+          member = members.find(m => {
+            const memberPhone = (m.whatsapp_phone || '').replace(/\D/g, '');
+            return memberPhone && (memberPhone.includes(cleanPhone) || cleanPhone.includes(memberPhone));
+          });
+        }
+      }
+      if (!member && match.user_name) {
+        // Try matching by aliases
+        member = members.find(m =>
+          (m.aliases || []).some(a => a.toLowerCase().includes((match.user_name || '').toLowerCase()) ||
+            (match.user_name || '').toLowerCase().includes(a.toLowerCase()))
         );
       }
       if (member) matchedMembers.push(member);
