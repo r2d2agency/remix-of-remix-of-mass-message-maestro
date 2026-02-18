@@ -34,6 +34,7 @@ import {
   Bell,
   Lock,
   Webhook,
+  Ghost,
 } from "lucide-react";
 import { API_URL, getAuthToken } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -47,16 +48,16 @@ interface NavItem {
   name: string;
   href: string;
   icon: any;
-  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents' | 'group_secretary';
-  adminOnly?: boolean; // Requires owner, admin, or manager role
-  superadminOnly?: boolean; // Requires superadmin
+  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents' | 'group_secretary' | 'ghost';
+  adminOnly?: boolean;
+  superadminOnly?: boolean;
 }
 
 interface NavSection {
   title: string;
   icon: any;
   items: NavItem[];
-  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents' | 'group_secretary';
+  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents' | 'group_secretary' | 'ghost';
   adminOnly?: boolean; // Entire section requires admin role
 }
 
@@ -89,6 +90,7 @@ const navSections: NavSection[] = [
       { name: "Tarefas", href: "/crm/tarefas", icon: ClipboardList },
       { name: "Relatórios", href: "/crm/relatorios", icon: BarChart3 },
       { name: "Revenue Intel", href: "/revenue-intelligence", icon: Brain, adminOnly: true },
+      { name: "Fantasma", href: "/modulo-fantasma", icon: Ghost, adminOnly: true, moduleKey: 'ghost' },
       { name: "Configurações", href: "/crm/configuracoes", icon: Settings, adminOnly: true },
     ],
   },
