@@ -36,6 +36,7 @@ import conversationSummaryRoutes from './routes/conversation-summary.js';
 import nurturingRoutes from './routes/nurturing.js';
 import ctwaAnalyticsRoutes from './routes/ctwa-analytics.js';
 import groupSecretaryRoutes from './routes/group-secretary.js';
+import ghostRoutes from './routes/ghost.js';
 import { initDatabase } from './init-db.js';
 import { executeNotifications } from './scheduler.js';
 import { executeCampaignMessages } from './campaign-scheduler.js';
@@ -189,6 +190,7 @@ app.use('/api/conversation-summary', conversationSummaryRoutes);
 app.use('/api/nurturing', nurturingRoutes);
 app.use('/api/ctwa', ctwaAnalyticsRoutes);
 app.use('/api/group-secretary', groupSecretaryRoutes);
+app.use('/api/ghost', ghostRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
