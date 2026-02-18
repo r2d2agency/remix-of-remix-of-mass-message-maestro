@@ -100,6 +100,13 @@ router.get('/analyze', authenticate, async (req, res) => {
     if (!org) return res.status(403).json({ error: 'Sem organização' });
     if (org.role !== 'owner') return res.status(403).json({ error: 'Acesso restrito ao proprietário da organização' });
 
+    // Check if ghost module is enabled for this organization
+    const orgModules = await query(`SELECT modules_enabled FROM organizations WHERE id = $1`, [org.organization_id]);
+    const modules = orgModules.rows[0]?.modules_enabled || {};
+    if (modules.ghost === false) {
+      return res.status(403).json({ error: 'Módulo Fantasma não está ativado para esta organização. Ative nas configurações.' });
+    }
+
     const days = parseInt(req.query.days) || 7;
     const connectionId = req.query.connection_id;
     const analysisType = req.query.analysis_type || 'full';

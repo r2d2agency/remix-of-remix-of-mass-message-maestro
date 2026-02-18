@@ -37,6 +37,7 @@ interface Plan {
   has_lead_scoring: boolean;
   has_ai_summary: boolean;
   has_group_secretary: boolean;
+  has_ghost: boolean;
   price: number;
   billing_period: string;
   is_active: boolean;
@@ -122,6 +123,7 @@ export function useSuperadmin() {
     has_lead_scoring: boolean;
     has_ai_summary: boolean;
     has_group_secretary: boolean;
+    has_ghost?: boolean;
     price: number;
     billing_period: string;
     visible_on_signup?: boolean;

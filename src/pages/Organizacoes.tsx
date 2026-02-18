@@ -125,6 +125,7 @@ export default function Organizacoes() {
     chat: true,
     crm: true,
     group_secretary: false,
+    ghost: false,
   });
   const [savingModules, setSavingModules] = useState(false);
 
@@ -198,6 +199,7 @@ export default function Organizacoes() {
         chat: modules.chat ?? true,
         crm: modules.crm ?? true,
         group_secretary: modules.group_secretary ?? false,
+        ghost: modules.ghost ?? false,
       });
     } catch (error) {
       console.error('Error loading modules:', error);
@@ -1058,6 +1060,21 @@ export default function Organizacoes() {
                           <Switch
                             checked={modulesEnabled.group_secretary}
                             onCheckedChange={(checked) => setModulesEnabled(prev => ({ ...prev, group_secretary: checked }))}
+                            disabled={!canManageOrg}
+                          />
+                        </div>
+
+                        {/* Ghost Module */}
+                        <div className="flex items-center justify-between rounded-lg border p-4">
+                          <div>
+                            <p className="text-sm font-medium">Módulo Fantasma</p>
+                            <p className="text-xs text-muted-foreground">
+                              Análise inteligente de conversas por IA
+                            </p>
+                          </div>
+                          <Switch
+                            checked={modulesEnabled.ghost}
+                            onCheckedChange={(checked) => setModulesEnabled(prev => ({ ...prev, ghost: checked }))}
                             disabled={!canManageOrg}
                           />
                         </div>
