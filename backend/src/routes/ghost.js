@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import { callAI } from '../lib/ai-caller.js';
-import logger from '../logger.js';
+import { log, logInfo, logError } from '../logger.js';
 
 const router = Router();
 
@@ -160,7 +160,7 @@ Seja direto e objetivo. Não invente dados. Se uma conversa está normal, não a
         throw new Error('No JSON found in AI response');
       }
     } catch (aiErr) {
-      logger.error('Ghost AI analysis error:', aiErr);
+      logError('ghost_ai_analysis', aiErr);
       return res.status(500).json({ error: 'Erro na análise de IA: ' + aiErr.message });
     }
 
@@ -206,7 +206,7 @@ Seja direto e objetivo. Não invente dados. Se uma conversa está normal, não a
        VALUES ($1, $2, $3, $4, $5, $6)`,
       [req.user.id, org.organization_id, days, summary.total_analyzed, enrichedInsights.length, JSON.stringify(summary)]
     );
-    logger.info(`Ghost audit: user=${req.user.id} org=${org.organization_id} days=${days} convs=${summary.total_analyzed} insights=${enrichedInsights.length}`);
+    logInfo('ghost_audit', { userId: req.user.id, orgId: org.organization_id, days, conversations: summary.total_analyzed, insights: enrichedInsights.length });
 
     res.json({
       summary,
@@ -215,7 +215,7 @@ Seja direto e objetivo. Não invente dados. Se uma conversa está normal, não a
     });
 
   } catch (err) {
-    logger.error('Ghost analyze error:', err);
+    logError('ghost_analyze', err);
     res.status(500).json({ error: err.message });
   }
 });
