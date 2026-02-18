@@ -50,6 +50,7 @@ interface NavItem {
   icon: any;
   moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents' | 'group_secretary' | 'ghost';
   adminOnly?: boolean;
+  ownerOnly?: boolean;
   superadminOnly?: boolean;
 }
 
@@ -90,7 +91,7 @@ const navSections: NavSection[] = [
       { name: "Tarefas", href: "/crm/tarefas", icon: ClipboardList },
       { name: "Relatórios", href: "/crm/relatorios", icon: BarChart3 },
       { name: "Revenue Intel", href: "/revenue-intelligence", icon: Brain, adminOnly: true },
-      { name: "Fantasma", href: "/modulo-fantasma", icon: Ghost, adminOnly: true, moduleKey: 'ghost' },
+      { name: "Fantasma", href: "/modulo-fantasma", icon: Ghost, ownerOnly: true, moduleKey: 'ghost' },
       { name: "Configurações", href: "/crm/configuracoes", icon: Settings, adminOnly: true },
     ],
   },
@@ -142,7 +143,9 @@ function SidebarContentComponent({ isExpanded, isSuperadmin, onNavigate }: Sideb
 
   // Helper to check if user has admin-level role
   const isAdminRole = (role?: string) => ['owner', 'admin', 'manager'].includes(role || '');
+  const isOwnerRole = (role?: string) => role === 'owner';
   const userIsAdmin = isSuperadmin || isAdminRole(user?.role);
+  const userIsOwner = isSuperadmin || isOwnerRole(user?.role);
 
   // Filter sections and items based on modules enabled AND role
   const filteredSections = navSections
@@ -162,6 +165,7 @@ function SidebarContentComponent({ isExpanded, isSuperadmin, onNavigate }: Sideb
         if (item.superadminOnly && !isSuperadmin) return false;
         // Check admin-only item
         if (item.adminOnly && !userIsAdmin) return false;
+        if (item.ownerOnly && !userIsOwner) return false;
         return true;
       })
     }))
