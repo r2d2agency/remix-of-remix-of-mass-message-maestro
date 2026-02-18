@@ -309,6 +309,7 @@ const pricingPlans = [
       { text: "Múltiplos agentes especializados", included: true },
       { text: "Assistente para peças", included: true },
       { text: "Resumos de conversas por IA", included: true },
+      { text: "Análise fantasma de conversas", included: true },
       { text: "Relatórios gerenciais", included: true },
       { text: "Suporte prioritário", included: true },
     ],
@@ -325,6 +326,7 @@ const pricingPlans = [
       { text: "WhatsApps ilimitados", included: true },
       { text: "Usuários ilimitados", included: true },
       { text: "Tudo do Premium +", included: true },
+      { text: "Análise fantasma de conversas", included: true },
       { text: "Onboarding dedicado", included: true },
       { text: "SLA garantido", included: true },
       { text: "Suporte 24/7", included: true },
@@ -335,9 +337,9 @@ const pricingPlans = [
 ];
 
 const stats = [
-  { value: "2.000+", label: "Escritórios ativos" },
+  { value: "100%", label: "Focado em advocacia" },
   { value: "99.9%", label: "Uptime garantido" },
-  { value: "30k+", label: "Conversas organizadas/dia" },
+  { value: "24/7", label: "IA atendendo seus clientes" },
   { value: "<3s", label: "Tempo de resposta" },
 ];
 
