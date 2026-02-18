@@ -82,7 +82,20 @@ function drawBarChart(doc: jsPDF, x: number, y: number, width: number, height: n
   });
 }
 
-export function exportGhostPDF(result: GhostAnalysisResult) {
+async function loadImageAsBase64(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch { return null; }
+}
+
+export async function exportGhostPDF(result: GhostAnalysisResult, options?: { logoUrl?: string | null; orgName?: string }) {
   const doc = new jsPDF('p', 'mm', 'a4');
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 15;
@@ -91,14 +104,33 @@ export function exportGhostPDF(result: GhostAnalysisResult) {
   // === Header ===
   doc.setFillColor(30, 30, 46);
   doc.rect(0, 0, pageWidth, 40, 'F');
+
+  let textStartX = margin;
+
+  // Logo
+  if (options?.logoUrl) {
+    const logoData = await loadImageAsBase64(options.logoUrl);
+    if (logoData) {
+      try {
+        doc.addImage(logoData, 'PNG', margin, 5, 30, 30);
+        textStartX = margin + 35;
+      } catch { /* ignore logo errors */ }
+    }
+  }
+
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(22);
+  doc.setFontSize(20);
   doc.setFont('helvetica', 'bold');
-  doc.text('Relatório Módulo Fantasma', margin, 18);
-  doc.setFontSize(10);
+  doc.text('Relatório Módulo Fantasma', textStartX, 16);
+  if (options?.orgName) {
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    doc.text(options.orgName, textStartX, 23);
+  }
+  doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
-  doc.text(`Gerado em: ${new Date(result.analyzed_at).toLocaleString('pt-BR')}`, margin, 28);
-  doc.text(`Conversas analisadas: ${result.summary.total_analyzed}`, margin, 34);
+  doc.text(`Gerado em: ${new Date(result.analyzed_at).toLocaleString('pt-BR')}`, textStartX, options?.orgName ? 30 : 26);
+  doc.text(`Conversas analisadas: ${result.summary.total_analyzed}`, textStartX, options?.orgName ? 36 : 32);
 
   cursorY = 50;
 

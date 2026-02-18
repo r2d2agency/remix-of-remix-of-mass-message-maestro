@@ -126,6 +126,7 @@ export default function ModuloFantasma() {
   const [connectionId, setConnectionId] = useState<string>("all");
   const [analysisType, setAnalysisType] = useState<string>("full");
   const [connections, setConnections] = useState<Array<{ id: string; name: string }>>([]);
+  const [orgInfo, setOrgInfo] = useState<{ name?: string; logo_url?: string | null }>({});
 
   const analysisTypes = [
     { value: "full", label: "Análise Completa", icon: ScanEye, desc: "Todos os problemas e oportunidades" },
@@ -136,9 +137,10 @@ export default function ModuloFantasma() {
   ];
 
   useEffect(() => {
-    api<Array<{ id: string; name: string }>>("/api/connections")
-      .then(setConnections)
-      .catch(() => {});
+    api<Array<{ id: string; name: string }>>("/api/connections").then(setConnections).catch(() => {});
+    api<Array<{ id: string; name: string; logo_url?: string | null }>>("/api/organizations").then(orgs => {
+      if (orgs?.[0]) setOrgInfo({ name: orgs[0].name, logo_url: orgs[0].logo_url });
+    }).catch(() => {});
   }, []);
 
   const handleAnalyze = () => {
@@ -174,7 +176,7 @@ export default function ModuloFantasma() {
             </div>
           </div>
           {data && (
-            <Button variant="outline" onClick={() => exportGhostPDF(data)} className="gap-2">
+            <Button variant="outline" onClick={() => exportGhostPDF(data, { logoUrl: orgInfo.logo_url, orgName: orgInfo.name })} className="gap-2">
               <FileDown className="h-4 w-4" />
               Exportar PDF
             </Button>
