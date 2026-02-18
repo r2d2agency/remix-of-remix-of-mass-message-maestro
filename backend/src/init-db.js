@@ -2891,6 +2891,25 @@ CREATE TABLE IF NOT EXISTS ghost_audit_logs (
 CREATE INDEX IF NOT EXISTS idx_ghost_audit_org ON ghost_audit_logs(organization_id);
 CREATE INDEX IF NOT EXISTS idx_ghost_audit_created ON ghost_audit_logs(created_at);
 `;
+
+// Step 34: Ghost Saved Analyses
+const step34GhostSavedAnalyses = `
+CREATE TABLE IF NOT EXISTS ghost_saved_analyses (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE NOT NULL,
+    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    label VARCHAR(500) NOT NULL,
+    data JSONB NOT NULL,
+    days INTEGER NOT NULL DEFAULT 7,
+    connection_id UUID,
+    connection_name VARCHAR(255),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ghost_saved_org ON ghost_saved_analyses(organization_id);
+CREATE INDEX IF NOT EXISTS idx_ghost_saved_created ON ghost_saved_analyses(created_at);
+`;
+
 // Migration steps in order of execution
 const migrationSteps = [
   { name: 'Enums', sql: step1Enums, critical: true },
@@ -2927,6 +2946,7 @@ const migrationSteps = [
   { name: 'CTWA Analytics', sql: step31CTWAAnalytics, critical: false },
   { name: 'Group Secretary', sql: step32GroupSecretary, critical: false },
   { name: 'Ghost Audit Logs', sql: step33GhostAudit, critical: false },
+  { name: 'Ghost Saved Analyses', sql: step34GhostSavedAnalyses, critical: false },
 ];
 
 export async function initDatabase() {

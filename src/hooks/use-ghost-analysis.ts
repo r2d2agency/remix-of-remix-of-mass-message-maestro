@@ -69,26 +69,18 @@ export interface SavedAnalysis {
   timestamp: string;
 }
 
-const STORAGE_KEY = 'ghost_saved_analyses';
-
-function loadSavedAnalyses(): SavedAnalysis[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch { return []; }
-}
-
-function persistAnalyses(analyses: SavedAnalysis[]) {
-  // Keep last 20
-  const trimmed = analyses.slice(0, 20);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
-}
-
 export function useGhostAnalysis() {
   const [data, setData] = useState<GhostAnalysisResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [step, setStep] = useState<AnalysisStep>('idle');
-  const [savedAnalyses, setSavedAnalyses] = useState<SavedAnalysis[]>(loadSavedAnalyses);
+  const [savedAnalyses, setSavedAnalyses] = useState<SavedAnalysis[]>([]);
+
+  // Load saved analyses from backend on mount
+  useEffect(() => {
+    api<SavedAnalysis[]>('/api/ghost/analyses')
+      .then(setSavedAnalyses)
+      .catch(() => {});
+  }, []);
 
   const runAnalysis = useCallback(async (params?: { days?: number; connectionId?: string; connectionName?: string; analysisType?: string; analysisLabel?: string }) => {
     setIsLoading(true);
@@ -99,7 +91,6 @@ export function useGhostAnalysis() {
       if (params?.connectionId) queryParams.set('connection_id', params.connectionId);
       if (params?.analysisType) queryParams.set('analysis_type', params.analysisType);
 
-      // Simulate step progression
       await new Promise(r => setTimeout(r, 800));
       setStep('analyzing');
 
@@ -113,19 +104,32 @@ export function useGhostAnalysis() {
       setData(result);
       setStep('done');
 
-      // Save to history
-      const newEntry: SavedAnalysis = {
-        id: `analysis-${Date.now()}`,
-        label: `${params?.analysisLabel || 'Completa'} • ${params?.connectionName || 'Todas'} • ${params?.days || 7}d`,
-        data: result,
-        days: params?.days || 7,
-        connectionId: params?.connectionId,
-        connectionName: params?.connectionName,
-        timestamp: new Date().toISOString(),
-      };
-      const updated = [newEntry, ...savedAnalyses];
-      setSavedAnalyses(updated);
-      persistAnalyses(updated);
+      // Save to backend
+      const label = `${params?.analysisLabel || 'Completa'} • ${params?.connectionName || 'Todas'} • ${params?.days || 7}d`;
+      try {
+        const saved = await api<{ id: string; timestamp: string }>('/api/ghost/analyses', {
+          method: 'POST',
+          body: {
+            label,
+            data: result,
+            days: params?.days || 7,
+            connectionId: params?.connectionId,
+            connectionName: params?.connectionName,
+          },
+        });
+        const newEntry: SavedAnalysis = {
+          id: saved.id,
+          label,
+          data: result,
+          days: params?.days || 7,
+          connectionId: params?.connectionId,
+          connectionName: params?.connectionName,
+          timestamp: saved.timestamp,
+        };
+        setSavedAnalyses(prev => [newEntry, ...prev].slice(0, 20));
+      } catch {
+        // Non-critical: analysis still works even if save fails
+      }
 
       toast.success(`Análise concluída: ${result.summary.total_analyzed} conversas analisadas`);
     } catch (err: any) {
@@ -134,18 +138,21 @@ export function useGhostAnalysis() {
     } finally {
       setIsLoading(false);
     }
-  }, [savedAnalyses]);
+  }, []);
 
   const loadAnalysis = useCallback((analysis: SavedAnalysis) => {
     setData(analysis.data);
     setStep('done');
   }, []);
 
-  const deleteAnalysis = useCallback((id: string) => {
-    const updated = savedAnalyses.filter(a => a.id !== id);
-    setSavedAnalyses(updated);
-    persistAnalyses(updated);
-  }, [savedAnalyses]);
+  const deleteAnalysis = useCallback(async (id: string) => {
+    setSavedAnalyses(prev => prev.filter(a => a.id !== id));
+    try {
+      await api(`/api/ghost/analyses/${id}`, { method: 'DELETE' });
+    } catch {
+      // Silently fail
+    }
+  }, []);
 
   const resetStep = useCallback(() => {
     setStep('idle');

@@ -332,4 +332,74 @@ router.get('/analyze', authenticate, async (req, res) => {
   }
 });
 
+// GET /api/ghost/analyses - List saved analyses
+router.get('/analyses', authenticate, async (req, res) => {
+  try {
+    const org = await getUserOrganization(req.userId);
+    if (!org) return res.status(403).json({ error: 'Sem organização' });
+
+    const result = await query(
+      `SELECT id, label, data, days, connection_id, connection_name, created_at
+       FROM ghost_saved_analyses
+       WHERE organization_id = $1
+       ORDER BY created_at DESC
+       LIMIT 20`,
+      [org.organization_id]
+    );
+
+    res.json(result.rows.map(r => ({
+      id: r.id,
+      label: r.label,
+      data: r.data,
+      days: r.days,
+      connectionId: r.connection_id,
+      connectionName: r.connection_name,
+      timestamp: r.created_at,
+    })));
+  } catch (err) {
+    logError('ghost_list_analyses', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/ghost/analyses - Save an analysis
+router.post('/analyses', authenticate, async (req, res) => {
+  try {
+    const org = await getUserOrganization(req.userId);
+    if (!org) return res.status(403).json({ error: 'Sem organização' });
+
+    const { label, data, days, connectionId, connectionName } = req.body;
+
+    const result = await query(
+      `INSERT INTO ghost_saved_analyses (organization_id, user_id, label, data, days, connection_id, connection_name)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id, created_at`,
+      [org.organization_id, req.userId, label, JSON.stringify(data), days || 7, connectionId || null, connectionName || null]
+    );
+
+    res.json({ id: result.rows[0].id, timestamp: result.rows[0].created_at });
+  } catch (err) {
+    logError('ghost_save_analysis', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/ghost/analyses/:id - Delete a saved analysis
+router.delete('/analyses/:id', authenticate, async (req, res) => {
+  try {
+    const org = await getUserOrganization(req.userId);
+    if (!org) return res.status(403).json({ error: 'Sem organização' });
+
+    await query(
+      `DELETE FROM ghost_saved_analyses WHERE id = $1 AND organization_id = $2`,
+      [req.params.id, org.organization_id]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    logError('ghost_delete_analysis', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;
