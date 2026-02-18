@@ -183,6 +183,14 @@ Seja direto e objetivo. Não invente dados. Se uma conversa está normal, não a
       team_scores: aiResult.team_scores || [],
     };
 
+    // Audit log
+    await query(
+      `INSERT INTO ghost_audit_logs (user_id, organization_id, days_analyzed, conversations_analyzed, insights_count, categories_summary)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [req.user.id, org.organization_id, days, summary.total_analyzed, enrichedInsights.length, JSON.stringify(summary)]
+    );
+    logger.info(`Ghost audit: user=${req.user.id} org=${org.organization_id} days=${days} convs=${summary.total_analyzed} insights=${enrichedInsights.length}`);
+
     res.json({
       summary,
       insights: enrichedInsights,

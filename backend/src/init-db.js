@@ -2874,6 +2874,22 @@ CREATE INDEX IF NOT EXISTS idx_meeting_minutes_conv ON group_secretary_meeting_m
 CREATE INDEX IF NOT EXISTS idx_meeting_minutes_created ON group_secretary_meeting_minutes(created_at);
 `;
 
+// Step 33: Ghost Audit Logs
+const step33GhostAudit = `
+CREATE TABLE IF NOT EXISTS ghost_audit_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE NOT NULL,
+    days_analyzed INTEGER NOT NULL,
+    conversations_analyzed INTEGER DEFAULT 0,
+    insights_count INTEGER DEFAULT 0,
+    categories_summary JSONB DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ghost_audit_org ON ghost_audit_logs(organization_id);
+CREATE INDEX IF NOT EXISTS idx_ghost_audit_created ON ghost_audit_logs(created_at);
+`;
 // Migration steps in order of execution
 const migrationSteps = [
   { name: 'Enums', sql: step1Enums, critical: true },
@@ -2909,6 +2925,7 @@ const migrationSteps = [
   { name: 'Nurturing Sequences', sql: step30NurturingSequences, critical: false },
   { name: 'CTWA Analytics', sql: step31CTWAAnalytics, critical: false },
   { name: 'Group Secretary', sql: step32GroupSecretary, critical: false },
+  { name: 'Ghost Audit Logs', sql: step33GhostAudit, critical: false },
 ];
 
 export async function initDatabase() {
