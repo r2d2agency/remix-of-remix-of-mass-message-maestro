@@ -365,20 +365,17 @@ export default function ModuloFantasma() {
           </>
         )}
 
-        {/* Empty State */}
-        {!data && !isLoading && (
-          <div className="text-center py-20">
-            <Ghost className="h-24 w-24 mx-auto mb-6 text-muted-foreground/20" />
-            <h2 className="text-xl font-semibold text-foreground mb-2">Análise Fantasma</h2>
-            <p className="text-muted-foreground max-w-md mx-auto mb-6">
-              O agente de IA vai varrer todas as conversas do período selecionado para identificar
-              riscos, conversas fora do foco, oportunidades perdidas e a performance da sua equipe.
-            </p>
-            <Button onClick={handleAnalyze} size="lg">
-              <Eye className="h-5 w-5 mr-2" />
-              Iniciar Análise
-            </Button>
-          </div>
+        {/* Empty State - compact, controls are already visible above */}
+        {!data && !isLoading && step === 'idle' && (
+          <Card className="border-dashed">
+            <CardContent className="py-12 text-center">
+              <Ghost className="h-16 w-16 mx-auto mb-4 text-muted-foreground/20" />
+              <h2 className="text-lg font-semibold text-foreground mb-1">Pronto para analisar</h2>
+              <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                Selecione o tipo de análise, a instância e o período acima, depois clique em <strong>Analisar</strong>.
+              </p>
+            </CardContent>
+          </Card>
         )}
       </div>
     </MainLayout>
