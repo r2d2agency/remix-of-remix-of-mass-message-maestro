@@ -116,6 +116,10 @@ async function downloadAndSaveMedia(connection, messageObj, messageType) {
     const rawMimetype = (mediaData?.mimetype || mediaData?.mimeType || mediaData?.type || 'application/octet-stream');
     const mimetype = String(rawMimetype).toLowerCase();
 
+    // For documents, try to use the original filename from the message if available
+    const msgContent = messageObj?.message?.message || messageObj?.message || messageObj;
+    const originalFileName = msgContent?.documentMessage?.fileName;
+
     // Determine file extension based on mimetype
     let ext = '.bin';
     if (mimetype.includes('image/jpeg') || mimetype.includes('image/jpg')) ext = '.jpg';
@@ -138,9 +142,14 @@ async function downloadAndSaveMedia(connection, messageObj, messageType) {
     else if (mimetype.includes('application/zip') || mimetype.includes('x-zip')) ext = '.zip';
     else if (mimetype.includes('application/rar') || mimetype.includes('x-rar')) ext = '.rar';
 
-    // For documents, try to use the original filename from the message if available
-    const msgContent = messageObj?.message?.message || messageObj?.message || messageObj;
-    const originalFileName = msgContent?.documentMessage?.fileName;
+    // If mimetype is generic (octet-stream), try to infer extension from original filename
+    if (ext === '.bin' && originalFileName) {
+      const origExt = path.extname(originalFileName).toLowerCase();
+      if (origExt && origExt !== '.') {
+        ext = origExt;
+      }
+    }
+
     let filename;
     if (originalFileName && messageType === 'document') {
       // Use original filename with a unique prefix to avoid collisions
