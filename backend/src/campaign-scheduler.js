@@ -87,7 +87,7 @@ async function sendWhatsAppMessage(connection, phone, messageItems, contact) {
         mediaUrl
       );
 
-      results.push({ success: result.success, item, error: result.error });
+      results.push({ success: result.success, item, error: result.error, messageId: result.messageId });
       
       // Small delay between items of same message
       if (expandedItems.length > 1) {
@@ -331,6 +331,56 @@ export async function executeCampaignMessages() {
           );
           stats.sent++;
           console.log(`  ✓ [${msg.phone}] Mensagem enviada (${messageItems.length} item(s))`);
+
+          // Save sent messages to chat_messages so they appear in the chat UI
+          const remoteJid = msg.phone.includes('@') ? msg.phone : `${msg.phone}@s.whatsapp.net`;
+          
+          // Find or create conversation
+          let convResult = await query(
+            `SELECT id FROM conversations WHERE connection_id = $1 AND remote_jid = $2`,
+            [msg.connection_id, remoteJid]
+          );
+          
+          let conversationId;
+          if (convResult.rows.length === 0) {
+            const newConv = await query(
+              `INSERT INTO conversations (connection_id, remote_jid, contact_name, contact_phone)
+               VALUES ($1, $2, $3, $4)
+               RETURNING id`,
+              [msg.connection_id, remoteJid, msg.contact_name || '', msg.phone]
+            );
+            conversationId = newConv.rows[0].id;
+          } else {
+            conversationId = convResult.rows[0].id;
+          }
+
+          // Insert each sent item into chat_messages
+          for (const itemResult of result.results) {
+            if (itemResult.success) {
+              const item = itemResult.item;
+              const processedContent = replaceVariables(item.content || item.caption, contact);
+              const mediaUrl = item.mediaUrl || item.media_url;
+              
+              await query(
+                `INSERT INTO chat_messages 
+                  (conversation_id, message_id, from_me, content, message_type, media_url, status, timestamp)
+                 VALUES ($1, $2, true, $3, $4, $5, 'sent', NOW())`,
+                [
+                  conversationId,
+                  itemResult.messageId || null,
+                  processedContent,
+                  item.type || 'text',
+                  mediaUrl,
+                ]
+              );
+            }
+          }
+
+          // Update conversation last_message_at
+          await query(
+            `UPDATE conversations SET last_message_at = NOW(), updated_at = NOW() WHERE id = $1`,
+            [conversationId]
+          );
 
           // Update campaign sent_count
           await query(
