@@ -36,14 +36,15 @@ function translateError(error) {
 function replaceVariables(text, contact) {
   if (!text) return text;
   
+  // Support both {var} and {{var}} formats
   return text
-    .replace(/\{\{nome\}\}/gi, contact.name || '')
-    .replace(/\{\{telefone\}\}/gi, contact.phone || '')
-    .replace(/\{\{email\}\}/gi, contact.email || '')
-    .replace(/\{\{empresa\}\}/gi, contact.company || '')
-    .replace(/\{\{cargo\}\}/gi, contact.position || '')
-    .replace(/\{\{observacao\}\}/gi, contact.notes || '')
-    .replace(/\{\{obs\}\}/gi, contact.notes || '');
+    .replace(/\{\{?nome\}?\}/gi, contact.name || '')
+    .replace(/\{\{?telefone\}?\}/gi, contact.phone || '')
+    .replace(/\{\{?email\}?\}/gi, contact.email || '')
+    .replace(/\{\{?empresa\}?\}/gi, contact.company || '')
+    .replace(/\{\{?cargo\}?\}/gi, contact.position || '')
+    .replace(/\{\{?observacao\}?\}/gi, contact.notes || '')
+    .replace(/\{\{?obs\}?\}/gi, contact.notes || '');
 }
 
 // Helper to send message via unified WhatsApp provider
