@@ -107,18 +107,29 @@ async function downloadAndSaveMedia(connection, messageObj, messageType) {
 
     // Some responses come as data URL: "data:audio/ogg;base64,AAAA..."
     let base64 = rawBase64.trim();
+    let dataUrlMimetype = null;
     const dataUrlIdx = base64.indexOf('base64,');
     if (base64.startsWith('data:') && dataUrlIdx !== -1) {
+      // Extract mimetype from data URL (e.g. "data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,...")
+      const mimeMatch = base64.match(/^data:([^;]+);/);
+      if (mimeMatch) {
+        dataUrlMimetype = mimeMatch[1].toLowerCase();
+      }
       base64 = base64.slice(dataUrlIdx + 'base64,'.length);
     }
     base64 = base64.replace(/\s/g, '');
 
     const rawMimetype = (mediaData?.mimetype || mediaData?.mimeType || mediaData?.type || 'application/octet-stream');
-    const mimetype = String(rawMimetype).toLowerCase();
+    let mimetype = String(rawMimetype).toLowerCase();
+    
+    // If mimetype is generic but we extracted a specific one from data URL, use that
+    if ((mimetype === 'application/octet-stream' || mimetype === 'binary/octet-stream') && dataUrlMimetype) {
+      mimetype = dataUrlMimetype;
+    }
 
     // For documents, try to use the original filename from the message if available
     const msgContent = messageObj?.message?.message || messageObj?.message || messageObj;
-    const originalFileName = msgContent?.documentMessage?.fileName;
+    const originalFileName = msgContent?.documentMessage?.fileName || msgContent?.documentWithCaptionMessage?.message?.documentMessage?.fileName;
 
     // Determine file extension based on mimetype
     let ext = '.bin';
