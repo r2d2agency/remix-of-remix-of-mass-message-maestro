@@ -2956,6 +2956,22 @@ CREATE INDEX IF NOT EXISTS idx_aasp_intimacoes_date ON aasp_intimacoes(data_publ
 CREATE INDEX IF NOT EXISTS idx_aasp_intimacoes_read ON aasp_intimacoes(organization_id, read);
 `;
 
+// ============================================
+// STEP 36: AASP SYNC LOGS
+// ============================================
+const step36AASPSyncLogs = `
+CREATE TABLE IF NOT EXISTS aasp_sync_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+  level TEXT NOT NULL DEFAULT 'info',
+  event TEXT NOT NULL,
+  payload JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_aasp_sync_logs_org ON aasp_sync_logs(organization_id, created_at DESC);
+`;
+
 // Migration steps in order of execution
 const migrationSteps = [
   { name: 'Enums', sql: step1Enums, critical: true },
@@ -2994,6 +3010,7 @@ const migrationSteps = [
   { name: 'Ghost Audit Logs', sql: step33GhostAudit, critical: false },
   { name: 'Ghost Saved Analyses', sql: step34GhostSavedAnalyses, critical: false },
   { name: 'AASP Intimações', sql: step35AASP, critical: false },
+  { name: 'AASP Sync Logs', sql: step36AASPSyncLogs, critical: false },
 ];
 
 export async function initDatabase() {
