@@ -44,6 +44,7 @@ import CTWAAnalytics from "./pages/CTWAAnalytics";
 import RevenueIntelligence from "./pages/RevenueIntelligence";
 import SecretariaGrupos from "./pages/SecretariaGrupos";
 import ModuloFantasma from "./pages/ModuloFantasma";
+import Intimacoes from "./pages/Intimacoes";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -113,6 +114,7 @@ const App = () => (
             <Route path="/revenue-intelligence" element={<ProtectedRoute><RevenueIntelligence /></ProtectedRoute>} />
             <Route path="/secretaria-grupos" element={<ProtectedRoute><SecretariaGrupos /></ProtectedRoute>} />
             <Route path="/modulo-fantasma" element={<ProtectedRoute><ModuloFantasma /></ProtectedRoute>} />
+            <Route path="/intimacoes" element={<ProtectedRoute><Intimacoes /></ProtectedRoute>} />
             <Route path="/f/:slug" element={<PublicFormPage />} />
             <Route path="/politica-privacidade" element={<PoliticaPrivacidade />} />
             <Route path="*" element={<NotFound />} />

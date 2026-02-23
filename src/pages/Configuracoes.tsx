@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Slider } from "@/components/ui/slider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Shield, Bell, Save, Sun, Moon, Monitor, Volume2, VolumeX, BellRing, Smartphone, User, Lock, Loader2, Mail, FileText, Sparkles } from "lucide-react";
+import { Settings, Shield, Bell, Save, Sun, Moon, Monitor, Volume2, VolumeX, BellRing, Smartphone, User, Lock, Loader2, Mail, FileText, Sparkles, Scale } from "lucide-react";
 import { useTheme, Theme } from "@/hooks/use-theme";
 import { useNotificationSound, NOTIFICATION_SOUNDS, NotificationSoundId } from "@/hooks/use-notification-sound";
 import { toast } from "sonner";
@@ -19,6 +19,7 @@ import { EmailTemplatesPanel } from "@/components/email/EmailTemplatesPanel";
 import { FeaturesDocumentation } from "@/components/admin/FeaturesDocumentation";
 import { AIConfigPanel } from "@/components/settings/AIConfigPanel";
 import { WorkSchedulePanel } from "@/components/settings/WorkSchedulePanel";
+import { AASPConfigPanel } from "@/components/settings/AASPConfigPanel";
 
 const Configuracoes = () => {
   const { user } = useAuth();
@@ -109,7 +110,7 @@ const Configuracoes = () => {
         </div>
 
         <Tabs defaultValue="geral" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 lg:w-[600px]">
+          <TabsList className="grid w-full grid-cols-5 lg:w-[750px]">
             <TabsTrigger value="geral" className="flex items-center gap-2">
               <Settings className="h-4 w-4" />
               Geral
@@ -121,6 +122,10 @@ const Configuracoes = () => {
             <TabsTrigger value="email" className="flex items-center gap-2">
               <Mail className="h-4 w-4" />
               E-mail
+            </TabsTrigger>
+            <TabsTrigger value="aasp" className="flex items-center gap-2">
+              <Scale className="h-4 w-4" />
+              AASP
             </TabsTrigger>
             <TabsTrigger value="docs" className="flex items-center gap-2">
               <FileText className="h-4 w-4" />
@@ -599,6 +604,11 @@ const Configuracoes = () => {
           <TabsContent value="email" className="mt-6 space-y-6">
             <SMTPConfigPanel />
             <EmailTemplatesPanel />
+          </TabsContent>
+
+          {/* AASP Settings Tab */}
+          <TabsContent value="aasp" className="mt-6">
+            <AASPConfigPanel />
           </TabsContent>
 
           {/* Features Documentation Tab */}

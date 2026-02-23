@@ -35,6 +35,7 @@ import {
   Lock,
   Webhook,
   Ghost,
+  Scale,
 } from "lucide-react";
 import { API_URL, getAuthToken } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -114,6 +115,7 @@ const navSections: NavSection[] = [
     icon: User,
     items: [
       { name: "Ajustes", href: "/configuracoes", icon: Settings },
+      { name: "Intimações", href: "/intimacoes", icon: Scale },
     ],
   },
   {
