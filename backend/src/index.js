@@ -37,6 +37,7 @@ import nurturingRoutes from './routes/nurturing.js';
 import ctwaAnalyticsRoutes from './routes/ctwa-analytics.js';
 import groupSecretaryRoutes from './routes/group-secretary.js';
 import ghostRoutes from './routes/ghost.js';
+import aaspRoutes from './routes/aasp.js';
 import { initDatabase } from './init-db.js';
 import { executeNotifications } from './scheduler.js';
 import { executeCampaignMessages } from './campaign-scheduler.js';
@@ -48,6 +49,7 @@ import { executeNurturing } from './nurturing-scheduler.js';
 import { executeTaskReminders } from './task-reminder-scheduler.js';
 import { executeSecretaryFollowups } from './secretary-followup-scheduler.js';
 import { executeSecretaryDigest } from './secretary-digest-scheduler.js';
+import { executeAASPSync } from './aasp-scheduler.js';
 import { requestContext } from './request-context.js';
 import { log, logError } from './logger.js';
 
@@ -191,6 +193,7 @@ app.use('/api/nurturing', nurturingRoutes);
 app.use('/api/ctwa', ctwaAnalyticsRoutes);
 app.use('/api/group-secretary', groupSecretaryRoutes);
 app.use('/api/ghost', ghostRoutes);
+app.use('/api/aasp', aaspRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -379,5 +382,17 @@ initDatabase().then((ok) => {
     console.log('⏰ Task reminders started - checks every minute');
     console.log('📌 Secretary follow-up started - checks every 30 minutes');
     console.log('📊 Secretary daily digest started - checks every hour');
+
+    // AASP Intimações sync - runs every hour
+    cron.schedule('0 * * * *', async () => {
+      try {
+        await executeAASPSync();
+      } catch (error) {
+        console.error('⚖️ [CRON] Error executing AASP sync:', error);
+      }
+    }, {
+      timezone: 'America/Sao_Paulo'
+    });
+    console.log('⚖️ AASP intimações sync started - checks every hour');
   });
 });
