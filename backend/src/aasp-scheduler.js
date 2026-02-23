@@ -45,6 +45,7 @@ export async function syncAASP(config) {
       logError('aasp.sync.jornais_failed', null, { organization_id, status: jornaisResp.status, data: jornaisResp.data });
       await dbLog(organization_id, 'error', 'sync.jornais_failed', { status: jornaisResp.status, data: typeof jornaisResp.data === 'string' ? jornaisResp.data.substring(0, 500) : jornaisResp.data });
       return { success: false, error: `API retornou status ${jornaisResp.status}`, newCount: 0 };
+    }
 
     // 2. Fetch intimações
     logInfo('aasp.sync.fetch_intimacoes', { organization_id, url: `${AASP_BASE_URL}/api/Associado/intimacao/json` });
@@ -73,6 +74,7 @@ export async function syncAASP(config) {
       logError('aasp.sync.intimacoes_failed', null, { organization_id, status: intimacoesResp.status, data: intimacoesResp.data });
       await dbLog(organization_id, 'error', 'sync.intimacoes_failed', { status: intimacoesResp.status });
       return { success: false, error: `API retornou status ${intimacoesResp.status}`, newCount: 0 };
+    }
 
     const intimacoes = Array.isArray(intimacoesResp.data) ? intimacoesResp.data : 
                        (intimacoesResp.data?.Intimacoes || intimacoesResp.data?.intimacoes || []);
@@ -147,6 +149,7 @@ export async function syncAASP(config) {
   } catch (error) {
     logError('aasp.sync.error', error, { organization_id });
     await dbLog(organization_id, 'error', 'sync.error', { message: error.message, stack: error.stack?.substring(0, 300) });
+    return { success: false, error: error.message, newCount: 0 };
   }
 }
 
