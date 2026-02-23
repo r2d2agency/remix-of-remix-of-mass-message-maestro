@@ -173,4 +173,39 @@ router.post('/sync', async (req, res) => {
   }
 });
 
+// Get sync logs
+router.get('/sync-logs', async (req, res) => {
+  try {
+    const org = await getUserOrganization(req.userId);
+    if (!org) return res.json([]);
+
+    const result = await query(
+      `SELECT id, level, event, payload, created_at FROM aasp_sync_logs 
+       WHERE organization_id = $1 ORDER BY created_at DESC LIMIT 200`,
+      [org.organization_id]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('AASP get sync logs error:', error);
+    res.status(500).json({ error: 'Erro ao buscar logs' });
+  }
+});
+
+// Clear sync logs
+router.delete('/sync-logs', async (req, res) => {
+  try {
+    const org = await getUserOrganization(req.userId);
+    if (!org) return res.json({ success: true });
+
+    await query(
+      `DELETE FROM aasp_sync_logs WHERE organization_id = $1`,
+      [org.organization_id]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('AASP clear sync logs error:', error);
+    res.status(500).json({ error: 'Erro ao limpar logs' });
+  }
+});
+
 export default router;
