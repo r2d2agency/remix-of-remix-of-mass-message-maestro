@@ -40,22 +40,47 @@ router.post('/config', async (req, res) => {
 
     const { api_token, notify_phone, connection_id, is_active } = req.body;
 
-    if (!api_token) return res.status(400).json({ error: 'Token da API é obrigatório' });
-
-    const result = await query(
-      `INSERT INTO aasp_config (organization_id, api_token, notify_phone, connection_id, is_active)
-       VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (organization_id) DO UPDATE SET
-         api_token = EXCLUDED.api_token,
-         notify_phone = COALESCE(EXCLUDED.notify_phone, aasp_config.notify_phone),
-         connection_id = EXCLUDED.connection_id,
-         is_active = COALESCE(EXCLUDED.is_active, aasp_config.is_active),
-         updated_at = NOW()
-       RETURNING id, organization_id, notify_phone, connection_id, is_active, last_sync_at`,
-      [org.organization_id, api_token, notify_phone || null, connection_id || null, is_active !== false]
+    // Check if config already exists
+    const existing = await query(
+      `SELECT id FROM aasp_config WHERE organization_id = $1`,
+      [org.organization_id]
     );
 
-    res.json(result.rows[0]);
+    if (existing.rows.length > 0) {
+      // Update existing - only update token if provided
+      const setClauses = [
+        'notify_phone = $2',
+        'connection_id = $3',
+        'is_active = $4',
+        'updated_at = NOW()',
+      ];
+      const params = [org.organization_id, notify_phone || null, connection_id || null, is_active !== false];
+
+      if (api_token) {
+        setClauses.push(`api_token = $${params.length + 1}`);
+        params.push(api_token);
+      }
+
+      const result = await query(
+        `UPDATE aasp_config SET ${setClauses.join(', ')} WHERE organization_id = $1
+         RETURNING id, organization_id, notify_phone, connection_id, is_active, last_sync_at,
+         CASE WHEN api_token IS NOT NULL THEN '••••••••' || RIGHT(api_token, 4) ELSE NULL END as api_token_masked`,
+        params
+      );
+      res.json(result.rows[0]);
+    } else {
+      // Insert new - token required
+      if (!api_token) return res.status(400).json({ error: 'Token da API é obrigatório' });
+
+      const result = await query(
+        `INSERT INTO aasp_config (organization_id, api_token, notify_phone, connection_id, is_active)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id, organization_id, notify_phone, connection_id, is_active, last_sync_at,
+         CASE WHEN api_token IS NOT NULL THEN '••••••••' || RIGHT(api_token, 4) ELSE NULL END as api_token_masked`,
+        [org.organization_id, api_token, notify_phone || null, connection_id || null, is_active !== false]
+      );
+      res.json(result.rows[0]);
+    }
   } catch (error) {
     console.error('AASP save config error:', error);
     res.status(500).json({ error: 'Erro ao salvar configuração AASP' });

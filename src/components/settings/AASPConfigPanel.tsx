@@ -30,28 +30,21 @@ export function AASPConfigPanel() {
   }, [config]);
 
   const handleSave = async () => {
-    const apiToken = token || (config ? "KEEP_EXISTING" : "");
-    if (!apiToken) {
-      toast.error("Token da API é obrigatório");
+    if (!config && !token) {
+      toast.error("Token da API é obrigatório na primeira configuração");
       return;
     }
 
     try {
-      // If keeping existing, we need a workaround - send a special value
-      // Backend should handle this
       const body: any = {
-        api_token: token || undefined,
         notify_phone: notifyPhone || undefined,
         connection_id: connectionId || undefined,
         is_active: isActive,
       };
 
       // Only send token if user typed a new one
-      if (!token && config) {
-        // User didn't change token, we need to re-fetch and resend
-        // For now, require token on first save
-        toast.error("Digite o token da API para salvar");
-        return;
+      if (token) {
+        body.api_token = token;
       }
 
       await saveConfig.mutateAsync(body);
