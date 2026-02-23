@@ -1,13 +1,16 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBranding } from "@/hooks/use-branding";
+import { useAASPUnreadCount } from "@/hooks/use-aasp";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Clock, Sun, Sunset, Moon, Building2 } from "lucide-react";
+import { Clock, Sun, Sunset, Moon, Building2, Scale } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useNavigate } from "react-router-dom";
 import { MessageNotifications } from "./MessageNotifications";
 import { CRMAlerts } from "./CRMAlerts";
 import { ConnectionStatusIndicator } from "./ConnectionStatusIndicator";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 function getGreeting(hour: number): { text: string; icon: typeof Sun } {
   if (hour >= 5 && hour < 12) {
@@ -22,6 +25,8 @@ function getGreeting(hour: number): { text: string; icon: typeof Sun } {
 export function TopBar() {
   const { user } = useAuth();
   const { branding } = useBranding();
+  const { data: unreadData } = useAASPUnreadCount();
+  const navigate = useNavigate();
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
@@ -71,6 +76,26 @@ export function TopBar() {
 
         {/* CRM Lead Alerts */}
         <CRMAlerts />
+
+        {/* AASP Intimações Badge */}
+        {(unreadData?.count ?? 0) > 0 && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => navigate('/intimacoes')}
+                className="relative p-2 rounded-md hover:bg-muted transition-colors"
+              >
+                <Scale className="h-5 w-5 text-muted-foreground" />
+                <span className="absolute -top-0.5 -right-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
+                  {unreadData!.count > 99 ? '99+' : unreadData!.count}
+                </span>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{unreadData!.count} intimação(ões) não lida(s)</p>
+            </TooltipContent>
+          </Tooltip>
+        )}
 
         {/* Divider */}
         <div className="h-6 w-px bg-border" />
