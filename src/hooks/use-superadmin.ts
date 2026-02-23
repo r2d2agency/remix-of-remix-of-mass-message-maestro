@@ -38,6 +38,7 @@ interface Plan {
   has_ai_summary: boolean;
   has_group_secretary: boolean;
   has_ghost: boolean;
+  has_aasp: boolean;
   price: number;
   billing_period: string;
   is_active: boolean;
@@ -124,6 +125,7 @@ export function useSuperadmin() {
     has_ai_summary: boolean;
     has_group_secretary: boolean;
     has_ghost?: boolean;
+    has_aasp?: boolean;
     price: number;
     billing_period: string;
     visible_on_signup?: boolean;

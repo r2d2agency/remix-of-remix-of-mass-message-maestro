@@ -49,7 +49,7 @@ interface NavItem {
   name: string;
   href: string;
   icon: any;
-  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents' | 'group_secretary' | 'ghost';
+  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents' | 'group_secretary' | 'ghost' | 'aasp';
   adminOnly?: boolean;
   ownerOnly?: boolean;
   superadminOnly?: boolean;
@@ -59,7 +59,7 @@ interface NavSection {
   title: string;
   icon: any;
   items: NavItem[];
-  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents' | 'group_secretary' | 'ghost';
+  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents' | 'group_secretary' | 'ghost' | 'aasp';
   adminOnly?: boolean; // Entire section requires admin role
 }
 
@@ -115,7 +115,7 @@ const navSections: NavSection[] = [
     icon: User,
     items: [
       { name: "Ajustes", href: "/configuracoes", icon: Settings },
-      { name: "Intimações", href: "/intimacoes", icon: Scale },
+      { name: "Intimações", href: "/intimacoes", icon: Scale, moduleKey: 'aasp' },
     ],
   },
   {
