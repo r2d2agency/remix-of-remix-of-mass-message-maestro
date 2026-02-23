@@ -2,6 +2,18 @@ import { query } from './db.js';
 import { fetchJsonWithRetry } from './lib/retry-fetch.js';
 import { logInfo, logWarn, logError } from './logger.js';
 
+/** Persist a sync log entry to the database for UI visibility */
+async function dbLog(organizationId, level, event, payload = {}) {
+  try {
+    await query(
+      `INSERT INTO aasp_sync_logs (organization_id, level, event, payload) VALUES ($1, $2, $3, $4)`,
+      [organizationId, level, event, JSON.stringify(payload)]
+    );
+  } catch {
+    // don't let log persistence break the sync
+  }
+}
+
 const AASP_BASE_URL = 'https://intimacaoapi.aasp.org.br';
 
 /**
@@ -12,7 +24,7 @@ export async function syncAASP(config) {
   let newCount = 0;
 
   logInfo('aasp.sync.start', { organization_id, has_notify_phone: !!notify_phone, has_connection_id: !!connection_id });
-
+  await dbLog(organization_id, 'info', 'sync.start', { has_notify_phone: !!notify_phone, has_connection_id: !!connection_id });
   try {
     // 1. Get list of jornais with intimações
     logInfo('aasp.sync.fetch_jornais', { organization_id, url: `${AASP_BASE_URL}/api/Associado/intimacao/GetJornaisComIntimacoes/json` });
@@ -31,8 +43,8 @@ export async function syncAASP(config) {
 
     if (!jornaisResp.ok) {
       logError('aasp.sync.jornais_failed', null, { organization_id, status: jornaisResp.status, data: jornaisResp.data });
+      await dbLog(organization_id, 'error', 'sync.jornais_failed', { status: jornaisResp.status, data: typeof jornaisResp.data === 'string' ? jornaisResp.data.substring(0, 500) : jornaisResp.data });
       return { success: false, error: `API retornou status ${jornaisResp.status}`, newCount: 0 };
-    }
 
     // 2. Fetch intimações
     logInfo('aasp.sync.fetch_intimacoes', { organization_id, url: `${AASP_BASE_URL}/api/Associado/intimacao/json` });
@@ -59,11 +71,13 @@ export async function syncAASP(config) {
 
     if (!intimacoesResp.ok) {
       logError('aasp.sync.intimacoes_failed', null, { organization_id, status: intimacoesResp.status, data: intimacoesResp.data });
+      await dbLog(organization_id, 'error', 'sync.intimacoes_failed', { status: intimacoesResp.status });
       return { success: false, error: `API retornou status ${intimacoesResp.status}`, newCount: 0 };
-    }
 
     const intimacoes = Array.isArray(intimacoesResp.data) ? intimacoesResp.data : 
                        (intimacoesResp.data?.Intimacoes || intimacoesResp.data?.intimacoes || []);
+
+    await dbLog(organization_id, 'info', 'sync.parsed_intimacoes', { count: intimacoes.length, extractedFrom: Array.isArray(intimacoesResp.data) ? 'root_array' : intimacoesResp.data?.Intimacoes ? 'Intimacoes_key' : 'fallback' });
 
     logInfo('aasp.sync.parsed_intimacoes', { 
       organization_id, 
@@ -128,10 +142,11 @@ export async function syncAASP(config) {
     }
 
     logInfo('aasp.sync.complete', { organization_id, newCount, total: intimacoes.length, insertErrors });
+    await dbLog(organization_id, 'info', 'sync.complete', { newCount, total: intimacoes.length, insertErrors });
     return { success: true, newCount, total: intimacoes.length };
   } catch (error) {
     logError('aasp.sync.error', error, { organization_id });
-    return { success: false, error: error.message, newCount: 0 };
+    await dbLog(organization_id, 'error', 'sync.error', { message: error.message, stack: error.stack?.substring(0, 300) });
   }
 }
 

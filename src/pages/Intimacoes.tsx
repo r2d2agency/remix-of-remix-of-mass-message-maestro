@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Scale, Search, RefreshCw, Loader2, Eye, EyeOff, CheckCheck, FileText, Calendar, MapPin, Gavel, ChevronLeft, ChevronRight } from "lucide-react";
 import { useAASPIntimacoes, useAASPUnreadCount, useAASPActions, type AASPIntimacao } from "@/hooks/use-aasp";
+import { SyncLogsPanel } from "@/components/aasp/SyncLogsPanel";
 import { toast } from "sonner";
 
 const Intimacoes = () => {
@@ -224,6 +225,9 @@ const Intimacoes = () => {
             </Button>
           </div>
         )}
+
+        {/* Sync Logs Panel */}
+        <SyncLogsPanel />
       </div>
 
       {/* Detail Dialog */}
