@@ -63,6 +63,7 @@ interface Plan {
   has_ai_summary: boolean;
   has_group_secretary: boolean;
   has_ghost: boolean;
+  has_aasp: boolean;
   price: number;
   billing_period: string;
   is_active: boolean;
@@ -154,6 +155,7 @@ export default function Admin() {
   const [newPlanAISummary, setNewPlanAISummary] = useState(true);
   const [newPlanGroupSecretary, setNewPlanGroupSecretary] = useState(false);
   const [newPlanGhost, setNewPlanGhost] = useState(false);
+  const [newPlanAASP, setNewPlanAASP] = useState(false);
   const [newPlanPeriod, setNewPlanPeriod] = useState('monthly');
   const [newPlanVisibleOnSignup, setNewPlanVisibleOnSignup] = useState(false);
   const [newPlanTrialDays, setNewPlanTrialDays] = useState('3');
@@ -312,6 +314,7 @@ export default function Admin() {
       has_ai_summary: newPlanAISummary,
       has_group_secretary: newPlanGroupSecretary,
       has_ghost: newPlanGhost,
+      has_aasp: newPlanAASP,
       price: parseFloat(newPlanPrice) || 0,
       billing_period: newPlanPeriod,
       visible_on_signup: newPlanVisibleOnSignup,
@@ -349,6 +352,7 @@ export default function Admin() {
     setNewPlanAISummary(true);
     setNewPlanGroupSecretary(false);
     setNewPlanGhost(false);
+    setNewPlanAASP(false);
     setNewPlanPeriod('monthly');
     setNewPlanVisibleOnSignup(false);
     setNewPlanTrialDays('3');
@@ -377,6 +381,7 @@ export default function Admin() {
       has_ai_summary: editingPlan.has_ai_summary,
       has_group_secretary: editingPlan.has_group_secretary,
       has_ghost: editingPlan.has_ghost,
+      has_aasp: editingPlan.has_aasp,
       price: editingPlan.price,
       billing_period: editingPlan.billing_period,
       is_active: editingPlan.is_active,
@@ -913,6 +918,14 @@ export default function Admin() {
                           onCheckedChange={setNewPlanGhost}
                         />
                       </div>
+                      <div className="flex items-center justify-between rounded-lg border p-3">
+                        <Label htmlFor="aasp-switch">Intimações AASP</Label>
+                        <Switch
+                          id="aasp-switch"
+                          checked={newPlanAASP}
+                          onCheckedChange={setNewPlanAASP}
+                        />
+                      </div>
                     </div>
                     <div className="border-t pt-4 space-y-4">
                       <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 p-3">
@@ -1050,6 +1063,9 @@ export default function Admin() {
                         )}
                         {plan.has_ghost && (
                           <Badge variant="secondary" className="text-xs">Fantasma</Badge>
+                        )}
+                        {plan.has_aasp && (
+                          <Badge variant="secondary" className="text-xs">AASP</Badge>
                         )}
                       </div>
                       <div className="flex items-center justify-between pt-2 border-t">
@@ -1873,6 +1889,14 @@ export default function Admin() {
                     id="edit-ghost"
                     checked={editingPlan.has_ghost}
                     onCheckedChange={(v) => setEditingPlan({ ...editingPlan, has_ghost: v })}
+                  />
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <Label htmlFor="edit-aasp">Intimações AASP</Label>
+                  <Switch
+                    id="edit-aasp"
+                    checked={editingPlan.has_aasp}
+                    onCheckedChange={(v) => setEditingPlan({ ...editingPlan, has_aasp: v })}
                   />
                 </div>
                 <div className="flex items-center justify-between rounded-lg border p-3">

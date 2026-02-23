@@ -303,6 +303,7 @@ router.post('/plans', requireSuperadmin, async (req, res) => {
       has_ai_summary,
       has_group_secretary,
       has_ghost,
+      has_aasp,
       price, 
       billing_period,
       visible_on_signup,
@@ -314,8 +315,8 @@ router.post('/plans', requireSuperadmin, async (req, res) => {
     }
 
     const result = await query(
-      `INSERT INTO plans (name, description, max_connections, max_monthly_messages, max_users, max_supervisors, has_asaas_integration, has_chat, has_whatsapp_groups, has_campaigns, has_chatbots, has_scheduled_messages, has_crm, has_ai_agents, has_departments, has_lead_scoring, has_ai_summary, has_group_secretary, has_ghost, price, billing_period, visible_on_signup, trial_days)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23) RETURNING *`,
+      `INSERT INTO plans (name, description, max_connections, max_monthly_messages, max_users, max_supervisors, has_asaas_integration, has_chat, has_whatsapp_groups, has_campaigns, has_chatbots, has_scheduled_messages, has_crm, has_ai_agents, has_departments, has_lead_scoring, has_ai_summary, has_group_secretary, has_ghost, has_aasp, price, billing_period, visible_on_signup, trial_days)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24) RETURNING *`,
       [
         name,
         description,
@@ -336,6 +337,7 @@ router.post('/plans', requireSuperadmin, async (req, res) => {
         has_ai_summary !== false,
         has_group_secretary || false,
         has_ghost || false,
+        has_aasp || false,
         price || 0,
         billing_period || 'monthly',
         visible_on_signup || false,
@@ -374,6 +376,7 @@ router.patch('/plans/:id', requireSuperadmin, async (req, res) => {
       has_ai_summary,
       has_group_secretary,
       has_ghost,
+      has_aasp,
       price, 
       billing_period, 
       is_active,
@@ -402,13 +405,14 @@ router.patch('/plans/:id', requireSuperadmin, async (req, res) => {
            has_ai_summary = COALESCE($17, has_ai_summary),
            has_group_secretary = COALESCE($18, has_group_secretary),
            has_ghost = COALESCE($19, has_ghost),
-           price = COALESCE($20, price),
-           billing_period = COALESCE($21, billing_period),
-           is_active = COALESCE($22, is_active),
-           visible_on_signup = COALESCE($23, visible_on_signup),
-           trial_days = COALESCE($24, trial_days),
+           has_aasp = COALESCE($20, has_aasp),
+           price = COALESCE($21, price),
+           billing_period = COALESCE($22, billing_period),
+           is_active = COALESCE($23, is_active),
+           visible_on_signup = COALESCE($24, visible_on_signup),
+           trial_days = COALESCE($25, trial_days),
            updated_at = NOW()
-       WHERE id = $25
+       WHERE id = $26
        RETURNING *`,
       [
         name,
@@ -430,6 +434,7 @@ router.patch('/plans/:id', requireSuperadmin, async (req, res) => {
         has_ai_summary,
         has_group_secretary,
         has_ghost,
+        has_aasp,
         price,
         billing_period,
         is_active,
@@ -455,7 +460,7 @@ router.post('/plans/sync-all', requireSuperadmin, async (req, res) => {
   try {
     // Get all plans with their modules
     const plansResult = await query(
-      `SELECT id, name, has_campaigns, has_asaas_integration, has_whatsapp_groups, has_scheduled_messages, has_chatbots, has_chat, has_crm, has_ai_agents, has_departments, has_lead_scoring, has_ai_summary, has_group_secretary FROM plans`
+      `SELECT id, name, has_campaigns, has_asaas_integration, has_whatsapp_groups, has_scheduled_messages, has_chatbots, has_chat, has_crm, has_ai_agents, has_departments, has_lead_scoring, has_ai_summary, has_group_secretary, has_aasp FROM plans`
     );
 
     let syncedCount = 0;
@@ -475,6 +480,7 @@ router.post('/plans/sync-all', requireSuperadmin, async (req, res) => {
         lead_scoring: plan.has_lead_scoring ?? true,
         ai_summary: plan.has_ai_summary ?? true,
         group_secretary: plan.has_group_secretary ?? false,
+        aasp: plan.has_aasp ?? false,
       };
 
       console.log(`[sync-all] Plan "${plan.name}" (${plan.id}) modules:`, modulesEnabled);

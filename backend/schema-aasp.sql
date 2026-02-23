@@ -1,4 +1,9 @@
 -- AASP Intimações Integration
+
+-- Add has_aasp column to plans table
+ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_aasp BOOLEAN DEFAULT false;
+
+-- Stores API tokens and intimações fetched from AASP API
 -- Stores API tokens and intimações fetched from AASP API
 
 CREATE TABLE IF NOT EXISTS aasp_config (
