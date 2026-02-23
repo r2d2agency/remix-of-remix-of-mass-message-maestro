@@ -93,6 +93,7 @@ DO $$ BEGIN
     ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_ai_summary BOOLEAN DEFAULT true;
     ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_group_secretary BOOLEAN DEFAULT false;
     ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_ghost BOOLEAN DEFAULT false;
+    ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_aasp BOOLEAN DEFAULT false;
     ALTER TABLE crm_tasks ADD COLUMN IF NOT EXISTS reminder_minutes INTEGER DEFAULT NULL;
     ALTER TABLE crm_tasks ADD COLUMN IF NOT EXISTS reminder_whatsapp BOOLEAN DEFAULT false;
     ALTER TABLE crm_tasks ADD COLUMN IF NOT EXISTS reminder_popup BOOLEAN DEFAULT true;
@@ -2910,6 +2911,51 @@ CREATE INDEX IF NOT EXISTS idx_ghost_saved_org ON ghost_saved_analyses(organizat
 CREATE INDEX IF NOT EXISTS idx_ghost_saved_created ON ghost_saved_analyses(created_at);
 `;
 
+// ============================================
+// STEP 35: AASP INTIMAÇÕES
+// ============================================
+const step35AASP = `
+CREATE TABLE IF NOT EXISTS aasp_config (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+  api_token TEXT NOT NULL,
+  notify_phone TEXT,
+  connection_id UUID REFERENCES connections(id) ON DELETE SET NULL,
+  is_active BOOLEAN DEFAULT true,
+  last_sync_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(organization_id)
+);
+
+CREATE TABLE IF NOT EXISTS aasp_intimacoes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+  external_id TEXT,
+  jornal TEXT,
+  data_publicacao DATE,
+  data_disponibilizacao DATE,
+  caderno TEXT,
+  pagina TEXT,
+  comarca TEXT,
+  vara TEXT,
+  processo TEXT,
+  tipo TEXT,
+  conteudo TEXT,
+  partes TEXT,
+  advogados TEXT,
+  raw_data JSONB,
+  notified BOOLEAN DEFAULT false,
+  read BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(organization_id, external_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_aasp_intimacoes_org ON aasp_intimacoes(organization_id);
+CREATE INDEX IF NOT EXISTS idx_aasp_intimacoes_date ON aasp_intimacoes(data_publicacao DESC);
+CREATE INDEX IF NOT EXISTS idx_aasp_intimacoes_read ON aasp_intimacoes(organization_id, read);
+`;
+
 // Migration steps in order of execution
 const migrationSteps = [
   { name: 'Enums', sql: step1Enums, critical: true },
@@ -2947,6 +2993,7 @@ const migrationSteps = [
   { name: 'Group Secretary', sql: step32GroupSecretary, critical: false },
   { name: 'Ghost Audit Logs', sql: step33GhostAudit, critical: false },
   { name: 'Ghost Saved Analyses', sql: step34GhostSavedAnalyses, critical: false },
+  { name: 'AASP Intimações', sql: step35AASP, critical: false },
 ];
 
 export async function initDatabase() {
