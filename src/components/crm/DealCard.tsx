@@ -1,6 +1,7 @@
 import { forwardRef, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { CRMDeal } from "@/hooks/use-crm";
 import { cn } from "@/lib/utils";
 import { Building2, User, Clock, AlertTriangle, CheckSquare, Trophy, XCircle, Pause, Video, CalendarClock, Flame, Thermometer, Snowflake, TrendingUp, TrendingDown, Activity } from "lucide-react";
@@ -12,10 +13,13 @@ interface DealCardProps {
   isDragging?: boolean;
   onClick: (e: React.MouseEvent) => void;
   isNewWin?: boolean;
+  isSelected?: boolean;
+  selectionMode?: boolean;
+  onToggleSelect?: (dealId: string) => void;
 }
 
 export const DealCard = forwardRef<HTMLDivElement, DealCardProps>(
-  function DealCard({ deal, isDragging, onClick, isNewWin }, ref) {
+  function DealCard({ deal, isDragging, onClick, isNewWin, isSelected, selectionMode, onToggleSelect }, ref) {
     // Calculate inactivity
     const hoursInactive = differenceInHours(new Date(), parseISO(deal.last_activity_at));
     const isInactive = deal.inactivity_hours && hoursInactive >= deal.inactivity_hours;
@@ -119,17 +123,35 @@ export const DealCard = forwardRef<HTMLDivElement, DealCardProps>(
       <Card
         ref={ref}
         style={cardStyle}
-        onClick={onClick}
+        onClick={(e) => {
+          if (selectionMode && onToggleSelect) {
+            e.stopPropagation();
+            onToggleSelect(deal.id);
+          } else {
+            onClick(e);
+          }
+        }}
         className={cn(
-          "p-3 cursor-grab active:cursor-grabbing",
+          "p-3 cursor-grab active:cursor-grabbing relative",
           "transition-all duration-200 ease-out",
           "hover:shadow-md hover:-translate-y-0.5",
           isDragging && "shadow-2xl scale-105 rotate-2 ring-2 ring-primary/50 cursor-grabbing",
           borderColor && "border-l-4",
           getStatusStyles(),
-          isNewWin && "animate-scale-in"
+          isNewWin && "animate-scale-in",
+          isSelected && "ring-2 ring-primary bg-primary/5",
+          selectionMode && "cursor-pointer"
         )}
       >
+        {/* Selection checkbox */}
+        {selectionMode && (
+          <div className="absolute top-2 right-2 z-10" onClick={(e) => e.stopPropagation()}>
+            <Checkbox
+              checked={isSelected}
+              onCheckedChange={() => onToggleSelect?.(deal.id)}
+            />
+          </div>
+        )}
         {/* Status Badge */}
         {getStatusBadge() && (
           <div className="mb-2">

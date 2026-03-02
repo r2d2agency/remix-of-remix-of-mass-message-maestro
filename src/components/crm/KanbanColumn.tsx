@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, Trophy, XCircle, Pause, Play } from "lucide-react";
 
@@ -19,6 +20,10 @@ interface KanbanColumnProps {
   newWinDealId?: string | null;
   activeId?: string | null;
   overId?: string | null;
+  selectedIds?: Set<string>;
+  selectionMode?: boolean;
+  onToggleSelect?: (dealId: string) => void;
+  onSelectColumn?: (stageId: string) => void;
 }
 
 // Sortable Deal Item wrapper for smooth animations
@@ -29,7 +34,10 @@ function SortableDealItem({
   isNewWin,
   isActive,
   isOver,
-  activeId
+  activeId,
+  isSelected,
+  selectionMode,
+  onToggleSelect
 }: { 
   deal: CRMDeal; 
   onDealClick: (deal: CRMDeal) => void;
@@ -38,6 +46,9 @@ function SortableDealItem({
   isActive?: boolean;
   isOver?: boolean;
   activeId?: string | null;
+  isSelected?: boolean;
+  selectionMode?: boolean;
+  onToggleSelect?: (dealId: string) => void;
 }) {
   const {
     attributes,
@@ -85,13 +96,15 @@ function SortableDealItem({
         deal={deal}
         onClick={(e) => {
           e.stopPropagation();
-          // Only trigger click if not dragging
           if (!isDragging) {
             onDealClick(deal);
           }
         }}
         isNewWin={isNewWin}
         isDragging={isDragging}
+        isSelected={isSelected}
+        selectionMode={selectionMode}
+        onToggleSelect={onToggleSelect}
       />
       
       {/* Quick actions menu */}
@@ -149,7 +162,11 @@ export function KanbanColumn({
   onStatusChange, 
   newWinDealId,
   activeId,
-  overId 
+  overId,
+  selectedIds,
+  selectionMode,
+  onToggleSelect,
+  onSelectColumn
 }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: stage.id!,
@@ -184,6 +201,12 @@ export function KanbanColumn({
         style={{ borderTopColor: stage.color, borderTopWidth: 4, borderTopLeftRadius: 8, borderTopRightRadius: 8 }}
       >
         <div className="flex items-center gap-2">
+          {selectionMode && deals.length > 0 && (
+            <Checkbox
+              checked={deals.length > 0 && deals.every(d => selectedIds?.has(d.id))}
+              onCheckedChange={() => onSelectColumn?.(stage.id!)}
+            />
+          )}
           <h3 className="font-semibold text-sm">{stage.name}</h3>
           <Badge variant="secondary" className="text-xs">
             {deals.length}
@@ -226,6 +249,9 @@ export function KanbanColumn({
                 isActive={activeId === deal.id}
                 isOver={overId === deal.id}
                 activeId={activeId}
+                isSelected={selectedIds?.has(deal.id)}
+                selectionMode={selectionMode}
+                onToggleSelect={onToggleSelect}
               />
             ))
           )}
