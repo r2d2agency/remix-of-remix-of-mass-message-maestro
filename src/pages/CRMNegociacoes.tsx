@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -9,8 +10,9 @@ import { DealFormDialog } from "@/components/crm/DealFormDialog";
 import { FunnelEditorDialog } from "@/components/crm/FunnelEditorDialog";
 import { WinCelebration } from "@/components/crm/WinCelebration";
 import { LossReasonDialog } from "@/components/crm/LossReasonDialog";
+import { BulkActionBar } from "@/components/crm/BulkActionBar";
 import { useCRMFunnels, useCRMFunnel, useCRMDeals, useCRMGroups, useCRMGroupMembers, useCRMDealMutations, CRMDeal, CRMFunnel } from "@/hooks/use-crm";
-import { Plus, Settings, Loader2, Filter, User, Users, ArrowUpDown, CalendarIcon, X, LayoutGrid, List, Trophy, XCircle, Pause } from "lucide-react";
+import { Plus, Settings, Loader2, Filter, User, Users, ArrowUpDown, CalendarIcon, X, LayoutGrid, List, Trophy, XCircle, Pause, CheckSquare } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { parseISO, format, startOfDay, endOfDay, isWithinInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -19,6 +21,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { toast } from "sonner";
+import { api } from "@/lib/api";
 
 export default function CRMNegociacoes() {
   const { user } = useAuth();
@@ -49,9 +52,13 @@ export default function CRMNegociacoes() {
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   
+  // Bulk selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectionMode, setSelectionMode] = useState(false);
   const { data: funnels, isLoading: loadingFunnels } = useCRMFunnels();
   const { data: groups } = useCRMGroups();
   const { updateDeal } = useCRMDealMutations();
+  const queryClient = useQueryClient();
   
   // Auto-select first funnel
   const currentFunnelId = selectedFunnelId || funnels?.[0]?.id || null;
@@ -111,7 +118,7 @@ export default function CRMNegociacoes() {
     });
   }, [updateDeal, pendingLossDeal]);
 
-  // Sort function
+
   const sortDeals = (deals: CRMDeal[]): CRMDeal[] => {
     return [...deals].sort((a, b) => {
       switch (sortOrder) {
@@ -178,6 +185,107 @@ export default function CRMNegociacoes() {
       return acc;
     }, {} as Record<string, CRMDeal[]>);
   }, [dealsByStage, ownerFilter, groupFilter, sortOrder, user?.id, startDate, endDate, dateFilterType, statusFilter]);
+
+  // Bulk selection handlers
+  const allFilteredDeals = useMemo(() => {
+    return Object.values(filteredDealsByStage || {}).flat() as CRMDeal[];
+  }, [filteredDealsByStage]);
+
+  const uniqueOwners = useMemo(() => {
+    const owners = new Map<string, string>();
+    allFilteredDeals.forEach(d => {
+      if (d.owner_id && d.owner_name) owners.set(d.owner_id, d.owner_name);
+    });
+    return Array.from(owners.entries()).map(([id, name]) => ({ id, name }));
+  }, [allFilteredDeals]);
+
+  const handleToggleSelect = useCallback((dealId: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(dealId)) next.delete(dealId);
+      else next.add(dealId);
+      return next;
+    });
+    if (!selectionMode) setSelectionMode(true);
+  }, [selectionMode]);
+
+  const handleSelectColumn = useCallback((stageId: string) => {
+    const columnDeals = (filteredDealsByStage as Record<string, CRMDeal[]>)?.[stageId] || [];
+    const allSelected = columnDeals.every(d => selectedIds.has(d.id));
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      columnDeals.forEach(d => {
+        if (allSelected) next.delete(d.id);
+        else next.add(d.id);
+      });
+      return next;
+    });
+  }, [filteredDealsByStage, selectedIds]);
+
+  const handleSelectAll = useCallback(() => {
+    setSelectedIds(new Set(allFilteredDeals.map(d => d.id)));
+  }, [allFilteredDeals]);
+
+  const handleClearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+    setSelectionMode(false);
+  }, []);
+
+  const handleBulkMoveStage = useCallback(async (stageId: string) => {
+    const ids = Array.from(selectedIds);
+    try {
+      await Promise.all(ids.map(id => 
+        api(`/api/crm/deals/${id}/move`, { method: "POST", body: { stage_id: stageId } })
+      ));
+      toast.success(`${ids.length} negociação(ões) movida(s)`);
+      handleClearSelection();
+      queryClient.invalidateQueries({ queryKey: ["crm-deals"] });
+    } catch {
+      toast.error("Erro ao mover negociações");
+    }
+  }, [selectedIds, handleClearSelection]);
+
+  const handleBulkMoveFunnel = useCallback(async (funnelId: string) => {
+    const ids = Array.from(selectedIds);
+    try {
+      await Promise.all(ids.map(id => 
+        api(`/api/crm/deals/${id}`, { method: "PUT", body: { funnel_id: funnelId } })
+      ));
+      toast.success(`${ids.length} negociação(ões) movida(s) para outro funil`);
+      handleClearSelection();
+      queryClient.invalidateQueries({ queryKey: ["crm-deals"] });
+    } catch {
+      toast.error("Erro ao mover negociações");
+    }
+  }, [selectedIds, handleClearSelection]);
+
+  const handleBulkChangeOwner = useCallback(async (ownerId: string) => {
+    const ids = Array.from(selectedIds);
+    try {
+      await Promise.all(ids.map(id => 
+        api(`/api/crm/deals/${id}`, { method: "PUT", body: { owner_id: ownerId } })
+      ));
+      toast.success(`Responsável alterado em ${ids.length} negociação(ões)`);
+      handleClearSelection();
+      queryClient.invalidateQueries({ queryKey: ["crm-deals"] });
+    } catch {
+      toast.error("Erro ao alterar responsável");
+    }
+  }, [selectedIds, handleClearSelection]);
+
+  const handleBulkDelete = useCallback(async () => {
+    const ids = Array.from(selectedIds);
+    try {
+      await Promise.all(ids.map(id => 
+        api(`/api/crm/deals/${id}`, { method: "DELETE" })
+      ));
+      toast.success(`${ids.length} negociação(ões) excluída(s)`);
+      handleClearSelection();
+      queryClient.invalidateQueries({ queryKey: ["crm-deals"] });
+    } catch {
+      toast.error("Erro ao excluir negociações");
+    }
+  }, [selectedIds, handleClearSelection]);
 
   const handleDealClick = (deal: CRMDeal) => {
     setSelectedDeal(deal);
@@ -250,6 +358,19 @@ export default function CRMNegociacoes() {
                   <span className="hidden sm:inline">Pipeline</span>
                 </ToggleGroupItem>
               </ToggleGroup>
+
+              {/* Selection mode toggle */}
+              <Button 
+                variant={selectionMode ? "default" : "outline"} 
+                size="sm"
+                onClick={() => {
+                  if (selectionMode) handleClearSelection();
+                  else setSelectionMode(true);
+                }}
+              >
+                <CheckSquare className="h-4 w-4 mr-1" />
+                Selecionar
+              </Button>
 
               {canManage && (
                 <Button variant="outline" onClick={handleNewFunnel}>
@@ -442,6 +563,24 @@ export default function CRMNegociacoes() {
           </div>
         </div>
 
+        {/* Bulk Action Bar */}
+        {selectionMode && selectedIds.size > 0 && funnelData?.stages && (
+          <BulkActionBar
+            selectedCount={selectedIds.size}
+            stages={funnelData.stages}
+            funnels={funnels}
+            currentFunnelId={currentFunnelId || undefined}
+            owners={uniqueOwners}
+            onMoveToStage={handleBulkMoveStage}
+            onMoveToFunnel={handleBulkMoveFunnel}
+            onChangeOwner={handleBulkChangeOwner}
+            onDeleteAll={handleBulkDelete}
+            onClearSelection={handleClearSelection}
+            onSelectAll={handleSelectAll}
+            totalDeals={allFilteredDeals.length}
+          />
+        )}
+
         {/* Content */}
         <div className="flex-1 overflow-hidden">
           {loadingFunnels || loadingDeals ? (
@@ -469,6 +608,10 @@ export default function CRMNegociacoes() {
                 onDealClick={handleDealClick}
                 onStatusChange={handleStatusChange}
                 newWinDealId={newWinDealId}
+                selectedIds={selectedIds}
+                selectionMode={selectionMode}
+                onToggleSelect={handleToggleSelect}
+                onSelectColumn={handleSelectColumn}
               />
             ) : (
               <PipelineView
