@@ -620,6 +620,9 @@ export default function CRMNegociacoes() {
                 onDealClick={handleDealClick}
                 onStatusChange={handleStatusChange}
                 newWinDealId={newWinDealId}
+                selectedIds={selectedIds}
+                selectionMode={selectionMode}
+                onToggleSelect={handleToggleSelect}
               />
             )
           ) : (
