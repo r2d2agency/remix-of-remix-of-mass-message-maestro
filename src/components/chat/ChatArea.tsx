@@ -681,6 +681,34 @@ export function ChatArea({
     setPendingFile({ file, preview });
   }, [inferMessageTypeFromFile]);
 
+  // Paste handler for clipboard images (Ctrl+V screenshots)
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.kind === 'file') {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (!file) continue;
+
+        const inferredType = inferMessageTypeFromFile(file);
+        let preview: string | undefined;
+        if (inferredType === 'image') {
+          preview = URL.createObjectURL(file);
+        }
+
+        // Rename clipboard files to something meaningful
+        const ext = file.type.split('/')[1] || 'png';
+        const renamedFile = new File([file], `screenshot-${Date.now()}.${ext}`, { type: file.type });
+
+        setPendingFile({ file: renamedFile, preview });
+        return;
+      }
+    }
+  }, [inferMessageTypeFromFile]);
+
   const looksLikeFilename = (value: string) => {
     const s = value.trim();
     if (!s) return false;
@@ -2335,6 +2363,7 @@ export function ChatArea({
                   placeholder="Digite uma mensagem... Use @ para mencionar"
                   value={messageText}
                   onChange={(e) => setMessageText(e.target.value)}
+                  onPaste={handlePaste}
                   onKeyDown={(e) => {
                     // Don't trigger send if mentions are showing
                     if (showMentionSuggestions && (e.key === "Enter" || e.key === "Tab" || e.key === "ArrowUp" || e.key === "ArrowDown")) {
