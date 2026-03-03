@@ -1775,6 +1775,41 @@ router.delete('/deals/:dealId/segments/:segmentId', async (req, res) => {
   }
 });
 
+// Delete a single deal
+router.delete('/deals/:dealId', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    await query(
+      `DELETE FROM crm_deals WHERE id = $1 AND organization_id = $2`,
+      [req.params.dealId, org.organization_id]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting deal:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Bulk delete deals
+router.post('/deals/bulk-delete', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    const { ids } = req.body;
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'No deal ids provided' });
+    }
+    const placeholders = ids.map((_, i) => `$${i + 2}`).join(',');
+    const result = await query(
+      `DELETE FROM crm_deals WHERE id IN (${placeholders}) AND organization_id = $1`,
+      [org.organization_id, ...ids]
+    );
+    res.json({ success: true, deleted: result.rowCount });
+  } catch (error) {
+    console.error('Error bulk deleting deals:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Get custom fields
 router.get('/config/custom-fields', async (req, res) => {
   try {
