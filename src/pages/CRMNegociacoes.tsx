@@ -276,9 +276,7 @@ export default function CRMNegociacoes() {
   const handleBulkDelete = useCallback(async () => {
     const ids = Array.from(selectedIds);
     try {
-      await Promise.all(ids.map(id => 
-        api(`/api/crm/deals/${id}`, { method: "DELETE" })
-      ));
+      await api(`/api/crm/deals/bulk-delete`, { method: "POST", body: { ids } });
       toast.success(`${ids.length} negociação(ões) excluída(s)`);
       handleClearSelection();
       queryClient.invalidateQueries({ queryKey: ["crm-deals"] });
