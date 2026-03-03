@@ -39,6 +39,12 @@ router.post('/config', async (req, res) => {
     if (!org) return res.status(400).json({ error: 'Usuário sem organização' });
 
     const { api_token, notify_phone, connection_id, is_active } = req.body;
+    const hasApiTokenField = Object.prototype.hasOwnProperty.call(req.body, 'api_token');
+    const normalizedApiToken = typeof api_token === 'string' ? api_token.trim() : undefined;
+
+    if (hasApiTokenField && !normalizedApiToken) {
+      return res.status(400).json({ error: 'Token da API é obrigatório' });
+    }
 
     // Check if config already exists
     const existing = await query(
@@ -56,9 +62,9 @@ router.post('/config', async (req, res) => {
       ];
       const params = [org.organization_id, notify_phone || null, connection_id || null, is_active !== false];
 
-      if (api_token) {
+      if (normalizedApiToken) {
         setClauses.push(`api_token = $${params.length + 1}`);
-        params.push(api_token);
+        params.push(normalizedApiToken);
       }
 
       const result = await query(
@@ -70,14 +76,14 @@ router.post('/config', async (req, res) => {
       res.json(result.rows[0]);
     } else {
       // Insert new - token required
-      if (!api_token) return res.status(400).json({ error: 'Token da API é obrigatório' });
+      if (!normalizedApiToken) return res.status(400).json({ error: 'Token da API é obrigatório' });
 
       const result = await query(
         `INSERT INTO aasp_config (organization_id, api_token, notify_phone, connection_id, is_active)
          VALUES ($1, $2, $3, $4, $5)
          RETURNING id, organization_id, notify_phone, connection_id, is_active, last_sync_at,
          CASE WHEN api_token IS NOT NULL THEN '••••••••' || RIGHT(api_token, 4) ELSE NULL END as api_token_masked`,
-        [org.organization_id, api_token, notify_phone || null, connection_id || null, is_active !== false]
+        [org.organization_id, normalizedApiToken, notify_phone || null, connection_id || null, is_active !== false]
       );
       res.json(result.rows[0]);
     }
@@ -186,10 +192,15 @@ router.post('/sync', async (req, res) => {
     }
 
     const config = configResult.rows[0];
+    const normalizedApiToken = typeof config.api_token === 'string' ? config.api_token.trim() : '';
+
+    if (!normalizedApiToken) {
+      return res.status(400).json({ error: 'Token da API AASP ausente ou vazio na configuração' });
+    }
 
     // Call AASP API
     const { syncAASP } = await import('../aasp-scheduler.js');
-    const result = await syncAASP(config);
+    const result = await syncAASP({ ...config, api_token: normalizedApiToken });
 
     res.json(result);
   } catch (error) {
