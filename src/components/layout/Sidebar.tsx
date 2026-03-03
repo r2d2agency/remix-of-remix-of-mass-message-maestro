@@ -437,7 +437,7 @@ export function Sidebar() {
   return (
     <>
       {/* Mobile Menu Button - positioned safely */}
-      <div className="fixed top-3 left-3 z-[60] lg:hidden">
+      <div className="fixed left-3 z-[60] lg:hidden" style={{ top: 'calc(env(safe-area-inset-top, 0px) + 0.75rem)' }}>
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
           <SheetTrigger asChild>
             <Button 
