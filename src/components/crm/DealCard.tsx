@@ -160,15 +160,15 @@ export const DealCard = forwardRef<HTMLDivElement, DealCardProps>(
         )}
 
         {/* Title & Value */}
-        <div className="flex items-start justify-between gap-2 mb-2">
+        <div className="flex items-start justify-between gap-2 mb-2 min-w-0">
           <h4 className={cn(
-            "font-medium text-sm line-clamp-2",
+            "font-medium text-sm break-words min-w-0",
             isPaused && "text-muted-foreground"
           )}>
             {deal.title}
           </h4>
           <Badge variant="outline" className={cn(
-            "shrink-0 text-xs",
+            "shrink-0 text-xs whitespace-nowrap",
             isWon && "border-green-500 text-green-600",
             isLost && "border-red-500 text-red-600 line-through",
             isPaused && "border-gray-400 text-gray-500"
@@ -180,7 +180,7 @@ export const DealCard = forwardRef<HTMLDivElement, DealCardProps>(
         {/* Company */}
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
           <Building2 className="h-3 w-3" />
-          <span className="truncate">{deal.company_name}</span>
+          <span className="truncate min-w-0">{deal.company_name}</span>
         </div>
 
         {/* Contact */}
@@ -192,7 +192,7 @@ export const DealCard = forwardRef<HTMLDivElement, DealCardProps>(
         )}
 
         {/* Footer */}
-        <div className="flex items-center justify-between pt-2 border-t mt-2">
+        <div className="flex items-center justify-between pt-2 border-t mt-2 flex-wrap gap-1 min-w-0">
           <div className="flex items-center gap-2">
             {/* Owner */}
             {deal.owner_name && (
