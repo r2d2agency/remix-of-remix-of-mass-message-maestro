@@ -21,10 +21,28 @@ const AASP_BASE_URL = 'https://intimacaoapi.aasp.org.br';
  */
 export async function syncAASP(config) {
   const { organization_id, api_token, notify_phone, connection_id } = config;
+  const normalizedToken = typeof api_token === 'string' ? api_token.trim() : '';
   let newCount = 0;
 
-  logInfo('aasp.sync.start', { organization_id, has_notify_phone: !!notify_phone, has_connection_id: !!connection_id });
-  await dbLog(organization_id, 'info', 'sync.start', { has_notify_phone: !!notify_phone, has_connection_id: !!connection_id });
+  logInfo('aasp.sync.start', {
+    organization_id,
+    has_api_token: !!normalizedToken,
+    has_notify_phone: !!notify_phone,
+    has_connection_id: !!connection_id,
+  });
+  await dbLog(organization_id, 'info', 'sync.start', {
+    has_api_token: !!normalizedToken,
+    has_notify_phone: !!notify_phone,
+    has_connection_id: !!connection_id,
+  });
+
+  if (!normalizedToken) {
+    await dbLog(organization_id, 'error', 'sync.missing_token', {
+      message: 'Token AASP ausente ou vazio na configuração',
+    });
+    return { success: false, error: 'Token AASP ausente ou vazio', newCount: 0 };
+  }
+
   try {
     // 1. Get list of jornais with intimações
     logInfo('aasp.sync.fetch_jornais', { organization_id, url: `${AASP_BASE_URL}/api/Associado/intimacao/GetJornaisComIntimacoes/json` });
@@ -32,7 +50,7 @@ export async function syncAASP(config) {
       `${AASP_BASE_URL}/api/Associado/intimacao/GetJornaisComIntimacoes/json`,
       {
         headers: {
-          'Authorization': `Bearer ${api_token}`,
+          'Authorization': `Bearer ${normalizedToken}`,
           'Accept': 'application/json',
         },
       },
@@ -53,7 +71,7 @@ export async function syncAASP(config) {
       `${AASP_BASE_URL}/api/Associado/intimacao/json`,
       {
         headers: {
-          'Authorization': `Bearer ${api_token}`,
+          'Authorization': `Bearer ${normalizedToken}`,
           'Accept': 'application/json',
         },
       },
