@@ -189,7 +189,7 @@ export function KanbanColumn({
     <div
       ref={setNodeRef}
       className={cn(
-        "flex flex-col w-[300px] min-w-[300px] bg-muted/50 rounded-lg border",
+        "flex flex-col w-[340px] min-w-[340px] bg-muted/50 rounded-lg border",
         "transition-all duration-300 ease-out",
         isDraggingOverColumn && !hasActiveItem && "ring-2 ring-primary bg-primary/5 shadow-lg scale-[1.02]",
         hasActiveItem && "opacity-90"
