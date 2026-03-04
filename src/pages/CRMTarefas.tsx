@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
@@ -22,13 +21,15 @@ import { CreateBoardDialog } from "@/components/tasks/CreateBoardDialog";
 import { CreateCardDialog } from "@/components/tasks/CreateCardDialog";
 import { TaskCardDetailDialog } from "@/components/tasks/TaskCardDetailDialog";
 import {
-  Plus, Kanban, Globe, User, MoreHorizontal, Trash2, Settings, Loader2,
+  Plus, Kanban, Globe, User, MoreHorizontal, Trash2, Edit2, Loader2,
   AlertTriangle, ArrowUp, ArrowDown, Minus, Calendar as CalendarIcon, CheckSquare
 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import { format, parseISO, isPast } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 // Task card mini component for the kanban
 function TaskKanbanCard({ card, onClick }: { card: TaskCard; onClick: () => void }) {
@@ -162,9 +163,8 @@ export default function CRMTarefas() {
   const { user } = useAuth();
   const { getMembers } = useOrganizations();
   const { data: boards, isLoading: loadingBoards } = useTaskBoards();
-  const { createBoard, ensureDefault, deleteBoard } = useTaskBoardMutations();
-  const { createCard } = useTaskCardMutations();
-  const { moveCard } = useTaskCardMutations();
+  const { createBoard, ensureDefault, deleteBoard, updateBoard } = useTaskBoardMutations();
+  const { createCard, moveCard } = useTaskCardMutations();
 
   const isAdmin = user?.role && ['owner', 'admin', 'manager'].includes(user.role);
   const isSuperadmin = (user as any)?.is_superadmin === true;
@@ -180,6 +180,8 @@ export default function CRMTarefas() {
   const [overId, setOverId] = useState<string | null>(null);
   const [orgMembers, setOrgMembers] = useState<any[]>([]);
   const [viewMode, setViewMode] = useState<'all' | 'global' | 'personal'>('all');
+  const [editingBoardId, setEditingBoardId] = useState<string | null>(null);
+  const [editBoardName, setEditBoardName] = useState("");
 
   // Ensure default board on mount
   useEffect(() => {
@@ -213,7 +215,6 @@ export default function CRMTarefas() {
         map[card.column_id].push(card);
       }
     });
-    // Sort by position
     Object.values(map).forEach(arr => arr.sort((a, b) => a.position - b.position));
     return map;
   }, [columns, cards]);
@@ -269,6 +270,7 @@ export default function CRMTarefas() {
   function handleDragCancel() { setActiveId(null); setOverId(null); }
 
   const handleAddCard = (columnId: string) => {
+    if (!selectedBoardId) return;
     setCreateCardColumnId(columnId);
     setCreateCardOpen(true);
   };
@@ -291,6 +293,22 @@ export default function CRMTarefas() {
       deleteBoard.mutate(boardId);
       if (selectedBoardId === boardId) setSelectedBoardId("");
     }
+  };
+
+  const handleRenameBoard = (boardId: string) => {
+    const board = boards?.find(b => b.id === boardId);
+    if (board) {
+      setEditingBoardId(boardId);
+      setEditBoardName(board.name);
+    }
+  };
+
+  const handleSaveRename = () => {
+    if (editingBoardId && editBoardName.trim()) {
+      updateBoard.mutate({ id: editingBoardId, name: editBoardName.trim() });
+      toast.success("Quadro renomeado!");
+    }
+    setEditingBoardId(null);
   };
 
   if (loadingBoards) {
@@ -338,31 +356,45 @@ export default function CRMTarefas() {
           <div className="flex items-center gap-2 overflow-x-auto pb-1">
             {filteredBoards.map(board => (
               <div key={board.id} className="flex items-center gap-1">
-                <Button
-                  variant={selectedBoardId === board.id ? "default" : "outline"}
-                  size="sm"
-                  className="shrink-0 gap-2"
-                  onClick={() => setSelectedBoardId(board.id)}
-                >
-                  <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: board.color }} />
-                  {board.name}
-                  {board.type === 'global' && <Globe className="h-3 w-3 text-muted-foreground" />}
-                  <Badge variant="secondary" className="text-[10px] ml-1">{board.card_count}</Badge>
-                </Button>
-                {!board.is_default && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0">
-                        <MoreHorizontal className="h-3 w-3" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent>
+                {editingBoardId === board.id ? (
+                  <Input
+                    value={editBoardName}
+                    onChange={e => setEditBoardName(e.target.value)}
+                    onBlur={handleSaveRename}
+                    onKeyDown={e => { if (e.key === 'Enter') handleSaveRename(); if (e.key === 'Escape') setEditingBoardId(null); }}
+                    className="h-8 w-40 text-sm"
+                    autoFocus
+                  />
+                ) : (
+                  <Button
+                    variant={selectedBoardId === board.id ? "default" : "outline"}
+                    size="sm"
+                    className="shrink-0 gap-2"
+                    onClick={() => setSelectedBoardId(board.id)}
+                  >
+                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: board.color }} />
+                    {board.name}
+                    {board.type === 'global' && <Globe className="h-3 w-3 text-muted-foreground" />}
+                    <Badge variant="secondary" className="text-[10px] ml-1">{board.card_count}</Badge>
+                  </Button>
+                )}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0">
+                      <MoreHorizontal className="h-3 w-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    <DropdownMenuItem onClick={() => handleRenameBoard(board.id)}>
+                      <Edit2 className="h-4 w-4 mr-2" /> Renomear
+                    </DropdownMenuItem>
+                    {!board.is_default && (
                       <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteBoard(board.id)}>
                         <Trash2 className="h-4 w-4 mr-2" /> Excluir
                       </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             ))}
           </div>

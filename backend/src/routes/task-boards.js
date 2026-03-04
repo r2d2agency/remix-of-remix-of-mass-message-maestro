@@ -6,6 +6,12 @@ import { logInfo, logError } from '../logger.js';
 const router = express.Router();
 router.use(authenticate);
 
+// Compat: auth middleware sets req.userId, normalise to req.user for convenience
+router.use((req, _res, next) => {
+  if (!req.user) req.user = { id: req.userId, email: req.userEmail };
+  next();
+});
+
 // Helper: Get user's organization
 async function getUserOrg(userId) {
   const result = await query(
