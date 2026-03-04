@@ -13,6 +13,11 @@ async function getUserOrganization(userId) {
   return result.rows[0] || null;
 }
 
+function isMaskedTokenValue(token) {
+  if (typeof token !== 'string') return false;
+  return /[•*]{4,}/.test(token);
+}
+
 // Get AASP config
 router.get('/config', async (req, res) => {
   try {
@@ -44,6 +49,10 @@ router.post('/config', async (req, res) => {
 
     if (hasApiTokenField && !normalizedApiToken) {
       return res.status(400).json({ error: 'Token da API é obrigatório' });
+    }
+
+    if (hasApiTokenField && isMaskedTokenValue(normalizedApiToken)) {
+      return res.status(400).json({ error: 'Informe o token real da AASP, não o valor mascarado' });
     }
 
     // Check if config already exists

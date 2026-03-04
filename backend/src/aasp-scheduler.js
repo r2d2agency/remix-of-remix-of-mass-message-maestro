@@ -16,12 +16,87 @@ async function dbLog(organizationId, level, event, payload = {}) {
 
 const AASP_BASE_URL = 'https://intimacaoapi.aasp.org.br';
 
+function normalizeAASPToken(rawToken) {
+  if (typeof rawToken !== 'string') return '';
+  return rawToken
+    .trim()
+    .replace(/^['"]|['"]$/g, '')
+    .replace(/^bearer\s+/i, '')
+    .trim();
+}
+
+function hasMissingKeyError(data) {
+  if (typeof data === 'string') {
+    return data.toLowerCase().includes('chave de acesso vazia');
+  }
+
+  const statusText = typeof data?.status === 'string' ? data.status.toLowerCase() : '';
+  return statusText.includes('chave de acesso vazia');
+}
+
+function buildAASPHeaders(token, mode = 'bearer') {
+  if (mode === 'raw') {
+    return {
+      'Authorization': token,
+      'Accept': 'application/json',
+    };
+  }
+
+  if (mode === 'explicit') {
+    return {
+      'Authorization': `Bearer ${token}`,
+      'x-api-key': token,
+      'api-key': token,
+      'token': token,
+      'Accept': 'application/json',
+    };
+  }
+
+  return {
+    'Authorization': `Bearer ${token}`,
+    'Accept': 'application/json',
+  };
+}
+
+async function fetchAASPWithAuthFallback(url, token, label, organizationId, preferredMode) {
+  const baseModes = ['bearer', 'raw', 'explicit'];
+  const modes = preferredMode ? [preferredMode, ...baseModes.filter((m) => m !== preferredMode)] : baseModes;
+
+  let lastResponse = null;
+
+  for (const mode of modes) {
+    const response = await fetchJsonWithRetry(
+      url,
+      { headers: buildAASPHeaders(token, mode) },
+      { retries: 2, label: `${label}-${mode}` }
+    );
+
+    if (response.ok) {
+      return { ...response, authMode: mode };
+    }
+
+    lastResponse = { ...response, authMode: mode };
+
+    const shouldTryNextMode = response.status === 400 && hasMissingKeyError(response.data);
+    if (!shouldTryNextMode) break;
+
+    logWarn('aasp.sync.auth_mode_retry', {
+      organization_id: organizationId,
+      mode,
+      status: response.status,
+      message: 'AASP retornou chave de acesso vazia; tentando próximo formato de autenticação.',
+    });
+  }
+
+  return lastResponse || { ok: false, status: 500, data: null, authMode: 'unknown' };
+}
+
 /**
  * Sync intimações from AASP API for a given config
  */
 export async function syncAASP(config) {
   const { organization_id, api_token, notify_phone, connection_id } = config;
-  const normalizedToken = typeof api_token === 'string' ? api_token.trim() : '';
+  const normalizedToken = normalizeAASPToken(api_token);
   let newCount = 0;
 
   logInfo('aasp.sync.start', {
@@ -46,15 +121,11 @@ export async function syncAASP(config) {
   try {
     // 1. Get list of jornais with intimações
     logInfo('aasp.sync.fetch_jornais', { organization_id, url: `${AASP_BASE_URL}/api/Associado/intimacao/GetJornaisComIntimacoes/json` });
-    const jornaisResp = await fetchJsonWithRetry(
+    const jornaisResp = await fetchAASPWithAuthFallback(
       `${AASP_BASE_URL}/api/Associado/intimacao/GetJornaisComIntimacoes/json`,
-      {
-        headers: {
-          'Authorization': `Bearer ${normalizedToken}`,
-          'Accept': 'application/json',
-        },
-      },
-      { retries: 2, label: 'aasp-jornais' }
+      normalizedToken,
+      'aasp-jornais',
+      organization_id
     );
 
     logInfo('aasp.sync.jornais_response', { organization_id, status: jornaisResp.status, ok: jornaisResp.ok, dataType: typeof jornaisResp.data, dataPreview: JSON.stringify(jornaisResp.data)?.substring(0, 500) });
@@ -67,15 +138,12 @@ export async function syncAASP(config) {
 
     // 2. Fetch intimações
     logInfo('aasp.sync.fetch_intimacoes', { organization_id, url: `${AASP_BASE_URL}/api/Associado/intimacao/json` });
-    const intimacoesResp = await fetchJsonWithRetry(
+    const intimacoesResp = await fetchAASPWithAuthFallback(
       `${AASP_BASE_URL}/api/Associado/intimacao/json`,
-      {
-        headers: {
-          'Authorization': `Bearer ${normalizedToken}`,
-          'Accept': 'application/json',
-        },
-      },
-      { retries: 2, label: 'aasp-intimacoes' }
+      normalizedToken,
+      'aasp-intimacoes',
+      organization_id,
+      jornaisResp.authMode
     );
 
     logInfo('aasp.sync.intimacoes_response', { 
