@@ -12,6 +12,27 @@ router.use((req, _res, next) => {
   next();
 });
 
+// Ensure backward-compatible schema for task module
+let taskSchemaEnsured = false;
+async function ensureTaskSchema() {
+  if (taskSchemaEnsured) return;
+  await query(`
+    ALTER TABLE task_cards ADD COLUMN IF NOT EXISTS company_id UUID;
+    CREATE INDEX IF NOT EXISTS idx_task_cards_company ON task_cards(company_id);
+  `);
+  taskSchemaEnsured = true;
+}
+
+router.use(async (_req, res, next) => {
+  try {
+    await ensureTaskSchema();
+    next();
+  } catch (error) {
+    logError('task-boards.schema.ensure', error);
+    res.status(500).json({ error: 'Falha ao preparar schema de tarefas' });
+  }
+});
+
 // Helper: Get user's organization
 async function getUserOrg(userId) {
   const result = await query(

@@ -21,7 +21,7 @@ import {
   AlertTriangle, Clock, ArrowUp, ArrowDown, Minus, FileText, Link2,
   Building2, Briefcase, Users, Ban
 } from "lucide-react";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, differenceInDays, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -97,6 +97,20 @@ export function TaskCardDetailDialog({ card, open, onOpenChange, boardType }: Ta
   const allChecklistsComplete = useMemo(() => {
     if (!checklists || checklists.length === 0) return true;
     return checklists.every(cl => cl.items.length === 0 || cl.items.every(i => i.checked));
+  }, [checklists]);
+
+  const checklistTimelineItems = useMemo(() => {
+    const flat = (checklists || []).flatMap((cl) =>
+      (cl.items || [])
+        .filter((item) => !!item.due_date)
+        .map((item) => ({
+          checklistTitle: cl.title,
+          text: item.text,
+          checked: item.checked,
+          dueDate: parseISO(item.due_date as string),
+        }))
+    );
+    return flat.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
   }, [checklists]);
 
   const handleSave = () => {
@@ -550,6 +564,35 @@ export function TaskCardDetailDialog({ card, open, onOpenChange, boardType }: Ta
                 );
               })}
             </div>
+
+            {checklistTimelineItems.length > 0 && (
+              <>
+                <Separator />
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Gantt do card (itens com prazo)</label>
+                  <div className="space-y-1.5">
+                    {checklistTimelineItems.map((item, idx) => {
+                      const days = Math.max(0, Math.min(30, differenceInDays(startOfDay(item.dueDate), startOfDay(new Date()))));
+                      const widthPct = Math.max(8, (days / 30) * 100);
+                      return (
+                        <div key={`${item.checklistTitle}-${idx}`} className="text-xs space-y-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className={cn("truncate", item.checked && "line-through text-muted-foreground")}>{item.text}</span>
+                            <span className="text-muted-foreground">{format(item.dueDate, "dd/MM", { locale: ptBR })}</span>
+                          </div>
+                          <div className="h-2 bg-muted rounded overflow-hidden">
+                            <div
+                              className={cn("h-2", item.checked ? "bg-primary/40" : "bg-primary")}
+                              style={{ width: `${widthPct}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
 
             <Separator />
 

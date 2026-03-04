@@ -3068,6 +3068,7 @@ CREATE TABLE IF NOT EXISTS task_cards (
     created_by UUID REFERENCES users(id),
     contact_id UUID,
     deal_id UUID,
+    company_id UUID, 
     position INTEGER DEFAULT 0,
     tags JSONB DEFAULT '[]'::jsonb,
     attachments JSONB DEFAULT '[]'::jsonb,
@@ -3105,6 +3106,7 @@ CREATE INDEX IF NOT EXISTS idx_task_cards_column ON task_cards(column_id);
 CREATE INDEX IF NOT EXISTS idx_task_cards_assigned ON task_cards(assigned_to);
 CREATE INDEX IF NOT EXISTS idx_task_cards_deal ON task_cards(deal_id);
 CREATE INDEX IF NOT EXISTS idx_task_cards_contact ON task_cards(contact_id);
+CREATE INDEX IF NOT EXISTS idx_task_cards_company ON task_cards(company_id);
 CREATE INDEX IF NOT EXISTS idx_task_card_checklists_card ON task_card_checklists(card_id);
 `;
 

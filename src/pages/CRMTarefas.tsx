@@ -3,7 +3,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   DndContext, DragOverlay, closestCorners, DragStartEvent, DragEndEvent, DragOverEvent,
   PointerSensor, useSensor, useSensors, MeasuringStrategy 
@@ -21,11 +21,10 @@ import { CreateBoardDialog } from "@/components/tasks/CreateBoardDialog";
 import { CreateCardDialog } from "@/components/tasks/CreateCardDialog";
 import { TaskCardDetailDialog } from "@/components/tasks/TaskCardDetailDialog";
 import { ChecklistTemplateManager } from "@/components/tasks/ChecklistTemplateManager";
-import { GanttChart } from "@/components/tasks/GanttChart";
 import {
   Plus, Kanban, Globe, User, MoreHorizontal, Trash2, Edit2, Loader2,
   AlertTriangle, ArrowUp, ArrowDown, Minus, Calendar as CalendarIcon, CheckSquare,
-  BarChart3, ListChecks
+  ListChecks
 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -193,7 +192,7 @@ export default function CRMTarefas() {
   const [viewMode, setViewMode] = useState<'all' | 'global' | 'personal'>('all');
   const [editingBoardId, setEditingBoardId] = useState<string | null>(null);
   const [editBoardName, setEditBoardName] = useState("");
-  const [mainTab, setMainTab] = useState<'kanban' | 'gantt' | 'templates'>('kanban');
+  const [mainTab, setMainTab] = useState<'kanban' | 'templates'>('kanban');
 
   // Ensure default board on mount
   useEffect(() => {
@@ -347,14 +346,10 @@ export default function CRMTarefas() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {/* Main view tabs */}
               <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as any)}>
                 <TabsList className="h-8">
                   <TabsTrigger value="kanban" className="text-xs px-3">
                     <Kanban className="h-3 w-3 mr-1" /> Kanban
-                  </TabsTrigger>
-                  <TabsTrigger value="gantt" className="text-xs px-3">
-                    <BarChart3 className="h-3 w-3 mr-1" /> Gantt
                   </TabsTrigger>
                   <TabsTrigger value="templates" className="text-xs px-3">
                     <ListChecks className="h-3 w-3 mr-1" /> Templates
@@ -368,7 +363,7 @@ export default function CRMTarefas() {
                 </Button>
               )}
             </div>
-          </div>
+            </div>
 
           {/* Board selector - only for kanban */}
           {mainTab === 'kanban' && (
@@ -483,11 +478,6 @@ export default function CRMTarefas() {
           </>
         )}
 
-        {mainTab === 'gantt' && (
-          <div className="flex-1 p-4 overflow-auto">
-            <GanttChart />
-          </div>
-        )}
 
         {mainTab === 'templates' && (
           <div className="flex-1 p-4 overflow-auto">
