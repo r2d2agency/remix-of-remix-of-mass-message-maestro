@@ -146,10 +146,16 @@ export function useTaskColumnMutations() {
 }
 
 // Cards
-export function useTaskCards(boardId?: string) {
+export function useTaskCards(boardId?: string, filters?: { filter_user?: string; date_from?: string; date_to?: string }) {
+  const params = new URLSearchParams();
+  if (filters?.filter_user && filters.filter_user !== 'all') params.set('filter_user', filters.filter_user);
+  if (filters?.date_from) params.set('date_from', filters.date_from);
+  if (filters?.date_to) params.set('date_to', filters.date_to);
+  const qs = params.toString();
+  
   return useQuery<TaskCard[]>({
-    queryKey: ['task-cards', boardId],
-    queryFn: () => api<TaskCard[]>(`/api/task-boards/boards/${boardId}/cards`),
+    queryKey: ['task-cards', boardId, filters?.filter_user, filters?.date_from, filters?.date_to],
+    queryFn: () => api<TaskCard[]>(`/api/task-boards/boards/${boardId}/cards${qs ? `?${qs}` : ''}`),
     enabled: !!boardId,
   });
 }
