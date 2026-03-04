@@ -2972,6 +2972,21 @@ CREATE TABLE IF NOT EXISTS aasp_sync_logs (
 CREATE INDEX IF NOT EXISTS idx_aasp_sync_logs_org ON aasp_sync_logs(organization_id, created_at DESC);
 `;
 
+// ============================================
+// STEP 37: CNPJ CONFIG (Gleego API)
+// ============================================
+const step37CNPJConfig = `
+CREATE TABLE IF NOT EXISTS cnpj_config (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  api_token TEXT NOT NULL DEFAULT '',
+  base_url TEXT NOT NULL DEFAULT 'https://cnpj.gleego.com.br',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(organization_id)
+);
+`;
+
 // Migration steps in order of execution
 const migrationSteps = [
   { name: 'Enums', sql: step1Enums, critical: true },
@@ -3011,6 +3026,7 @@ const migrationSteps = [
   { name: 'Ghost Saved Analyses', sql: step34GhostSavedAnalyses, critical: false },
   { name: 'AASP Intimações', sql: step35AASP, critical: false },
   { name: 'AASP Sync Logs', sql: step36AASPSyncLogs, critical: false },
+  { name: 'CNPJ Config', sql: step37CNPJConfig, critical: false },
 ];
 
 export async function initDatabase() {
