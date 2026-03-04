@@ -1,11 +1,11 @@
 import { Router } from 'express';
 import { query } from '../db.js';
-import { authenticateToken } from '../middleware/auth.js';
+import { authenticate } from '../middleware/auth.js';
 
 const router = Router();
 
 // Get CNPJ config
-router.get('/config', authenticateToken, async (req, res) => {
+router.get('/config', authenticate, async (req, res) => {
   try {
     const org = await query('SELECT organization_id FROM organization_members WHERE user_id = $1 LIMIT 1', [req.userId]);
     if (!org.rows[0]) return res.status(403).json({ error: 'No organization' });
@@ -25,7 +25,7 @@ router.get('/config', authenticateToken, async (req, res) => {
 });
 
 // Save CNPJ config
-router.post('/config', authenticateToken, async (req, res) => {
+router.post('/config', authenticate, async (req, res) => {
   try {
     const org = await query('SELECT organization_id FROM organization_members WHERE user_id = $1 LIMIT 1', [req.userId]);
     if (!org.rows[0]) return res.status(403).json({ error: 'No organization' });
@@ -65,7 +65,7 @@ router.post('/config', authenticateToken, async (req, res) => {
 });
 
 // Lookup CNPJ
-router.get('/lookup/:cnpj', authenticateToken, async (req, res) => {
+router.get('/lookup/:cnpj', authenticate, async (req, res) => {
   try {
     const org = await query('SELECT organization_id FROM organization_members WHERE user_id = $1 LIMIT 1', [req.userId]);
     if (!org.rows[0]) return res.status(403).json({ error: 'No organization' });
