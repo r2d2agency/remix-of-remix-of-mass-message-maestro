@@ -2997,6 +2997,39 @@ CREATE TABLE IF NOT EXISTS cnpj_config (
 );
 `;
 
+// ============================================
+// STEP 38: COMPANY EXTRA FIELDS
+// ============================================
+const step38CompanyExtraFields = `
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='crm_companies' AND column_name='capital_social') THEN
+    ALTER TABLE crm_companies ADD COLUMN capital_social NUMERIC(15,2);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='crm_companies' AND column_name='cnae') THEN
+    ALTER TABLE crm_companies ADD COLUMN cnae TEXT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='crm_companies' AND column_name='cnae_description') THEN
+    ALTER TABLE crm_companies ADD COLUMN cnae_description TEXT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='crm_companies' AND column_name='legal_nature') THEN
+    ALTER TABLE crm_companies ADD COLUMN legal_nature TEXT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='crm_companies' AND column_name='company_status') THEN
+    ALTER TABLE crm_companies ADD COLUMN company_status TEXT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='crm_companies' AND column_name='founding_date') THEN
+    ALTER TABLE crm_companies ADD COLUMN founding_date TEXT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='crm_companies' AND column_name='partners') THEN
+    ALTER TABLE crm_companies ADD COLUMN partners JSONB DEFAULT '[]'::jsonb;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='crm_companies' AND column_name='secondary_cnaes') THEN
+    ALTER TABLE crm_companies ADD COLUMN secondary_cnaes JSONB DEFAULT '[]'::jsonb;
+  END IF;
+END$$;
+`;
+
 // Migration steps in order of execution
 const migrationSteps = [
   { name: 'Enums', sql: step1Enums, critical: true },
@@ -3037,6 +3070,7 @@ const migrationSteps = [
   { name: 'AASP Intimações', sql: step35AASP, critical: false },
   { name: 'AASP Sync Logs', sql: step36AASPSyncLogs, critical: false },
   { name: 'CNPJ Config', sql: step37CNPJConfig, critical: false },
+  { name: 'Company Extra Fields', sql: step38CompanyExtraFields, critical: false },
 ];
 
 export async function initDatabase() {
