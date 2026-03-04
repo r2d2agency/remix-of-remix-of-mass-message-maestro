@@ -58,7 +58,7 @@ export function TaskCardDetailDialog({ card, open, onOpenChange, boardType }: Ta
       setDescription(card.description || "");
       setPriority(card.priority);
       setDueDate(card.due_date ? parseISO(card.due_date) : undefined);
-      setAssignedTo(card.assigned_to || "");
+      setAssignedTo(card.assigned_to || "__none__");
       setTags(card.tags || []);
       setAttachments(card.attachments || []);
       setCoverColor(card.cover_color || "");
@@ -79,7 +79,7 @@ export function TaskCardDetailDialog({ card, open, onOpenChange, boardType }: Ta
       description,
       priority,
       due_date: dueDate?.toISOString(),
-      assigned_to: assignedTo || undefined,
+      assigned_to: assignedTo === "__none__" ? undefined : assignedTo || undefined,
       tags,
       attachments,
       cover_color: coverColor || undefined,
@@ -241,7 +241,7 @@ export function TaskCardDetailDialog({ card, open, onOpenChange, boardType }: Ta
                       <SelectValue placeholder="Selecionar responsável" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Sem responsável</SelectItem>
+                      <SelectItem value="__none__">Sem responsável</SelectItem>
                       {orgMembers.map(m => (
                         <SelectItem key={m.user_id} value={m.user_id}>{m.name}</SelectItem>
                       ))}
