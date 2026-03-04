@@ -199,6 +199,37 @@ router.put('/columns/reorder', async (req, res) => {
 
 // ============ CARDS ============
 
+// GET /cards/all - all cards for user's org (for Gantt)
+router.get('/cards/all', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.user.id);
+    if (!org) return res.status(403).json({ error: 'Sem organização' });
+
+    const result = await query(`
+      SELECT tc.*, 
+        u_assign.name as assigned_to_name,
+        u_create.name as created_by_name,
+        c.name as contact_name,
+        d.title as deal_title,
+        comp.name as company_name
+      FROM task_cards tc
+      JOIN task_boards tb ON tb.id = tc.board_id
+      LEFT JOIN users u_assign ON u_assign.id = tc.assigned_to
+      LEFT JOIN users u_create ON u_create.id = tc.created_by
+      LEFT JOIN contacts c ON c.id = tc.contact_id
+      LEFT JOIN crm_deals d ON d.id = tc.deal_id
+      LEFT JOIN crm_companies comp ON comp.id = tc.company_id
+      WHERE tb.organization_id = $1 
+        AND (tb.type = 'global' OR tb.created_by = $2)
+      ORDER BY tc.due_date ASC NULLS LAST, tc.created_at ASC
+    `, [org.organization_id, req.user.id]);
+    res.json(result.rows);
+  } catch (error) {
+    logError('task-boards.cards.all', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // GET /boards/:boardId/cards
 router.get('/boards/:boardId/cards', async (req, res) => {
   try {
@@ -207,12 +238,14 @@ router.get('/boards/:boardId/cards', async (req, res) => {
         u_assign.name as assigned_to_name,
         u_create.name as created_by_name,
         c.name as contact_name,
-        d.title as deal_title
+        d.title as deal_title,
+        comp.name as company_name
       FROM task_cards tc
       LEFT JOIN users u_assign ON u_assign.id = tc.assigned_to
       LEFT JOIN users u_create ON u_create.id = tc.created_by
       LEFT JOIN contacts c ON c.id = tc.contact_id
       LEFT JOIN crm_deals d ON d.id = tc.deal_id
+      LEFT JOIN crm_companies comp ON comp.id = tc.company_id
       WHERE tc.board_id = $1
       ORDER BY tc.position ASC, tc.created_at ASC
     `, [req.params.boardId]);
@@ -226,7 +259,7 @@ router.get('/boards/:boardId/cards', async (req, res) => {
 // POST /cards - create card
 router.post('/cards', async (req, res) => {
   try {
-    const { board_id, column_id, title, description, priority, due_date, assigned_to, contact_id, deal_id, tags, cover_color } = req.body;
+    const { board_id, column_id, title, description, priority, due_date, assigned_to, contact_id, deal_id, company_id, tags, cover_color } = req.body;
     
     const posResult = await query(
       'SELECT COALESCE(MAX(position), -1) + 1 as next_pos FROM task_cards WHERE column_id = $1',
@@ -234,9 +267,9 @@ router.post('/cards', async (req, res) => {
     );
     
     const result = await query(`
-      INSERT INTO task_cards (board_id, column_id, title, description, priority, due_date, assigned_to, created_by, contact_id, deal_id, tags, cover_color, position)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *
-    `, [board_id, column_id, title, description, priority || 'medium', due_date, assigned_to, req.user.id, contact_id, deal_id, JSON.stringify(tags || []), cover_color, posResult.rows[0].next_pos]);
+      INSERT INTO task_cards (board_id, column_id, title, description, priority, due_date, assigned_to, created_by, contact_id, deal_id, company_id, tags, cover_color, position)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *
+    `, [board_id, column_id, title, description, priority || 'medium', due_date, assigned_to, req.user.id, contact_id, deal_id, company_id, JSON.stringify(tags || []), cover_color, posResult.rows[0].next_pos]);
 
     res.json(result.rows[0]);
   } catch (error) {
@@ -248,7 +281,7 @@ router.post('/cards', async (req, res) => {
 // PUT /cards/:id
 router.put('/cards/:id', async (req, res) => {
   try {
-    const { title, description, priority, due_date, assigned_to, contact_id, deal_id, tags, cover_color, status, column_id, position, attachments } = req.body;
+    const { title, description, priority, due_date, assigned_to, contact_id, deal_id, company_id, tags, cover_color, status, column_id, position, attachments } = req.body;
     
     let completedAt = null;
     if (status === 'completed') {
@@ -265,16 +298,17 @@ router.put('/cards/:id', async (req, res) => {
         assigned_to = $5,
         contact_id = $6,
         deal_id = $7,
-        tags = COALESCE($8, tags),
-        cover_color = $9,
-        status = COALESCE($10, status),
-        column_id = COALESCE($11, column_id),
-        position = COALESCE($12, position),
-        attachments = COALESCE($13, attachments),
-        completed_at = COALESCE($14, completed_at),
+        company_id = $8,
+        tags = COALESCE($9, tags),
+        cover_color = $10,
+        status = COALESCE($11, status),
+        column_id = COALESCE($12, column_id),
+        position = COALESCE($13, position),
+        attachments = COALESCE($14, attachments),
+        completed_at = COALESCE($15, completed_at),
         updated_at = NOW()
-      WHERE id = $15 RETURNING *
-    `, [title, description, priority, due_date, assigned_to, contact_id, deal_id, tags ? JSON.stringify(tags) : null, cover_color, status, column_id, position, attachments ? JSON.stringify(attachments) : null, completedAt, req.params.id]);
+      WHERE id = $16 RETURNING *
+    `, [title, description, priority, due_date, assigned_to, contact_id, deal_id, company_id, tags ? JSON.stringify(tags) : null, cover_color, status, column_id, position, attachments ? JSON.stringify(attachments) : null, completedAt, req.params.id]);
     
     res.json(result.rows[0]);
   } catch (error) {

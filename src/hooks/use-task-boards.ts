@@ -40,6 +40,8 @@ export interface TaskCard {
   contact_name?: string;
   deal_id?: string;
   deal_title?: string;
+  company_id?: string;
+  company_name?: string;
   position: number;
   tags: string[];
   attachments: { url: string; name: string; type: string }[];
@@ -50,11 +52,17 @@ export interface TaskCard {
   updated_at: string;
 }
 
+export interface ChecklistItem {
+  text: string;
+  checked: boolean;
+  due_date?: string;
+}
+
 export interface TaskChecklist {
   id: string;
   card_id: string;
   title: string;
-  items: { text: string; checked: boolean }[];
+  items: ChecklistItem[];
   template_id?: string;
   position: number;
 }
@@ -63,7 +71,7 @@ export interface ChecklistTemplate {
   id: string;
   organization_id: string;
   name: string;
-  items: { text: string; checked: boolean }[];
+  items: ChecklistItem[];
   created_at: string;
 }
 
@@ -146,9 +154,20 @@ export function useTaskCards(boardId?: string) {
   });
 }
 
+// All cards across boards (for Gantt)
+export function useAllTaskCards() {
+  return useQuery<TaskCard[]>({
+    queryKey: ['task-cards-all'],
+    queryFn: () => api<TaskCard[]>('/api/task-boards/cards/all'),
+  });
+}
+
 export function useTaskCardMutations() {
   const qc = useQueryClient();
-  const inv = () => { qc.invalidateQueries({ queryKey: ['task-cards'] }); };
+  const inv = () => {
+    qc.invalidateQueries({ queryKey: ['task-cards'] });
+    qc.invalidateQueries({ queryKey: ['task-cards-all'] });
+  };
 
   const createCard = useMutation({
     mutationFn: (data: Partial<TaskCard>) =>
