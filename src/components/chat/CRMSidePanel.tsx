@@ -74,6 +74,7 @@ import { MeetingScheduleDialog } from "./MeetingScheduleDialog";
 import { SendEmailDialog } from "@/components/email/SendEmailDialog";
 import { EnrollSequenceDialog } from "@/components/nurturing/EnrollSequenceDialog";
 import { DealDetailDialog } from "@/components/crm/DealDetailDialog";
+import { CompanyDialog } from "@/components/crm/CompanyDialog";
 
 interface CRMSidePanelProps {
   conversationId: string;
@@ -153,9 +154,7 @@ export function CRMSidePanel({
 
   // Company assignment states
   const [isAssigningCompany, setIsAssigningCompany] = useState(false);
-  const [isCreatingCompany, setIsCreatingCompany] = useState(false);
-  const [newCompanyName, setNewCompanyName] = useState("");
-  const [savingCompany, setSavingCompany] = useState(false);
+  const [showCompanyDialog, setShowCompanyDialog] = useState(false);
 
   // Task and Meeting dialogs
   const [showTaskDialog, setShowTaskDialog] = useState(false);
@@ -347,26 +346,18 @@ export function CRMSidePanel({
     }
   };
 
-  const handleCreateAndAssignCompany = async () => {
-    if (!selectedDeal || !newCompanyName.trim()) return;
-    setSavingCompany(true);
+  const handleCreateAndAssignCompany = async (newCompany: any) => {
+    if (!selectedDeal || !newCompany?.id) return;
     try {
-      const newCompany = await createCompany.mutateAsync({ name: newCompanyName.trim() });
-      if (newCompany?.id) {
-        await updateDeal.mutateAsync({
-          id: selectedDeal.id,
-          company_id: newCompany.id,
-        });
-        refetchDeals();
-        refetchCompany();
-        setIsCreatingCompany(false);
-        setNewCompanyName("");
-        toast.success("Empresa criada e atribuída!");
-      }
+      await updateDeal.mutateAsync({
+        id: selectedDeal.id,
+        company_id: newCompany.id,
+      });
+      refetchDeals();
+      refetchCompany();
+      toast.success("Empresa criada e atribuída!");
     } catch (error) {
-      toast.error("Erro ao criar empresa");
-    } finally {
-      setSavingCompany(false);
+      toast.error("Erro ao atribuir empresa");
     }
   };
 
@@ -978,49 +969,11 @@ export function CRMSidePanel({
                           className="flex-1 h-7 text-xs"
                           onClick={() => {
                             setIsAssigningCompany(false);
-                            setIsCreatingCompany(true);
+                            setShowCompanyDialog(true);
                           }}
                         >
                           <Plus className="h-3 w-3 mr-1" />
                           Criar nova
-                        </Button>
-                      </div>
-                    </div>
-                  ) : isCreatingCompany ? (
-                    <div className="space-y-3">
-                      <div>
-                        <Label className="text-xs">Nome da empresa</Label>
-                        <Input
-                          value={newCompanyName}
-                          onChange={(e) => setNewCompanyName(e.target.value)}
-                          placeholder="Digite o nome..."
-                          className="h-8 text-xs mt-1"
-                        />
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="flex-1 h-7 text-xs"
-                          onClick={() => {
-                            setIsCreatingCompany(false);
-                            setNewCompanyName("");
-                          }}
-                        >
-                          Cancelar
-                        </Button>
-                        <Button
-                          size="sm"
-                          className="flex-1 h-7 text-xs"
-                          onClick={handleCreateAndAssignCompany}
-                          disabled={!newCompanyName.trim() || savingCompany}
-                        >
-                          {savingCompany ? (
-                            <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                          ) : (
-                            <Save className="h-3 w-3 mr-1" />
-                          )}
-                          Criar
                         </Button>
                       </div>
                     </div>
@@ -1100,7 +1053,7 @@ export function CRMSidePanel({
                           size="sm"
                           variant="secondary"
                           className="flex-1 h-7 text-xs"
-                          onClick={() => setIsCreatingCompany(true)}
+                          onClick={() => setShowCompanyDialog(true)}
                         >
                           <Plus className="h-3 w-3 mr-1" />
                           Criar
@@ -1473,6 +1426,14 @@ export function CRMSidePanel({
         contactName={contactName}
         conversationId={conversationId}
         dealId={selectedDeal?.id}
+      />
+
+      {/* Company Creation Dialog */}
+      <CompanyDialog
+        company={null}
+        open={showCompanyDialog}
+        onOpenChange={setShowCompanyDialog}
+        onCreated={handleCreateAndAssignCompany}
       />
     </div>
   );
