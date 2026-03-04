@@ -1742,6 +1742,16 @@ DO $$ BEGIN
   ALTER TABLE crm_companies ADD COLUMN IF NOT EXISTS segment_id UUID REFERENCES crm_segments(id) ON DELETE SET NULL;
 EXCEPTION
   WHEN duplicate_column THEN null;
+END $$;
+
+-- Add trading_name and neighborhood to crm_companies
+DO $$ BEGIN
+  ALTER TABLE crm_companies ADD COLUMN IF NOT EXISTS trading_name VARCHAR(255);
+EXCEPTION WHEN duplicate_column THEN null; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE crm_companies ADD COLUMN IF NOT EXISTS neighborhood VARCHAR(255);
+EXCEPTION WHEN duplicate_column THEN null; END $$;
   WHEN undefined_table THEN null;
 END $$;
 
