@@ -14,8 +14,10 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { CRMCompany, useCRMCompanyMutations } from "@/hooks/use-crm";
 import { useCRMSegments } from "@/hooks/use-crm-config";
 import { useContacts, Contact, ContactList } from "@/hooks/use-contacts";
-import { Tag, User, Plus, Trash2, Phone, Search, Check, UserPlus } from "lucide-react";
+import { Tag, User, Plus, Trash2, Phone, Search, Check, UserPlus, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/api";
+import { toast } from "sonner";
 
 interface CompanyContact {
   id?: string;
@@ -60,6 +62,7 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
   const { createCompany, updateCompany } = useCRMCompanyMutations();
   const { data: segments } = useCRMSegments();
   const contactsApi = useContacts();
+  const [lookingUpCNPJ, setLookingUpCNPJ] = useState(false);
 
   // Load contact lists on mount
   useEffect(() => {
@@ -110,6 +113,76 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
 
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleLookupCNPJ = async () => {
+    const cnpj = formData.cnpj.replace(/\D/g, "");
+    if (cnpj.length !== 14) {
+      toast.error("CNPJ deve ter 14 dígitos");
+      return;
+    }
+    setLookingUpCNPJ(true);
+    try {
+      const data = await api<any>(`/api/cnpj/lookup/${cnpj}`);
+      const empresa = data.empresa || {};
+      const estabelecimento = data.estabelecimento || {};
+      const socios = data.socios || [];
+
+      // Build address
+      const addressParts = [
+        estabelecimento.tipo_logradouro,
+        estabelecimento.logradouro,
+        estabelecimento.numero,
+        estabelecimento.complemento,
+        estabelecimento.bairro,
+      ].filter(Boolean);
+
+      // Build notes with extra info
+      const notesParts: string[] = [];
+      if (empresa.natureza_descricao) notesParts.push(`Natureza: ${empresa.natureza_descricao}`);
+      if (empresa.capital_social) notesParts.push(`Capital Social: R$ ${parseFloat(empresa.capital_social).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`);
+      if (estabelecimento.cnae_principal) notesParts.push(`CNAE Principal: ${estabelecimento.cnae_principal}`);
+      if (estabelecimento.cnae_principal_descricao) notesParts.push(`Atividade: ${estabelecimento.cnae_principal_descricao}`);
+      if (estabelecimento.situacao_cadastral) {
+        const situacoes: Record<string, string> = { "01": "Nula", "02": "Ativa", "03": "Suspensa", "04": "Inapta", "08": "Baixada" };
+        notesParts.push(`Situação: ${situacoes[estabelecimento.situacao_cadastral] || estabelecimento.situacao_cadastral}`);
+      }
+      if (estabelecimento.data_inicio_atividade) {
+        const d = estabelecimento.data_inicio_atividade;
+        notesParts.push(`Início Atividade: ${d.substring(6, 8)}/${d.substring(4, 6)}/${d.substring(0, 4)}`);
+      }
+      if (socios.length > 0) {
+        notesParts.push(`\nSócios:`);
+        socios.forEach((s: any) => {
+          const parts = [s.nome_socio];
+          if (s.qualificacao_descricao) parts.push(`(${s.qualificacao_descricao})`);
+          if (s.data_entrada) {
+            const de = s.data_entrada;
+            parts.push(`- entrada: ${de.substring(6, 8)}/${de.substring(4, 6)}/${de.substring(0, 4)}`);
+          }
+          notesParts.push(`  • ${parts.join(" ")}`);
+        });
+      }
+
+      setFormData((prev) => ({
+        ...prev,
+        name: empresa.razao_social || estabelecimento.nome_fantasia || prev.name,
+        email: estabelecimento.email || prev.email,
+        phone: estabelecimento.telefone1 || estabelecimento.ddd1 ? `(${estabelecimento.ddd1 || ""}) ${estabelecimento.telefone1 || ""}`.trim() : prev.phone,
+        website: prev.website,
+        address: addressParts.join(", ") || prev.address,
+        city: estabelecimento.municipio_nome || prev.city,
+        state: estabelecimento.uf || prev.state,
+        zip_code: estabelecimento.cep || prev.zip_code,
+        notes: notesParts.length > 0 ? notesParts.join("\n") : prev.notes,
+      }));
+
+      toast.success("Dados da empresa preenchidos com sucesso!");
+    } catch (e: any) {
+      toast.error(e.message || "Erro ao consultar CNPJ");
+    } finally {
+      setLookingUpCNPJ(false);
+    }
   };
 
   const handleAddContact = () => {
@@ -211,11 +284,28 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>CNPJ</Label>
-                <Input
-                  value={formData.cnpj}
-                  onChange={(e) => handleChange("cnpj", e.target.value)}
-                  placeholder="00.000.000/0000-00"
-                />
+                <div className="flex gap-2">
+                  <Input
+                    value={formData.cnpj}
+                    onChange={(e) => handleChange("cnpj", e.target.value)}
+                    placeholder="00.000.000/0000-00"
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={handleLookupCNPJ}
+                    disabled={lookingUpCNPJ || !formData.cnpj.replace(/\D/g, "").length}
+                    title="Consultar CNPJ"
+                  >
+                    {lookingUpCNPJ ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Search className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>Telefone</Label>
