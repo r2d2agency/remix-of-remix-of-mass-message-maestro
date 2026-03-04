@@ -442,12 +442,12 @@ router.post('/companies', async (req, res) => {
     const org = await getUserOrg(req.userId);
     if (!org) return res.status(403).json({ error: 'No organization' });
 
-    const { name, cnpj, email, phone, website, address, city, state, zip_code, notes, segment_id, custom_fields } = req.body;
+    const { name, trading_name, cnpj, email, phone, website, address, neighborhood, city, state, zip_code, notes, segment_id, custom_fields } = req.body;
     
     const result = await query(
-      `INSERT INTO crm_companies (organization_id, name, cnpj, email, phone, website, address, city, state, zip_code, notes, segment_id, custom_fields, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`,
-      [org.organization_id, name, cnpj, email, phone, website, address, city, state, zip_code, notes, segment_id || null,
+      `INSERT INTO crm_companies (organization_id, name, trading_name, cnpj, email, phone, website, address, neighborhood, city, state, zip_code, notes, segment_id, custom_fields, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
+      [org.organization_id, name, trading_name || null, cnpj, email, phone, website, address, neighborhood || null, city, state, zip_code, notes, segment_id || null,
        custom_fields ? JSON.stringify(custom_fields) : '{}', req.userId]
     );
     res.json(result.rows[0]);
@@ -463,15 +463,15 @@ router.put('/companies/:id', async (req, res) => {
     const org = await getUserOrg(req.userId);
     if (!org) return res.status(403).json({ error: 'No organization' });
 
-    const { name, cnpj, email, phone, website, address, city, state, zip_code, notes, segment_id, custom_fields } = req.body;
+    const { name, trading_name, cnpj, email, phone, website, address, neighborhood, city, state, zip_code, notes, segment_id, custom_fields } = req.body;
     
     const result = await query(
       `UPDATE crm_companies SET 
-        name = $1, cnpj = $2, email = $3, phone = $4, website = $5, 
-        address = $6, city = $7, state = $8, zip_code = $9, notes = $10, 
-        segment_id = $11, custom_fields = $12, updated_at = NOW()
-       WHERE id = $13 AND organization_id = $14 RETURNING *`,
-      [name, cnpj, email, phone, website, address, city, state, zip_code, notes, segment_id || null,
+        name = $1, trading_name = $2, cnpj = $3, email = $4, phone = $5, website = $6, 
+        address = $7, neighborhood = $8, city = $9, state = $10, zip_code = $11, notes = $12, 
+        segment_id = $13, custom_fields = $14, updated_at = NOW()
+       WHERE id = $15 AND organization_id = $16 RETURNING *`,
+      [name, trading_name || null, cnpj, email, phone, website, address, neighborhood || null, city, state, zip_code, notes, segment_id || null,
        custom_fields ? JSON.stringify(custom_fields) : '{}', req.params.id, org.organization_id]
     );
     res.json(result.rows[0]);

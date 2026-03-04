@@ -14,7 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { CRMCompany, useCRMCompanyMutations } from "@/hooks/use-crm";
 import { useCRMSegments } from "@/hooks/use-crm-config";
 import { useContacts, Contact, ContactList } from "@/hooks/use-contacts";
-import { Tag, User, Plus, Trash2, Phone, Search, Check, UserPlus, Loader2 } from "lucide-react";
+import { Tag, User, Plus, Trash2, Phone, Search, UserPlus, Loader2, Mail, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
@@ -38,11 +38,13 @@ interface CompanyDialogProps {
 export function CompanyDialog({ company, open, onOpenChange, onCreated }: CompanyDialogProps) {
   const [formData, setFormData] = useState({
     name: "",
+    trading_name: "",
     cnpj: "",
     email: "",
     phone: "",
     website: "",
     address: "",
+    neighborhood: "",
     city: "",
     state: "",
     zip_code: "",
@@ -58,18 +60,16 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
   const [listContacts, setListContacts] = useState<Contact[]>([]);
   const [searchContact, setSearchContact] = useState("");
   const [popoverOpen, setPopoverOpen] = useState(false);
+  const [lookingUpCNPJ, setLookingUpCNPJ] = useState(false);
 
   const { createCompany, updateCompany } = useCRMCompanyMutations();
   const { data: segments } = useCRMSegments();
   const contactsApi = useContacts();
-  const [lookingUpCNPJ, setLookingUpCNPJ] = useState(false);
 
-  // Load contact lists on mount
   useEffect(() => {
     contactsApi.getLists().then(setContactLists).catch(console.error);
   }, []);
 
-  // Load contacts when list is selected
   useEffect(() => {
     if (selectedListId) {
       contactsApi.getContacts(selectedListId).then(setListContacts).catch(console.error);
@@ -80,27 +80,30 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
     if (company) {
       setFormData({
         name: company.name || "",
+        trading_name: company.trading_name || "",
         cnpj: company.cnpj || "",
         email: company.email || "",
         phone: company.phone || "",
         website: company.website || "",
         address: company.address || "",
+        neighborhood: company.neighborhood || "",
         city: company.city || "",
         state: company.state || "",
         zip_code: company.zip_code || "",
         notes: company.notes || "",
         segment_id: company.segment_id || "",
       });
-      // TODO: Load existing contacts from API
       setContacts([]);
     } else {
       setFormData({
         name: "",
+        trading_name: "",
         cnpj: "",
         email: "",
         phone: "",
         website: "",
         address: "",
+        neighborhood: "",
         city: "",
         state: "",
         zip_code: "",
@@ -128,13 +131,12 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
       const estabelecimento = data.estabelecimento || {};
       const socios = data.socios || [];
 
-      // Build address
+      // Build address (without bairro, it goes in neighborhood)
       const addressParts = [
         estabelecimento.tipo_logradouro,
         estabelecimento.logradouro,
         estabelecimento.numero,
         estabelecimento.complemento,
-        estabelecimento.bairro,
       ].filter(Boolean);
 
       // Build notes with extra info
@@ -164,13 +166,20 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
         });
       }
 
+      // Build phone
+      let phone = formData.phone;
+      if (estabelecimento.ddd1 && estabelecimento.telefone1) {
+        phone = `(${estabelecimento.ddd1}) ${estabelecimento.telefone1}`;
+      }
+
       setFormData((prev) => ({
         ...prev,
-        name: empresa.razao_social || estabelecimento.nome_fantasia || prev.name,
+        name: empresa.razao_social || prev.name,
+        trading_name: estabelecimento.nome_fantasia || prev.trading_name,
         email: estabelecimento.email || prev.email,
-        phone: estabelecimento.telefone1 || estabelecimento.ddd1 ? `(${estabelecimento.ddd1 || ""}) ${estabelecimento.telefone1 || ""}`.trim() : prev.phone,
-        website: prev.website,
+        phone,
         address: addressParts.join(", ") || prev.address,
+        neighborhood: estabelecimento.bairro || prev.neighborhood,
         city: estabelecimento.municipio_nome || prev.city,
         state: estabelecimento.uf || prev.state,
         zip_code: estabelecimento.cep || prev.zip_code,
@@ -187,14 +196,9 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
 
   const handleAddContact = () => {
     if (!newContact.name.trim() || !newContact.phone.trim()) return;
-    
     setContacts((prev) => [
       ...prev,
-      {
-        ...newContact,
-        id: crypto.randomUUID(),
-        is_primary: prev.length === 0, // First contact is primary
-      },
+      { ...newContact, id: crypto.randomUUID(), is_primary: prev.length === 0 },
     ]);
     setNewContact({ name: "", phone: "", email: "", role: "" });
   };
@@ -202,7 +206,6 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
   const handleRemoveContact = (id: string) => {
     setContacts((prev) => {
       const filtered = prev.filter((c) => c.id !== id);
-      // If we removed the primary, make first one primary
       if (filtered.length > 0 && !filtered.some((c) => c.is_primary)) {
         filtered[0].is_primary = true;
       }
@@ -211,9 +214,22 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
   };
 
   const handleSetPrimary = (id: string) => {
-    setContacts((prev) =>
-      prev.map((c) => ({ ...c, is_primary: c.id === id }))
-    );
+    setContacts((prev) => prev.map((c) => ({ ...c, is_primary: c.id === id })));
+  };
+
+  const handleSelectExistingContact = (contact: Contact) => {
+    setContacts((prev) => [
+      ...prev,
+      {
+        id: contact.id,
+        name: contact.name,
+        phone: contact.phone,
+        email: (contact as any).email || "",
+        is_primary: prev.length === 0,
+      },
+    ]);
+    setPopoverOpen(false);
+    setSearchContact("");
   };
 
   const handleSave = async () => {
@@ -242,13 +258,24 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
 
         <ScrollArea className="flex-1 min-h-0 max-h-[calc(90vh-140px)]">
           <div className="space-y-4 p-1 pr-4">
-            <div className="space-y-2">
-              <Label>Nome da empresa *</Label>
-              <Input
-                value={formData.name}
-                onChange={(e) => handleChange("name", e.target.value)}
-                placeholder="Nome da empresa"
-              />
+            {/* Nome e Nome Fantasia */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Razão Social *</Label>
+                <Input
+                  value={formData.name}
+                  onChange={(e) => handleChange("name", e.target.value)}
+                  placeholder="Razão social da empresa"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Nome Fantasia</Label>
+                <Input
+                  value={formData.trading_name}
+                  onChange={(e) => handleChange("trading_name", e.target.value)}
+                  placeholder="Nome fantasia"
+                />
+              </div>
             </div>
 
             {/* Segmento */}
@@ -269,10 +296,7 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
                   {segments?.map((segment) => (
                     <SelectItem key={segment.id} value={segment.id}>
                       <div className="flex items-center gap-2">
-                        <div
-                          className="w-3 h-3 rounded-full"
-                          style={{ backgroundColor: segment.color }}
-                        />
+                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: segment.color }} />
                         {segment.name}
                       </div>
                     </SelectItem>
@@ -281,6 +305,7 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
               </Select>
             </div>
 
+            {/* CNPJ + Telefone */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>CNPJ</Label>
@@ -296,14 +321,10 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
                     variant="outline"
                     size="icon"
                     onClick={handleLookupCNPJ}
-                    disabled={lookingUpCNPJ || !formData.cnpj.replace(/\D/g, "").length}
+                    disabled={lookingUpCNPJ || formData.cnpj.replace(/\D/g, "").length < 14}
                     title="Consultar CNPJ"
                   >
-                    {lookingUpCNPJ ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Search className="h-4 w-4" />
-                    )}
+                    {lookingUpCNPJ ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                   </Button>
                 </div>
               </div>
@@ -317,6 +338,7 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
               </div>
             </div>
 
+            {/* Email + Website */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Email</Label>
@@ -337,40 +359,59 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>Endereço</Label>
-              <Input
-                value={formData.address}
-                onChange={(e) => handleChange("address", e.target.value)}
-                placeholder="Rua, número, bairro"
-              />
-            </div>
+            {/* Endereço section */}
+            <div className="space-y-3 border-t pt-4">
+              <Label className="flex items-center gap-2 text-base">
+                <MapPin className="h-4 w-4" />
+                Endereço
+              </Label>
 
-            <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label>Cidade</Label>
+                <Label className="text-sm">Logradouro</Label>
                 <Input
-                  value={formData.city}
-                  onChange={(e) => handleChange("city", e.target.value)}
-                  placeholder="Cidade"
+                  value={formData.address}
+                  onChange={(e) => handleChange("address", e.target.value)}
+                  placeholder="Rua, número, complemento"
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Estado</Label>
-                <Input
-                  value={formData.state}
-                  onChange={(e) => handleChange("state", e.target.value)}
-                  placeholder="UF"
-                  maxLength={2}
-                />
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-sm">Bairro</Label>
+                  <Input
+                    value={formData.neighborhood}
+                    onChange={(e) => handleChange("neighborhood", e.target.value)}
+                    placeholder="Bairro"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm">CEP</Label>
+                  <Input
+                    value={formData.zip_code}
+                    onChange={(e) => handleChange("zip_code", e.target.value)}
+                    placeholder="00000-000"
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label>CEP</Label>
-                <Input
-                  value={formData.zip_code}
-                  onChange={(e) => handleChange("zip_code", e.target.value)}
-                  placeholder="00000-000"
-                />
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-sm">Cidade</Label>
+                  <Input
+                    value={formData.city}
+                    onChange={(e) => handleChange("city", e.target.value)}
+                    placeholder="Cidade"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm">Estado</Label>
+                  <Input
+                    value={formData.state}
+                    onChange={(e) => handleChange("state", e.target.value)}
+                    placeholder="UF"
+                    maxLength={2}
+                  />
+                </div>
               </div>
             </div>
 
@@ -381,7 +422,6 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
                 Contatos da Empresa
               </Label>
 
-              {/* Tabs for adding contacts */}
               <Tabs value={contactMode} onValueChange={(v) => setContactMode(v as "new" | "existing")}>
                 <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="new">
@@ -395,37 +435,46 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
                 </TabsList>
 
                 <TabsContent value="new" className="mt-3">
-                  <Card className="p-3">
-                    <div className="grid grid-cols-4 gap-2">
+                  <Card className="p-3 space-y-2">
+                    <div className="grid grid-cols-2 gap-2">
                       <Input
                         value={newContact.name}
                         onChange={(e) => setNewContact((p) => ({ ...p, name: e.target.value }))}
-                        placeholder="Nome"
+                        placeholder="Nome *"
                       />
                       <Input
                         value={newContact.phone}
                         onChange={(e) => setNewContact((p) => ({ ...p, phone: e.target.value }))}
-                        placeholder="Telefone"
+                        placeholder="Telefone *"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input
+                        value={newContact.email}
+                        onChange={(e) => setNewContact((p) => ({ ...p, email: e.target.value }))}
+                        placeholder="Email"
+                        type="email"
                       />
                       <Input
                         value={newContact.role}
                         onChange={(e) => setNewContact((p) => ({ ...p, role: e.target.value }))}
                         placeholder="Cargo"
                       />
-                      <Button
-                        variant="outline"
-                        onClick={handleAddContact}
-                        disabled={!newContact.name.trim() || !newContact.phone.trim()}
-                      >
-                        <Plus className="h-4 w-4" />
-                      </Button>
                     </div>
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={handleAddContact}
+                      disabled={!newContact.name.trim() || !newContact.phone.trim()}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Adicionar Contato
+                    </Button>
                   </Card>
                 </TabsContent>
 
                 <TabsContent value="existing" className="mt-3">
                   <Card className="p-3 space-y-3">
-                    {/* Select contact list first */}
                     <div className="space-y-2">
                       <Label className="text-sm">Lista de Contatos</Label>
                       <Select
@@ -446,17 +495,12 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
                       </Select>
                     </div>
 
-                    {/* Search and select contacts from list */}
                     {selectedListId && (
                       <div className="space-y-2">
                         <Label className="text-sm">Buscar Contato</Label>
                         <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
                           <PopoverTrigger asChild>
-                            <Button
-                              variant="outline"
-                              role="combobox"
-                              className="w-full justify-between"
-                            >
+                            <Button variant="outline" role="combobox" className="w-full justify-between">
                               <span className="flex items-center gap-2">
                                 <Search className="h-4 w-4" />
                                 Buscar na lista...
@@ -475,11 +519,8 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
                                 <CommandGroup>
                                   {listContacts
                                     .filter((c) => {
-                                      const search = searchContact.toLowerCase();
-                                      return (
-                                        c.name.toLowerCase().includes(search) ||
-                                        c.phone.includes(search)
-                                      );
+                                      const s = searchContact.toLowerCase();
+                                      return c.name.toLowerCase().includes(s) || c.phone.includes(s);
                                     })
                                     .filter((c) => !contacts.some((cc) => cc.phone === c.phone))
                                     .slice(0, 10)
@@ -487,19 +528,7 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
                                       <CommandItem
                                         key={contact.id}
                                         value={`${contact.name} ${contact.phone}`}
-                                        onSelect={() => {
-                                          setContacts((prev) => [
-                                            ...prev,
-                                            {
-                                              id: contact.id,
-                                              name: contact.name,
-                                              phone: contact.phone,
-                                              is_primary: prev.length === 0,
-                                            },
-                                          ]);
-                                          setPopoverOpen(false);
-                                          setSearchContact("");
-                                        }}
+                                        onSelect={() => handleSelectExistingContact(contact)}
                                       >
                                         <div className="flex items-center gap-2">
                                           <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
@@ -507,9 +536,7 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
                                           </div>
                                           <div>
                                             <p className="font-medium">{contact.name}</p>
-                                            <p className="text-xs text-muted-foreground">
-                                              {contact.phone}
-                                            </p>
+                                            <p className="text-xs text-muted-foreground">{contact.phone}</p>
                                           </div>
                                         </div>
                                       </CommandItem>
@@ -533,34 +560,38 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
                   </Label>
                   {contacts.map((contact) => (
                     <Card key={contact.id} className="p-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                             <User className="h-4 w-4 text-primary" />
                           </div>
-                          <div>
-                            <p className="font-medium text-sm flex items-center gap-2">
-                              {contact.name}
+                          <div className="min-w-0">
+                            <p className="font-medium text-sm flex items-center gap-2 flex-wrap">
+                              <span className="truncate">{contact.name}</span>
                               {contact.is_primary && (
                                 <Badge variant="secondary" className="text-[10px]">Principal</Badge>
                               )}
                               {contact.role && (
-                                <span className="text-muted-foreground font-normal">• {contact.role}</span>
+                                <span className="text-muted-foreground font-normal text-xs">• {contact.role}</span>
                               )}
                             </p>
-                            <p className="text-xs text-muted-foreground flex items-center gap-1">
-                              <Phone className="h-3 w-3" />
-                              {contact.phone}
-                            </p>
+                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                              <span className="flex items-center gap-1">
+                                <Phone className="h-3 w-3" />
+                                {contact.phone}
+                              </span>
+                              {contact.email && (
+                                <span className="flex items-center gap-1">
+                                  <Mail className="h-3 w-3" />
+                                  {contact.email}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 shrink-0">
                           {!contact.is_primary && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleSetPrimary(contact.id!)}
-                            >
+                            <Button variant="ghost" size="sm" onClick={() => handleSetPrimary(contact.id!)}>
                               Definir principal
                             </Button>
                           )}
@@ -580,13 +611,14 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
               )}
             </div>
 
+            {/* Observações */}
             <div className="space-y-2">
               <Label>Observações</Label>
               <Textarea
                 value={formData.notes}
                 onChange={(e) => handleChange("notes", e.target.value)}
                 placeholder="Anotações sobre a empresa..."
-                rows={3}
+                rows={4}
               />
             </div>
           </div>

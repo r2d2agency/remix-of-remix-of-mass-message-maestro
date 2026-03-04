@@ -46,11 +46,13 @@ export interface CRMFunnel {
 export interface CRMCompany {
   id: string;
   name: string;
+  trading_name?: string;
   cnpj?: string;
   email?: string;
   phone?: string;
   website?: string;
   address?: string;
+  neighborhood?: string;
   city?: string;
   state?: string;
   zip_code?: string;
