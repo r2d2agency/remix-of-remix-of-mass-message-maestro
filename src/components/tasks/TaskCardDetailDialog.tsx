@@ -15,7 +15,9 @@ import { FileUploadInput } from "@/components/ui/file-upload-input";
 import { TaskCard, ChecklistItem, useTaskCardMutations, useTaskChecklists, useTaskChecklistMutations, useChecklistTemplates } from "@/hooks/use-task-boards";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganizations } from "@/hooks/use-organizations";
-import { useCRMDealsSearch, useCRMCompanies } from "@/hooks/use-crm";
+import { useCRMCompanies } from "@/hooks/use-crm";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 import {
   CalendarIcon, User, Tag, Paperclip, CheckSquare, Trash2, Plus, X,
   AlertTriangle, Clock, ArrowUp, ArrowDown, Minus, FileText, Link2,
@@ -40,7 +42,10 @@ export function TaskCardDetailDialog({ card, open, onOpenChange, boardType }: Ta
   const { data: checklists } = useTaskChecklists(card?.id);
   const { createChecklist, updateChecklist, deleteChecklist } = useTaskChecklistMutations();
   const { data: templates } = useChecklistTemplates();
-  const { data: deals } = useCRMDealsSearch("");
+  const { data: deals } = useQuery({
+    queryKey: ["crm-deals-all-for-tasks"],
+    queryFn: () => api<any[]>('/api/crm/deals'),
+  });
   const { data: companies } = useCRMCompanies("");
 
   const [title, setTitle] = useState("");
@@ -340,7 +345,7 @@ export function TaskCardDetailDialog({ card, open, onOpenChange, boardType }: Ta
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__none__">Nenhuma</SelectItem>
-                      {deals.filter(d => d.id).map(d => (
+                      {(deals || []).filter(d => d.id).map(d => (
                         <SelectItem key={d.id} value={d.id}>
                           {d.title} {d.company_name ? `(${d.company_name})` : ''}
                         </SelectItem>
@@ -360,7 +365,7 @@ export function TaskCardDetailDialog({ card, open, onOpenChange, boardType }: Ta
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__none__">Nenhuma</SelectItem>
-                      {companies.filter(c => c.id).map(c => (
+                      {(companies || []).filter(c => c.id).map(c => (
                         <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                       ))}
                     </SelectContent>
