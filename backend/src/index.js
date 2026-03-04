@@ -39,6 +39,7 @@ import groupSecretaryRoutes from './routes/group-secretary.js';
 import ghostRoutes from './routes/ghost.js';
 import aaspRoutes from './routes/aasp.js';
 import cnpjRoutes from './routes/cnpj.js';
+import taskBoardsRoutes from './routes/task-boards.js';
 import { initDatabase } from './init-db.js';
 import { executeNotifications } from './scheduler.js';
 import { executeCampaignMessages } from './campaign-scheduler.js';
@@ -196,6 +197,7 @@ app.use('/api/group-secretary', groupSecretaryRoutes);
 app.use('/api/ghost', ghostRoutes);
 app.use('/api/aasp', aaspRoutes);
 app.use('/api/cnpj', cnpjRoutes);
+app.use('/api/task-boards', taskBoardsRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

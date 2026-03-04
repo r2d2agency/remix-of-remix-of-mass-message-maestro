@@ -1180,6 +1180,32 @@ export function CRMSidePanel({
                 </AccordionContent>
               </AccordionItem>
 
+              {/* Task Boards Quick Access */}
+              <AccordionItem value="task-boards" className="border rounded-lg px-3">
+                <AccordionTrigger className="py-2 hover:no-underline">
+                  <div className="flex items-center gap-2 text-sm">
+                    <ClipboardList className="h-4 w-4 text-indigo-500" />
+                    <span>Quadro de Tarefas</span>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="pb-3">
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">
+                      Acesse o Kanban de tarefas para criar e gerenciar atividades.
+                    </p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full h-7 text-xs"
+                      onClick={() => window.open('/crm/tarefas', '_blank')}
+                    >
+                      <ExternalLink className="h-3 w-3 mr-1" />
+                      Abrir Quadro de Tarefas
+                    </Button>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
               {/* AI Agents */}
               <AccordionItem value="ai-agents" className="border rounded-lg px-3">
                 <AccordionTrigger className="py-2 hover:no-underline">

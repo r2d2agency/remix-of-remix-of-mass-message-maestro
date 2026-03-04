@@ -3030,6 +3030,84 @@ BEGIN
 END$$;
 `;
 
+// ============================================
+// STEP 39: TASK BOARDS (Kanban-style project management)
+// ============================================
+const step39TaskBoards = `
+CREATE TABLE IF NOT EXISTS task_boards (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    type VARCHAR(20) NOT NULL DEFAULT 'personal' CHECK (type IN ('global', 'personal')),
+    created_by UUID REFERENCES users(id),
+    is_default BOOLEAN DEFAULT false,
+    color VARCHAR(20) DEFAULT '#6366f1',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS task_board_columns (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    board_id UUID REFERENCES task_boards(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    color VARCHAR(20) DEFAULT '#94a3b8',
+    position INTEGER DEFAULT 0,
+    is_final BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS task_cards (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    board_id UUID REFERENCES task_boards(id) ON DELETE CASCADE,
+    column_id UUID REFERENCES task_board_columns(id) ON DELETE CASCADE,
+    title VARCHAR(500) NOT NULL,
+    description TEXT,
+    priority VARCHAR(20) DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high', 'urgent')),
+    due_date TIMESTAMP WITH TIME ZONE,
+    assigned_to UUID REFERENCES users(id),
+    created_by UUID REFERENCES users(id),
+    contact_id UUID,
+    deal_id UUID,
+    position INTEGER DEFAULT 0,
+    tags JSONB DEFAULT '[]'::jsonb,
+    attachments JSONB DEFAULT '[]'::jsonb,
+    cover_color VARCHAR(20),
+    status VARCHAR(20) DEFAULT 'open' CHECK (status IN ('open', 'completed', 'archived')),
+    completed_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS task_card_checklists (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    card_id UUID REFERENCES task_cards(id) ON DELETE CASCADE,
+    title VARCHAR(255) NOT NULL DEFAULT 'Checklist',
+    items JSONB DEFAULT '[]'::jsonb,
+    template_id UUID,
+    position INTEGER DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS task_checklist_templates (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    items JSONB DEFAULT '[]'::jsonb,
+    created_by UUID REFERENCES users(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_task_boards_org ON task_boards(organization_id);
+CREATE INDEX IF NOT EXISTS idx_task_boards_created_by ON task_boards(created_by);
+CREATE INDEX IF NOT EXISTS idx_task_board_columns_board ON task_board_columns(board_id);
+CREATE INDEX IF NOT EXISTS idx_task_cards_board ON task_cards(board_id);
+CREATE INDEX IF NOT EXISTS idx_task_cards_column ON task_cards(column_id);
+CREATE INDEX IF NOT EXISTS idx_task_cards_assigned ON task_cards(assigned_to);
+CREATE INDEX IF NOT EXISTS idx_task_cards_deal ON task_cards(deal_id);
+CREATE INDEX IF NOT EXISTS idx_task_cards_contact ON task_cards(contact_id);
+CREATE INDEX IF NOT EXISTS idx_task_card_checklists_card ON task_card_checklists(card_id);
+`;
+
 // Migration steps in order of execution
 const migrationSteps = [
   { name: 'Enums', sql: step1Enums, critical: true },
@@ -3071,6 +3149,7 @@ const migrationSteps = [
   { name: 'AASP Sync Logs', sql: step36AASPSyncLogs, critical: false },
   { name: 'CNPJ Config', sql: step37CNPJConfig, critical: false },
   { name: 'Company Extra Fields', sql: step38CompanyExtraFields, critical: false },
+  { name: 'Task Boards', sql: step39TaskBoards, critical: false },
 ];
 
 export async function initDatabase() {
