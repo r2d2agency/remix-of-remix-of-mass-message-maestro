@@ -4,6 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { 
   DndContext, DragOverlay, closestCorners, DragStartEvent, DragEndEvent, DragOverEvent,
   PointerSensor, useSensor, useSensors, MeasuringStrategy 
@@ -24,7 +27,7 @@ import { ChecklistTemplateManager } from "@/components/tasks/ChecklistTemplateMa
 import {
   Plus, Kanban, Globe, User, MoreHorizontal, Trash2, Edit2, Loader2,
   AlertTriangle, ArrowUp, ArrowDown, Minus, Calendar as CalendarIcon, CheckSquare,
-  ListChecks
+  ListChecks, Filter, X
 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -193,6 +196,12 @@ export default function CRMTarefas() {
   const [editingBoardId, setEditingBoardId] = useState<string | null>(null);
   const [editBoardName, setEditBoardName] = useState("");
   const [mainTab, setMainTab] = useState<'kanban' | 'templates'>('kanban');
+  const [filterUser, setFilterUser] = useState<string>("all");
+  const [filterDateFrom, setFilterDateFrom] = useState<Date | undefined>();
+  const [filterDateTo, setFilterDateTo] = useState<Date | undefined>();
+  const [showFilters, setShowFilters] = useState(false);
+
+  const canFilter = isAdmin || isSuperadmin;
 
   // Ensure default board on mount
   useEffect(() => {
@@ -216,7 +225,11 @@ export default function CRMTarefas() {
 
   const selectedBoard = boards?.find(b => b.id === selectedBoardId);
   const { data: columns } = useTaskBoardColumns(selectedBoardId);
-  const { data: cards } = useTaskCards(selectedBoardId);
+  const { data: cards } = useTaskCards(selectedBoardId, {
+    filter_user: canFilter ? filterUser : undefined,
+    date_from: filterDateFrom?.toISOString(),
+    date_to: filterDateTo?.toISOString(),
+  });
 
   const cardsByColumn = useMemo(() => {
     const map: Record<string, TaskCard[]> = {};
@@ -358,9 +371,21 @@ export default function CRMTarefas() {
               </Tabs>
 
               {mainTab === 'kanban' && (
-                <Button size="sm" onClick={() => setCreateBoardOpen(true)}>
-                  <Plus className="h-4 w-4 mr-1" /> Novo Quadro
-                </Button>
+                <>
+                  <Button
+                    variant={showFilters ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setShowFilters(!showFilters)}
+                  >
+                    <Filter className="h-4 w-4 mr-1" /> Filtros
+                    {(filterUser !== 'all' || filterDateFrom || filterDateTo) && (
+                      <Badge variant="secondary" className="ml-1 text-[10px] px-1">!</Badge>
+                    )}
+                  </Button>
+                  <Button size="sm" onClick={() => setCreateBoardOpen(true)}>
+                    <Plus className="h-4 w-4 mr-1" /> Novo Quadro
+                  </Button>
+                </>
               )}
             </div>
             </div>
@@ -427,6 +452,73 @@ export default function CRMTarefas() {
             </div>
           )}
         </div>
+
+        {/* Filter bar */}
+        {showFilters && mainTab === 'kanban' && (
+          <div className="px-4 py-2 border-b bg-muted/30 flex items-center gap-3 flex-wrap">
+            {/* User filter - admin/manager only */}
+            {canFilter && (
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-medium text-muted-foreground">Usuário:</label>
+                <Select value={filterUser} onValueChange={setFilterUser}>
+                  <SelectTrigger className="h-8 w-[180px] text-xs">
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os usuários</SelectItem>
+                    {orgMembers.filter(m => m.user_id).map(m => (
+                      <SelectItem key={m.user_id} value={m.user_id}>{m.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Date from */}
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-medium text-muted-foreground">De:</label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className={cn("h-8 text-xs", !filterDateFrom && "text-muted-foreground")}>
+                    <CalendarIcon className="h-3 w-3 mr-1" />
+                    {filterDateFrom ? format(filterDateFrom, "dd/MM/yy", { locale: ptBR }) : "Início"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar mode="single" selected={filterDateFrom} onSelect={setFilterDateFrom} initialFocus className="pointer-events-auto" />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {/* Date to */}
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-medium text-muted-foreground">Até:</label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className={cn("h-8 text-xs", !filterDateTo && "text-muted-foreground")}>
+                    <CalendarIcon className="h-3 w-3 mr-1" />
+                    {filterDateTo ? format(filterDateTo, "dd/MM/yy", { locale: ptBR }) : "Fim"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar mode="single" selected={filterDateTo} onSelect={setFilterDateTo} initialFocus className="pointer-events-auto" />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {/* Clear filters */}
+            {(filterUser !== 'all' || filterDateFrom || filterDateTo) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 text-xs"
+                onClick={() => { setFilterUser("all"); setFilterDateFrom(undefined); setFilterDateTo(undefined); }}
+              >
+                <X className="h-3 w-3 mr-1" /> Limpar
+              </Button>
+            )}
+          </div>
+        )}
 
         {/* Content */}
         {mainTab === 'kanban' && (

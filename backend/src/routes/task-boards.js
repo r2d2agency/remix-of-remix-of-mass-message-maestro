@@ -254,6 +254,46 @@ router.get('/cards/all', async (req, res) => {
 // GET /boards/:boardId/cards
 router.get('/boards/:boardId/cards', async (req, res) => {
   try {
+    const org = await getUserOrg(req.user.id);
+    if (!org) return res.status(403).json({ error: 'Sem organização' });
+
+    const { filter_user, date_from, date_to } = req.query;
+    const isAdminUser = isAdmin(org.role);
+
+    let whereClauses = ['tc.board_id = $1'];
+    let params = [req.params.boardId];
+    let paramIdx = 2;
+
+    // Role-based filtering: non-admins only see their own cards on global boards
+    if (!isAdminUser) {
+      // Check if this is a global board
+      const boardCheck = await query('SELECT type FROM task_boards WHERE id = $1', [req.params.boardId]);
+      if (boardCheck.rows[0]?.type === 'global') {
+        whereClauses.push(`(tc.assigned_to = $${paramIdx} OR tc.created_by = $${paramIdx})`);
+        params.push(req.user.id);
+        paramIdx++;
+      }
+    }
+
+    // Admin filter by user
+    if (isAdminUser && filter_user && filter_user !== 'all') {
+      whereClauses.push(`(tc.assigned_to = $${paramIdx} OR tc.created_by = $${paramIdx})`);
+      params.push(filter_user);
+      paramIdx++;
+    }
+
+    // Date filter
+    if (date_from) {
+      whereClauses.push(`tc.due_date >= $${paramIdx}`);
+      params.push(date_from);
+      paramIdx++;
+    }
+    if (date_to) {
+      whereClauses.push(`tc.due_date <= $${paramIdx}`);
+      params.push(date_to);
+      paramIdx++;
+    }
+
     const result = await query(`
       SELECT tc.*, 
         u_assign.name as assigned_to_name,
@@ -267,9 +307,9 @@ router.get('/boards/:boardId/cards', async (req, res) => {
       LEFT JOIN contacts c ON c.id = tc.contact_id
       LEFT JOIN crm_deals d ON d.id = tc.deal_id
       LEFT JOIN crm_companies comp ON comp.id = tc.company_id
-      WHERE tc.board_id = $1
+      WHERE ${whereClauses.join(' AND ')}
       ORDER BY tc.position ASC, tc.created_at ASC
-    `, [req.params.boardId]);
+    `, params);
     res.json(result.rows);
   } catch (error) {
     logError('task-boards.cards.list', error);
