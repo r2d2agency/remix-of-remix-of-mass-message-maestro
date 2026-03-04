@@ -61,6 +61,14 @@ export interface CRMCompany {
   segment_name?: string;
   segment_color?: string;
   custom_fields?: Record<string, any>;
+  capital_social?: number;
+  cnae?: string;
+  cnae_description?: string;
+  legal_nature?: string;
+  company_status?: string;
+  founding_date?: string;
+  partners?: Array<{ name: string; qualification: string; entry_date?: string }>;
+  secondary_cnaes?: Array<{ code: string; description: string }>;
   deals_count: number;
   created_by_name?: string;
   created_at: string;

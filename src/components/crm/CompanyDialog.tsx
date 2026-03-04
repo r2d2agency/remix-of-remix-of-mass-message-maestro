@@ -11,10 +11,11 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { CRMCompany, useCRMCompanyMutations } from "@/hooks/use-crm";
 import { useCRMSegments } from "@/hooks/use-crm-config";
 import { useContacts, Contact, ContactList } from "@/hooks/use-contacts";
-import { Tag, User, Plus, Trash2, Phone, Search, UserPlus, Loader2, Mail, MapPin } from "lucide-react";
+import { Tag, User, Plus, Trash2, Phone, Search, UserPlus, Loader2, Mail, MapPin, Building2, ChevronDown, Users, Briefcase, CalendarDays, DollarSign, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
@@ -26,6 +27,17 @@ interface CompanyContact {
   email?: string;
   role?: string;
   is_primary?: boolean;
+}
+
+interface Partner {
+  name: string;
+  qualification: string;
+  entry_date?: string;
+}
+
+interface SecondaryCnae {
+  code: string;
+  description: string;
 }
 
 interface CompanyDialogProps {
@@ -50,8 +62,16 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
     zip_code: "",
     notes: "",
     segment_id: "",
+    capital_social: "",
+    cnae: "",
+    cnae_description: "",
+    legal_nature: "",
+    company_status: "",
+    founding_date: "",
   });
 
+  const [partners, setPartners] = useState<Partner[]>([]);
+  const [secondaryCnaes, setSecondaryCnaes] = useState<SecondaryCnae[]>([]);
   const [contacts, setContacts] = useState<CompanyContact[]>([]);
   const [newContact, setNewContact] = useState({ name: "", phone: "", email: "", role: "" });
   const [contactMode, setContactMode] = useState<"new" | "existing">("new");
@@ -61,6 +81,7 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
   const [searchContact, setSearchContact] = useState("");
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [lookingUpCNPJ, setLookingUpCNPJ] = useState(false);
+  const [extraInfoOpen, setExtraInfoOpen] = useState(false);
 
   const { createCompany, updateCompany } = useCRMCompanyMutations();
   const { data: segments } = useCRMSegments();
@@ -92,25 +113,27 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
         zip_code: company.zip_code || "",
         notes: company.notes || "",
         segment_id: company.segment_id || "",
+        capital_social: company.capital_social ? String(company.capital_social) : "",
+        cnae: company.cnae || "",
+        cnae_description: company.cnae_description || "",
+        legal_nature: company.legal_nature || "",
+        company_status: company.company_status || "",
+        founding_date: company.founding_date || "",
       });
+      setPartners(company.partners || []);
+      setSecondaryCnaes(company.secondary_cnaes || []);
       setContacts([]);
     } else {
       setFormData({
-        name: "",
-        trading_name: "",
-        cnpj: "",
-        email: "",
-        phone: "",
-        website: "",
-        address: "",
-        neighborhood: "",
-        city: "",
-        state: "",
-        zip_code: "",
-        notes: "",
-        segment_id: "",
+        name: "", trading_name: "", cnpj: "", email: "", phone: "", website: "",
+        address: "", neighborhood: "", city: "", state: "", zip_code: "", notes: "",
+        segment_id: "", capital_social: "", cnae: "", cnae_description: "",
+        legal_nature: "", company_status: "", founding_date: "",
       });
+      setPartners([]);
+      setSecondaryCnaes([]);
       setContacts([]);
+      setExtraInfoOpen(false);
     }
   }, [company, open]);
 
@@ -131,7 +154,6 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
       const estabelecimento = data.estabelecimento || {};
       const socios = data.socios || [];
 
-      // Build address (without bairro, it goes in neighborhood)
       const addressParts = [
         estabelecimento.tipo_logradouro,
         estabelecimento.logradouro,
@@ -139,34 +161,31 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
         estabelecimento.complemento,
       ].filter(Boolean);
 
-      // Build notes with extra info
-      const notesParts: string[] = [];
-      if (empresa.natureza_descricao) notesParts.push(`Natureza: ${empresa.natureza_descricao}`);
-      if (empresa.capital_social) notesParts.push(`Capital Social: R$ ${parseFloat(empresa.capital_social).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`);
-      if (estabelecimento.cnae_principal) notesParts.push(`CNAE Principal: ${estabelecimento.cnae_principal}`);
-      if (estabelecimento.cnae_principal_descricao) notesParts.push(`Atividade: ${estabelecimento.cnae_principal_descricao}`);
-      if (estabelecimento.situacao_cadastral) {
-        const situacoes: Record<string, string> = { "01": "Nula", "02": "Ativa", "03": "Suspensa", "04": "Inapta", "08": "Baixada" };
-        notesParts.push(`Situação: ${situacoes[estabelecimento.situacao_cadastral] || estabelecimento.situacao_cadastral}`);
-      }
+      // Parse partners
+      const parsedPartners: Partner[] = socios.map((s: any) => ({
+        name: s.nome_socio || "",
+        qualification: s.qualificacao_descricao || "",
+        entry_date: s.data_entrada ? `${s.data_entrada.substring(6, 8)}/${s.data_entrada.substring(4, 6)}/${s.data_entrada.substring(0, 4)}` : "",
+      }));
+
+      // Parse secondary CNAEs
+      const parsedCnaes: SecondaryCnae[] = (estabelecimento.cnaes_secundarios || []).map((c: any) => ({
+        code: c.codigo || c.subclasse || "",
+        description: c.descricao || "",
+      }));
+
+      // Situação cadastral
+      const situacoes: Record<string, string> = { "01": "Nula", "02": "Ativa", "03": "Suspensa", "04": "Inapta", "08": "Baixada" };
+      const status = situacoes[estabelecimento.situacao_cadastral] || estabelecimento.situacao_cadastral || "";
+
+      // Founding date
+      let foundingDate = "";
       if (estabelecimento.data_inicio_atividade) {
         const d = estabelecimento.data_inicio_atividade;
-        notesParts.push(`Início Atividade: ${d.substring(6, 8)}/${d.substring(4, 6)}/${d.substring(0, 4)}`);
-      }
-      if (socios.length > 0) {
-        notesParts.push(`\nSócios:`);
-        socios.forEach((s: any) => {
-          const parts = [s.nome_socio];
-          if (s.qualificacao_descricao) parts.push(`(${s.qualificacao_descricao})`);
-          if (s.data_entrada) {
-            const de = s.data_entrada;
-            parts.push(`- entrada: ${de.substring(6, 8)}/${de.substring(4, 6)}/${de.substring(0, 4)}`);
-          }
-          notesParts.push(`  • ${parts.join(" ")}`);
-        });
+        foundingDate = `${d.substring(6, 8)}/${d.substring(4, 6)}/${d.substring(0, 4)}`;
       }
 
-      // Build phone
+      // Phone
       let phone = formData.phone;
       if (estabelecimento.ddd1 && estabelecimento.telefone1) {
         phone = `(${estabelecimento.ddd1}) ${estabelecimento.telefone1}`;
@@ -183,8 +202,21 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
         city: estabelecimento.municipio_nome || prev.city,
         state: estabelecimento.uf || prev.state,
         zip_code: estabelecimento.cep || prev.zip_code,
-        notes: notesParts.length > 0 ? notesParts.join("\n") : prev.notes,
+        capital_social: empresa.capital_social ? String(parseFloat(empresa.capital_social)) : prev.capital_social,
+        cnae: estabelecimento.cnae_principal || prev.cnae,
+        cnae_description: estabelecimento.cnae_principal_descricao || prev.cnae_description,
+        legal_nature: empresa.natureza_descricao || prev.legal_nature,
+        company_status: status || prev.company_status,
+        founding_date: foundingDate || prev.founding_date,
       }));
+
+      setPartners(parsedPartners);
+      if (parsedCnaes.length > 0) setSecondaryCnaes(parsedCnaes);
+
+      // Auto-expand extra info if we got data
+      if (parsedPartners.length > 0 || empresa.capital_social) {
+        setExtraInfoOpen(true);
+      }
 
       toast.success("Dados da empresa preenchidos com sucesso!");
     } catch (e: any) {
@@ -235,8 +267,11 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
   const handleSave = async () => {
     const data = {
       ...formData,
+      capital_social: formData.capital_social ? parseFloat(formData.capital_social) : null,
       segment_id: formData.segment_id || undefined,
       contacts: contacts.length > 0 ? contacts : undefined,
+      partners,
+      secondary_cnaes: secondaryCnaes,
     };
     if (company) {
       updateCompany.mutate({ id: company.id, ...data } as any);
@@ -247,6 +282,12 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
       }
     }
     onOpenChange(false);
+  };
+
+  const formatCurrency = (value: string) => {
+    const num = parseFloat(value);
+    if (isNaN(num)) return "";
+    return num.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
   };
 
   return (
@@ -414,6 +455,172 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
                 </div>
               </div>
             </div>
+
+            {/* Informações Adicionais - Collapsible */}
+            <Collapsible open={extraInfoOpen} onOpenChange={setExtraInfoOpen}>
+              <div className="border-t pt-4">
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" className="w-full justify-between p-0 h-auto hover:bg-transparent">
+                    <Label className="flex items-center gap-2 text-base cursor-pointer">
+                      <Building2 className="h-4 w-4" />
+                      Informações Adicionais
+                      {(partners.length > 0 || formData.capital_social || formData.cnae) && (
+                        <Badge variant="secondary" className="text-[10px]">
+                          {[partners.length > 0 && `${partners.length} sócio(s)`, formData.cnae && "CNAE", formData.capital_social && "Capital"].filter(Boolean).join(" · ")}
+                        </Badge>
+                      )}
+                    </Label>
+                    <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", extraInfoOpen && "rotate-180")} />
+                  </Button>
+                </CollapsibleTrigger>
+
+                <CollapsibleContent className="space-y-4 mt-4">
+                  {/* Situação + Data Fundação */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-sm flex items-center gap-1.5">
+                        <FileText className="h-3.5 w-3.5" />
+                        Situação Cadastral
+                      </Label>
+                      <Input
+                        value={formData.company_status}
+                        onChange={(e) => handleChange("company_status", e.target.value)}
+                        placeholder="Ativa, Baixada..."
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm flex items-center gap-1.5">
+                        <CalendarDays className="h-3.5 w-3.5" />
+                        Início Atividade
+                      </Label>
+                      <Input
+                        value={formData.founding_date}
+                        onChange={(e) => handleChange("founding_date", e.target.value)}
+                        placeholder="DD/MM/AAAA"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Natureza Jurídica + Capital Social */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-sm flex items-center gap-1.5">
+                        <Briefcase className="h-3.5 w-3.5" />
+                        Natureza Jurídica
+                      </Label>
+                      <Input
+                        value={formData.legal_nature}
+                        onChange={(e) => handleChange("legal_nature", e.target.value)}
+                        placeholder="Sociedade Limitada..."
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm flex items-center gap-1.5">
+                        <DollarSign className="h-3.5 w-3.5" />
+                        Capital Social
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          value={formData.capital_social}
+                          onChange={(e) => handleChange("capital_social", e.target.value.replace(/[^0-9.]/g, ""))}
+                          placeholder="0.00"
+                        />
+                        {formData.capital_social && (
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                            {formatCurrency(formData.capital_social)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* CNAE Principal */}
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-sm">CNAE Principal</Label>
+                      <Input
+                        value={formData.cnae}
+                        onChange={(e) => handleChange("cnae", e.target.value)}
+                        placeholder="0000-0/00"
+                      />
+                    </div>
+                    <div className="space-y-2 col-span-2">
+                      <Label className="text-sm">Descrição CNAE</Label>
+                      <Input
+                        value={formData.cnae_description}
+                        onChange={(e) => handleChange("cnae_description", e.target.value)}
+                        placeholder="Atividade principal"
+                      />
+                    </div>
+                  </div>
+
+                  {/* CNAEs Secundários */}
+                  {secondaryCnaes.length > 0 && (
+                    <div className="space-y-2">
+                      <Label className="text-sm text-muted-foreground">CNAEs Secundários ({secondaryCnaes.length})</Label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {secondaryCnaes.slice(0, 8).map((cnae, i) => (
+                          <Badge key={i} variant="outline" className="text-[10px] font-normal">
+                            {cnae.code} - {cnae.description}
+                          </Badge>
+                        ))}
+                        {secondaryCnaes.length > 8 && (
+                          <Badge variant="secondary" className="text-[10px]">
+                            +{secondaryCnaes.length - 8} mais
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Sócios */}
+                  <div className="space-y-3">
+                    <Label className="text-sm flex items-center gap-1.5">
+                      <Users className="h-3.5 w-3.5" />
+                      Quadro Societário ({partners.length})
+                    </Label>
+
+                    {partners.length > 0 ? (
+                      <div className="space-y-2">
+                        {partners.map((partner, index) => (
+                          <Card key={index} className="p-3">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center shrink-0">
+                                  <User className="h-4 w-4 text-accent-foreground" />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="font-medium text-sm truncate">{partner.name}</p>
+                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                    <span>{partner.qualification}</span>
+                                    {partner.entry_date && (
+                                      <span className="flex items-center gap-1">
+                                        <CalendarDays className="h-3 w-3" />
+                                        {partner.entry_date}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
+                                onClick={() => setPartners((prev) => prev.filter((_, i) => i !== index))}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </Card>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground italic">Nenhum sócio cadastrado. Consulte o CNPJ para preencher automaticamente.</p>
+                    )}
+                  </div>
+                </CollapsibleContent>
+              </div>
+            </Collapsible>
 
             {/* Contacts Section */}
             <div className="space-y-3 border-t pt-4">
