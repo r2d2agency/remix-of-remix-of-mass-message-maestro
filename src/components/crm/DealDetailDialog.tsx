@@ -63,6 +63,16 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
   const [newTaskDueDate, setNewTaskDueDate] = useState("");
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [description, setDescription] = useState("");
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [isEditingValue, setIsEditingValue] = useState(false);
+  const [editValue, setEditValue] = useState("");
+  const [isEditingProbability, setIsEditingProbability] = useState(false);
+  const [editProbability, setEditProbability] = useState("");
+  const [isEditingCloseDate, setIsEditingCloseDate] = useState(false);
+  const [editCloseDate, setEditCloseDate] = useState("");
+  const [isEditingTags, setIsEditingTags] = useState(false);
+  const [editTags, setEditTags] = useState("");
   const [attachments, setAttachments] = useState<DealAttachment[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -151,6 +161,17 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
     }
   }, [currentDeal?.description]);
 
+  // Sync edit states with deal data
+  useEffect(() => {
+    if (currentDeal) {
+      setEditTitle(currentDeal.title || "");
+      setEditValue(String(currentDeal.value || 0));
+      setEditProbability(String(currentDeal.probability || 0));
+      setEditCloseDate(currentDeal.expected_close_date ? currentDeal.expected_close_date.substring(0, 10) : "");
+      setEditTags((currentDeal.tags || []).join(", "));
+    }
+  }, [currentDeal]);
+
   if (!deal) return null;
 
   const formatCurrency = (value: number) => {
@@ -158,6 +179,45 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
       style: "currency",
       currency: "BRL",
     }).format(value);
+  };
+
+  const handleSaveTitle = () => {
+    if (editTitle.trim() && editTitle !== currentDeal?.title) {
+      updateDeal.mutate({ id: deal.id, title: editTitle.trim() });
+      toast.success("Título atualizado!");
+    }
+    setIsEditingTitle(false);
+  };
+
+  const handleSaveValue = () => {
+    const numValue = parseFloat(editValue.replace(/[^0-9.,]/g, "").replace(",", "."));
+    if (!isNaN(numValue)) {
+      updateDeal.mutate({ id: deal.id, value: numValue });
+      toast.success("Valor atualizado!");
+    }
+    setIsEditingValue(false);
+  };
+
+  const handleSaveProbability = () => {
+    const num = parseInt(editProbability);
+    if (!isNaN(num) && num >= 0 && num <= 100) {
+      updateDeal.mutate({ id: deal.id, probability: num });
+      toast.success("Probabilidade atualizada!");
+    }
+    setIsEditingProbability(false);
+  };
+
+  const handleSaveCloseDate = () => {
+    updateDeal.mutate({ id: deal.id, expected_close_date: editCloseDate || null } as any);
+    toast.success("Data de fechamento atualizada!");
+    setIsEditingCloseDate(false);
+  };
+
+  const handleSaveTags = () => {
+    const tagsArray = editTags.split(",").map(t => t.trim()).filter(Boolean);
+    updateDeal.mutate({ id: deal.id, tags: tagsArray } as any);
+    toast.success("Tags atualizadas!");
+    setIsEditingTags(false);
   };
 
   const handleStatusChange = (status: string) => {
@@ -346,8 +406,25 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
       <DialogContent className="max-w-4xl h-[95vh] max-h-[95vh] flex flex-col" aria-describedby={undefined}>
         <DialogHeader>
           <div className="flex items-start justify-between">
-            <div>
-              <DialogTitle className="text-xl">{currentDeal?.title}</DialogTitle>
+            <div className="flex-1 min-w-0">
+              {isEditingTitle ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    className="text-xl font-semibold h-9"
+                    autoFocus
+                    onKeyDown={(e) => { if (e.key === "Enter") handleSaveTitle(); if (e.key === "Escape") setIsEditingTitle(false); }}
+                  />
+                  <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={handleSaveTitle}><Save className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => { setEditTitle(currentDeal?.title || ""); setIsEditingTitle(false); }}><X className="h-4 w-4" /></Button>
+                </div>
+              ) : (
+                <DialogTitle className="text-xl cursor-pointer hover:text-primary transition-colors flex items-center gap-2" onClick={() => setIsEditingTitle(true)}>
+                  {currentDeal?.title}
+                  <Edit2 className="h-3.5 w-3.5 opacity-40" />
+                </DialogTitle>
+              )}
               <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
                 <Building2 className="h-4 w-4" />
                 {isEditingCompany ? (
@@ -412,9 +489,25 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
                   </button>
                 )}
                 <span>•</span>
-                <span className="font-semibold text-foreground">
-                  {formatCurrency(currentDeal?.value || 0)}
-                </span>
+                {isEditingValue ? (
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs">R$</span>
+                    <Input
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      className="h-6 w-28 text-sm"
+                      autoFocus
+                      onKeyDown={(e) => { if (e.key === "Enter") handleSaveValue(); if (e.key === "Escape") setIsEditingValue(false); }}
+                    />
+                    <Button variant="ghost" size="icon" className="h-5 w-5" onClick={handleSaveValue}><Save className="h-3 w-3" /></Button>
+                    <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => setIsEditingValue(false)}><X className="h-3 w-3" /></Button>
+                  </div>
+                ) : (
+                  <button onClick={() => setIsEditingValue(true)} className="font-semibold text-foreground hover:text-primary transition-colors flex items-center gap-1">
+                    {formatCurrency(currentDeal?.value || 0)}
+                    <Edit2 className="h-2.5 w-2.5 opacity-40" />
+                  </button>
+                )}
                 {isEditingCompany && (
                   <Button 
                     variant="ghost" 
@@ -517,9 +610,27 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
                 <Card className="p-4">
                   <h4 className="font-medium mb-3">Informações</h4>
                   <div className="space-y-3 text-sm">
-                    <div className="flex justify-between">
+                    {/* Probabilidade */}
+                    <div className="flex justify-between items-center">
                       <span className="text-muted-foreground">Probabilidade</span>
-                      <Badge variant="outline">{currentDeal?.probability}%</Badge>
+                      {isEditingProbability ? (
+                        <div className="flex items-center gap-1">
+                          <Input
+                            value={editProbability}
+                            onChange={(e) => setEditProbability(e.target.value.replace(/\D/g, ""))}
+                            className="h-6 w-16 text-xs text-right"
+                            autoFocus
+                            onKeyDown={(e) => { if (e.key === "Enter") handleSaveProbability(); if (e.key === "Escape") setIsEditingProbability(false); }}
+                          />
+                          <span className="text-xs">%</span>
+                          <Button variant="ghost" size="icon" className="h-5 w-5" onClick={handleSaveProbability}><Save className="h-3 w-3" /></Button>
+                        </div>
+                      ) : (
+                        <button onClick={() => setIsEditingProbability(true)} className="flex items-center gap-1 hover:text-primary transition-colors">
+                          <Badge variant="outline">{currentDeal?.probability}%</Badge>
+                          <Edit2 className="h-2.5 w-2.5 opacity-40" />
+                        </button>
+                      )}
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Etapa</span>
@@ -529,12 +640,28 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
                       <span className="text-muted-foreground">Responsável</span>
                       <span>{currentDeal?.owner_name || "Não definido"}</span>
                     </div>
-                    {currentDeal?.expected_close_date && (
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Fechamento previsto</span>
-                        <span>{format(parseISO(currentDeal.expected_close_date), "dd/MM/yyyy")}</span>
-                      </div>
-                    )}
+                    {/* Fechamento previsto */}
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">Fechamento previsto</span>
+                      {isEditingCloseDate ? (
+                        <div className="flex items-center gap-1">
+                          <Input
+                            type="date"
+                            value={editCloseDate}
+                            onChange={(e) => setEditCloseDate(e.target.value)}
+                            className="h-6 w-36 text-xs"
+                            autoFocus
+                            onKeyDown={(e) => { if (e.key === "Enter") handleSaveCloseDate(); if (e.key === "Escape") setIsEditingCloseDate(false); }}
+                          />
+                          <Button variant="ghost" size="icon" className="h-5 w-5" onClick={handleSaveCloseDate}><Save className="h-3 w-3" /></Button>
+                        </div>
+                      ) : (
+                        <button onClick={() => setIsEditingCloseDate(true)} className="flex items-center gap-1 hover:text-primary transition-colors">
+                          <span>{currentDeal?.expected_close_date ? format(parseISO(currentDeal.expected_close_date), "dd/MM/yyyy") : "Definir"}</span>
+                          <Edit2 className="h-2.5 w-2.5 opacity-40" />
+                        </button>
+                      )}
+                    </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Criado em</span>
                       <span>{format(parseISO(currentDeal?.created_at || new Date().toISOString()), "dd/MM/yyyy", { locale: ptBR })}</span>
@@ -568,19 +695,42 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
                       rows={4}
                     />
                   ) : (
-                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap cursor-pointer" onClick={() => setIsEditingDescription(true)}>
                       {currentDeal?.description || "Clique para adicionar uma descrição"}
                     </p>
                   )}
-                  {currentDeal?.tags && currentDeal.tags.length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-1">
-                      {currentDeal.tags.map((tag, i) => (
-                        <Badge key={i} variant="secondary" className="text-xs">
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
+                  {/* Tags editáveis */}
+                  <div className="mt-3">
+                    {isEditingTags ? (
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={editTags}
+                          onChange={(e) => setEditTags(e.target.value)}
+                          placeholder="tag1, tag2, tag3..."
+                          className="h-7 text-xs"
+                          autoFocus
+                          onKeyDown={(e) => { if (e.key === "Enter") handleSaveTags(); if (e.key === "Escape") setIsEditingTags(false); }}
+                        />
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleSaveTags}><Save className="h-3 w-3" /></Button>
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setIsEditingTags(false)}><X className="h-3 w-3" /></Button>
+                      </div>
+                    ) : (
+                      <button onClick={() => setIsEditingTags(true)} className="flex flex-wrap gap-1 items-center hover:opacity-80 transition-opacity">
+                        {currentDeal?.tags && currentDeal.tags.length > 0 ? (
+                          <>
+                            {currentDeal.tags.map((tag, i) => (
+                              <Badge key={i} variant="secondary" className="text-xs">{tag}</Badge>
+                            ))}
+                            <Edit2 className="h-2.5 w-2.5 opacity-40 ml-1" />
+                          </>
+                        ) : (
+                          <span className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Plus className="h-3 w-3" /> Adicionar tags
+                          </span>
+                        )}
+                      </button>
+                    )}
+                  </div>
                 </Card>
 
                 {/* Lead Score Card */}
