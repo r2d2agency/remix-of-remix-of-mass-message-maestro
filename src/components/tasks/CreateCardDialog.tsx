@@ -89,10 +89,11 @@ export function CreateCardDialog({ open, onOpenChange, onSubmit, boardType, orgM
           {boardType === 'global' && orgMembers.length > 0 && (
             <div>
               <label className="text-sm font-medium">Responsável</label>
-              <Select value={assignedTo} onValueChange={setAssignedTo}>
+              <Select value={assignedTo || "__none__"} onValueChange={(v) => setAssignedTo(v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecionar" /></SelectTrigger>
                 <SelectContent>
-                  {orgMembers.map(m => (
+                  <SelectItem value="__none__">Sem responsável</SelectItem>
+                  {orgMembers.filter(m => m.user_id).map(m => (
                     <SelectItem key={m.user_id} value={m.user_id}>{m.name}</SelectItem>
                   ))}
                 </SelectContent>
