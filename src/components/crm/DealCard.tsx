@@ -132,7 +132,7 @@ export const DealCard = forwardRef<HTMLDivElement, DealCardProps>(
           }
         }}
         className={cn(
-          "p-3 cursor-grab active:cursor-grabbing relative",
+          "p-3 cursor-grab active:cursor-grabbing relative overflow-hidden",
           "transition-all duration-200 ease-out",
           "hover:shadow-md hover:-translate-y-0.5",
           isDragging && "shadow-2xl scale-105 rotate-2 ring-2 ring-primary/50 cursor-grabbing",
@@ -160,9 +160,9 @@ export const DealCard = forwardRef<HTMLDivElement, DealCardProps>(
         )}
 
         {/* Title & Value */}
-        <div className="flex items-start justify-between gap-2 mb-2 min-w-0">
+        <div className="flex items-start justify-between gap-2 mb-2 min-w-0 overflow-hidden">
           <h4 className={cn(
-            "font-medium text-sm break-words min-w-0",
+            "font-medium text-sm break-words min-w-0 flex-1 overflow-hidden",
             isPaused && "text-muted-foreground"
           )}>
             {deal.title}
