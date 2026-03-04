@@ -3,7 +3,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { 
   DndContext, DragOverlay, closestCorners, DragStartEvent, DragEndEvent, DragOverEvent,
   PointerSensor, useSensor, useSensors, MeasuringStrategy 
@@ -20,9 +20,12 @@ import { useOrganizations } from "@/hooks/use-organizations";
 import { CreateBoardDialog } from "@/components/tasks/CreateBoardDialog";
 import { CreateCardDialog } from "@/components/tasks/CreateCardDialog";
 import { TaskCardDetailDialog } from "@/components/tasks/TaskCardDetailDialog";
+import { ChecklistTemplateManager } from "@/components/tasks/ChecklistTemplateManager";
+import { GanttChart } from "@/components/tasks/GanttChart";
 import {
   Plus, Kanban, Globe, User, MoreHorizontal, Trash2, Edit2, Loader2,
-  AlertTriangle, ArrowUp, ArrowDown, Minus, Calendar as CalendarIcon, CheckSquare
+  AlertTriangle, ArrowUp, ArrowDown, Minus, Calendar as CalendarIcon, CheckSquare,
+  BarChart3, ListChecks
 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -59,6 +62,14 @@ function TaskKanbanCard({ card, onClick }: { card: TaskCard; onClick: () => void
         </p>
         {priorityIcons[card.priority]}
       </div>
+      {/* CRM links */}
+      {(card.deal_title || card.company_name || card.contact_name) && (
+        <div className="flex flex-wrap gap-1">
+          {card.deal_title && <Badge variant="outline" className="text-[9px] px-1 py-0">🤝 {card.deal_title}</Badge>}
+          {card.company_name && <Badge variant="outline" className="text-[9px] px-1 py-0">🏢 {card.company_name}</Badge>}
+          {card.contact_name && <Badge variant="outline" className="text-[9px] px-1 py-0">👤 {card.contact_name}</Badge>}
+        </div>
+      )}
       <div className="flex flex-wrap gap-1">
         {card.tags?.slice(0, 3).map((tag, i) => (
           <Badge key={i} variant="secondary" className="text-[10px] px-1.5 py-0">{tag}</Badge>
@@ -182,6 +193,7 @@ export default function CRMTarefas() {
   const [viewMode, setViewMode] = useState<'all' | 'global' | 'personal'>('all');
   const [editingBoardId, setEditingBoardId] = useState<string | null>(null);
   const [editBoardName, setEditBoardName] = useState("");
+  const [mainTab, setMainTab] = useState<'kanban' | 'gantt' | 'templates'>('kanban');
 
   // Ensure default board on mount
   useEffect(() => {
@@ -335,114 +347,151 @@ export default function CRMTarefas() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as any)}>
+              {/* Main view tabs */}
+              <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as any)}>
                 <TabsList className="h-8">
-                  <TabsTrigger value="all" className="text-xs px-3">Todos</TabsTrigger>
-                  <TabsTrigger value="global" className="text-xs px-3">
+                  <TabsTrigger value="kanban" className="text-xs px-3">
+                    <Kanban className="h-3 w-3 mr-1" /> Kanban
+                  </TabsTrigger>
+                  <TabsTrigger value="gantt" className="text-xs px-3">
+                    <BarChart3 className="h-3 w-3 mr-1" /> Gantt
+                  </TabsTrigger>
+                  <TabsTrigger value="templates" className="text-xs px-3">
+                    <ListChecks className="h-3 w-3 mr-1" /> Templates
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+
+              {mainTab === 'kanban' && (
+                <Button size="sm" onClick={() => setCreateBoardOpen(true)}>
+                  <Plus className="h-4 w-4 mr-1" /> Novo Quadro
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Board selector - only for kanban */}
+          {mainTab === 'kanban' && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as any)}>
+                <TabsList className="h-7">
+                  <TabsTrigger value="all" className="text-xs px-2">Todos</TabsTrigger>
+                  <TabsTrigger value="global" className="text-xs px-2">
                     <Globe className="h-3 w-3 mr-1" /> Globais
                   </TabsTrigger>
-                  <TabsTrigger value="personal" className="text-xs px-3">
+                  <TabsTrigger value="personal" className="text-xs px-2">
                     <User className="h-3 w-3 mr-1" /> Pessoais
                   </TabsTrigger>
                 </TabsList>
               </Tabs>
-              <Button size="sm" onClick={() => setCreateBoardOpen(true)}>
-                <Plus className="h-4 w-4 mr-1" /> Novo Quadro
-              </Button>
-            </div>
-          </div>
-
-          {/* Board selector */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1">
-            {filteredBoards.map(board => (
-              <div key={board.id} className="flex items-center gap-1">
-                {editingBoardId === board.id ? (
-                  <Input
-                    value={editBoardName}
-                    onChange={e => setEditBoardName(e.target.value)}
-                    onBlur={handleSaveRename}
-                    onKeyDown={e => { if (e.key === 'Enter') handleSaveRename(); if (e.key === 'Escape') setEditingBoardId(null); }}
-                    className="h-8 w-40 text-sm"
-                    autoFocus
-                  />
-                ) : (
-                  <Button
-                    variant={selectedBoardId === board.id ? "default" : "outline"}
-                    size="sm"
-                    className="shrink-0 gap-2"
-                    onClick={() => setSelectedBoardId(board.id)}
-                  >
-                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: board.color }} />
-                    {board.name}
-                    {board.type === 'global' && <Globe className="h-3 w-3 text-muted-foreground" />}
-                    <Badge variant="secondary" className="text-[10px] ml-1">{board.card_count}</Badge>
-                  </Button>
-                )}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0">
-                      <MoreHorizontal className="h-3 w-3" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent>
-                    <DropdownMenuItem onClick={() => handleRenameBoard(board.id)}>
-                      <Edit2 className="h-4 w-4 mr-2" /> Renomear
-                    </DropdownMenuItem>
-                    {!board.is_default && (
-                      <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteBoard(board.id)}>
-                        <Trash2 className="h-4 w-4 mr-2" /> Excluir
-                      </DropdownMenuItem>
+              <div className="flex items-center gap-2 overflow-x-auto">
+                {filteredBoards.map(board => (
+                  <div key={board.id} className="flex items-center gap-1">
+                    {editingBoardId === board.id ? (
+                      <Input
+                        value={editBoardName}
+                        onChange={e => setEditBoardName(e.target.value)}
+                        onBlur={handleSaveRename}
+                        onKeyDown={e => { if (e.key === 'Enter') handleSaveRename(); if (e.key === 'Escape') setEditingBoardId(null); }}
+                        className="h-8 w-40 text-sm"
+                        autoFocus
+                      />
+                    ) : (
+                      <Button
+                        variant={selectedBoardId === board.id ? "default" : "outline"}
+                        size="sm"
+                        className="shrink-0 gap-2"
+                        onClick={() => setSelectedBoardId(board.id)}
+                      >
+                        <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: board.color }} />
+                        {board.name}
+                        {board.type === 'global' && <Globe className="h-3 w-3 text-muted-foreground" />}
+                        <Badge variant="secondary" className="text-[10px] ml-1">{board.card_count}</Badge>
+                      </Button>
                     )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Kanban board */}
-        {selectedBoard && columns ? (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCorners}
-            onDragStart={handleDragStart}
-            onDragOver={handleDragOver}
-            onDragEnd={handleDragEnd}
-            onDragCancel={handleDragCancel}
-            measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
-          >
-            <ScrollArea className="flex-1 w-full">
-              <div className="flex gap-4 p-4 min-w-max">
-                {columns.map(col => (
-                  <SortableContext key={col.id} items={(cardsByColumn[col.id] || []).map(c => c.id)} strategy={verticalListSortingStrategy}>
-                    <TaskKanbanColumn
-                      column={col}
-                      cards={cardsByColumn[col.id] || []}
-                      onCardClick={(card) => { setSelectedCard(card); setCardDetailOpen(true); }}
-                      onAddCard={handleAddCard}
-                      activeId={activeId}
-                      overId={overId}
-                    />
-                  </SortableContext>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0">
+                          <MoreHorizontal className="h-3 w-3" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent>
+                        <DropdownMenuItem onClick={() => handleRenameBoard(board.id)}>
+                          <Edit2 className="h-4 w-4 mr-2" /> Renomear
+                        </DropdownMenuItem>
+                        {!board.is_default && (
+                          <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteBoard(board.id)}>
+                            <Trash2 className="h-4 w-4 mr-2" /> Excluir
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 ))}
               </div>
-              <ScrollBar orientation="horizontal" />
-            </ScrollArea>
+            </div>
+          )}
+        </div>
 
-            <DragOverlay
-              dropAnimation={{ duration: 250, easing: 'cubic-bezier(0.25, 1, 0.5, 1)' }}
-              style={{ cursor: 'grabbing' }}
-            >
-              {activeCard ? (
-                <div className="rotate-2 scale-105 shadow-2xl w-[300px]">
-                  <TaskKanbanCard card={activeCard} onClick={() => {}} />
-                </div>
-              ) : null}
-            </DragOverlay>
-          </DndContext>
-        ) : (
-          <div className="flex-1 flex items-center justify-center text-muted-foreground">
-            <p>Selecione ou crie um quadro para começar</p>
+        {/* Content */}
+        {mainTab === 'kanban' && (
+          <>
+            {selectedBoard && columns ? (
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCorners}
+                onDragStart={handleDragStart}
+                onDragOver={handleDragOver}
+                onDragEnd={handleDragEnd}
+                onDragCancel={handleDragCancel}
+                measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
+              >
+                <ScrollArea className="flex-1 w-full">
+                  <div className="flex gap-4 p-4 min-w-max">
+                    {columns.map(col => (
+                      <SortableContext key={col.id} items={(cardsByColumn[col.id] || []).map(c => c.id)} strategy={verticalListSortingStrategy}>
+                        <TaskKanbanColumn
+                          column={col}
+                          cards={cardsByColumn[col.id] || []}
+                          onCardClick={(card) => { setSelectedCard(card); setCardDetailOpen(true); }}
+                          onAddCard={handleAddCard}
+                          activeId={activeId}
+                          overId={overId}
+                        />
+                      </SortableContext>
+                    ))}
+                  </div>
+                  <ScrollBar orientation="horizontal" />
+                </ScrollArea>
+
+                <DragOverlay
+                  dropAnimation={{ duration: 250, easing: 'cubic-bezier(0.25, 1, 0.5, 1)' }}
+                  style={{ cursor: 'grabbing' }}
+                >
+                  {activeCard ? (
+                    <div className="rotate-2 scale-105 shadow-2xl w-[300px]">
+                      <TaskKanbanCard card={activeCard} onClick={() => {}} />
+                    </div>
+                  ) : null}
+                </DragOverlay>
+              </DndContext>
+            ) : (
+              <div className="flex-1 flex items-center justify-center text-muted-foreground">
+                <p>Selecione ou crie um quadro para começar</p>
+              </div>
+            )}
+          </>
+        )}
+
+        {mainTab === 'gantt' && (
+          <div className="flex-1 p-4 overflow-auto">
+            <GanttChart />
+          </div>
+        )}
+
+        {mainTab === 'templates' && (
+          <div className="flex-1 p-4 overflow-auto">
+            <ChecklistTemplateManager />
           </div>
         )}
       </div>

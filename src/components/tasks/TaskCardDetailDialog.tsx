@@ -12,12 +12,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { FileUploadInput } from "@/components/ui/file-upload-input";
-import { TaskCard, useTaskCardMutations, useTaskChecklists, useTaskChecklistMutations, useChecklistTemplates } from "@/hooks/use-task-boards";
+import { TaskCard, ChecklistItem, useTaskCardMutations, useTaskChecklists, useTaskChecklistMutations, useChecklistTemplates } from "@/hooks/use-task-boards";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganizations } from "@/hooks/use-organizations";
+import { useCRMDealsSearch, useCRMCompanies } from "@/hooks/use-crm";
 import {
   CalendarIcon, User, Tag, Paperclip, CheckSquare, Trash2, Plus, X,
-  AlertTriangle, Clock, ArrowUp, ArrowDown, Minus, FileText, Link2
+  AlertTriangle, Clock, ArrowUp, ArrowDown, Minus, FileText, Link2,
+  Building2, Briefcase, Users, Ban
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -38,12 +40,14 @@ export function TaskCardDetailDialog({ card, open, onOpenChange, boardType }: Ta
   const { data: checklists } = useTaskChecklists(card?.id);
   const { createChecklist, updateChecklist, deleteChecklist } = useTaskChecklistMutations();
   const { data: templates } = useChecklistTemplates();
+  const { data: deals } = useCRMDealsSearch("");
+  const { data: companies } = useCRMCompanies("");
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>("medium");
   const [dueDate, setDueDate] = useState<Date | undefined>();
-  const [assignedTo, setAssignedTo] = useState<string>("");
+  const [assignedTo, setAssignedTo] = useState<string>("__none__");
   const [tags, setTags] = useState<string[]>([]);
   const [newTag, setNewTag] = useState("");
   const [attachments, setAttachments] = useState<{ url: string; name: string; type: string }[]>([]);
@@ -51,6 +55,10 @@ export function TaskCardDetailDialog({ card, open, onOpenChange, boardType }: Ta
   const [orgMembers, setOrgMembers] = useState<any[]>([]);
   const [newChecklistTitle, setNewChecklistTitle] = useState("");
   const [newCheckItemTexts, setNewCheckItemTexts] = useState<Record<string, string>>({});
+
+  const [dealId, setDealId] = useState<string>("__none__");
+  const [contactId, setContactId] = useState<string>("__none__");
+  const [companyId, setCompanyId] = useState<string>("__none__");
 
   useEffect(() => {
     if (card) {
@@ -62,6 +70,9 @@ export function TaskCardDetailDialog({ card, open, onOpenChange, boardType }: Ta
       setTags(card.tags || []);
       setAttachments(card.attachments || []);
       setCoverColor(card.cover_color || "");
+      setDealId(card.deal_id || "__none__");
+      setContactId(card.contact_id || "__none__");
+      setCompanyId(card.company_id || "__none__");
     }
   }, [card]);
 
@@ -70,6 +81,23 @@ export function TaskCardDetailDialog({ card, open, onOpenChange, boardType }: Ta
       getMembers(user.organization_id).then(setOrgMembers);
     }
   }, [user?.organization_id, boardType]);
+
+  // Collect contacts from deals
+  const dealContacts = useMemo(() => {
+    const contacts: any[] = [];
+    deals?.forEach((deal: any) => {
+      deal.contacts?.forEach((c: any) => {
+        if (!contacts.find(x => x.id === c.id)) contacts.push(c);
+      });
+    });
+    return contacts;
+  }, [deals]);
+
+  // Check if all checklists are complete
+  const allChecklistsComplete = useMemo(() => {
+    if (!checklists || checklists.length === 0) return true;
+    return checklists.every(cl => cl.items.length === 0 || cl.items.every(i => i.checked));
+  }, [checklists]);
 
   const handleSave = () => {
     if (!card) return;
@@ -80,10 +108,13 @@ export function TaskCardDetailDialog({ card, open, onOpenChange, boardType }: Ta
       priority,
       due_date: dueDate?.toISOString(),
       assigned_to: assignedTo === "__none__" ? undefined : assignedTo || undefined,
+      deal_id: dealId === "__none__" ? null : dealId,
+      contact_id: contactId === "__none__" ? null : contactId,
+      company_id: companyId === "__none__" ? null : companyId,
       tags,
       attachments,
       cover_color: coverColor || undefined,
-    });
+    } as any);
     toast.success("Tarefa atualizada!");
   };
 
@@ -98,6 +129,10 @@ export function TaskCardDetailDialog({ card, open, onOpenChange, boardType }: Ta
   const handleToggleComplete = () => {
     if (!card) return;
     const newStatus = card.status === 'completed' ? 'open' : 'completed';
+    if (newStatus === 'completed' && !allChecklistsComplete) {
+      toast.error("Complete todos os itens dos checklists antes de concluir a tarefa!");
+      return;
+    }
     updateCard.mutate({ id: card.id, status: newStatus });
     toast.success(newStatus === 'completed' ? "Tarefa concluída!" : "Tarefa reaberta!");
   };
@@ -135,13 +170,19 @@ export function TaskCardDetailDialog({ card, open, onOpenChange, boardType }: Ta
   const handleAddCheckItem = (checklistId: string, checklist: any) => {
     const text = newCheckItemTexts[checklistId]?.trim();
     if (!text) return;
-    const items = [...checklist.items, { text, checked: false }];
+    const items: ChecklistItem[] = [...checklist.items, { text, checked: false }];
     updateChecklist.mutate({ id: checklistId, items });
     setNewCheckItemTexts(prev => ({ ...prev, [checklistId]: "" }));
   };
 
   const handleRemoveCheckItem = (checklist: any, itemIdx: number) => {
     const items = checklist.items.filter((_: any, i: number) => i !== itemIdx);
+    updateChecklist.mutate({ id: checklist.id, items });
+  };
+
+  const handleSetCheckItemDueDate = (checklist: any, itemIdx: number, date: Date | undefined) => {
+    const items = [...checklist.items];
+    items[itemIdx] = { ...items[itemIdx], due_date: date?.toISOString() };
     updateChecklist.mutate({ id: checklist.id, items });
   };
 
@@ -159,7 +200,9 @@ export function TaskCardDetailDialog({ card, open, onOpenChange, boardType }: Ta
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] p-0">
-        {/* Cover color */}
+        <DialogHeader className="sr-only">
+          <DialogTitle>{card.title}</DialogTitle>
+        </DialogHeader>
         {coverColor && (
           <div className="h-8 rounded-t-lg" style={{ backgroundColor: coverColor }} />
         )}
@@ -186,11 +229,20 @@ export function TaskCardDetailDialog({ card, open, onOpenChange, boardType }: Ta
                 variant={card.status === 'completed' ? "default" : "outline"}
                 size="sm"
                 onClick={handleToggleComplete}
-                className={cn(card.status === 'completed' && "bg-green-600 hover:bg-green-700")}
+                className={cn(
+                  card.status === 'completed' && "bg-green-600 hover:bg-green-700",
+                  !allChecklistsComplete && card.status !== 'completed' && "opacity-70"
+                )}
+                title={!allChecklistsComplete ? "Complete todos os itens dos checklists primeiro" : undefined}
               >
                 <CheckSquare className="h-4 w-4 mr-1" />
                 {card.status === 'completed' ? 'Concluída' : 'Marcar como concluída'}
               </Button>
+              {!allChecklistsComplete && card.status !== 'completed' && (
+                <span className="text-xs text-amber-600 flex items-center gap-1">
+                  <Ban className="h-3 w-3" /> Checklists pendentes
+                </span>
+              )}
 
               <Select value={priority} onValueChange={(v) => setPriority(v as 'low' | 'medium' | 'high' | 'urgent')}>
                 <SelectTrigger className="w-[140px]">
@@ -242,7 +294,7 @@ export function TaskCardDetailDialog({ card, open, onOpenChange, boardType }: Ta
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__none__">Sem responsável</SelectItem>
-                      {orgMembers.map(m => (
+                      {orgMembers.filter(m => m.user_id).map(m => (
                         <SelectItem key={m.user_id} value={m.user_id}>{m.name}</SelectItem>
                       ))}
                     </SelectContent>
@@ -251,6 +303,85 @@ export function TaskCardDetailDialog({ card, open, onOpenChange, boardType }: Ta
                   <div className="text-sm text-muted-foreground p-2 border rounded-md bg-muted/50">
                     {user?.name || "Você"}
                   </div>
+                )}
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* CRM Linking */}
+            <div className="space-y-3">
+              <label className="text-sm font-medium flex items-center gap-1">
+                <Link2 className="h-3.5 w-3.5" /> Vínculos CRM
+              </label>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {/* Deal */}
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Briefcase className="h-3 w-3" /> Negociação
+                  </label>
+                  <Select value={dealId} onValueChange={setDealId}>
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue placeholder="Selecionar" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Nenhuma</SelectItem>
+                      {deals.filter(d => d.id).map(d => (
+                        <SelectItem key={d.id} value={d.id}>
+                          {d.title} {d.company_name ? `(${d.company_name})` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Company */}
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Building2 className="h-3 w-3" /> Empresa
+                  </label>
+                  <Select value={companyId} onValueChange={setCompanyId}>
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue placeholder="Selecionar" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Nenhuma</SelectItem>
+                      {companies.filter(c => c.id).map(c => (
+                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Contact */}
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Users className="h-3 w-3" /> Contato
+                  </label>
+                  <Select value={contactId} onValueChange={setContactId}>
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue placeholder="Selecionar" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Nenhum</SelectItem>
+                      {dealContacts.filter(c => c.id).map(c => (
+                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Display current links */}
+              <div className="flex flex-wrap gap-1.5">
+                {card.deal_title && dealId !== "__none__" && (
+                  <Badge variant="outline" className="text-xs">🤝 {card.deal_title}</Badge>
+                )}
+                {card.company_name && companyId !== "__none__" && (
+                  <Badge variant="outline" className="text-xs">🏢 {card.company_name}</Badge>
+                )}
+                {card.contact_name && contactId !== "__none__" && (
+                  <Badge variant="outline" className="text-xs">👤 {card.contact_name}</Badge>
                 )}
               </div>
             </div>
@@ -346,7 +477,7 @@ export function TaskCardDetailDialog({ card, open, onOpenChange, boardType }: Ta
 
               {checklists?.map(cl => {
                 const total = cl.items.length;
-                const done = cl.items.filter(i => i.checked).length;
+                const done = cl.items.filter((i: ChecklistItem) => i.checked).length;
                 const pct = total > 0 ? (done / total) * 100 : 0;
 
                 return (
@@ -362,7 +493,7 @@ export function TaskCardDetailDialog({ card, open, onOpenChange, boardType }: Ta
                     </div>
                     <Progress value={pct} className="h-1.5" />
                     <div className="space-y-1">
-                      {cl.items.map((item, idx) => (
+                      {cl.items.map((item: ChecklistItem, idx: number) => (
                         <div key={idx} className="flex items-center gap-2 group">
                           <Checkbox
                             checked={item.checked}
@@ -371,6 +502,28 @@ export function TaskCardDetailDialog({ card, open, onOpenChange, boardType }: Ta
                           <span className={cn("text-sm flex-1", item.checked && "line-through text-muted-foreground")}>
                             {item.text}
                           </span>
+                          {/* Due date for checklist item */}
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-5 w-5 shrink-0" title="Prazo do item">
+                                <CalendarIcon className={cn("h-3 w-3", item.due_date ? "text-primary" : "text-muted-foreground opacity-0 group-hover:opacity-100")} />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                              <Calendar
+                                mode="single"
+                                selected={item.due_date ? parseISO(item.due_date) : undefined}
+                                onSelect={(d) => handleSetCheckItemDueDate(cl, idx, d)}
+                                initialFocus
+                                className="pointer-events-auto"
+                              />
+                            </PopoverContent>
+                          </Popover>
+                          {item.due_date && (
+                            <span className="text-[10px] text-muted-foreground shrink-0">
+                              {format(parseISO(item.due_date), "dd/MM", { locale: ptBR })}
+                            </span>
+                          )}
                           <Button
                             variant="ghost" size="icon"
                             className="h-5 w-5 opacity-0 group-hover:opacity-100"
@@ -424,28 +577,6 @@ export function TaskCardDetailDialog({ card, open, onOpenChange, boardType }: Ta
                 showPreview={false}
               />
             </div>
-
-            {/* Linked deal/contact */}
-            {(card.deal_title || card.contact_name) && (
-              <>
-                <Separator />
-                <div className="space-y-2">
-                  <label className="text-sm font-medium flex items-center gap-1">
-                    <Link2 className="h-3.5 w-3.5" /> Vínculos
-                  </label>
-                  {card.deal_title && (
-                    <Badge variant="outline">
-                      🤝 Negociação: {card.deal_title}
-                    </Badge>
-                  )}
-                  {card.contact_name && (
-                    <Badge variant="outline">
-                      👤 Contato: {card.contact_name}
-                    </Badge>
-                  )}
-                </div>
-              </>
-            )}
 
             <Separator />
 
