@@ -94,6 +94,7 @@ DO $$ BEGIN
     ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_group_secretary BOOLEAN DEFAULT false;
     ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_ghost BOOLEAN DEFAULT false;
     ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_aasp BOOLEAN DEFAULT false;
+    ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_lead_gleego BOOLEAN DEFAULT false;
     ALTER TABLE crm_tasks ADD COLUMN IF NOT EXISTS reminder_minutes INTEGER DEFAULT NULL;
     ALTER TABLE crm_tasks ADD COLUMN IF NOT EXISTS reminder_whatsapp BOOLEAN DEFAULT false;
     ALTER TABLE crm_tasks ADD COLUMN IF NOT EXISTS reminder_popup BOOLEAN DEFAULT true;
@@ -148,6 +149,11 @@ DO $$ BEGIN
     ALTER TABLE organizations ADD COLUMN IF NOT EXISTS ai_provider VARCHAR(20) DEFAULT 'none';
     ALTER TABLE organizations ADD COLUMN IF NOT EXISTS ai_model VARCHAR(100);
     ALTER TABLE organizations ADD COLUMN IF NOT EXISTS ai_api_key TEXT;
+EXCEPTION WHEN duplicate_column THEN null; END $$;
+
+-- Organização: chave API Lead Gleego (SSO)
+DO $$ BEGIN
+    ALTER TABLE organizations ADD COLUMN IF NOT EXISTS lead_gleego_api_key TEXT;
 EXCEPTION WHEN duplicate_column THEN null; END $$;
 
 -- Organização: horário de trabalho para agendamento inteligente
