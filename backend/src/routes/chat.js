@@ -1510,6 +1510,124 @@ router.post('/conversations/:id/messages', authenticate, async (req, res) => {
 });
 
 // ==========================================
+// REACTIONS
+// ==========================================
+
+// Send reaction to a message
+router.post('/conversations/:id/messages/:messageId/reaction', authenticate, async (req, res) => {
+  try {
+    const { id, messageId: dbMessageId } = req.params;
+    const { reaction } = req.body;
+
+    if (!reaction) {
+      return res.status(400).json({ error: 'Emoji de reação é obrigatório' });
+    }
+
+    const connectionIds = await getUserConnections(req.userId);
+
+    // Get conversation with connection details
+    const convResult = await query(
+      `SELECT 
+        conv.*,
+        conn.api_url,
+        conn.api_key,
+        conn.instance_name,
+        conn.provider,
+        conn.instance_id,
+        conn.wapi_token,
+        conn.status as connection_status
+      FROM conversations conv
+      JOIN connections conn ON conn.id = conv.connection_id
+      WHERE conv.id = $1 AND conv.connection_id = ANY($2)`,
+      [id, connectionIds]
+    );
+
+    if (convResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Conversa não encontrada' });
+    }
+
+    const conversation = convResult.rows[0];
+    const provider = whatsappProvider.detectProvider(conversation);
+
+    // Get the WhatsApp message_id from the DB message
+    const msgResult = await query(
+      `SELECT message_id FROM chat_messages WHERE id = $1 AND conversation_id = $2`,
+      [dbMessageId, id]
+    );
+
+    if (msgResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Mensagem não encontrada' });
+    }
+
+    const waMessageId = msgResult.rows[0].message_id;
+    if (!waMessageId || waMessageId.startsWith('temp_')) {
+      return res.status(400).json({ error: 'Mensagem ainda não foi enviada ao WhatsApp' });
+    }
+
+    // Determine the phone/JID for the reaction
+    const isGroup = String(conversation.remote_jid || '').includes('@g.us') || conversation.is_group === true;
+    let phone;
+    if (isGroup) {
+      phone = conversation.remote_jid;
+    } else {
+      const jid = String(conversation.remote_jid || '');
+      if (jid.includes('@lid') && conversation.contact_phone) {
+        phone = conversation.contact_phone;
+      } else {
+        phone = jid.replace('@s.whatsapp.net', '').replace('@c.us', '').replace('@lid', '');
+      }
+    }
+
+    if (provider === 'wapi') {
+      const { sendReaction } = await import('../lib/wapi-provider.js');
+      const result = await sendReaction(conversation.instance_id, conversation.wapi_token, phone, waMessageId, reaction);
+      
+      if (!result.success) {
+        return res.status(500).json({ error: result.error || 'Erro ao enviar reação' });
+      }
+      
+      return res.json({ success: true });
+    }
+
+    // Evolution API - send reaction
+    try {
+      const response = await fetch(
+        `${conversation.api_url}/message/sendReaction/${conversation.instance_name}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': conversation.api_key,
+          },
+          body: JSON.stringify({
+            reactionMessage: {
+              key: {
+                remoteJid: conversation.remote_jid,
+                fromMe: false, // Will be set by the message_id lookup
+                id: waMessageId,
+              },
+              reaction: reaction,
+            },
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        return res.status(500).json({ error: `Erro Evolution API: ${errorText}` });
+      }
+
+      return res.json({ success: true });
+    } catch (evoError) {
+      return res.status(500).json({ error: evoError.message });
+    }
+  } catch (error) {
+    console.error('Send reaction error:', error);
+    res.status(500).json({ error: 'Erro ao enviar reação' });
+  }
+});
+
+// ==========================================
 // TAGS
 // ==========================================
 

@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -84,6 +85,7 @@ import {
   Building2,
   Briefcase,
   Sparkles,
+  SmilePlus,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -226,6 +228,8 @@ export function ChatArea({
   const [showNotes, setShowNotes] = useState(false);
   const [notesCount, setNotesCount] = useState(0);
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
+  const [reactingToMsg, setReactingToMsg] = useState<string | null>(null);
+  const [sendingReaction, setSendingReaction] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<string[]>([]);
@@ -586,6 +590,26 @@ export function ChatArea({
       await onSendMessage(text, 'text', undefined, quotedId);
     } catch (error) {
       setMessageText(messageText.trim()); // Restore original text on error
+    }
+  };
+
+  const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+
+  const handleSendReaction = async (msgId: string, emoji: string) => {
+    if (!conversation || sendingReaction) return;
+    setSendingReaction(true);
+    setReactingToMsg(null);
+    try {
+      await api(`/api/chat/conversations/${conversation.id}/messages/${msgId}/reaction`, {
+        method: 'POST',
+        body: { reaction: emoji },
+        auth: true,
+      });
+      toast.success(`Reação ${emoji} enviada!`);
+    } catch (error: any) {
+      toast.error(error?.message || 'Erro ao enviar reação');
+    } finally {
+      setSendingReaction(false);
     }
   };
 
@@ -1734,17 +1758,45 @@ export function ChatArea({
                 msg.from_me ? "justify-end" : "justify-start"
               )}
             >
-              {/* Reply button - left side for received messages */}
+              {/* Action buttons - left side for received messages */}
               {!msg.from_me && msg.message_type !== 'system' && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity self-center mr-1"
-                  onClick={() => setReplyingTo(msg)}
-                  title="Responder"
-                >
-                  <Reply className="h-3 w-3" />
-                </Button>
+                <div className="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity self-center mr-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={() => setReplyingTo(msg)}
+                    title="Responder"
+                  >
+                    <Reply className="h-3 w-3" />
+                  </Button>
+                  <Popover open={reactingToMsg === msg.id} onOpenChange={(open) => setReactingToMsg(open ? msg.id : null)}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        title="Reagir"
+                      >
+                        <SmilePlus className="h-3 w-3" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-1.5" side="top" align="start">
+                      <div className="flex gap-1">
+                        {QUICK_REACTIONS.map((emoji) => (
+                          <button
+                            key={emoji}
+                            className="text-lg hover:scale-125 transition-transform cursor-pointer p-1 rounded hover:bg-muted"
+                            onClick={() => handleSendReaction(msg.id, emoji)}
+                            disabled={sendingReaction}
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
               )}
 
               <div
@@ -1977,17 +2029,45 @@ export function ChatArea({
                 )}
               </div>
 
-              {/* Reply button - right side for sent messages */}
+              {/* Action buttons - right side for sent messages */}
               {msg.from_me && msg.message_type !== 'system' && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity self-center ml-1"
-                  onClick={() => setReplyingTo(msg)}
-                  title="Responder"
-                >
-                  <Reply className="h-3 w-3" />
-                </Button>
+                <div className="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity self-center ml-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={() => setReplyingTo(msg)}
+                    title="Responder"
+                  >
+                    <Reply className="h-3 w-3" />
+                  </Button>
+                  <Popover open={reactingToMsg === msg.id} onOpenChange={(open) => setReactingToMsg(open ? msg.id : null)}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        title="Reagir"
+                      >
+                        <SmilePlus className="h-3 w-3" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-1.5" side="top" align="end">
+                      <div className="flex gap-1">
+                        {QUICK_REACTIONS.map((emoji) => (
+                          <button
+                            key={emoji}
+                            className="text-lg hover:scale-125 transition-transform cursor-pointer p-1 rounded hover:bg-muted"
+                            onClick={() => handleSendReaction(msg.id, emoji)}
+                            disabled={sendingReaction}
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
               )}
             </div>
           )})}
