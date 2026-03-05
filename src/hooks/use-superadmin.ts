@@ -39,6 +39,7 @@ interface Plan {
   has_group_secretary: boolean;
   has_ghost: boolean;
   has_aasp: boolean;
+  has_lead_gleego: boolean;
   price: number;
   billing_period: string;
   is_active: boolean;
@@ -126,6 +127,7 @@ export function useSuperadmin() {
     has_group_secretary: boolean;
     has_ghost?: boolean;
     has_aasp?: boolean;
+    has_lead_gleego?: boolean;
     price: number;
     billing_period: string;
     visible_on_signup?: boolean;
