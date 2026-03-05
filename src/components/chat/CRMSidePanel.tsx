@@ -347,18 +347,28 @@ export function CRMSidePanel({
   };
 
   const handleCreateAndAssignCompany = async (newCompany: any) => {
-    if (!selectedDeal || !newCompany?.id) return;
-    try {
-      await updateDeal.mutateAsync({
-        id: selectedDeal.id,
-        company_id: newCompany.id,
-      });
-      refetchDeals();
-      refetchCompany();
-      toast.success("Empresa criada e atribuída!");
-    } catch (error) {
-      toast.error("Erro ao atribuir empresa");
+    if (!newCompany?.id) return;
+    
+    // If we have a deal, assign the company to it
+    if (selectedDeal) {
+      try {
+        await updateDeal.mutateAsync({
+          id: selectedDeal.id,
+          company_id: newCompany.id,
+        });
+        refetchDeals();
+        refetchCompany();
+        toast.success("Empresa criada e atribuída!");
+      } catch (error) {
+        toast.error("Erro ao atribuir empresa");
+      }
+    } else {
+      toast.success("Empresa criada com sucesso!");
     }
+    
+    setShowCompanyDialog(false);
+    setIsAssigningCompany(false);
+    setCompanySearch("");
   };
 
   const formatCurrency = (value: number) => {
@@ -468,7 +478,7 @@ export function CRMSidePanel({
 
   return (
     <div className={cn(
-      "relative flex flex-col bg-card",
+      "relative flex flex-col bg-card overflow-hidden",
       isMobile 
         ? "w-full h-full" 
         : "w-80 h-full border-l"
@@ -675,7 +685,7 @@ export function CRMSidePanel({
         </Button>
       </div>
 
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0">
         {loadingDeals ? (
           <div className="flex items-center justify-center p-8">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
