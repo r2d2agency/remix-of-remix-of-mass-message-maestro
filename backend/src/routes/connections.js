@@ -21,14 +21,34 @@ async function getUserOrganization(userId) {
 // List connections (respects connection_members restrictions)
 router.get('/', async (req, res) => {
   try {
-    // First check if user has specific connection assignments
+    const org = await getUserOrganization(req.userId);
+    const isOwner = org && org.role === 'owner';
+
+    // Owner always sees ALL org connections
+    if (isOwner) {
+      const result = await query(
+        `SELECT c.*, u.name as created_by_name,
+         CASE 
+           WHEN c.provider IS NOT NULL THEN c.provider 
+           WHEN c.instance_id IS NOT NULL AND c.wapi_token IS NOT NULL THEN 'wapi'
+           ELSE 'evolution'
+         END as provider
+         FROM connections c
+         LEFT JOIN users u ON c.user_id = u.id
+         WHERE c.organization_id = $1
+         ORDER BY c.created_at DESC`,
+        [org.organization_id]
+      );
+      return res.json(result.rows);
+    }
+
+    // All other roles: only see connections explicitly assigned via connection_members
     const specificResult = await query(
       `SELECT DISTINCT cm.connection_id FROM connection_members cm WHERE cm.user_id = $1`,
       [req.userId]
     );
     
     if (specificResult.rows.length > 0) {
-      // User has specific connections assigned - return only those
       const connIds = specificResult.rows.map(r => r.connection_id);
       const result = await query(
         `SELECT c.*, u.name as created_by_name,
@@ -46,38 +66,22 @@ router.get('/', async (req, res) => {
       return res.json(result.rows);
     }
 
-    // No specific assignments - check org membership
-    const org = await getUserOrganization(req.userId);
-    
-    let result;
+    // No assignments and not owner = no connections
     if (org) {
-      // Get all connections from user's organization
-      result = await query(
-        `SELECT c.*, u.name as created_by_name,
-         CASE 
-           WHEN c.provider IS NOT NULL THEN c.provider 
-           WHEN c.instance_id IS NOT NULL AND c.wapi_token IS NOT NULL THEN 'wapi'
-           ELSE 'evolution'
-         END as provider
-         FROM connections c
-         LEFT JOIN users u ON c.user_id = u.id
-         WHERE c.organization_id = $1
-         ORDER BY c.created_at DESC`,
-        [org.organization_id]
-      );
-    } else {
-      // Fallback: user without organization sees only their own
-      result = await query(
-        `SELECT *,
-         CASE 
-           WHEN provider IS NOT NULL THEN provider 
-           WHEN instance_id IS NOT NULL AND wapi_token IS NOT NULL THEN 'wapi'
-           ELSE 'evolution'
-         END as provider
-         FROM connections WHERE user_id = $1 ORDER BY created_at DESC`,
-        [req.userId]
-      );
+      return res.json([]);
     }
+
+    // Fallback: user without organization sees only their own
+    const result = await query(
+      `SELECT *,
+       CASE 
+         WHEN provider IS NOT NULL THEN provider 
+         WHEN instance_id IS NOT NULL AND wapi_token IS NOT NULL THEN 'wapi'
+         ELSE 'evolution'
+       END as provider
+       FROM connections WHERE user_id = $1 ORDER BY created_at DESC`,
+      [req.userId]
+    );
     
     res.json(result.rows);
   } catch (error) {

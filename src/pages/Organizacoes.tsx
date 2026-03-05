@@ -1175,8 +1175,8 @@ export default function Organizacoes() {
                     ))}
                   </div>
                 )}
-                <p className="text-xs text-muted-foreground">
-                  Sem seleção = acesso a todas as conexões
+                <p className="text-xs text-destructive font-medium">
+                  ⚠️ Sem seleção = sem acesso a nenhuma conexão (exceto o dono)
                 </p>
               </div>
 
