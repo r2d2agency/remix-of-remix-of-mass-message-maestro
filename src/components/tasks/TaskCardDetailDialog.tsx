@@ -12,7 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { FileUploadInput } from "@/components/ui/file-upload-input";
-import { TaskCard, ChecklistItem, useTaskCardMutations, useTaskChecklists, useTaskChecklistMutations, useChecklistTemplates } from "@/hooks/use-task-boards";
+import { TaskCard, TaskBoard, ChecklistItem, useTaskCardMutations, useTaskChecklists, useTaskChecklistMutations, useChecklistTemplates } from "@/hooks/use-task-boards";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganizations } from "@/hooks/use-organizations";
 import { useCRMCompanies } from "@/hooks/use-crm";
@@ -21,7 +21,7 @@ import { api } from "@/lib/api";
 import {
   CalendarIcon, User, Tag, Paperclip, CheckSquare, Trash2, Plus, X,
   AlertTriangle, Clock, ArrowUp, ArrowDown, Minus, FileText, Link2,
-  Building2, Briefcase, Users, Ban
+  Building2, Briefcase, Users, Ban, Copy, ArrowRightLeft, StickyNote
 } from "lucide-react";
 import { format, parseISO, differenceInDays, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -33,9 +33,12 @@ interface TaskCardDetailDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   boardType: 'global' | 'personal';
+  boards?: TaskBoard[];
+  onDuplicate?: (card: TaskCard) => void;
+  onMigrate?: (card: TaskCard) => void;
 }
 
-export function TaskCardDetailDialog({ card, open, onOpenChange, boardType }: TaskCardDetailDialogProps) {
+export function TaskCardDetailDialog({ card, open, onOpenChange, boardType, boards, onDuplicate, onMigrate }: TaskCardDetailDialogProps) {
   const { user } = useAuth();
   const { getMembers } = useOrganizations();
   const { updateCard, deleteCard } = useTaskCardMutations();
@@ -44,7 +47,8 @@ export function TaskCardDetailDialog({ card, open, onOpenChange, boardType }: Ta
   const { data: templates } = useChecklistTemplates();
   const { data: deals } = useQuery({
     queryKey: ["crm-deals-all-for-tasks"],
-    queryFn: () => api<any[]>('/api/crm/deals'),
+    queryFn: () => api<any[]>('/api/crm/deals?search=__all__'),
+    staleTime: 60000,
   });
   const { data: companies } = useCRMCompanies("");
 
@@ -60,10 +64,14 @@ export function TaskCardDetailDialog({ card, open, onOpenChange, boardType }: Ta
   const [orgMembers, setOrgMembers] = useState<any[]>([]);
   const [newChecklistTitle, setNewChecklistTitle] = useState("");
   const [newCheckItemTexts, setNewCheckItemTexts] = useState<Record<string, string>>({});
+  const [notes, setNotes] = useState("");
 
   const [dealId, setDealId] = useState<string>("__none__");
   const [contactId, setContactId] = useState<string>("__none__");
   const [companyId, setCompanyId] = useState<string>("__none__");
+
+  // Status
+  const [status, setStatus] = useState<'open' | 'completed' | 'archived'>('open');
 
   useEffect(() => {
     if (card) {
@@ -78,6 +86,8 @@ export function TaskCardDetailDialog({ card, open, onOpenChange, boardType }: Ta
       setDealId(card.deal_id || "__none__");
       setContactId(card.contact_id || "__none__");
       setCompanyId(card.company_id || "__none__");
+      setStatus(card.status);
+      setNotes((card as any).notes || "");
     }
   }, [card]);
 
@@ -90,7 +100,7 @@ export function TaskCardDetailDialog({ card, open, onOpenChange, boardType }: Ta
   // Collect contacts from deals
   const dealContacts = useMemo(() => {
     const contacts: any[] = [];
-    deals?.forEach((deal: any) => {
+    (deals || []).forEach((deal: any) => {
       deal.contacts?.forEach((c: any) => {
         if (!contacts.find(x => x.id === c.id)) contacts.push(c);
       });
@@ -133,6 +143,7 @@ export function TaskCardDetailDialog({ card, open, onOpenChange, boardType }: Ta
       tags,
       attachments,
       cover_color: coverColor || undefined,
+      status,
     } as any);
     toast.success("Tarefa atualizada!");
   };
@@ -145,15 +156,20 @@ export function TaskCardDetailDialog({ card, open, onOpenChange, boardType }: Ta
     }
   };
 
-  const handleToggleComplete = () => {
-    if (!card) return;
-    const newStatus = card.status === 'completed' ? 'open' : 'completed';
+  const handleStatusChange = (newStatus: 'open' | 'completed' | 'archived') => {
     if (newStatus === 'completed' && !allChecklistsComplete) {
       toast.error("Complete todos os itens dos checklists antes de concluir a tarefa!");
       return;
     }
-    updateCard.mutate({ id: card.id, status: newStatus });
-    toast.success(newStatus === 'completed' ? "Tarefa concluída!" : "Tarefa reaberta!");
+    setStatus(newStatus);
+    if (card) {
+      updateCard.mutate({ id: card.id, status: newStatus });
+      toast.success(
+        newStatus === 'completed' ? "Tarefa concluída!" :
+        newStatus === 'archived' ? "Tarefa finalizada!" :
+        "Tarefa reaberta!"
+      );
+    }
   };
 
   const handleAddTag = () => {
@@ -244,26 +260,31 @@ export function TaskCardDetailDialog({ card, open, onOpenChange, boardType }: Ta
 
             {/* Status + Priority row */}
             <div className="flex flex-wrap gap-3">
-              <Button
-                variant={card.status === 'completed' ? "default" : "outline"}
-                size="sm"
-                onClick={handleToggleComplete}
-                className={cn(
-                  card.status === 'completed' && "bg-green-600 hover:bg-green-700",
-                  !allChecklistsComplete && card.status !== 'completed' && "opacity-70"
-                )}
-                title={!allChecklistsComplete ? "Complete todos os itens dos checklists primeiro" : undefined}
-              >
-                <CheckSquare className="h-4 w-4 mr-1" />
-                {card.status === 'completed' ? 'Concluída' : 'Marcar como concluída'}
-              </Button>
-              {!allChecklistsComplete && card.status !== 'completed' && (
+              {/* Status selector */}
+              <Select value={status} onValueChange={(v) => handleStatusChange(v as any)}>
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="open">
+                    <div className="flex items-center gap-2"><Clock className="h-3 w-3 text-blue-500" /> Em andamento</div>
+                  </SelectItem>
+                  <SelectItem value="completed">
+                    <div className="flex items-center gap-2"><CheckSquare className="h-3 w-3 text-green-500" /> Concluída</div>
+                  </SelectItem>
+                  <SelectItem value="archived">
+                    <div className="flex items-center gap-2"><Ban className="h-3 w-3 text-muted-foreground" /> Finalizada</div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+
+              {!allChecklistsComplete && status !== 'completed' && (
                 <span className="text-xs text-amber-600 flex items-center gap-1">
                   <Ban className="h-3 w-3" /> Checklists pendentes
                 </span>
               )}
 
-              <Select value={priority} onValueChange={(v) => setPriority(v as 'low' | 'medium' | 'high' | 'urgent')}>
+              <Select value={priority} onValueChange={(v) => setPriority(v as any)}>
                 <SelectTrigger className="w-[140px]">
                   <SelectValue />
                 </SelectTrigger>
@@ -278,6 +299,18 @@ export function TaskCardDetailDialog({ card, open, onOpenChange, boardType }: Ta
                   ))}
                 </SelectContent>
               </Select>
+
+              {/* Duplicate / Migrate */}
+              {onDuplicate && (
+                <Button variant="outline" size="sm" onClick={() => onDuplicate(card)}>
+                  <Copy className="h-3 w-3 mr-1" /> Duplicar
+                </Button>
+              )}
+              {onMigrate && (
+                <Button variant="outline" size="sm" onClick={() => onMigrate(card)}>
+                  <ArrowRightLeft className="h-3 w-3 mr-1" /> Migrar
+                </Button>
+              )}
             </div>
 
             <Separator />
@@ -334,7 +367,6 @@ export function TaskCardDetailDialog({ card, open, onOpenChange, boardType }: Ta
                 <Link2 className="h-3.5 w-3.5" /> Vínculos CRM
               </label>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                {/* Deal */}
                 <div className="space-y-1">
                   <label className="text-xs text-muted-foreground flex items-center gap-1">
                     <Briefcase className="h-3 w-3" /> Negociação
@@ -354,7 +386,6 @@ export function TaskCardDetailDialog({ card, open, onOpenChange, boardType }: Ta
                   </Select>
                 </div>
 
-                {/* Company */}
                 <div className="space-y-1">
                   <label className="text-xs text-muted-foreground flex items-center gap-1">
                     <Building2 className="h-3 w-3" /> Empresa
@@ -372,7 +403,6 @@ export function TaskCardDetailDialog({ card, open, onOpenChange, boardType }: Ta
                   </Select>
                 </div>
 
-                {/* Contact */}
                 <div className="space-y-1">
                   <label className="text-xs text-muted-foreground flex items-center gap-1">
                     <Users className="h-3 w-3" /> Contato
@@ -391,7 +421,6 @@ export function TaskCardDetailDialog({ card, open, onOpenChange, boardType }: Ta
                 </div>
               </div>
 
-              {/* Display current links */}
               <div className="flex flex-wrap gap-1.5">
                 {card.deal_title && dealId !== "__none__" && (
                   <Badge variant="outline" className="text-xs">🤝 {card.deal_title}</Badge>
@@ -430,12 +459,12 @@ export function TaskCardDetailDialog({ card, open, onOpenChange, boardType }: Ta
             {/* Description */}
             <div className="space-y-1">
               <label className="text-sm font-medium flex items-center gap-1">
-                <FileText className="h-3.5 w-3.5" /> Descrição
+                <FileText className="h-3.5 w-3.5" /> Descrição / Notas
               </label>
               <Textarea
                 value={description}
                 onChange={e => setDescription(e.target.value)}
-                placeholder="Adicione uma descrição detalhada..."
+                placeholder="Adicione uma descrição, anotações ou observações..."
                 className="min-h-[100px]"
               />
             </div>
@@ -521,7 +550,6 @@ export function TaskCardDetailDialog({ card, open, onOpenChange, boardType }: Ta
                           <span className={cn("text-sm flex-1", item.checked && "line-through text-muted-foreground")}>
                             {item.text}
                           </span>
-                          {/* Due date for checklist item */}
                           <Popover>
                             <PopoverTrigger asChild>
                               <Button variant="ghost" size="icon" className="h-5 w-5 shrink-0" title="Prazo do item">
@@ -587,7 +615,7 @@ export function TaskCardDetailDialog({ card, open, onOpenChange, boardType }: Ta
                           </div>
                           <div className="h-2 bg-muted rounded overflow-hidden">
                             <div
-                              className={cn("h-2", item.checked ? "bg-primary/40" : "bg-primary")}
+                              className={cn("h-2", item.checked ? "bg-primary/40" : days <= 2 ? "bg-red-500" : "bg-primary")}
                               style={{ width: `${widthPct}%` }}
                             />
                           </div>

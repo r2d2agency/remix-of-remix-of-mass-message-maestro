@@ -553,7 +553,9 @@ router.get('/deals', async (req, res) => {
     if (!org) return res.status(403).json({ error: 'No organization' });
 
     const { search } = req.query;
-    if (!search || search.length < 2) {
+    const isListAll = search === '__all__';
+    
+    if (!search || (!isListAll && search.length < 2)) {
       return res.json([]);
     }
 
@@ -562,16 +564,26 @@ router.get('/deals', async (req, res) => {
 
     // Build visibility filter based on role
     let visibilityFilter = '';
-    const params = [org.organization_id, `%${search}%`];
+    let searchFilter = '';
+    const params = [org.organization_id];
+    let paramIdx = 2;
     
+    if (!isListAll) {
+      searchFilter = ` AND (d.title ILIKE $${paramIdx} OR c.name ILIKE $${paramIdx})`;
+      params.push(`%${search}%`);
+      paramIdx++;
+    }
+
     if (canManage(org.role)) {
       visibilityFilter = '';
     } else if (supervisorGroupIds.length > 0) {
-      visibilityFilter = ` AND (d.owner_id = $3 OR d.group_id = ANY($4))`;
+      visibilityFilter = ` AND (d.owner_id = $${paramIdx} OR d.group_id = ANY($${paramIdx + 1}))`;
       params.push(req.userId, supervisorGroupIds);
+      paramIdx += 2;
     } else {
-      visibilityFilter = ` AND d.owner_id = $3`;
+      visibilityFilter = ` AND d.owner_id = $${paramIdx}`;
       params.push(req.userId);
+      paramIdx++;
     }
 
     const result = await query(
@@ -585,10 +597,10 @@ router.get('/deals', async (req, res) => {
        LEFT JOIN users u ON u.id = d.owner_id
        LEFT JOIN crm_stages s ON s.id = d.stage_id
        WHERE d.organization_id = $1 
-         AND (d.title ILIKE $2 OR c.name ILIKE $2)
+         ${searchFilter}
          ${visibilityFilter}
        ORDER BY d.updated_at DESC
-       LIMIT 20`,
+       LIMIT ${isListAll ? 100 : 20}`,
       params
     );
 
