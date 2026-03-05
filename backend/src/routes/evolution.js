@@ -2227,15 +2227,42 @@ router.get('/typing/:conversationId', authenticate, async (req, res) => {
   }
 });
 
-// Helper to get user's connection IDs
+// Helper to get user's connection IDs (respects connection_members)
 async function getUserConnectionIds(userId) {
-  const result = await query(
-    `SELECT c.id FROM connections c
-     LEFT JOIN connection_members cm ON cm.connection_id = c.id
-     WHERE c.user_id = $1 OR cm.user_id = $1`,
+  // Check if owner
+  const orgResult = await query(
+    `SELECT om.organization_id, om.role FROM organization_members om WHERE om.user_id = $1 LIMIT 1`,
     [userId]
   );
-  return result.rows.map(r => r.id);
+  const org = orgResult.rows[0];
+  
+  if (org && org.role === 'owner') {
+    const result = await query(
+      `SELECT c.id FROM connections c WHERE c.organization_id = $1`,
+      [org.organization_id]
+    );
+    return result.rows.map(r => r.id);
+  }
+  
+  // Others: only assigned connections
+  const result = await query(
+    `SELECT DISTINCT cm.connection_id as id FROM connection_members cm WHERE cm.user_id = $1`,
+    [userId]
+  );
+  
+  if (result.rows.length > 0) {
+    return result.rows.map(r => r.id);
+  }
+  
+  // In org but no assignments = empty
+  if (org) return [];
+  
+  // Legacy fallback: own connections
+  const ownResult = await query(
+    `SELECT c.id FROM connections c WHERE c.user_id = $1`,
+    [userId]
+  );
+  return ownResult.rows.map(r => r.id);
 }
 
 // Configure webhook on Evolution API
