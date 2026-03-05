@@ -21,6 +21,7 @@ import { AIConfigPanel } from "@/components/settings/AIConfigPanel";
 import { WorkSchedulePanel } from "@/components/settings/WorkSchedulePanel";
 import { AASPConfigPanel } from "@/components/settings/AASPConfigPanel";
 import { CNPJConfigPanel } from "@/components/settings/CNPJConfigPanel";
+import { LeadGleegoConfigPanel } from "@/components/settings/LeadGleegoConfigPanel";
 
 const Configuracoes = () => {
   const { user } = useAuth();
@@ -614,6 +615,7 @@ const Configuracoes = () => {
           {/* Integrations Tab */}
           <TabsContent value="integracoes" className="mt-6 space-y-6">
             <CNPJConfigPanel />
+            <LeadGleegoConfigPanel />
           </TabsContent>
 
           {/* AASP Settings Tab */}
