@@ -600,6 +600,7 @@ router.get('/deals', async (req, res) => {
 });
 
 // Get deals by contact phone number (for chat integration)
+// Vendedores veem SOMENTE seus deals; admin/manager/supervisor veem todos
 router.get('/deals/by-phone/:phone', async (req, res) => {
   try {
     const org = await getUserOrg(req.userId);
@@ -613,10 +614,25 @@ router.get('/deals/by-phone/:phone', async (req, res) => {
     // Use last 11 digits for matching (handles country code variations)
     const phonePattern = `%${phone.slice(-11)}%`;
 
-     // Search in both contacts table (CRM contacts) AND chat_contacts table
-     // Normalize stored phone values to digits-only so we can match regardless of formatting
-    // NOTE: This JOIN can duplicate deals (multiple contacts), so we dedupe by deal id.
-    // We use DISTINCT ON to keep PostgreSQL happy with ORDER BY expressions.
+    // Build visibility filter based on role
+    const params = [org.organization_id, phonePattern];
+    let visibilityFilter = '';
+
+    if (!canManage(org.role)) {
+      // Check if user is a supervisor in any group
+      const userGroups = await getUserGroupIds(req.userId);
+      const supervisorGroupIds = userGroups.filter(g => g.is_supervisor).map(g => g.group_id);
+
+      if (supervisorGroupIds.length > 0) {
+        visibilityFilter = ` AND (d.owner_id = $3 OR d.group_id = ANY($4))`;
+        params.push(req.userId, supervisorGroupIds);
+      } else {
+        // Regular vendor: only their own deals
+        visibilityFilter = ` AND d.owner_id = $3`;
+        params.push(req.userId);
+      }
+    }
+
     const result = await query(
       `SELECT DISTINCT ON (d.id) d.*, 
         c.name as company_name,
@@ -637,9 +653,10 @@ router.get('/deals/by-phone/:phone', async (req, res) => {
             regexp_replace(COALESCE(cnt.phone, ''), '\\D', '', 'g') LIKE $2
             OR regexp_replace(COALESCE(cc.phone, ''), '\\D', '', 'g') LIKE $2
           )
+          ${visibilityFilter}
        ORDER BY d.id, (d.status = 'open') DESC, d.updated_at DESC
        LIMIT 10`,
-      [org.organization_id, phonePattern]
+      params
     );
 
     res.json(result.rows);
