@@ -1525,6 +1525,10 @@ router.post('/conversations/:id/messages/:messageId/reaction', authenticate, asy
 
     const connectionIds = await getUserConnections(req.userId);
 
+    if (!connectionIds || connectionIds.length === 0) {
+      return res.status(403).json({ error: 'Sem acesso a conexões' });
+    }
+
     // Get conversation with connection details
     const convResult = await query(
       `SELECT 
@@ -1538,12 +1542,12 @@ router.post('/conversations/:id/messages/:messageId/reaction', authenticate, asy
         conn.status as connection_status
       FROM conversations conv
       JOIN connections conn ON conn.id = conv.connection_id
-      WHERE conv.id = $1 AND conv.connection_id = ANY($2)`,
+      WHERE conv.id = $1 AND conv.connection_id = ANY($2::uuid[])`,
       [id, connectionIds]
     );
 
     if (convResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Conversa não encontrada' });
+      return res.status(403).json({ error: 'Sem permissão para esta conversa' });
     }
 
     const conversation = convResult.rows[0];
