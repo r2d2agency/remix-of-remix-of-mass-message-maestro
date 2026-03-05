@@ -9,6 +9,15 @@ router.use(authenticate);
 // Get Lead Gleego config for current organization
 router.get('/config', async (req, res) => {
   try {
+    // Check if column exists first
+    const colCheck = await query(
+      `SELECT column_name FROM information_schema.columns 
+       WHERE table_name = 'organizations' AND column_name = 'lead_gleego_api_key'`
+    );
+    if (colCheck.rows.length === 0) {
+      return res.json({ api_key: '', configured: false });
+    }
+
     const orgResult = await query(
       `SELECT o.lead_gleego_api_key
        FROM organizations o
@@ -19,7 +28,7 @@ router.get('/config', async (req, res) => {
     );
 
     if (orgResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Organização não encontrada' });
+      return res.json({ api_key: '', configured: false });
     }
 
     res.json({
@@ -28,7 +37,7 @@ router.get('/config', async (req, res) => {
     });
   } catch (error) {
     console.error('Get lead gleego config error:', error);
-    res.status(500).json({ error: 'Erro ao buscar configuração' });
+    res.json({ api_key: '', configured: false });
   }
 });
 
