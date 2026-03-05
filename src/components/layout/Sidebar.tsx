@@ -194,8 +194,71 @@ function SidebarContentComponent({ isExpanded, isSuperadmin, onNavigate }: Sideb
   const isSectionActive = (section: NavSection) =>
     section.items.some(item => isActiveRoute(item.href));
 
+  const [ssoLoading, setSsoLoading] = useState(false);
+
+  const handleLeadGleegoSSO = async () => {
+    if (ssoLoading) return;
+    setSsoLoading(true);
+    try {
+      const token = getAuthToken();
+      const response = await fetch(`${API_URL}/api/lead-gleego/sso`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      const data = await response.json();
+      if (data.redirect_url) {
+        window.open(data.redirect_url, '_blank');
+      } else {
+        // Not configured - navigate to config page
+        navigate('/lead-gleego');
+        onNavigate?.();
+      }
+    } catch {
+      navigate('/lead-gleego');
+      onNavigate?.();
+    } finally {
+      setSsoLoading(false);
+    }
+  };
+
   const renderNavItem = (item: NavItem, indent = false) => {
     const isActive = isActiveRoute(item.href);
+
+    // Lead Gleego: direct SSO instead of navigation
+    if (item.href === '/lead-gleego') {
+      const ssoContent = (
+        <button
+          key={item.name}
+          onClick={handleLeadGleegoSSO}
+          disabled={ssoLoading}
+          className={cn(
+            "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 w-full text-left",
+            indent && isExpanded && "ml-4",
+            isExpanded ? "" : "justify-center",
+            "text-muted-foreground hover:bg-muted hover:text-foreground",
+            ssoLoading && "opacity-50 cursor-wait"
+          )}
+        >
+          <item.icon className="h-4 w-4 shrink-0" />
+          {isExpanded && <span className="whitespace-nowrap">{ssoLoading ? 'Abrindo...' : item.name}</span>}
+        </button>
+      );
+
+      if (!isExpanded) {
+        return (
+          <Tooltip key={item.name} delayDuration={0}>
+            <TooltipTrigger asChild>{ssoContent}</TooltipTrigger>
+            <TooltipContent side="right" className="font-medium">
+              {item.name}
+            </TooltipContent>
+          </Tooltip>
+        );
+      }
+      return ssoContent;
+    }
     
     const linkContent = (
       <Link
