@@ -1187,6 +1187,43 @@ export async function sendMessage(instanceId, token, phone, content, messageType
 }
 
 /**
+ * Send reaction to a message
+ * W-API endpoint: POST /v1/message/send-reaction?instanceId=INSTANCE_ID
+ * Body: { phone, messageId, reaction }
+ */
+export async function sendReaction(instanceId, token, phone, messageId, reaction) {
+  const isGroup = phone.includes('@g.us');
+  const cleanPhone = isGroup ? phone : phone.replace(/\D/g, '');
+
+  try {
+    const response = await fetch(
+      `${W_API_BASE_URL}/message/send-reaction?instanceId=${instanceId}`,
+      {
+        method: 'POST',
+        headers: getHeaders(token),
+        body: JSON.stringify({
+          phone: cleanPhone,
+          messageId,
+          reaction,
+        }),
+      }
+    );
+
+    const { data } = await readJsonResponse(response);
+
+    if (!response.ok) {
+      const errorMsg = data?.message || data?.error || 'Failed to send reaction';
+      return { success: false, error: errorMsg };
+    }
+
+    return { success: true, messageId: data.messageId || data.id };
+  } catch (error) {
+    console.error('W-API sendReaction error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
  * Download media from W-API using messageId
  * This is needed because WhatsApp CDN URLs (mmg.whatsapp.net) require authentication.
  *
