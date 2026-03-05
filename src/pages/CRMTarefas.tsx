@@ -7,16 +7,19 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { 
-  DndContext, DragOverlay, closestCorners, DragStartEvent, DragEndEvent, DragOverEvent,
-  PointerSensor, useSensor, useSensors, MeasuringStrategy 
+  DndContext, DragOverlay, closestCenter, DragStartEvent, DragEndEvent, DragOverEvent,
+  PointerSensor, TouchSensor, useSensor, useSensors, MeasuringStrategy,
+  rectIntersection,
+  UniqueIdentifier,
 } from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useDroppable } from "@dnd-kit/core";
 import {
   useTaskBoards, useTaskBoardMutations, useTaskBoardColumns, useTaskCards,
-  useTaskCardMutations, TaskBoard, TaskBoardColumn, TaskCard
+  useTaskCardMutations, useTaskColumnMutations, TaskBoard, TaskBoardColumn, TaskCard
 } from "@/hooks/use-task-boards";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganizations } from "@/hooks/use-organizations";
@@ -27,14 +30,16 @@ import { ChecklistTemplateManager } from "@/components/tasks/ChecklistTemplateMa
 import {
   Plus, Kanban, Globe, User, MoreHorizontal, Trash2, Edit2, Loader2,
   AlertTriangle, ArrowUp, ArrowDown, Minus, Calendar as CalendarIcon, CheckSquare,
-  ListChecks, Filter, X
+  ListChecks, Filter, X, GripVertical, Settings2, Copy, ArrowRightLeft
 } from "lucide-react";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { format, parseISO, isPast } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { api } from "@/lib/api";
 
 // Task card mini component for the kanban
 function TaskKanbanCard({ card, onClick }: { card: TaskCard; onClick: () => void }) {
@@ -49,7 +54,7 @@ function TaskKanbanCard({ card, onClick }: { card: TaskCard; onClick: () => void
   return (
     <div
       className={cn(
-        "bg-card border rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow space-y-2",
+        "bg-card border rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow space-y-2 min-w-0",
         card.status === 'completed' && "opacity-60"
       )}
       onClick={onClick}
@@ -57,9 +62,9 @@ function TaskKanbanCard({ card, onClick }: { card: TaskCard; onClick: () => void
       {card.cover_color && (
         <div className="h-1.5 -mt-1 -mx-1 rounded-t-lg" style={{ backgroundColor: card.cover_color }} />
       )}
-      <div className="flex items-start gap-2">
+      <div className="flex items-start gap-2 min-w-0">
         {card.status === 'completed' && <CheckSquare className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />}
-        <p className={cn("text-sm font-medium flex-1 break-words", card.status === 'completed' && "line-through text-muted-foreground")}>
+        <p className={cn("text-sm font-medium flex-1 break-words min-w-0", card.status === 'completed' && "line-through text-muted-foreground")}>
           {card.title}
         </p>
         {priorityIcons[card.priority]}
@@ -67,9 +72,9 @@ function TaskKanbanCard({ card, onClick }: { card: TaskCard; onClick: () => void
       {/* CRM links */}
       {(card.deal_title || card.company_name || card.contact_name) && (
         <div className="flex flex-wrap gap-1">
-          {card.deal_title && <Badge variant="outline" className="text-[9px] px-1 py-0">🤝 {card.deal_title}</Badge>}
-          {card.company_name && <Badge variant="outline" className="text-[9px] px-1 py-0">🏢 {card.company_name}</Badge>}
-          {card.contact_name && <Badge variant="outline" className="text-[9px] px-1 py-0">👤 {card.contact_name}</Badge>}
+          {card.deal_title && <Badge variant="outline" className="text-[9px] px-1 py-0 max-w-full truncate">🤝 {card.deal_title}</Badge>}
+          {card.company_name && <Badge variant="outline" className="text-[9px] px-1 py-0 max-w-full truncate">🏢 {card.company_name}</Badge>}
+          {card.contact_name && <Badge variant="outline" className="text-[9px] px-1 py-0 max-w-full truncate">👤 {card.contact_name}</Badge>}
         </div>
       )}
       <div className="flex flex-wrap gap-1">
@@ -87,7 +92,7 @@ function TaskKanbanCard({ card, onClick }: { card: TaskCard; onClick: () => void
           )}
         </div>
         {card.assigned_to_name && (
-          <span className="truncate max-w-[80px]">{card.assigned_to_name}</span>
+          <span className="truncate max-w-[100px]">{card.assigned_to_name}</span>
         )}
       </div>
     </div>
@@ -98,6 +103,7 @@ function TaskKanbanCard({ card, onClick }: { card: TaskCard; onClick: () => void
 function SortableTaskCard({ card, onClick, activeId }: { card: TaskCard; onClick: () => void; activeId: string | null }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: card.id,
+    data: { type: 'card', card, columnId: card.column_id },
     transition: { duration: 200, easing: 'cubic-bezier(0.25, 1, 0.5, 1)' },
   });
   const style = { transform: CSS.Transform.toString(transform), transition: isDragging ? undefined : transition };
@@ -115,9 +121,9 @@ function SortableTaskCard({ card, onClick, activeId }: { card: TaskCard; onClick
   );
 }
 
-// Column component
+// Droppable Column component
 function TaskKanbanColumn({
-  column, cards, onCardClick, onAddCard, activeId, overId
+  column, cards, onCardClick, onAddCard, activeId, overId, onEditColumn, onDeleteColumn, canManageColumns
 }: {
   column: TaskBoardColumn;
   cards: TaskCard[];
@@ -125,9 +131,14 @@ function TaskKanbanColumn({
   onAddCard: (columnId: string) => void;
   activeId: string | null;
   overId: string | null;
+  onEditColumn?: (col: TaskBoardColumn) => void;
+  onDeleteColumn?: (colId: string) => void;
+  canManageColumns?: boolean;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: column.id });
-  const isDraggingOver = isOver || cards.some(c => c.id === overId);
+  const { setNodeRef, isOver } = useDroppable({ 
+    id: `column-${column.id}`,
+    data: { type: 'column', columnId: column.id },
+  });
   const hasActiveItem = cards.some(c => c.id === activeId);
 
   return (
@@ -136,30 +147,51 @@ function TaskKanbanColumn({
       className={cn(
         "flex flex-col w-[320px] min-w-[320px] max-w-[320px] bg-muted/50 rounded-lg border overflow-hidden",
         "transition-all duration-300",
-        isDraggingOver && !hasActiveItem && "ring-2 ring-primary bg-primary/5 shadow-lg"
+        isOver && !hasActiveItem && "ring-2 ring-primary bg-primary/5 shadow-lg"
       )}
     >
       <div
         className="p-3 border-b flex items-center justify-between"
         style={{ borderTopColor: column.color, borderTopWidth: 4, borderTopLeftRadius: 8, borderTopRightRadius: 8 }}
       >
-        <div className="flex items-center gap-2">
-          <h3 className="font-semibold text-sm">{column.name}</h3>
-          <Badge variant="secondary" className="text-xs">{cards.length}</Badge>
+        <div className="flex items-center gap-2 min-w-0">
+          <h3 className="font-semibold text-sm truncate">{column.name}</h3>
+          <Badge variant="secondary" className="text-xs shrink-0">{cards.length}</Badge>
         </div>
-        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onAddCard(column.id)}>
-          <Plus className="h-3.5 w-3.5" />
-        </Button>
+        <div className="flex items-center gap-1 shrink-0">
+          {canManageColumns && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-6 w-6">
+                  <Settings2 className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={() => onEditColumn?.(column)}>
+                  <Edit2 className="h-4 w-4 mr-2" /> Editar coluna
+                </DropdownMenuItem>
+                {!column.is_final && (
+                  <DropdownMenuItem className="text-destructive" onClick={() => onDeleteColumn?.(column.id)}>
+                    <Trash2 className="h-4 w-4 mr-2" /> Excluir coluna
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onAddCard(column.id)}>
+            <Plus className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       </div>
 
       <ScrollArea className="flex-1 max-h-[calc(100vh-280px)]">
-        <div className="p-2 space-y-2">
-          {isDraggingOver && cards.length === 0 && !hasActiveItem && (
+        <div className="p-2 space-y-2 min-h-[60px]">
+          {isOver && cards.length === 0 && !hasActiveItem && (
             <div className="h-20 rounded-lg border-2 border-dashed border-primary/50 bg-primary/10 flex items-center justify-center animate-pulse">
               <span className="text-sm text-primary">Soltar aqui</span>
             </div>
           )}
-          {cards.length === 0 && !isDraggingOver ? (
+          {cards.length === 0 && !isOver ? (
             <div className="py-8 text-center text-muted-foreground text-sm">Nenhuma tarefa</div>
           ) : (
             cards.map(card => (
@@ -178,6 +210,7 @@ export default function CRMTarefas() {
   const { data: boards, isLoading: loadingBoards } = useTaskBoards();
   const { createBoard, ensureDefault, deleteBoard, updateBoard } = useTaskBoardMutations();
   const { createCard, moveCard } = useTaskCardMutations();
+  const { createColumn, updateColumn, deleteColumn } = useTaskColumnMutations();
 
   const isAdmin = user?.role && ['owner', 'admin', 'manager'].includes(user.role);
   const isSuperadmin = (user as any)?.is_superadmin === true;
@@ -200,6 +233,19 @@ export default function CRMTarefas() {
   const [filterDateFrom, setFilterDateFrom] = useState<Date | undefined>();
   const [filterDateTo, setFilterDateTo] = useState<Date | undefined>();
   const [showFilters, setShowFilters] = useState(false);
+
+  // Column management
+  const [editColumnDialog, setEditColumnDialog] = useState(false);
+  const [editingColumn, setEditingColumn] = useState<TaskBoardColumn | null>(null);
+  const [colName, setColName] = useState("");
+  const [colColor, setColColor] = useState("#94a3b8");
+  const [colIsFinal, setColIsFinal] = useState(false);
+  const [addColumnDialog, setAddColumnDialog] = useState(false);
+
+  // Duplicate/migrate card
+  const [migrateCardDialog, setMigrateCardDialog] = useState(false);
+  const [migrateCard, setMigrateCard] = useState<TaskCard | null>(null);
+  const [migrateTargetBoard, setMigrateTargetBoard] = useState("");
 
   const canFilter = isAdmin || isSuperadmin;
 
@@ -231,6 +277,13 @@ export default function CRMTarefas() {
     date_to: filterDateTo?.toISOString(),
   });
 
+  const canManageColumns = !!(
+    selectedBoard && (
+      (selectedBoard.type === 'global' && canCreateGlobal) ||
+      (selectedBoard.type === 'personal' && selectedBoard.created_by === user?.id)
+    )
+  );
+
   const cardsByColumn = useMemo(() => {
     const map: Record<string, TaskCard[]> = {};
     columns?.forEach(col => { map[col.id] = []; });
@@ -251,7 +304,8 @@ export default function CRMTarefas() {
   }, [boards, viewMode]);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } })
   );
 
   const findColumnForCard = (cardId: string): string | null => {
@@ -268,6 +322,7 @@ export default function CRMTarefas() {
 
   function handleDragStart(e: DragStartEvent) { setActiveId(e.active.id as string); }
   function handleDragOver(e: DragOverEvent) { setOverId(e.over?.id as string || null); }
+
   function handleDragEnd(e: DragEndEvent) {
     const { active, over } = e;
     setActiveId(null);
@@ -275,22 +330,25 @@ export default function CRMTarefas() {
     if (!over || active.id === over.id) return;
 
     const cardId = active.id as string;
-    const targetId = over.id as string;
+    const overId = over.id as string;
     const currentColId = findColumnForCard(cardId);
     if (!currentColId) return;
 
-    const isColumn = columns?.some(c => c.id === targetId);
-    if (isColumn) {
-      if (currentColId !== targetId) {
-        moveCard.mutate({ id: cardId, column_id: targetId });
+    // Check if dropping on a column droppable (prefixed with "column-")
+    if (overId.startsWith('column-')) {
+      const targetColId = overId.replace('column-', '');
+      if (currentColId !== targetColId) {
+        moveCard.mutate({ id: cardId, column_id: targetColId });
       }
     } else {
-      const targetColId = findColumnForCard(targetId);
+      // Dropping on another card
+      const targetColId = findColumnForCard(overId);
       if (targetColId) {
-        moveCard.mutate({ id: cardId, column_id: targetColId, over_card_id: targetId });
+        moveCard.mutate({ id: cardId, column_id: targetColId, over_card_id: overId });
       }
     }
   }
+
   function handleDragCancel() { setActiveId(null); setOverId(null); }
 
   const handleAddCard = (columnId: string) => {
@@ -334,6 +392,99 @@ export default function CRMTarefas() {
     }
     setEditingBoardId(null);
   };
+
+  // Column management
+  const handleEditColumn = (col: TaskBoardColumn) => {
+    setEditingColumn(col);
+    setColName(col.name);
+    setColColor(col.color);
+    setColIsFinal(col.is_final);
+    setEditColumnDialog(true);
+  };
+
+  const handleSaveColumn = () => {
+    if (!editingColumn || !colName.trim()) return;
+    updateColumn.mutate({ id: editingColumn.id, name: colName.trim(), color: colColor, is_final: colIsFinal });
+    setEditColumnDialog(false);
+    toast.success("Coluna atualizada!");
+  };
+
+  const handleDeleteColumn = (colId: string) => {
+    const col = columns?.find(c => c.id === colId);
+    const cardsInCol = cardsByColumn[colId]?.length || 0;
+    if (cardsInCol > 0) {
+      toast.error("Mova ou exclua os cards desta coluna antes de excluí-la");
+      return;
+    }
+    if (confirm(`Excluir coluna "${col?.name}"?`)) {
+      deleteColumn.mutate(colId);
+      toast.success("Coluna excluída!");
+    }
+  };
+
+  const handleAddColumn = () => {
+    if (!selectedBoardId || !colName.trim()) return;
+    createColumn.mutate({ boardId: selectedBoardId, name: colName.trim(), color: colColor, is_final: colIsFinal });
+    setAddColumnDialog(false);
+    setColName("");
+    setColColor("#94a3b8");
+    setColIsFinal(false);
+    toast.success("Coluna criada!");
+  };
+
+  // Duplicate card
+  const handleDuplicateCard = async (card: TaskCard) => {
+    try {
+      await api('/api/task-boards/cards', {
+        method: 'POST',
+        body: {
+          board_id: card.board_id,
+          column_id: card.column_id,
+          title: `${card.title} (cópia)`,
+          description: card.description,
+          priority: card.priority,
+          due_date: card.due_date,
+          assigned_to: card.assigned_to,
+          contact_id: card.contact_id,
+          deal_id: card.deal_id,
+          company_id: card.company_id,
+          tags: card.tags,
+          cover_color: card.cover_color,
+        },
+      });
+      toast.success("Card duplicado!");
+      // Invalidate queries
+      createCard.reset();
+      window.location.reload(); // Simple refresh to show duplicate
+    } catch (err) {
+      toast.error("Erro ao duplicar card");
+    }
+  };
+
+  // Migrate card to another board
+  const handleMigrateCard = async () => {
+    if (!migrateCard || !migrateTargetBoard) return;
+    try {
+      // Get first column of target board
+      const cols = await api<TaskBoardColumn[]>(`/api/task-boards/boards/${migrateTargetBoard}/columns`);
+      if (!cols || cols.length === 0) {
+        toast.error("Quadro de destino não tem colunas");
+        return;
+      }
+      await api(`/api/task-boards/cards/${migrateCard.id}/move`, {
+        method: 'PUT',
+        body: { board_id: migrateTargetBoard, column_id: cols[0].id },
+      });
+      toast.success("Card migrado!");
+      setMigrateCardDialog(false);
+      setMigrateCard(null);
+      moveCard.reset();
+    } catch (err) {
+      toast.error("Erro ao migrar card");
+    }
+  };
+
+  const colColors = ['#94a3b8', '#3b82f6', '#f59e0b', '#22c55e', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
 
   if (loadingBoards) {
     return (
@@ -382,8 +533,13 @@ export default function CRMTarefas() {
                       <Badge variant="secondary" className="ml-1 text-[10px] px-1">!</Badge>
                     )}
                   </Button>
+                  {canManageColumns && (
+                    <Button size="sm" variant="outline" onClick={() => { setColName(""); setColColor("#94a3b8"); setColIsFinal(false); setAddColumnDialog(true); }}>
+                      <Plus className="h-4 w-4 mr-1" /> Coluna
+                    </Button>
+                  )}
                   <Button size="sm" onClick={() => setCreateBoardOpen(true)}>
-                    <Plus className="h-4 w-4 mr-1" /> Novo Quadro
+                    <Plus className="h-4 w-4 mr-1" /> Quadro
                   </Button>
                 </>
               )}
@@ -456,7 +612,6 @@ export default function CRMTarefas() {
         {/* Filter bar */}
         {showFilters && mainTab === 'kanban' && (
           <div className="px-4 py-2 border-b bg-muted/30 flex items-center gap-3 flex-wrap">
-            {/* User filter - admin/manager only */}
             {canFilter && (
               <div className="flex items-center gap-2">
                 <label className="text-xs font-medium text-muted-foreground">Usuário:</label>
@@ -473,8 +628,6 @@ export default function CRMTarefas() {
                 </Select>
               </div>
             )}
-
-            {/* Date from */}
             <div className="flex items-center gap-2">
               <label className="text-xs font-medium text-muted-foreground">De:</label>
               <Popover>
@@ -489,8 +642,6 @@ export default function CRMTarefas() {
                 </PopoverContent>
               </Popover>
             </div>
-
-            {/* Date to */}
             <div className="flex items-center gap-2">
               <label className="text-xs font-medium text-muted-foreground">Até:</label>
               <Popover>
@@ -505,8 +656,6 @@ export default function CRMTarefas() {
                 </PopoverContent>
               </Popover>
             </div>
-
-            {/* Clear filters */}
             {(filterUser !== 'all' || filterDateFrom || filterDateTo) && (
               <Button
                 variant="ghost"
@@ -526,7 +675,7 @@ export default function CRMTarefas() {
             {selectedBoard && columns ? (
               <DndContext
                 sensors={sensors}
-                collisionDetection={closestCorners}
+                collisionDetection={rectIntersection}
                 onDragStart={handleDragStart}
                 onDragOver={handleDragOver}
                 onDragEnd={handleDragEnd}
@@ -535,18 +684,24 @@ export default function CRMTarefas() {
               >
                 <ScrollArea className="flex-1 w-full">
                   <div className="flex gap-4 p-4 min-w-max">
-                    {columns.map(col => (
-                      <SortableContext key={col.id} items={(cardsByColumn[col.id] || []).map(c => c.id)} strategy={verticalListSortingStrategy}>
-                        <TaskKanbanColumn
-                          column={col}
-                          cards={cardsByColumn[col.id] || []}
-                          onCardClick={(card) => { setSelectedCard(card); setCardDetailOpen(true); }}
-                          onAddCard={handleAddCard}
-                          activeId={activeId}
-                          overId={overId}
-                        />
-                      </SortableContext>
-                    ))}
+                    {columns.map(col => {
+                      const colCards = cardsByColumn[col.id] || [];
+                      return (
+                        <SortableContext key={col.id} items={colCards.map(c => c.id)} strategy={verticalListSortingStrategy}>
+                          <TaskKanbanColumn
+                            column={col}
+                            cards={colCards}
+                            onCardClick={(card) => { setSelectedCard(card); setCardDetailOpen(true); }}
+                            onAddCard={handleAddCard}
+                            activeId={activeId}
+                            overId={overId}
+                            onEditColumn={handleEditColumn}
+                            onDeleteColumn={handleDeleteColumn}
+                            canManageColumns={canManageColumns}
+                          />
+                        </SortableContext>
+                      );
+                    })}
                   </div>
                   <ScrollBar orientation="horizontal" />
                 </ScrollArea>
@@ -569,7 +724,6 @@ export default function CRMTarefas() {
             )}
           </>
         )}
-
 
         {mainTab === 'templates' && (
           <div className="flex-1 p-4 overflow-auto">
@@ -597,7 +751,102 @@ export default function CRMTarefas() {
         open={cardDetailOpen}
         onOpenChange={setCardDetailOpen}
         boardType={selectedBoard?.type || 'personal'}
+        boards={boards || []}
+        onDuplicate={handleDuplicateCard}
+        onMigrate={(card) => { setMigrateCard(card); setMigrateTargetBoard(""); setMigrateCardDialog(true); }}
       />
+
+      {/* Edit Column Dialog */}
+      <Dialog open={editColumnDialog} onOpenChange={setEditColumnDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Editar Coluna</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Nome</Label>
+              <Input value={colName} onChange={e => setColName(e.target.value)} />
+            </div>
+            <div>
+              <Label>Cor</Label>
+              <div className="flex gap-2 mt-1">
+                {colColors.map(c => (
+                  <button key={c} className={cn("w-8 h-6 rounded border-2", colColor === c ? "border-foreground" : "border-transparent")}
+                    style={{ backgroundColor: c }} onClick={() => setColColor(c)} />
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <input type="checkbox" checked={colIsFinal} onChange={e => setColIsFinal(e.target.checked)} id="col-final" />
+              <Label htmlFor="col-final">Coluna final (conclusão)</Label>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setEditColumnDialog(false)}>Cancelar</Button>
+              <Button onClick={handleSaveColumn}>Salvar</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Column Dialog */}
+      <Dialog open={addColumnDialog} onOpenChange={setAddColumnDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Nova Coluna</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Nome</Label>
+              <Input value={colName} onChange={e => setColName(e.target.value)} placeholder="Nome da coluna" />
+            </div>
+            <div>
+              <Label>Cor</Label>
+              <div className="flex gap-2 mt-1">
+                {colColors.map(c => (
+                  <button key={c} className={cn("w-8 h-6 rounded border-2", colColor === c ? "border-foreground" : "border-transparent")}
+                    style={{ backgroundColor: c }} onClick={() => setColColor(c)} />
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <input type="checkbox" checked={colIsFinal} onChange={e => setColIsFinal(e.target.checked)} id="add-col-final" />
+              <Label htmlFor="add-col-final">Coluna final (conclusão)</Label>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setAddColumnDialog(false)}>Cancelar</Button>
+              <Button onClick={handleAddColumn} disabled={!colName.trim()}>Criar</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Migrate Card Dialog */}
+      <Dialog open={migrateCardDialog} onOpenChange={setMigrateCardDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Migrar Card</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Mover "{migrateCard?.title}" para outro quadro:
+            </p>
+            <Select value={migrateTargetBoard} onValueChange={setMigrateTargetBoard}>
+              <SelectTrigger><SelectValue placeholder="Selecionar quadro" /></SelectTrigger>
+              <SelectContent>
+                {(boards || []).filter(b => b.id !== migrateCard?.board_id).map(b => (
+                  <SelectItem key={b.id} value={b.id}>
+                    {b.name} {b.type === 'global' ? '(Global)' : '(Pessoal)'}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setMigrateCardDialog(false)}>Cancelar</Button>
+              <Button onClick={handleMigrateCard} disabled={!migrateTargetBoard}>Migrar</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }

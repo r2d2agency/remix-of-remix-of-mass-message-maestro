@@ -50,20 +50,33 @@ function isAdmin(role) {
 // ============ BOARDS ============
 
 // GET /boards - list all boards for user
+// Admins/managers see ALL boards (global + all personal), regular users see global + own personal
 router.get('/boards', async (req, res) => {
   try {
     const org = await getUserOrg(req.user.id);
     if (!org) return res.status(403).json({ error: 'Sem organização' });
+
+    let whereClause;
+    let params;
+
+    if (isAdmin(org.role)) {
+      // Admins see ALL boards in the organization
+      whereClause = 'tb.organization_id = $1';
+      params = [org.organization_id];
+    } else {
+      // Regular users see global boards + their own personal boards
+      whereClause = 'tb.organization_id = $1 AND (tb.type = $2 OR tb.created_by = $3)';
+      params = [org.organization_id, 'global', req.user.id];
+    }
 
     const result = await query(`
       SELECT tb.*, u.name as created_by_name,
         (SELECT COUNT(*) FROM task_cards tc WHERE tc.board_id = tb.id) as card_count
       FROM task_boards tb
       LEFT JOIN users u ON u.id = tb.created_by
-      WHERE tb.organization_id = $1 
-        AND (tb.type = 'global' OR tb.created_by = $2)
+      WHERE ${whereClause}
       ORDER BY tb.is_default DESC, tb.type ASC, tb.name ASC
-    `, [org.organization_id, req.user.id]);
+    `, params);
 
     res.json(result.rows);
   } catch (error) {
