@@ -727,26 +727,28 @@ export default function CRMTarefas() {
                 measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
               >
                 <ScrollArea className="flex-1 w-full">
-                  <div className="flex gap-4 p-4 min-w-max">
-                    {columns.map(col => {
-                      const colCards = cardsByColumn[col.id] || [];
-                      return (
-                        <SortableContext key={col.id} items={colCards.map(c => c.id)} strategy={verticalListSortingStrategy}>
-                          <TaskKanbanColumn
-                            column={col}
-                            cards={colCards}
-                            onCardClick={(card) => { setSelectedCard(card); setCardDetailOpen(true); }}
-                            onAddCard={handleAddCard}
-                            activeId={activeId}
-                            overId={overId}
-                            onEditColumn={handleEditColumn}
-                            onDeleteColumn={handleDeleteColumn}
-                            canManageColumns={canManageColumns}
-                          />
-                        </SortableContext>
-                      );
-                    })}
-                  </div>
+                  <SortableContext items={columns.map(c => `col-sort-${c.id}`)} strategy={horizontalListSortingStrategy}>
+                    <div className="flex gap-4 p-4 min-w-max">
+                      {columns.map(col => {
+                        const colCards = cardsByColumn[col.id] || [];
+                        return (
+                          <SortableContext key={col.id} items={colCards.map(c => c.id)} strategy={verticalListSortingStrategy}>
+                            <TaskKanbanColumn
+                              column={col}
+                              cards={colCards}
+                              onCardClick={(card) => { setSelectedCard(card); setCardDetailOpen(true); }}
+                              onAddCard={handleAddCard}
+                              activeId={activeId}
+                              overId={overId}
+                              onEditColumn={handleEditColumn}
+                              onDeleteColumn={handleDeleteColumn}
+                              canManageColumns={canManageColumns}
+                            />
+                          </SortableContext>
+                        );
+                      })}
+                    </div>
+                  </SortableContext>
                   <ScrollBar orientation="horizontal" />
                 </ScrollArea>
 
