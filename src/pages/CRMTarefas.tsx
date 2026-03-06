@@ -30,7 +30,8 @@ import { ChecklistTemplateManager } from "@/components/tasks/ChecklistTemplateMa
 import {
   Plus, Kanban, Globe, User, MoreHorizontal, Trash2, Edit2, Loader2,
   AlertTriangle, ArrowUp, ArrowDown, Minus, Calendar as CalendarIcon, CheckSquare,
-  ListChecks, Filter, X, GripVertical, Settings2, Copy, ArrowRightLeft
+  ListChecks, Filter, X, GripVertical, Settings2, Copy, ArrowRightLeft,
+  ChevronLeft, ChevronRight
 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
