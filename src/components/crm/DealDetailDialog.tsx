@@ -26,6 +26,7 @@ import { CompanyDialog } from "./CompanyDialog";
 import { SendEmailDialog } from "@/components/email/SendEmailDialog";
 import { EnrollSequenceDialog } from "@/components/nurturing/EnrollSequenceDialog";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCRMCustomFields } from "@/hooks/use-crm-config";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useDealScore, useRecalculateDealScore } from "@/hooks/use-lead-scoring";
 import { LeadScoreDetail, LeadScoreBadge } from "./LeadScoreBadge";
@@ -109,7 +110,9 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
   const [contactSearch, setContactSearch] = useState("");
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [showSequenceDialog, setShowSequenceDialog] = useState(false);
+  const [dealCustomFields, setDealCustomFields] = useState<Record<string, any>>({});
 
+  const { data: customFields } = useCRMCustomFields('deal');
   const { data: fullDeal, isLoading } = useCRMDeal(deal?.id || null);
   const { data: funnelData } = useCRMFunnel(deal?.funnel_id || null);
   const { data: companies } = useCRMCompanies(companySearch);
