@@ -733,7 +733,58 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
                   </div>
                 </Card>
 
-                {/* Lead Score Card */}
+                {/* Custom Fields */}
+                {customFields && customFields.length > 0 && (
+                  <Card className="p-4 col-span-2">
+                    <h4 className="font-medium mb-3">Campos Personalizados</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      {customFields.map((field) => (
+                        <div key={field.id} className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">{field.field_label}</Label>
+                          {field.field_type === 'select' ? (
+                            <Select
+                              value={dealCustomFields[field.field_name] || ""}
+                              onValueChange={(v) => handleCustomFieldChange(field.field_name, v)}
+                            >
+                              <SelectTrigger className="h-8 text-sm">
+                                <SelectValue placeholder="Selecionar..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {field.options?.map((opt: string) => (
+                                  <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : field.field_type === 'number' ? (
+                            <Input
+                              type="number"
+                              value={dealCustomFields[field.field_name] || ""}
+                              onChange={(e) => handleCustomFieldChange(field.field_name, e.target.value)}
+                              className="h-8 text-sm"
+                              placeholder={field.field_label}
+                            />
+                          ) : field.field_type === 'date' ? (
+                            <Input
+                              type="date"
+                              value={dealCustomFields[field.field_name] || ""}
+                              onChange={(e) => handleCustomFieldChange(field.field_name, e.target.value)}
+                              className="h-8 text-sm"
+                            />
+                          ) : (
+                            <Input
+                              value={dealCustomFields[field.field_name] || ""}
+                              onChange={(e) => handleCustomFieldChange(field.field_name, e.target.value)}
+                              className="h-8 text-sm"
+                              placeholder={field.field_label}
+                            />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                )}
+
+
                 {dealScore && dealScore.score > 0 && (
                   <Card className="p-4 col-span-2">
                     <div className="flex items-center justify-between mb-3">
