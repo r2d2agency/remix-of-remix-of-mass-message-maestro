@@ -143,6 +143,15 @@ export default function Organizacoes() {
   });
   const [savingModules, setSavingModules] = useState(false);
 
+  // Permission templates
+  const [permTemplates, setPermTemplates] = useState<PermissionTemplate[]>([]);
+  const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<PermissionTemplate | null>(null);
+  const [templateName, setTemplateName] = useState('');
+  const [templateDescription, setTemplateDescription] = useState('');
+  const [templatePermissions, setTemplatePermissions] = useState<Record<string, boolean>>({});
+  const [editMemberTemplateId, setEditMemberTemplateId] = useState<string | null>(null);
+
   const { 
     loading, 
     error,
