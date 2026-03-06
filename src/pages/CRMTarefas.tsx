@@ -347,21 +347,6 @@ export default function CRMTarefas() {
     const activeIdStr = active.id as string;
     const overIdStr = over.id as string;
 
-    // Column reorder
-    if (activeIdStr.startsWith('col-sort-') && overIdStr.startsWith('col-sort-')) {
-      const activeColId = activeIdStr.replace('col-sort-', '');
-      const overColId = overIdStr.replace('col-sort-', '');
-      if (columns) {
-        const oldIndex = columns.findIndex(c => c.id === activeColId);
-        const newIndex = columns.findIndex(c => c.id === overColId);
-        if (oldIndex !== -1 && newIndex !== -1) {
-          const newOrder = arrayMove(columns, oldIndex, newIndex);
-          reorderColumns.mutate(newOrder.map((c, i) => ({ id: c.id, position: i })));
-        }
-      }
-      return;
-    }
-
     // Card drag
     const cardId = activeIdStr;
     const currentColId = findColumnForCard(cardId);
