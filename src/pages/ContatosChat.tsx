@@ -377,10 +377,13 @@ const ContatosChat = () => {
   };
 
   // Import chat contacts from Excel (to agenda, not conversations)
-  const handleImportChatContacts = async (contacts: { name: string; phone: string }[]) => {
+  const handleImportChatContacts = async (
+    contacts: { name: string; phone: string; is_whatsapp?: boolean | null; customFields?: Record<string, string> }[],
+    _onProgress?: (progress: number, imported: number, total: number) => void
+  ): Promise<{ imported: number; duplicates: number }> => {
     if (!selectedConnectionForImport) {
       toast.error("Selecione uma conexão para importar");
-      return;
+      return { imported: 0, duplicates: 0 };
     }
 
     try {
@@ -405,6 +408,7 @@ const ContatosChat = () => {
       setShowChatImportDialog(false);
       setSelectedConnectionForImport("");
       loadData();
+      return result;
     } catch (err) {
       toast.error("Erro ao importar contatos");
       throw err;
