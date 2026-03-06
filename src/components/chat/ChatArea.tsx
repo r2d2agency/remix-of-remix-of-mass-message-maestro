@@ -1176,12 +1176,12 @@ export function ChatArea({
             </>
           )}
           
-          {/* CRM button - mobile only */}
-          {isMobile && onOpenCRM && (
+          {/* CRM button */}
+          {onOpenCRM && (
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7"
+              className={cn(isMobile ? "h-7 w-7" : "h-8 w-8")}
               onClick={onOpenCRM}
               title="Abrir CRM"
             >
