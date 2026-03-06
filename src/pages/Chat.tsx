@@ -17,6 +17,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { useNotificationSound } from "@/hooks/use-notification-sound";
 import { useAuth } from "@/contexts/AuthContext";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 
 interface UserProfile {
   user?: {
@@ -750,13 +751,71 @@ const Chat = () => {
           </div>
         )}
 
-        <div className="flex flex-1 overflow-hidden min-w-0 w-full">
-          {/* Conversation List - Hide on mobile when chat is open */}
-          {(!isMobile || !selectedConversation) && (
-            <div className={cn(
-              "flex-shrink-0 overflow-hidden min-w-0",
-              isMobile ? "w-full h-full max-w-full" : "w-[350px]"
-            )}>
+        {isMobile ? (
+          <div className="flex flex-1 overflow-hidden min-w-0 w-full">
+            {!selectedConversation && (
+              <div className="w-full h-full max-w-full overflow-hidden min-w-0">
+                <ConversationList
+                  conversations={conversations}
+                  selectedId={selectedConversation?.id || null}
+                  onSelect={handleMobileSelectConversation}
+                  tags={tags}
+                  team={team}
+                  loading={loading}
+                  onRefresh={loadConversations}
+                  filters={filters}
+                  onFiltersChange={setFilters}
+                  isAdmin={isAdmin}
+                  connections={connections}
+                  onNewConversation={activeTab === 'chats' ? () => setNewConversationOpen(true) : undefined}
+                  onAcceptConversation={handleAcceptConversation}
+                  onReleaseConversation={async (id) => {
+                    try { await releaseConversation(id); loadConversations(); toast.success('Conversa liberada'); } catch (error: any) { toast.error(error.message || 'Erro ao liberar conversa'); }
+                  }}
+                  onArchiveConversation={async (id) => {
+                    try { await updateConversation(id, { is_archived: true }); loadConversations(); toast.success('Conversa arquivada'); } catch (error: any) { toast.error(error.message || 'Erro ao arquivar conversa'); }
+                  }}
+                  onFinishConversation={async (id) => { await handleFinishConversation(id); }}
+                  onReopenConversation={async (id) => { await handleReopenConversation(id); }}
+                  attendanceCounts={attendanceCounts}
+                  onGlobalSearchSelect={async (conversationId, messageId) => {
+                    try { const conv = await getConversation(conversationId); if (conv) { selectedIdRef.current = conv.id; setSelectedConversation(conv); const msgs = await getMessages(conversationId); setMessages(msgs); } } catch (error: any) { toast.error('Erro ao abrir conversa'); }
+                  }}
+                />
+              </div>
+            )}
+            {selectedConversation && (
+              <ChatArea
+                conversation={selectedConversation} messages={messages} loading={loadingMessages} sending={sendingMessage}
+                tags={tags} team={team} syncingHistory={syncingHistory} isAdmin={isAdmin} userRole={userRole}
+                onSyncHistory={handleSyncHistory} onSendMessage={handleSendMessage} onLoadMore={handleLoadMoreMessages}
+                hasMore={hasMoreMessages} onAddTag={handleAddTag} onRemoveTag={handleRemoveTag} onAssign={handleAssign}
+                onArchive={handleArchive} onTransfer={handleTransfer} onCreateTag={handleCreateTag}
+                onDeleteConversation={async () => { if (!selectedConversation) return; try { await api(`/api/chat/conversations/${selectedConversation.id}`, { method: 'DELETE' }); toast.success('Conversa excluída'); setSelectedConversation(null); setMessages([]); loadConversations(); } catch (error: any) { toast.error(error.message || 'Erro ao excluir conversa'); } }}
+                onReleaseConversation={handleReleaseConversation}
+                onFinishConversation={() => handleFinishConversation()}
+                onReopenConversation={() => handleReopenConversation()}
+                onDepartmentChange={() => loadConversations()}
+                isMobile={isMobile} onMobileBack={handleMobileBack}
+                onOpenCRM={modulesEnabled.crm ? () => setCrmPanelOpen(true) : undefined}
+              />
+            )}
+            {selectedConversation && modulesEnabled.crm && (
+              <Sheet open={crmPanelOpen} onOpenChange={setCrmPanelOpen}>
+                <SheetContent side="right" className="w-full max-w-sm p-0 [&>button]:hidden">
+                  <CRMSidePanel conversationId={selectedConversation.id}
+                    contactPhone={selectedConversation.remote_jid?.replace('@s.whatsapp.net', '').replace('@g.us', '') || null}
+                    contactName={selectedConversation.contact_name || selectedConversation.group_name || null}
+                    isOpen={true} onToggle={() => setCrmPanelOpen(false)}
+                    chatMessages={messages.map(m => ({ id: m.id, content: m.content || '', sender: m.from_me ? 'me' : 'contact', timestamp: m.timestamp }))}
+                  />
+                </SheetContent>
+              </Sheet>
+            )}
+          </div>
+        ) : (
+          <ResizablePanelGroup direction="horizontal" className="flex-1 overflow-hidden min-w-0 w-full">
+            <ResizablePanel defaultSize={25} minSize={15} maxSize={45} className="overflow-hidden min-w-0">
               <ConversationList
                 conversations={conversations}
                 selectedId={selectedConversation?.id || null}
@@ -772,121 +831,54 @@ const Chat = () => {
                 onNewConversation={activeTab === 'chats' ? () => setNewConversationOpen(true) : undefined}
                 onAcceptConversation={handleAcceptConversation}
                 onReleaseConversation={async (id) => {
-                  try {
-                    await releaseConversation(id);
-                    loadConversations();
-                    toast.success('Conversa liberada');
-                  } catch (error: any) {
-                    toast.error(error.message || 'Erro ao liberar conversa');
-                  }
+                  try { await releaseConversation(id); loadConversations(); toast.success('Conversa liberada'); } catch (error: any) { toast.error(error.message || 'Erro ao liberar conversa'); }
                 }}
                 onArchiveConversation={async (id) => {
-                  try {
-                    await updateConversation(id, { is_archived: true });
-                    loadConversations();
-                    toast.success('Conversa arquivada');
-                  } catch (error: any) {
-                    toast.error(error.message || 'Erro ao arquivar conversa');
-                  }
+                  try { await updateConversation(id, { is_archived: true }); loadConversations(); toast.success('Conversa arquivada'); } catch (error: any) { toast.error(error.message || 'Erro ao arquivar conversa'); }
                 }}
-                onFinishConversation={async (id) => {
-                  await handleFinishConversation(id);
-                }}
-                onReopenConversation={async (id) => {
-                  await handleReopenConversation(id);
-                }}
+                onFinishConversation={async (id) => { await handleFinishConversation(id); }}
+                onReopenConversation={async (id) => { await handleReopenConversation(id); }}
                 attendanceCounts={attendanceCounts}
                 onGlobalSearchSelect={async (conversationId, messageId) => {
-                  try {
-                    const conv = await getConversation(conversationId);
-                    if (conv) {
-                      selectedIdRef.current = conv.id;
-                      setSelectedConversation(conv);
-                      // Load messages and scroll to the specific message if provided
-                      const msgs = await getMessages(conversationId);
-                      setMessages(msgs);
-                      // TODO: scroll to messageId if provided
-                    }
-                  } catch (error: any) {
-                    toast.error('Erro ao abrir conversa');
-                  }
+                  try { const conv = await getConversation(conversationId); if (conv) { selectedIdRef.current = conv.id; setSelectedConversation(conv); const msgs = await getMessages(conversationId); setMessages(msgs); } } catch (error: any) { toast.error('Erro ao abrir conversa'); }
                 }}
               />
-            </div>
-          )}
+            </ResizablePanel>
 
-          {/* Chat Area - Full width on mobile, show back button */}
-          {(!isMobile || selectedConversation) && (
-            <ChatArea
-              conversation={selectedConversation}
-              messages={messages}
-              loading={loadingMessages}
-              sending={sendingMessage}
-              tags={tags}
-              team={team}
-              syncingHistory={syncingHistory}
-              isAdmin={isAdmin}
-              userRole={userRole}
-              onSyncHistory={handleSyncHistory}
-              onSendMessage={handleSendMessage}
-              onLoadMore={handleLoadMoreMessages}
-              hasMore={hasMoreMessages}
-              onAddTag={handleAddTag}
-              onRemoveTag={handleRemoveTag}
-              onAssign={handleAssign}
-              onArchive={handleArchive}
-              onTransfer={handleTransfer}
-              onCreateTag={handleCreateTag}
-              onDeleteConversation={async () => {
-                if (!selectedConversation) return;
-                try {
-                  await api(`/api/chat/conversations/${selectedConversation.id}`, { method: 'DELETE' });
-                  toast.success('Conversa excluída');
-                  setSelectedConversation(null);
-                  setMessages([]);
-                  loadConversations();
-                } catch (error: any) {
-                  toast.error(error.message || 'Erro ao excluir conversa');
-                }
-              }}
-              onReleaseConversation={handleReleaseConversation}
-              onFinishConversation={() => handleFinishConversation()}
-              onReopenConversation={() => handleReopenConversation()}
-              onDepartmentChange={() => loadConversations()}
-              isMobile={isMobile}
-              onMobileBack={handleMobileBack}
-              onOpenCRM={modulesEnabled.crm ? () => setCrmPanelOpen(true) : undefined}
-            />
-          )}
+            <ResizableHandle withHandle />
 
-          {/* CRM Side Panel - Desktop */}
-          {!isMobile && selectedConversation && modulesEnabled.crm && (
-            <CRMSidePanel
-              conversationId={selectedConversation.id}
-              contactPhone={selectedConversation.remote_jid?.replace('@s.whatsapp.net', '').replace('@g.us', '') || null}
-              contactName={selectedConversation.contact_name || selectedConversation.group_name || null}
-              isOpen={crmPanelOpen}
-              onToggle={() => setCrmPanelOpen(!crmPanelOpen)}
-              chatMessages={messages.map(m => ({ id: m.id, content: m.content || '', sender: m.from_me ? 'me' : 'contact', timestamp: m.timestamp }))}
-            />
-          )}
+            <ResizablePanel defaultSize={crmPanelOpen && selectedConversation && modulesEnabled.crm ? 50 : 75} minSize={35} className="overflow-hidden min-w-0">
+              <ChatArea
+                conversation={selectedConversation} messages={messages} loading={loadingMessages} sending={sendingMessage}
+                tags={tags} team={team} syncingHistory={syncingHistory} isAdmin={isAdmin} userRole={userRole}
+                onSyncHistory={handleSyncHistory} onSendMessage={handleSendMessage} onLoadMore={handleLoadMoreMessages}
+                hasMore={hasMoreMessages} onAddTag={handleAddTag} onRemoveTag={handleRemoveTag} onAssign={handleAssign}
+                onArchive={handleArchive} onTransfer={handleTransfer} onCreateTag={handleCreateTag}
+                onDeleteConversation={async () => { if (!selectedConversation) return; try { await api(`/api/chat/conversations/${selectedConversation.id}`, { method: 'DELETE' }); toast.success('Conversa excluída'); setSelectedConversation(null); setMessages([]); loadConversations(); } catch (error: any) { toast.error(error.message || 'Erro ao excluir conversa'); } }}
+                onReleaseConversation={handleReleaseConversation}
+                onFinishConversation={() => handleFinishConversation()}
+                onReopenConversation={() => handleReopenConversation()}
+                onDepartmentChange={() => loadConversations()}
+                isMobile={isMobile} onMobileBack={handleMobileBack}
+                onOpenCRM={modulesEnabled.crm ? () => setCrmPanelOpen(true) : undefined}
+              />
+            </ResizablePanel>
 
-          {/* CRM Side Panel - Mobile Sheet */}
-          {isMobile && selectedConversation && modulesEnabled.crm && (
-            <Sheet open={crmPanelOpen} onOpenChange={setCrmPanelOpen}>
-              <SheetContent side="right" className="w-full max-w-sm p-0 [&>button]:hidden">
-                <CRMSidePanel
-                  conversationId={selectedConversation.id}
-                  contactPhone={selectedConversation.remote_jid?.replace('@s.whatsapp.net', '').replace('@g.us', '') || null}
-                  contactName={selectedConversation.contact_name || selectedConversation.group_name || null}
-                  isOpen={true}
-                  onToggle={() => setCrmPanelOpen(false)}
-                  chatMessages={messages.map(m => ({ id: m.id, content: m.content || '', sender: m.from_me ? 'me' : 'contact', timestamp: m.timestamp }))}
-                />
-              </SheetContent>
-            </Sheet>
-          )}
-        </div>
+            {selectedConversation && modulesEnabled.crm && crmPanelOpen && (
+              <>
+                <ResizableHandle withHandle />
+                <ResizablePanel defaultSize={25} minSize={15} maxSize={40} className="overflow-hidden min-w-0">
+                  <CRMSidePanel conversationId={selectedConversation.id}
+                    contactPhone={selectedConversation.remote_jid?.replace('@s.whatsapp.net', '').replace('@g.us', '') || null}
+                    contactName={selectedConversation.contact_name || selectedConversation.group_name || null}
+                    isOpen={crmPanelOpen} onToggle={() => setCrmPanelOpen(!crmPanelOpen)}
+                    chatMessages={messages.map(m => ({ id: m.id, content: m.content || '', sender: m.from_me ? 'me' : 'contact', timestamp: m.timestamp }))}
+                  />
+                </ResizablePanel>
+              </>
+            )}
+          </ResizablePanelGroup>
+        )}
       </div>
 
       {/* New Conversation Dialog */}
