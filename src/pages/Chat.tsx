@@ -11,7 +11,7 @@ import { api } from "@/lib/api";
 import { chatEvents } from "@/lib/chat-events";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, Users, Bell, RefreshCw } from "lucide-react";
+import { MessageSquare, Users, Bell, RefreshCw, ChevronLeft } from "lucide-react";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
@@ -814,7 +814,7 @@ const Chat = () => {
             )}
           </div>
         ) : (
-          <ResizablePanelGroup direction="horizontal" className="flex-1 overflow-hidden min-w-0 w-full">
+          <ResizablePanelGroup direction="horizontal" className="flex-1 overflow-hidden min-w-0 w-full relative">
             <ResizablePanel defaultSize={25} minSize={15} maxSize={45} className="overflow-hidden min-w-0">
               <ConversationList
                 conversations={conversations}
@@ -871,11 +871,22 @@ const Chat = () => {
                   <CRMSidePanel conversationId={selectedConversation.id}
                     contactPhone={selectedConversation.remote_jid?.replace('@s.whatsapp.net', '').replace('@g.us', '') || null}
                     contactName={selectedConversation.contact_name || selectedConversation.group_name || null}
-                    isOpen={crmPanelOpen} onToggle={() => setCrmPanelOpen(!crmPanelOpen)}
+                    isOpen={crmPanelOpen} onToggle={() => setCrmPanelOpen(false)}
                     chatMessages={messages.map(m => ({ id: m.id, content: m.content || '', sender: m.from_me ? 'me' : 'contact', timestamp: m.timestamp }))}
                   />
                 </ResizablePanel>
               </>
+            )}
+
+            {/* Floating CRM toggle when panel is closed */}
+            {selectedConversation && modulesEnabled.crm && !crmPanelOpen && (
+              <button
+                onClick={() => setCrmPanelOpen(true)}
+                className="absolute right-0 top-1/2 -translate-y-1/2 z-20 h-12 w-6 rounded-l-md border border-r-0 bg-background shadow-md hover:bg-muted flex items-center justify-center"
+                title="Abrir painel CRM"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
             )}
           </ResizablePanelGroup>
         )}
