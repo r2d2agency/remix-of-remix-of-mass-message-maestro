@@ -1308,7 +1308,10 @@ async function handleIncomingMessage(connection, payload) {
            SET last_message_at = NOW(), 
                unread_count = unread_count + 1,
                group_name = COALESCE($2, group_name),
-               is_group = true
+               is_group = true,
+               attendance_status = CASE WHEN attendance_status = 'finished' THEN 'waiting' ELSE attendance_status END,
+               accepted_at = CASE WHEN attendance_status = 'finished' THEN NULL ELSE accepted_at END,
+               accepted_by = CASE WHEN attendance_status = 'finished' THEN NULL ELSE accepted_by END
            WHERE id = $1`,
           [conversationId, groupName]
         );
@@ -1318,7 +1321,10 @@ async function handleIncomingMessage(connection, payload) {
           `UPDATE conversations 
            SET last_message_at = NOW(), 
                unread_count = unread_count + 1,
-               contact_name = COALESCE($2, contact_name)
+               contact_name = COALESCE($2, contact_name),
+               attendance_status = CASE WHEN attendance_status = 'finished' THEN 'waiting' ELSE attendance_status END,
+               accepted_at = CASE WHEN attendance_status = 'finished' THEN NULL ELSE accepted_at END,
+               accepted_by = CASE WHEN attendance_status = 'finished' THEN NULL ELSE accepted_by END
            WHERE id = $1`,
           [conversationId, payload.sender?.pushName || payload.pushName || payload.name]
         );
