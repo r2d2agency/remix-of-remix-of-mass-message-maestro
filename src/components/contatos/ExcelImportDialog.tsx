@@ -62,7 +62,7 @@ interface ColumnMapping {
 interface ExcelImportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onImport: (contacts: { name: string; phone: string; is_whatsapp?: boolean | null; customFields?: Record<string, string> }[]) => Promise<void>;
+  onImport: (contacts: { name: string; phone: string; is_whatsapp?: boolean | null; customFields?: Record<string, string> }[], onProgress?: (progress: number, imported: number, total: number) => void) => Promise<{ imported: number; duplicates: number; actualCount?: number }>;
   validateWhatsApp?: (phone: string) => Promise<boolean>;
   customFields?: string[];
 }
@@ -80,6 +80,9 @@ export function ExcelImportDialog({
   const [mapping, setMapping] = useState<ColumnMapping>({ name: "", phone: "" });
   const [contacts, setContacts] = useState<ImportedContact[]>([]);
   const [isImporting, setIsImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState(0);
+  const [importedSoFar, setImportedSoFar] = useState(0);
+  const [importResult, setImportResult] = useState<{ imported: number; duplicates: number; actualCount?: number } | null>(null);
   const [isValidatingAll, setIsValidatingAll] = useState(false);
   const [validationProgress, setValidationProgress] = useState(0);
   const [editingContact, setEditingContact] = useState<string | null>(null);
@@ -90,6 +93,9 @@ export function ExcelImportDialog({
     setMapping({ name: "", phone: "" });
     setContacts([]);
     setIsImporting(false);
+    setImportProgress(0);
+    setImportedSoFar(0);
+    setImportResult(null);
     setIsValidatingAll(false);
     setValidationProgress(0);
     setEditingContact(null);
@@ -338,7 +344,6 @@ export function ExcelImportDialog({
       .filter((c) => c.selected)
       .filter((c) => {
         if (importOnlyValidated) return c.isValidWhatsApp === true;
-        // default: allow not-yet-validated (null) and validated (true), but never invalid (false)
         return c.isValidWhatsApp === null || c.isValidWhatsApp === true;
       })
       .map((c) => ({
@@ -354,13 +359,20 @@ export function ExcelImportDialog({
     }
 
     setIsImporting(true);
+    setImportProgress(0);
+    setImportedSoFar(0);
+    setImportResult(null);
+
     try {
-      await onImport(contactsToImport);
-      handleClose();
+      const result = await onImport(contactsToImport, (progress, imported, total) => {
+        setImportProgress(progress);
+        setImportedSoFar(imported);
+      });
+      setImportResult(result);
+      setImportProgress(100);
     } catch (error) {
       console.error("Import error:", error);
       alert("Erro ao importar contatos");
-    } finally {
       setIsImporting(false);
     }
   };
