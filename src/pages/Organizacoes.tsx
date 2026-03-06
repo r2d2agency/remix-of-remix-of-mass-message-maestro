@@ -1556,6 +1556,97 @@ export default function Organizacoes() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Permission Template Dialog */}
+        <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
+          <DialogContent className="max-w-lg max-h-[90vh] flex flex-col">
+            <DialogHeader className="shrink-0">
+              <DialogTitle>{editingTemplate ? 'Editar Template' : 'Novo Template de Permissão'}</DialogTitle>
+              <DialogDescription>
+                Defina quais módulos e ferramentas os usuários com este template poderão acessar
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4 space-y-4 overflow-y-auto flex-1 pr-2">
+              <div className="space-y-2">
+                <Label>Nome do Template *</Label>
+                <Input
+                  placeholder="Ex: Vendedor, Suporte, Financeiro..."
+                  value={templateName}
+                  onChange={(e) => setTemplateName(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Descrição</Label>
+                <Input
+                  placeholder="Breve descrição do perfil de acesso"
+                  value={templateDescription}
+                  onChange={(e) => setTemplateDescription(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label>Permissões por Módulo</Label>
+                <div className="flex gap-2 mb-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const all: Record<string, boolean> = {};
+                      FEATURE_KEYS.forEach(f => all[f.key] = true);
+                      setTemplatePermissions(all);
+                    }}
+                  >
+                    Marcar Todos
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const none: Record<string, boolean> = {};
+                      FEATURE_KEYS.forEach(f => none[f.key] = false);
+                      setTemplatePermissions(none);
+                    }}
+                  >
+                    Desmarcar Todos
+                  </Button>
+                </div>
+              </div>
+
+              {Object.entries(featureSections).map(([section, features]) => (
+                <div key={section} className="space-y-2">
+                  <Label className="text-sm font-semibold text-muted-foreground">{section}</Label>
+                  <div className="border rounded-md p-3 space-y-2">
+                    {features.map(feat => (
+                      <div key={feat.key} className="flex items-center justify-between">
+                        <label htmlFor={`perm-${feat.key}`} className="text-sm cursor-pointer">
+                          {feat.label}
+                        </label>
+                        <Switch
+                          id={`perm-${feat.key}`}
+                          checked={templatePermissions[feat.key] !== false}
+                          onCheckedChange={(checked) => 
+                            setTemplatePermissions(prev => ({ ...prev, [feat.key]: checked }))
+                          }
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <DialogFooter className="shrink-0">
+              <Button variant="outline" onClick={() => setTemplateDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleSaveTemplate} disabled={loading}>
+                {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                {editingTemplate ? 'Salvar' : 'Criar Template'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
   );
