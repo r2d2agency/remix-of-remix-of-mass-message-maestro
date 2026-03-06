@@ -604,5 +604,7 @@ export const useChat = () => {
     getAttendanceCounts,
     // Call logs
     logCall,
+    // Forward
+    forwardMessage,
   };
 };
