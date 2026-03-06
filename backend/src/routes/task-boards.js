@@ -189,8 +189,27 @@ router.post('/boards/:boardId/columns', async (req, res) => {
   }
 });
 
+// PUT /columns/reorder - reorder columns
+router.put('/columns/reorder', async (req, res) => {
+  try {
+    const { columns } = req.body; // [{id, position}]
+    if (!Array.isArray(columns)) {
+      return res.status(400).json({ error: 'Payload inválido para reordenação' });
+    }
+
+    for (const col of columns) {
+      await query('UPDATE task_board_columns SET position = $1 WHERE id = $2', [col.position, col.id]);
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    logError('task-boards.columns.reorder', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // PUT /columns/:id
-router.put('/columns/:id', async (req, res) => {
+router.put('/columns/:id([0-9a-fA-F-]{36})', async (req, res) => {
   try {
     const { name, color, position, is_final } = req.body;
     const result = await query(`
@@ -207,26 +226,12 @@ router.put('/columns/:id', async (req, res) => {
 });
 
 // DELETE /columns/:id
-router.delete('/columns/:id', async (req, res) => {
+router.delete('/columns/:id([0-9a-fA-F-]{36})', async (req, res) => {
   try {
     await query('DELETE FROM task_board_columns WHERE id = $1', [req.params.id]);
     res.json({ success: true });
   } catch (error) {
     logError('task-boards.columns.delete', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// PUT /columns/reorder - reorder columns
-router.put('/columns/reorder', async (req, res) => {
-  try {
-    const { columns } = req.body; // [{id, position}]
-    for (const col of columns) {
-      await query('UPDATE task_board_columns SET position = $1 WHERE id = $2', [col.position, col.id]);
-    }
-    res.json({ success: true });
-  } catch (error) {
-    logError('task-boards.columns.reorder', error);
     res.status(500).json({ error: error.message });
   }
 });
