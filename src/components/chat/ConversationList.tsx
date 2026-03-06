@@ -602,12 +602,15 @@ export function ConversationList({
               const isAttending = conv.attendance_status === 'attending';
               const isFinished = conv.attendance_status === 'finished';
               
+              const connColor = getConnectionColor(conv.connection_id, connections);
+              
               const conversationContent = (
                 <div
                   className={cn(
                     "flex items-start gap-3 p-4 cursor-pointer transition-colors hover:bg-accent/50 group",
                     selectedId === conv.id && "bg-accent"
                   )}
+                  style={connColor ? { borderLeft: `3px solid ${connColor}` } : undefined}
                 >
                   {/* Avatar with profile picture */}
                   <Avatar 
