@@ -385,15 +385,19 @@ router.post('/lists/:listId/import', async (req, res) => {
       }
     }
 
-    // Insert only unique contacts
+    // Insert in batches of 500 to avoid query size limits
     if (uniqueContacts.length > 0) {
-      const values = uniqueContacts.map((c, i) => `($1, $${i * 3 + 2}, $${i * 3 + 3}, $${i * 3 + 4})`).join(', ');
-      const insertParams = [listId, ...uniqueContacts.flatMap((c) => [c.name, c.phone, c.is_whatsapp])];
+      const BATCH_SIZE = 500;
+      for (let i = 0; i < uniqueContacts.length; i += BATCH_SIZE) {
+        const batch = uniqueContacts.slice(i, i + BATCH_SIZE);
+        const values = batch.map((c, idx) => `($1, $${idx * 3 + 2}, $${idx * 3 + 3}, $${idx * 3 + 4})`).join(', ');
+        const insertParams = [listId, ...batch.flatMap((c) => [c.name, c.phone, c.is_whatsapp])];
 
-      await query(
-        `INSERT INTO contacts (list_id, name, phone, is_whatsapp) VALUES ${values}`,
-        insertParams
-      );
+        await query(
+          `INSERT INTO contacts (list_id, name, phone, is_whatsapp) VALUES ${values}`,
+          insertParams
+        );
+      }
     }
 
     res.json({ 
