@@ -928,4 +928,158 @@ router.put('/work-schedule', async (req, res) => {
   }
 });
 
+// ==========================================
+// PERMISSION TEMPLATES
+// ==========================================
+
+// List permission templates for an org
+router.get('/:id([0-9a-fA-F-]{36})/permission-templates', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const memberCheck = await query(
+      `SELECT role FROM organization_members WHERE organization_id = $1 AND user_id = $2`,
+      [id, req.userId]
+    );
+    if (memberCheck.rows.length === 0) return res.status(403).json({ error: 'Acesso negado' });
+
+    const result = await query(
+      `SELECT pt.*, 
+        (SELECT COUNT(*) FROM organization_members WHERE permission_template_id = pt.id) as members_count
+       FROM permission_templates pt
+       WHERE pt.organization_id = $1
+       ORDER BY pt.created_at ASC`,
+      [id]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('List permission templates error:', error);
+    res.status(500).json({ error: 'Erro ao listar templates' });
+  }
+});
+
+// Create permission template
+router.post('/:id([0-9a-fA-F-]{36})/permission-templates', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const memberCheck = await query(
+      `SELECT role FROM organization_members WHERE organization_id = $1 AND user_id = $2 AND role IN ('owner', 'admin')`,
+      [id, req.userId]
+    );
+    if (memberCheck.rows.length === 0) return res.status(403).json({ error: 'Apenas admins' });
+
+    const { name, description, permissions, is_default } = req.body;
+    if (!name || !permissions) return res.status(400).json({ error: 'Nome e permissões obrigatórios' });
+
+    // If setting as default, unset other defaults
+    if (is_default) {
+      await query(`UPDATE permission_templates SET is_default = false WHERE organization_id = $1`, [id]);
+    }
+
+    const result = await query(
+      `INSERT INTO permission_templates (organization_id, name, description, permissions, is_default)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [id, name, description || null, JSON.stringify(permissions), is_default || false]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Create permission template error:', error);
+    res.status(500).json({ error: 'Erro ao criar template' });
+  }
+});
+
+// Update permission template
+router.patch('/:id([0-9a-fA-F-]{36})/permission-templates/:templateId', async (req, res) => {
+  try {
+    const { id, templateId } = req.params;
+    const memberCheck = await query(
+      `SELECT role FROM organization_members WHERE organization_id = $1 AND user_id = $2 AND role IN ('owner', 'admin')`,
+      [id, req.userId]
+    );
+    if (memberCheck.rows.length === 0) return res.status(403).json({ error: 'Apenas admins' });
+
+    const { name, description, permissions, is_default } = req.body;
+
+    if (is_default) {
+      await query(`UPDATE permission_templates SET is_default = false WHERE organization_id = $1`, [id]);
+    }
+
+    const updates = [];
+    const values = [];
+    let idx = 1;
+
+    if (name !== undefined) { updates.push(`name = $${idx++}`); values.push(name); }
+    if (description !== undefined) { updates.push(`description = $${idx++}`); values.push(description); }
+    if (permissions !== undefined) { updates.push(`permissions = $${idx++}`); values.push(JSON.stringify(permissions)); }
+    if (is_default !== undefined) { updates.push(`is_default = $${idx++}`); values.push(is_default); }
+    updates.push(`updated_at = NOW()`);
+
+    if (updates.length === 1) return res.status(400).json({ error: 'Nada para atualizar' });
+
+    values.push(templateId, id);
+    const result = await query(
+      `UPDATE permission_templates SET ${updates.join(', ')} WHERE id = $${idx++} AND organization_id = $${idx} RETURNING *`,
+      values
+    );
+
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Template não encontrado' });
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update permission template error:', error);
+    res.status(500).json({ error: 'Erro ao atualizar template' });
+  }
+});
+
+// Delete permission template
+router.delete('/:id([0-9a-fA-F-]{36})/permission-templates/:templateId', async (req, res) => {
+  try {
+    const { id, templateId } = req.params;
+    const memberCheck = await query(
+      `SELECT role FROM organization_members WHERE organization_id = $1 AND user_id = $2 AND role IN ('owner', 'admin')`,
+      [id, req.userId]
+    );
+    if (memberCheck.rows.length === 0) return res.status(403).json({ error: 'Apenas admins' });
+
+    // Unlink members first
+    await query(
+      `UPDATE organization_members SET permission_template_id = NULL WHERE permission_template_id = $1`,
+      [templateId]
+    );
+
+    await query(
+      `DELETE FROM permission_templates WHERE id = $1 AND organization_id = $2`,
+      [templateId, id]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete permission template error:', error);
+    res.status(500).json({ error: 'Erro ao excluir template' });
+  }
+});
+
+// Assign permission template to a member
+router.patch('/:id([0-9a-fA-F-]{36})/members/:userId/permission-template', async (req, res) => {
+  try {
+    const { id, userId } = req.params;
+    const { permission_template_id } = req.body;
+
+    const memberCheck = await query(
+      `SELECT role FROM organization_members WHERE organization_id = $1 AND user_id = $2 AND role IN ('owner', 'admin')`,
+      [id, req.userId]
+    );
+    if (memberCheck.rows.length === 0) return res.status(403).json({ error: 'Apenas admins' });
+
+    await query(
+      `UPDATE organization_members SET permission_template_id = $1 WHERE organization_id = $2 AND user_id = $3`,
+      [permission_template_id || null, id, userId]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Assign permission template error:', error);
+    res.status(500).json({ error: 'Erro ao atribuir template' });
+  }
+});
+
 export default router;
