@@ -213,8 +213,6 @@ export function ChatArea({
   const [transferAgents, setTransferAgents] = useState<Array<{ id: string; name: string; is_active: boolean }>>([]);
   const [transferToAgent, setTransferToAgent] = useState<string>("");
   const [transferringToAI, setTransferringToAI] = useState(false);
-  const [showSyncDialog, setShowSyncDialog] = useState(false);
-  const [syncDays, setSyncDays] = useState<string>("7");
   const [showTagDialog, setShowTagDialog] = useState(false);
   const [newTagName, setNewTagName] = useState("");
   const [newTagColor, setNewTagColor] = useState("#6366f1");
@@ -1208,23 +1206,6 @@ export function ChatArea({
             <Search className={cn(isMobile ? "h-3.5 w-3.5" : "h-4 w-4")} />
           </Button>
 
-          {/* Sync - hide on mobile, move to menu */}
-          {!isMobile && !!onSyncHistory && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => setShowSyncDialog(true)}
-              disabled={!!syncingHistory}
-              title="Sincronizar histórico"
-            >
-              {syncingHistory ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
-            </Button>
-          )}
 
           {/* Sentiment Indicator - show when there are messages */}
           {!isMobile && messages.length > 3 && (
@@ -1417,12 +1398,6 @@ export function ChatArea({
                     <DropdownMenuItem onClick={onReopenConversation} className="text-blue-600">
                       <RotateCcw className="h-4 w-4 mr-2" />
                       Reabrir conversa
-                    </DropdownMenuItem>
-                  )}
-                  {!!onSyncHistory && (
-                    <DropdownMenuItem onClick={() => setShowSyncDialog(true)}>
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      Sincronizar histórico
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuSeparator />
@@ -2747,48 +2722,6 @@ export function ChatArea({
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Sync Dialog */}
-      <Dialog open={showSyncDialog} onOpenChange={setShowSyncDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Sincronizar histórico</DialogTitle>
-            <DialogDescription>
-              Importa mensagens antigas do WhatsApp para esta conversa.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <Select value={syncDays} onValueChange={setSyncDays}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione o período" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="1">Último 1 dia</SelectItem>
-                <SelectItem value="3">Últimos 3 dias</SelectItem>
-                <SelectItem value="7">Últimos 7 dias</SelectItem>
-                <SelectItem value="30">Últimos 30 dias</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              Dica: use isso quando mídias antigas não aparecem ou para recuperar histórico.
-            </p>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowSyncDialog(false)}>
-              Cancelar
-            </Button>
-            <Button
-              onClick={async () => {
-                if (!onSyncHistory) return;
-                await onSyncHistory(parseInt(syncDays, 10));
-                setShowSyncDialog(false);
-              }}
-              disabled={!onSyncHistory || !!syncingHistory}
-            >
-              {syncingHistory ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Sincronizar'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Create Tag Dialog */}
       <Dialog open={showTagDialog} onOpenChange={setShowTagDialog}>
