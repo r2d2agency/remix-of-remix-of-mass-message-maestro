@@ -180,6 +180,7 @@ export default function Organizacoes() {
       loadConnections(selectedOrg.id);
       loadDepartments(selectedOrg.id);
       loadModules(selectedOrg.id);
+      loadPermTemplates(selectedOrg.id);
     }
   }, [selectedOrg]);
 
