@@ -105,6 +105,27 @@ interface ConversationListProps {
   onGlobalSearchSelect?: (conversationId: string, messageId?: string) => void;
 }
 
+// Generate a consistent color for a connection_id
+const CONNECTION_COLORS = [
+  '#3b82f6', // blue
+  '#10b981', // emerald
+  '#f59e0b', // amber
+  '#ef4444', // red
+  '#8b5cf6', // violet
+  '#ec4899', // pink
+  '#06b6d4', // cyan
+  '#f97316', // orange
+  '#14b8a6', // teal
+  '#6366f1', // indigo
+];
+
+function getConnectionColor(connectionId: string | undefined, connections?: Connection[]): string | null {
+  if (!connectionId || !connections || connections.length <= 1) return null;
+  const idx = connections.findIndex(c => c.id === connectionId);
+  if (idx < 0) return CONNECTION_COLORS[0];
+  return CONNECTION_COLORS[idx % CONNECTION_COLORS.length];
+}
+
 const getMessageTypeIcon = (type: string | null) => {
   switch (type) {
     case 'image':
