@@ -105,6 +105,27 @@ interface ConversationListProps {
   onGlobalSearchSelect?: (conversationId: string, messageId?: string) => void;
 }
 
+// Generate a consistent color for a connection_id
+const CONNECTION_COLORS = [
+  '#3b82f6', // blue
+  '#10b981', // emerald
+  '#f59e0b', // amber
+  '#ef4444', // red
+  '#8b5cf6', // violet
+  '#ec4899', // pink
+  '#06b6d4', // cyan
+  '#f97316', // orange
+  '#14b8a6', // teal
+  '#6366f1', // indigo
+];
+
+function getConnectionColor(connectionId: string | undefined, connections?: Connection[]): string | null {
+  if (!connectionId || !connections || connections.length <= 1) return null;
+  const idx = connections.findIndex(c => c.id === connectionId);
+  if (idx < 0) return CONNECTION_COLORS[0];
+  return CONNECTION_COLORS[idx % CONNECTION_COLORS.length];
+}
+
 const getMessageTypeIcon = (type: string | null) => {
   switch (type) {
     case 'image':
@@ -142,6 +163,7 @@ export function ConversationList({
   filters,
   onFiltersChange,
   isAdmin = false,
+  connections,
   onNewConversation,
   onAcceptConversation,
   onReleaseConversation,
@@ -581,12 +603,15 @@ export function ConversationList({
               const isAttending = conv.attendance_status === 'attending';
               const isFinished = conv.attendance_status === 'finished';
               
+              const connColor = getConnectionColor(conv.connection_id, connections);
+              
               const conversationContent = (
                 <div
                   className={cn(
                     "flex items-start gap-3 p-4 cursor-pointer transition-colors hover:bg-accent/50 group",
                     selectedId === conv.id && "bg-accent"
                   )}
+                  style={connColor ? { borderLeft: `3px solid ${connColor}` } : undefined}
                 >
                   {/* Avatar with profile picture */}
                   <Avatar 
@@ -680,11 +705,20 @@ export function ConversationList({
                     {/* Connection name, Assigned user, and Unread count */}
                     <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                       {/* Connection name */}
-                      {conv.connection_name && (
-                        <span className="text-[10px] text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded truncate max-w-[70px]">
-                          {conv.connection_name}
-                        </span>
-                      )}
+                      {conv.connection_name && (() => {
+                        const cColor = connColor;
+                        return (
+                          <span 
+                            className="text-[10px] px-1.5 py-0.5 rounded truncate max-w-[80px] font-medium"
+                            style={cColor 
+                              ? { backgroundColor: `${cColor}20`, color: cColor, border: `1px solid ${cColor}40` }
+                              : { backgroundColor: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' }
+                            }
+                          >
+                            {conv.connection_name}
+                          </span>
+                        );
+                      })()}
                       
                       {/* Assigned user */}
                       {conv.assigned_name && (
