@@ -1476,6 +1476,35 @@ export default function Organizacoes() {
                   Selecione os departamentos que este usuário pode atender
                 </p>
               </div>
+
+              {/* Permission Template */}
+              {editingMember?.role !== 'owner' && permTemplates.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <KeyRound className="h-4 w-4" />
+                    Template de Permissão
+                  </Label>
+                  <Select 
+                    value={editMemberTemplateId || 'none'} 
+                    onValueChange={(v) => setEditMemberTemplateId(v === 'none' ? null : v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sem template (acesso por cargo)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Sem template (acesso por cargo)</SelectItem>
+                      {permTemplates.map(tpl => (
+                        <SelectItem key={tpl.id} value={tpl.id}>
+                          {tpl.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    O template controla quais módulos e ferramentas o usuário pode acessar
+                  </p>
+                </div>
+              )}
             </div>
             <DialogFooter className="shrink-0">
               <Button variant="outline" onClick={() => setEditMemberDialogOpen(false)}>
