@@ -17,6 +17,10 @@ interface ModulesEnabled {
   lead_gleego: boolean;
 }
 
+export interface FeaturePermissions {
+  [key: string]: boolean;
+}
+
 interface User {
   id: string;
   email: string;
@@ -24,6 +28,7 @@ interface User {
   role?: string;
   organization_id?: string;
   modules_enabled?: ModulesEnabled;
+  feature_permissions?: FeaturePermissions | null;
 }
 
 interface AuthContextType {
@@ -31,6 +36,8 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   modulesEnabled: ModulesEnabled;
+  featurePermissions: FeaturePermissions | null;
+  hasFeatureAccess: (featureKey: string) => boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string, planId?: string) => Promise<void>;
   logout: () => void;
@@ -108,6 +115,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const modulesEnabled = user?.modules_enabled || defaultModules;
+  const featurePermissions = user?.feature_permissions || null;
+
+  // Check if user has access to a specific feature
+  // If no template is assigned (null), user has full access based on role
+  // If template assigned, check the permission key
+  const hasFeatureAccess = (featureKey: string): boolean => {
+    if (!featurePermissions) return true; // No template = full access (controlled by role)
+    return featurePermissions[featureKey] !== false; // Default to true if key not in template
+  };
 
   return (
     <AuthContext.Provider
@@ -116,6 +132,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         isLoading,
         isAuthenticated: !!user,
         modulesEnabled,
+        featurePermissions,
+        hasFeatureAccess,
         login,
         register,
         logout,
