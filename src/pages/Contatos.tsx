@@ -421,7 +421,7 @@ const Contatos = () => {
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           ) : (
-            lists.map((list, index) => (
+            filteredLists.map((list, index) => (
               <Card
                 key={list.id}
                 className={`cursor-pointer transition-all duration-200 hover:shadow-elevated animate-fade-in ${
