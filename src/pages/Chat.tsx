@@ -871,11 +871,22 @@ const Chat = () => {
                   <CRMSidePanel conversationId={selectedConversation.id}
                     contactPhone={selectedConversation.remote_jid?.replace('@s.whatsapp.net', '').replace('@g.us', '') || null}
                     contactName={selectedConversation.contact_name || selectedConversation.group_name || null}
-                    isOpen={crmPanelOpen} onToggle={() => setCrmPanelOpen(!crmPanelOpen)}
+                    isOpen={crmPanelOpen} onToggle={() => setCrmPanelOpen(false)}
                     chatMessages={messages.map(m => ({ id: m.id, content: m.content || '', sender: m.from_me ? 'me' : 'contact', timestamp: m.timestamp }))}
                   />
                 </ResizablePanel>
               </>
+            )}
+
+            {/* Floating CRM toggle when panel is closed */}
+            {selectedConversation && modulesEnabled.crm && !crmPanelOpen && (
+              <button
+                onClick={() => setCrmPanelOpen(true)}
+                className="absolute right-0 top-1/2 -translate-y-1/2 z-20 h-12 w-6 rounded-l-md border border-r-0 bg-background shadow-md hover:bg-muted flex items-center justify-center"
+                title="Abrir painel CRM"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
             )}
           </ResizablePanelGroup>
         )}
