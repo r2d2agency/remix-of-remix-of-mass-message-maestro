@@ -322,20 +322,8 @@ export function AudioPlayer({ src, mimetype, className, isFromMe }: AudioPlayerP
         </Button>
       </div>
 
-      {/* Model loading progress */}
-      {isLoadingModel && (
-        <div className={cn(
-          "flex items-center gap-2 px-2 py-1 text-xs",
-          isFromMe ? "text-primary-foreground/70" : "text-muted-foreground"
-        )}>
-          <Loader2 className="h-3 w-3 animate-spin" />
-          <span>Carregando modelo... {modelProgress}%</span>
-          <Progress value={modelProgress} className="flex-1 h-1" />
-        </div>
-      )}
-
       {/* Transcribing indicator */}
-      {isTranscribing && !isLoadingModel && (
+      {isTranscribing && (
         <div className={cn(
           "flex items-center gap-2 px-2 py-1 text-xs",
           isFromMe ? "text-primary-foreground/70" : "text-muted-foreground"
