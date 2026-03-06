@@ -30,7 +30,8 @@ import { ChecklistTemplateManager } from "@/components/tasks/ChecklistTemplateMa
 import {
   Plus, Kanban, Globe, User, MoreHorizontal, Trash2, Edit2, Loader2,
   AlertTriangle, ArrowUp, ArrowDown, Minus, Calendar as CalendarIcon, CheckSquare,
-  ListChecks, Filter, X, GripVertical, Settings2, Copy, ArrowRightLeft
+  ListChecks, Filter, X, GripVertical, Settings2, Copy, ArrowRightLeft,
+  ChevronLeft, ChevronRight
 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -123,7 +124,8 @@ function SortableTaskCard({ card, onClick, activeId }: { card: TaskCard; onClick
 
 // Droppable Column component
 function TaskKanbanColumn({
-  column, cards, onCardClick, onAddCard, activeId, overId, onEditColumn, onDeleteColumn, canManageColumns, isDraggingColumn
+  column, cards, onCardClick, onAddCard, activeId, overId, onEditColumn, onDeleteColumn, canManageColumns,
+  onMoveLeft, onMoveRight, isFirst, isLast
 }: {
   column: TaskBoardColumn;
   cards: TaskCard[];
@@ -134,41 +136,24 @@ function TaskKanbanColumn({
   onEditColumn?: (col: TaskBoardColumn) => void;
   onDeleteColumn?: (colId: string) => void;
   canManageColumns?: boolean;
-  isDraggingColumn?: boolean;
+  onMoveLeft?: () => void;
+  onMoveRight?: () => void;
+  isFirst?: boolean;
+  isLast?: boolean;
 }) {
-  const { setNodeRef: setDroppableRef, isOver } = useDroppable({ 
+  const { setNodeRef, isOver } = useDroppable({ 
     id: `column-${column.id}`,
     data: { type: 'column', columnId: column.id },
   });
   const hasActiveItem = cards.some(c => c.id === activeId);
 
-  const {
-    attributes: sortableAttrs,
-    listeners: sortableListeners,
-    setNodeRef: setSortableRef,
-    transform: sortableTransform,
-    transition: sortableTransition,
-    isDragging: isSortableDragging,
-  } = useSortable({
-    id: `col-sort-${column.id}`,
-    data: { type: 'column-sort', column },
-    transition: { duration: 200, easing: 'cubic-bezier(0.25, 1, 0.5, 1)' },
-  });
-
-  const sortableStyle = {
-    transform: CSS.Transform.toString(sortableTransform),
-    transition: isSortableDragging ? undefined : sortableTransition,
-  };
-
   return (
     <div
-      ref={(node) => { setSortableRef(node); setDroppableRef(node); }}
-      style={sortableStyle}
+      ref={setNodeRef}
       className={cn(
         "flex flex-col w-[320px] min-w-[320px] max-w-[320px] bg-muted/50 rounded-lg border overflow-hidden",
         "transition-all duration-300",
-        isOver && !hasActiveItem && "ring-2 ring-primary bg-primary/5 shadow-lg",
-        isSortableDragging && "opacity-30 scale-95"
+        isOver && !hasActiveItem && "ring-2 ring-primary bg-primary/5 shadow-lg"
       )}
     >
       <div
@@ -176,35 +161,36 @@ function TaskKanbanColumn({
         style={{ borderTopColor: column.color, borderTopWidth: 4, borderTopLeftRadius: 8, borderTopRightRadius: 8 }}
       >
         <div className="flex items-center gap-2 min-w-0">
-          <button
-            className="cursor-grab active:cursor-grabbing touch-manipulation text-muted-foreground hover:text-foreground"
-            {...sortableAttrs}
-            {...sortableListeners}
-          >
-            <GripVertical className="h-4 w-4" />
-          </button>
           <h3 className="font-semibold text-sm truncate">{column.name}</h3>
           <Badge variant="secondary" className="text-xs shrink-0">{cards.length}</Badge>
         </div>
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-0.5 shrink-0">
           {canManageColumns && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-6 w-6">
-                  <Settings2 className="h-3 w-3" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem onClick={() => onEditColumn?.(column)}>
-                  <Edit2 className="h-4 w-4 mr-2" /> Editar coluna
-                </DropdownMenuItem>
-                {!column.is_final && (
-                  <DropdownMenuItem className="text-destructive" onClick={() => onDeleteColumn?.(column.id)}>
-                    <Trash2 className="h-4 w-4 mr-2" /> Excluir coluna
+            <>
+              <Button variant="ghost" size="icon" className="h-6 w-6" disabled={isFirst} onClick={onMoveLeft} title="Mover para esquerda">
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-6 w-6" disabled={isLast} onClick={onMoveRight} title="Mover para direita">
+                <ChevronRight className="h-3.5 w-3.5" />
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-6 w-6">
+                    <Settings2 className="h-3 w-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem onClick={() => onEditColumn?.(column)}>
+                    <Edit2 className="h-4 w-4 mr-2" /> Editar coluna
                   </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  {!column.is_final && (
+                    <DropdownMenuItem className="text-destructive" onClick={() => onDeleteColumn?.(column.id)}>
+                      <Trash2 className="h-4 w-4 mr-2" /> Excluir coluna
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
           )}
           <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onAddCard(column.id)}>
             <Plus className="h-3.5 w-3.5" />
@@ -269,6 +255,7 @@ export default function CRMTarefas() {
   const [colColor, setColColor] = useState("#94a3b8");
   const [colIsFinal, setColIsFinal] = useState(false);
   const [addColumnDialog, setAddColumnDialog] = useState(false);
+  const [colPosition, setColPosition] = useState<string>("");
 
   // Duplicate/migrate card
   const [migrateCardDialog, setMigrateCardDialog] = useState(false);
@@ -359,21 +346,6 @@ export default function CRMTarefas() {
 
     const activeIdStr = active.id as string;
     const overIdStr = over.id as string;
-
-    // Column reorder
-    if (activeIdStr.startsWith('col-sort-') && overIdStr.startsWith('col-sort-')) {
-      const activeColId = activeIdStr.replace('col-sort-', '');
-      const overColId = overIdStr.replace('col-sort-', '');
-      if (columns) {
-        const oldIndex = columns.findIndex(c => c.id === activeColId);
-        const newIndex = columns.findIndex(c => c.id === overColId);
-        if (oldIndex !== -1 && newIndex !== -1) {
-          const newOrder = arrayMove(columns, oldIndex, newIndex);
-          reorderColumns.mutate(newOrder.map((c, i) => ({ id: c.id, position: i })));
-        }
-      }
-      return;
-    }
 
     // Card drag
     const cardId = activeIdStr;
@@ -468,12 +440,43 @@ export default function CRMTarefas() {
 
   const handleAddColumn = () => {
     if (!selectedBoardId || !colName.trim()) return;
-    createColumn.mutate({ boardId: selectedBoardId, name: colName.trim(), color: colColor, is_final: colIsFinal });
+    const desiredPos = colPosition ? parseInt(colPosition) - 1 : undefined;
+    
+    // If user specified a position, we need to reorder after creating
+    createColumn.mutate(
+      { boardId: selectedBoardId, name: colName.trim(), color: colColor, is_final: colIsFinal },
+      {
+        onSuccess: (newCol: any) => {
+          if (desiredPos !== undefined && columns && desiredPos >= 0 && desiredPos < columns.length) {
+            // Reorder: insert at desired position, push others forward
+            const currentCols = [...columns];
+            const newColEntry = { id: newCol.id, position: 0 };
+            // Build new order with the new column inserted at desiredPos
+            const withoutNew = currentCols.filter(c => c.id !== newCol.id);
+            withoutNew.splice(desiredPos, 0, newColEntry as any);
+            const reorderData = withoutNew.map((c, i) => ({ id: c.id, position: i }));
+            reorderColumns.mutate(reorderData);
+          }
+        }
+      }
+    );
     setAddColumnDialog(false);
     setColName("");
     setColColor("#94a3b8");
     setColIsFinal(false);
+    setColPosition("");
     toast.success("Coluna criada!");
+  };
+
+  const handleMoveColumn = (columnId: string, direction: 'left' | 'right') => {
+    if (!columns) return;
+    const idx = columns.findIndex(c => c.id === columnId);
+    if (idx === -1) return;
+    const newIdx = direction === 'left' ? idx - 1 : idx + 1;
+    if (newIdx < 0 || newIdx >= columns.length) return;
+    const newOrder = arrayMove(columns, idx, newIdx);
+    reorderColumns.mutate(newOrder.map((c, i) => ({ id: c.id, position: i })));
+    toast.success("Coluna reordenada!");
   };
 
   // Duplicate card
@@ -578,7 +581,7 @@ export default function CRMTarefas() {
                     )}
                   </Button>
                   {canManageColumns && (
-                    <Button size="sm" variant="outline" onClick={() => { setColName(""); setColColor("#94a3b8"); setColIsFinal(false); setAddColumnDialog(true); }}>
+                    <Button size="sm" variant="outline" onClick={() => { setColName(""); setColColor("#94a3b8"); setColIsFinal(false); setColPosition(""); setAddColumnDialog(true); }}>
                       <Plus className="h-4 w-4 mr-1" /> Coluna
                     </Button>
                   )}
@@ -727,9 +730,8 @@ export default function CRMTarefas() {
                 measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
               >
                 <ScrollArea className="flex-1 w-full">
-                  <SortableContext items={columns.map(c => `col-sort-${c.id}`)} strategy={horizontalListSortingStrategy}>
                     <div className="flex gap-4 p-4 min-w-max">
-                      {columns.map(col => {
+                      {columns.map((col, colIndex) => {
                         const colCards = cardsByColumn[col.id] || [];
                         return (
                           <SortableContext key={col.id} items={colCards.map(c => c.id)} strategy={verticalListSortingStrategy}>
@@ -743,12 +745,15 @@ export default function CRMTarefas() {
                               onEditColumn={handleEditColumn}
                               onDeleteColumn={handleDeleteColumn}
                               canManageColumns={canManageColumns}
+                              onMoveLeft={() => handleMoveColumn(col.id, 'left')}
+                              onMoveRight={() => handleMoveColumn(col.id, 'right')}
+                              isFirst={colIndex === 0}
+                              isLast={colIndex === columns.length - 1}
                             />
                           </SortableContext>
                         );
                       })}
                     </div>
-                  </SortableContext>
                   <ScrollBar orientation="horizontal" />
                 </ScrollArea>
 
@@ -853,6 +858,18 @@ export default function CRMTarefas() {
                     style={{ backgroundColor: c }} onClick={() => setColColor(c)} />
                 ))}
               </div>
+            </div>
+            <div>
+              <Label>Posição (opcional)</Label>
+              <Input 
+                type="number" 
+                min="1" 
+                max={columns ? columns.length + 1 : 1}
+                value={colPosition} 
+                onChange={e => setColPosition(e.target.value)} 
+                placeholder={`1 a ${columns ? columns.length + 1 : 1}`} 
+              />
+              <p className="text-xs text-muted-foreground mt-1">Deixe vazio para adicionar no final</p>
             </div>
             <div className="flex items-center gap-2">
               <input type="checkbox" checked={colIsFinal} onChange={e => setColIsFinal(e.target.checked)} id="add-col-final" />
