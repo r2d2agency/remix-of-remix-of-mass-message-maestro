@@ -924,6 +924,15 @@ export default function Organizacoes() {
                                         <RoleIcon className="h-3 w-3 mr-1" />
                                         {roleLabels[member.role].label}
                                       </Badge>
+                                      {member.permission_template_id && (() => {
+                                        const tpl = permTemplates.find(t => t.id === member.permission_template_id);
+                                        return tpl ? (
+                                          <Badge variant="outline" className="text-[10px] ml-1">
+                                            <KeyRound className="h-2.5 w-2.5 mr-0.5" />
+                                            {tpl.name}
+                                          </Badge>
+                                        ) : null;
+                                      })()}
                                     </TableCell>
                                     <TableCell>
                                       {assignedConns.length === 0 ? (
