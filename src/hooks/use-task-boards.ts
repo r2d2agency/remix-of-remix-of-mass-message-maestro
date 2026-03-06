@@ -142,7 +142,13 @@ export function useTaskColumnMutations() {
     onSuccess: () => { inv(); },
   });
 
-  return { createColumn, updateColumn, deleteColumn };
+  const reorderColumns = useMutation({
+    mutationFn: (columns: { id: string; position: number }[]) =>
+      api('/api/task-boards/columns/reorder', { method: 'PUT', body: { columns } }),
+    onSuccess: () => { inv(); },
+  });
+
+  return { createColumn, updateColumn, deleteColumn, reorderColumns };
 }
 
 // Cards
