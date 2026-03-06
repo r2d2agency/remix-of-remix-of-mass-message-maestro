@@ -374,6 +374,27 @@ const Contatos = () => {
           </Dialog>
         </div>
 
+        {/* Connection Filter */}
+        {connectionOptions.length > 0 && (
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4 text-muted-foreground" />
+            <Select value={connectionFilter} onValueChange={setConnectionFilter}>
+              <SelectTrigger className="w-[220px]">
+                <SelectValue placeholder="Filtrar por conta" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as contas</SelectItem>
+                <SelectItem value="none">Sem conta vinculada</SelectItem>
+                {connectionOptions.map((conn) => (
+                  <SelectItem key={conn.id} value={conn.id}>
+                    {conn.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
         {/* Lists Grid */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           <Card
@@ -389,7 +410,7 @@ const Contatos = () => {
               <div>
                 <p className="font-semibold text-foreground">Todas as Listas</p>
                 <p className="text-sm text-muted-foreground">
-                  {totalContacts} contatos em {lists.length} listas
+                  {totalContacts} contatos em {filteredLists.length} listas
                 </p>
               </div>
             </CardContent>
