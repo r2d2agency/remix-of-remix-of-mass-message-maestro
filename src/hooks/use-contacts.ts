@@ -6,6 +6,9 @@ export interface ContactList {
   name: string;
   user_id: string;
   contact_count: number;
+  connection_id: string | null;
+  connection_name: string | null;
+  created_by_name: string | null;
   created_at: string;
   updated_at: string;
 }

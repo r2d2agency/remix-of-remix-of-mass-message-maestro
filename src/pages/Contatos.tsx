@@ -19,6 +19,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -34,6 +41,7 @@ import {
   X,
   Phone,
   UserPlus,
+  Filter,
 } from "lucide-react";
 import { useContacts, ContactList, Contact } from "@/hooks/use-contacts";
 import { ExcelImportDialog } from "@/components/contatos/ExcelImportDialog";
@@ -71,6 +79,7 @@ const Contatos = () => {
   const [isLoadingContacts, setIsLoadingContacts] = useState(false);
   const [editingContact, setEditingContact] = useState<string | null>(null);
   const [validatingContact, setValidatingContact] = useState<string | null>(null);
+  const [connectionFilter, setConnectionFilter] = useState<string>("all");
 
   // Load lists on mount
   useEffect(() => {
@@ -301,7 +310,21 @@ const Contatos = () => {
       contact.phone.includes(searchTerm)
   );
 
-  const totalContacts = lists.reduce((sum, list) => sum + Number(list.contact_count || 0), 0);
+  // Get unique connections from lists for filter
+  const connectionOptions = lists.reduce<{ id: string; name: string }[]>((acc, list) => {
+    if (list.connection_id && list.connection_name && !acc.find(c => c.id === list.connection_id)) {
+      acc.push({ id: list.connection_id, name: list.connection_name });
+    }
+    return acc;
+  }, []);
+
+  const filteredLists = connectionFilter === "all"
+    ? lists
+    : connectionFilter === "none"
+      ? lists.filter(l => !l.connection_id)
+      : lists.filter(l => l.connection_id === connectionFilter);
+
+  const totalContacts = filteredLists.reduce((sum, list) => sum + Number(list.contact_count || 0), 0);
 
   return (
     <MainLayout>
@@ -351,6 +374,27 @@ const Contatos = () => {
           </Dialog>
         </div>
 
+        {/* Connection Filter */}
+        {connectionOptions.length > 0 && (
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4 text-muted-foreground" />
+            <Select value={connectionFilter} onValueChange={setConnectionFilter}>
+              <SelectTrigger className="w-[220px]">
+                <SelectValue placeholder="Filtrar por conta" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as contas</SelectItem>
+                <SelectItem value="none">Sem conta vinculada</SelectItem>
+                {connectionOptions.map((conn) => (
+                  <SelectItem key={conn.id} value={conn.id}>
+                    {conn.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
         {/* Lists Grid */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           <Card
@@ -366,7 +410,7 @@ const Contatos = () => {
               <div>
                 <p className="font-semibold text-foreground">Todas as Listas</p>
                 <p className="text-sm text-muted-foreground">
-                  {totalContacts} contatos em {lists.length} listas
+                  {totalContacts} contatos em {filteredLists.length} listas
                 </p>
               </div>
             </CardContent>
@@ -377,7 +421,7 @@ const Contatos = () => {
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           ) : (
-            lists.map((list, index) => (
+            filteredLists.map((list, index) => (
               <Card
                 key={list.id}
                 className={`cursor-pointer transition-all duration-200 hover:shadow-elevated animate-fade-in ${
@@ -395,6 +439,9 @@ const Contatos = () => {
                       <p className="font-semibold text-foreground">{list.name}</p>
                       <p className="text-sm text-muted-foreground">
                         {list.contact_count || 0} contatos
+                        {list.connection_name && (
+                          <span className="ml-1">· {list.connection_name}</span>
+                        )}
                       </p>
                     </div>
                   </div>

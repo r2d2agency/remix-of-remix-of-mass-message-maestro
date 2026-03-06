@@ -105,6 +105,7 @@ DO $$ BEGIN
     ALTER TABLE ai_agent_sessions ADD COLUMN IF NOT EXISTS human_takeover BOOLEAN DEFAULT false;
     ALTER TABLE ai_agent_sessions ADD COLUMN IF NOT EXISTS human_takeover_by UUID REFERENCES users(id);
     ALTER TABLE ai_agent_sessions ADD COLUMN IF NOT EXISTS human_takeover_at TIMESTAMP WITH TIME ZONE;
+    ALTER TABLE organization_members ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
 EXCEPTION
     WHEN duplicate_column THEN null;
 END $$;
