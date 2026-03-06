@@ -171,6 +171,8 @@ function SidebarContentComponent({ isExpanded, isSuperadmin, onNavigate }: Sideb
         // Check admin-only item
         if (item.adminOnly && !userIsAdmin) return false;
         if (item.ownerOnly && !userIsOwner) return false;
+        // Check feature permission from template
+        if (item.featureKey && !hasFeatureAccess(item.featureKey)) return false;
         return true;
       })
     }))
