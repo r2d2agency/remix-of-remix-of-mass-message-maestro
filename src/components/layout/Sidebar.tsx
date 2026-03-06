@@ -116,6 +116,7 @@ const navSections: NavSection[] = [
     icon: User,
     items: [
       { name: "Ajustes", href: "/configuracoes", icon: Settings },
+      { name: "Conexões", href: "/conexao", icon: Plug },
       { name: "Intimações", href: "/intimacoes", icon: Scale, moduleKey: 'aasp' },
       { name: "Lead Gleego", href: "/lead-gleego", icon: Search, moduleKey: 'lead_gleego' },
     ],
@@ -126,7 +127,6 @@ const navSections: NavSection[] = [
     adminOnly: true, // Entire section is admin-only
     items: [
       { name: "Cobrança", href: "/cobranca", icon: Receipt, moduleKey: 'billing' },
-      { name: "Conexões", href: "/conexao", icon: Plug },
       { name: "Organizações", href: "/organizacoes", icon: Building2 },
     ],
   },

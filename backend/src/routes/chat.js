@@ -1437,9 +1437,16 @@ router.post('/conversations/:id/messages', authenticate, async (req, res) => {
     const savedMessage = messageResult.rows[0];
 
     // Update conversation last_message_at immediately
+    // Auto-attend: if conversation is 'waiting', set to 'attending' with current user as responsible
     await query(
-      `UPDATE conversations SET last_message_at = NOW(), updated_at = NOW() WHERE id = $1`,
-      [id]
+      `UPDATE conversations SET 
+        last_message_at = NOW(), 
+        updated_at = NOW(),
+        attendance_status = CASE WHEN attendance_status = 'waiting' THEN 'attending' ELSE attendance_status END,
+        accepted_at = CASE WHEN attendance_status = 'waiting' THEN NOW() ELSE accepted_at END,
+        accepted_by = CASE WHEN attendance_status = 'waiting' THEN $2 ELSE accepted_by END
+      WHERE id = $1`,
+      [id, req.userId]
     );
 
     // ============================================================
