@@ -531,33 +531,72 @@ router.post('/:id/enroll', authenticate, async (req, res) => {
       }
     }
 
-    // Create enrollment (upsert)
-    const result = await query(
-      `INSERT INTO nurturing_enrollments 
-        (sequence_id, organization_id, contact_phone, contact_email, contact_name,
-         conversation_id, deal_id, current_step, status, next_step_at, variables)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 0, 'active', $8, $9)
-       ON CONFLICT (sequence_id, contact_phone) 
-       DO UPDATE SET 
-         status = 'active',
-         current_step = 0,
-         next_step_at = $8,
-         paused_at = NULL,
-         variables = $9,
-         updated_at = NOW()
-       RETURNING *`,
-      [
-        id,
-        userOrg.organization_id,
-        contact_phone,
-        contact_email,
-        contact_name,
-        conversation_id,
-        deal_id,
-        nextStepAt.toISOString(),
-        JSON.stringify(variables)
-      ]
-    );
+    // Create enrollment - handle phone or email-only contacts
+    let result;
+    if (contact_phone) {
+      result = await query(
+        `INSERT INTO nurturing_enrollments 
+          (sequence_id, organization_id, contact_phone, contact_email, contact_name,
+           conversation_id, deal_id, current_step, status, next_step_at, variables)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 0, 'active', $8, $9)
+         ON CONFLICT (sequence_id, contact_phone) 
+         DO UPDATE SET 
+           status = 'active',
+           current_step = 0,
+           next_step_at = $8,
+           paused_at = NULL,
+           variables = $9,
+           updated_at = NOW()
+         RETURNING *`,
+        [
+          id,
+          userOrg.organization_id,
+          contact_phone,
+          contact_email || null,
+          contact_name || null,
+          conversation_id || null,
+          deal_id || null,
+          nextStepAt.toISOString(),
+          JSON.stringify(variables)
+        ]
+      );
+    } else {
+      // Email-only contact - check for existing enrollment by email
+      const existing = await query(
+        `SELECT id FROM nurturing_enrollments 
+         WHERE sequence_id = $1 AND contact_email = $2 AND contact_phone IS NULL`,
+        [id, contact_email]
+      );
+
+      if (existing.rows.length > 0) {
+        result = await query(
+          `UPDATE nurturing_enrollments 
+           SET status = 'active', current_step = 0, next_step_at = $1, 
+               paused_at = NULL, variables = $2, updated_at = NOW()
+           WHERE id = $3
+           RETURNING *`,
+          [nextStepAt.toISOString(), JSON.stringify(variables), existing.rows[0].id]
+        );
+      } else {
+        result = await query(
+          `INSERT INTO nurturing_enrollments 
+            (sequence_id, organization_id, contact_phone, contact_email, contact_name,
+             conversation_id, deal_id, current_step, status, next_step_at, variables)
+           VALUES ($1, $2, NULL, $3, $4, $5, $6, 0, 'active', $7, $8)
+           RETURNING *`,
+          [
+            id,
+            userOrg.organization_id,
+            contact_email,
+            contact_name || null,
+            conversation_id || null,
+            deal_id || null,
+            nextStepAt.toISOString(),
+            JSON.stringify(variables)
+          ]
+        );
+      }
+    }
 
     // Update sequence stats
     await query(
