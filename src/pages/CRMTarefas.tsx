@@ -470,12 +470,43 @@ export default function CRMTarefas() {
 
   const handleAddColumn = () => {
     if (!selectedBoardId || !colName.trim()) return;
-    createColumn.mutate({ boardId: selectedBoardId, name: colName.trim(), color: colColor, is_final: colIsFinal });
+    const desiredPos = colPosition ? parseInt(colPosition) - 1 : undefined;
+    
+    // If user specified a position, we need to reorder after creating
+    createColumn.mutate(
+      { boardId: selectedBoardId, name: colName.trim(), color: colColor, is_final: colIsFinal },
+      {
+        onSuccess: (newCol: any) => {
+          if (desiredPos !== undefined && columns && desiredPos >= 0 && desiredPos < columns.length) {
+            // Reorder: insert at desired position, push others forward
+            const currentCols = [...columns];
+            const newColEntry = { id: newCol.id, position: 0 };
+            // Build new order with the new column inserted at desiredPos
+            const withoutNew = currentCols.filter(c => c.id !== newCol.id);
+            withoutNew.splice(desiredPos, 0, newColEntry as any);
+            const reorderData = withoutNew.map((c, i) => ({ id: c.id, position: i }));
+            reorderColumns.mutate(reorderData);
+          }
+        }
+      }
+    );
     setAddColumnDialog(false);
     setColName("");
     setColColor("#94a3b8");
     setColIsFinal(false);
+    setColPosition("");
     toast.success("Coluna criada!");
+  };
+
+  const handleMoveColumn = (columnId: string, direction: 'left' | 'right') => {
+    if (!columns) return;
+    const idx = columns.findIndex(c => c.id === columnId);
+    if (idx === -1) return;
+    const newIdx = direction === 'left' ? idx - 1 : idx + 1;
+    if (newIdx < 0 || newIdx >= columns.length) return;
+    const newOrder = arrayMove(columns, idx, newIdx);
+    reorderColumns.mutate(newOrder.map((c, i) => ({ id: c.id, position: i })));
+    toast.success("Coluna reordenada!");
   };
 
   // Duplicate card
