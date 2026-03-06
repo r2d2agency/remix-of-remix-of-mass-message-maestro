@@ -476,7 +476,6 @@ export default function CRMTarefas() {
     if (newIdx < 0 || newIdx >= columns.length) return;
     const newOrder = arrayMove(columns, idx, newIdx);
     reorderColumns.mutate(newOrder.map((c, i) => ({ id: c.id, position: i })));
-    toast.success("Coluna reordenada!");
   };
 
   // Duplicate card
