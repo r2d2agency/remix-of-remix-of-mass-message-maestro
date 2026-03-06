@@ -50,6 +50,7 @@ interface NavItem {
   name: string;
   href: string;
   icon: any;
+  featureKey?: string;
   moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents' | 'group_secretary' | 'ghost' | 'aasp' | 'lead_gleego';
   adminOnly?: boolean;
   ownerOnly?: boolean;
@@ -69,15 +70,15 @@ const navSections: NavSection[] = [
     title: "Atendimento",
     icon: MessagesSquare,
     items: [
-      { name: "Chat", href: "/chat", icon: MessagesSquare, moduleKey: 'chat' },
-      { name: "Secretária IA", href: "/secretaria-grupos", icon: Bot, moduleKey: 'group_secretary', adminOnly: true },
-      { name: "Agentes IA", href: "/agentes-ia", icon: Sparkles, superadminOnly: true },
-      { name: "Chatbots", href: "/chatbots", icon: Bot, moduleKey: 'chatbots', adminOnly: true },
-      { name: "Fluxos", href: "/fluxos", icon: GitBranch, moduleKey: 'chatbots', adminOnly: true },
-      { name: "Departamentos", href: "/departamentos", icon: Building2, adminOnly: true },
-      { name: "Agendamentos", href: "/agendamentos", icon: Bell, moduleKey: 'scheduled_messages' },
-      { name: "Tags", href: "/tags", icon: Receipt },
-      { name: "Contatos", href: "/contatos-chat", icon: Users },
+      { name: "Chat", href: "/chat", icon: MessagesSquare, moduleKey: 'chat', featureKey: 'chat' },
+      { name: "Secretária IA", href: "/secretaria-grupos", icon: Bot, moduleKey: 'group_secretary', adminOnly: true, featureKey: 'group_secretary' },
+      { name: "Agentes IA", href: "/agentes-ia", icon: Sparkles, superadminOnly: true, featureKey: 'ai_agents' },
+      { name: "Chatbots", href: "/chatbots", icon: Bot, moduleKey: 'chatbots', adminOnly: true, featureKey: 'chatbots' },
+      { name: "Fluxos", href: "/fluxos", icon: GitBranch, moduleKey: 'chatbots', adminOnly: true, featureKey: 'flows' },
+      { name: "Departamentos", href: "/departamentos", icon: Building2, adminOnly: true, featureKey: 'departments' },
+      { name: "Agendamentos", href: "/agendamentos", icon: Bell, moduleKey: 'scheduled_messages', featureKey: 'scheduled_messages' },
+      { name: "Tags", href: "/tags", icon: Receipt, featureKey: 'tags' },
+      { name: "Contatos", href: "/contatos-chat", icon: Users, featureKey: 'contacts' },
     ],
   },
   {
@@ -85,16 +86,16 @@ const navSections: NavSection[] = [
     icon: Briefcase,
     moduleKey: 'crm',
     items: [
-      { name: "Negociações", href: "/crm/negociacoes", icon: Kanban },
-      { name: "Prospects", href: "/crm/prospects", icon: UserPlus },
-      { name: "Empresas", href: "/crm/empresas", icon: Building2 },
-      { name: "Mapa", href: "/mapa", icon: Map },
-      { name: "Agenda", href: "/crm/agenda", icon: CalendarDays },
-      { name: "Tarefas", href: "/crm/tarefas", icon: ClipboardList },
-      { name: "Relatórios", href: "/crm/relatorios", icon: BarChart3 },
-      { name: "Revenue Intel", href: "/revenue-intelligence", icon: Brain, adminOnly: true },
-      { name: "Fantasma", href: "/modulo-fantasma", icon: Ghost, ownerOnly: true, moduleKey: 'ghost' },
-      { name: "Configurações", href: "/crm/configuracoes", icon: Settings, adminOnly: true },
+      { name: "Negociações", href: "/crm/negociacoes", icon: Kanban, featureKey: 'crm_deals' },
+      { name: "Prospects", href: "/crm/prospects", icon: UserPlus, featureKey: 'crm_prospects' },
+      { name: "Empresas", href: "/crm/empresas", icon: Building2, featureKey: 'crm_companies' },
+      { name: "Mapa", href: "/mapa", icon: Map, featureKey: 'crm_map' },
+      { name: "Agenda", href: "/crm/agenda", icon: CalendarDays, featureKey: 'crm_calendar' },
+      { name: "Tarefas", href: "/crm/tarefas", icon: ClipboardList, featureKey: 'crm_tasks' },
+      { name: "Relatórios", href: "/crm/relatorios", icon: BarChart3, featureKey: 'crm_reports' },
+      { name: "Revenue Intel", href: "/revenue-intelligence", icon: Brain, adminOnly: true, featureKey: 'revenue_intelligence' },
+      { name: "Fantasma", href: "/modulo-fantasma", icon: Ghost, ownerOnly: true, moduleKey: 'ghost', featureKey: 'ghost' },
+      { name: "Configurações", href: "/crm/configuracoes", icon: Settings, adminOnly: true, featureKey: 'crm_config' },
     ],
   },
   {
@@ -102,23 +103,23 @@ const navSections: NavSection[] = [
     icon: Send,
     moduleKey: 'campaigns',
     items: [
-      { name: "Listas", href: "/contatos", icon: Users },
-      { name: "Mensagens", href: "/mensagens", icon: MessageSquare },
-      { name: "Campanhas", href: "/campanhas", icon: Send },
-      { name: "Sequências", href: "/sequencias", icon: RefreshCw, adminOnly: true },
-      { name: "Fluxos Externos", href: "/fluxos-externos", icon: FileText, adminOnly: true },
-      { name: "Webhooks", href: "/lead-webhooks", icon: Webhook, adminOnly: true },
-      { name: "CTWA Analytics", href: "/ctwa-analytics", icon: MousePointerClick, adminOnly: true },
+      { name: "Listas", href: "/contatos", icon: Users, featureKey: 'campaign_lists' },
+      { name: "Mensagens", href: "/mensagens", icon: MessageSquare, featureKey: 'campaign_messages' },
+      { name: "Campanhas", href: "/campanhas", icon: Send, featureKey: 'campaigns' },
+      { name: "Sequências", href: "/sequencias", icon: RefreshCw, adminOnly: true, featureKey: 'nurturing' },
+      { name: "Fluxos Externos", href: "/fluxos-externos", icon: FileText, adminOnly: true, featureKey: 'external_forms' },
+      { name: "Webhooks", href: "/lead-webhooks", icon: Webhook, adminOnly: true, featureKey: 'webhooks' },
+      { name: "CTWA Analytics", href: "/ctwa-analytics", icon: MousePointerClick, adminOnly: true, featureKey: 'ctwa_analytics' },
     ],
   },
   {
     title: "Minha Conta",
     icon: User,
     items: [
-      { name: "Ajustes", href: "/configuracoes", icon: Settings },
-      { name: "Conexões", href: "/conexao", icon: Plug },
-      { name: "Intimações", href: "/intimacoes", icon: Scale, moduleKey: 'aasp' },
-      { name: "Lead Gleego", href: "/lead-gleego", icon: Search, moduleKey: 'lead_gleego' },
+      { name: "Ajustes", href: "/configuracoes", icon: Settings, featureKey: 'settings' },
+      { name: "Conexões", href: "/conexao", icon: Plug, featureKey: 'connections' },
+      { name: "Intimações", href: "/intimacoes", icon: Scale, moduleKey: 'aasp', featureKey: 'aasp' },
+      { name: "Lead Gleego", href: "/lead-gleego", icon: Search, moduleKey: 'lead_gleego', featureKey: 'lead_gleego' },
     ],
   },
   {
@@ -126,8 +127,8 @@ const navSections: NavSection[] = [
     icon: Shield,
     adminOnly: true, // Entire section is admin-only
     items: [
-      { name: "Cobrança", href: "/cobranca", icon: Receipt, moduleKey: 'billing' },
-      { name: "Organizações", href: "/organizacoes", icon: Building2 },
+      { name: "Cobrança", href: "/cobranca", icon: Receipt, moduleKey: 'billing', featureKey: 'billing' },
+      { name: "Organizações", href: "/organizacoes", icon: Building2, featureKey: 'organizations' },
     ],
   },
 ];
@@ -141,7 +142,7 @@ interface SidebarContentProps {
 function SidebarContentComponent({ isExpanded, isSuperadmin, onNavigate }: SidebarContentProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { logout, user, modulesEnabled } = useAuth();
+  const { logout, user, modulesEnabled, hasFeatureAccess } = useAuth();
   const { branding } = useBranding();
   const [openSections, setOpenSections] = useState<string[]>(["Atendimento"]);
 
@@ -170,6 +171,8 @@ function SidebarContentComponent({ isExpanded, isSuperadmin, onNavigate }: Sideb
         // Check admin-only item
         if (item.adminOnly && !userIsAdmin) return false;
         if (item.ownerOnly && !userIsOwner) return false;
+        // Check feature permission from template
+        if (item.featureKey && !hasFeatureAccess(item.featureKey)) return false;
         return true;
       })
     }))

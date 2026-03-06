@@ -63,6 +63,7 @@ interface UpdateMemberParams {
   is_active?: boolean;
   connection_ids?: string[];
   department_ids?: string[];
+  permission_template_id?: string | null;
 }
 
 interface AddMemberResult {

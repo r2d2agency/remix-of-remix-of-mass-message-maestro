@@ -48,7 +48,20 @@ interface OrganizationMember {
   is_active: boolean;
   assigned_connections: AssignedConnection[];
   assigned_departments: AssignedDepartment[];
+  permission_template_id?: string | null;
   created_at: string;
+}
+
+interface PermissionTemplate {
+  id: string;
+  organization_id: string;
+  name: string;
+  description?: string;
+  permissions: Record<string, boolean>;
+  is_default: boolean;
+  members_count?: number;
+  created_at: string;
+  updated_at: string;
 }
 
 interface OrgConnection {
@@ -130,6 +143,15 @@ export default function Organizacoes() {
   });
   const [savingModules, setSavingModules] = useState(false);
 
+  // Permission templates
+  const [permTemplates, setPermTemplates] = useState<PermissionTemplate[]>([]);
+  const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<PermissionTemplate | null>(null);
+  const [templateName, setTemplateName] = useState('');
+  const [templateDescription, setTemplateDescription] = useState('');
+  const [templatePermissions, setTemplatePermissions] = useState<Record<string, boolean>>({});
+  const [editMemberTemplateId, setEditMemberTemplateId] = useState<string | null>(null);
+
   const { 
     loading, 
     error,
@@ -158,6 +180,7 @@ export default function Organizacoes() {
       loadConnections(selectedOrg.id);
       loadDepartments(selectedOrg.id);
       loadModules(selectedOrg.id);
+      loadPermTemplates(selectedOrg.id);
     }
   }, [selectedOrg]);
 
@@ -186,6 +209,16 @@ export default function Organizacoes() {
   const loadDepartments = async (orgId: string) => {
     const depts = await getDepartments(orgId);
     setDepartments(depts);
+  };
+
+  const loadPermTemplates = async (orgId: string) => {
+    try {
+      const templates = await api<PermissionTemplate[]>(`/api/organizations/${orgId}/permission-templates`);
+      setPermTemplates(templates);
+    } catch (e) {
+      console.log('Permission templates not available yet');
+      setPermTemplates([]);
+    }
   };
 
   const loadModules = async (orgId: string) => {
@@ -321,15 +354,17 @@ export default function Organizacoes() {
     setEditMemberRole(member.role);
     setEditMemberConnectionIds(member.assigned_connections?.map(c => c.id) || []);
     setEditMemberDepartmentIds(member.assigned_departments?.map(d => d.id) || []);
+    setEditMemberTemplateId(member.permission_template_id || null);
     setEditMemberDialogOpen(true);
   };
 
   const handleUpdateMember = async () => {
     if (!selectedOrg || !editingMember) return;
 
-    const updateData: { role?: string; connection_ids?: string[]; department_ids?: string[] } = {
+    const updateData: { role?: string; connection_ids?: string[]; department_ids?: string[]; permission_template_id?: string | null } = {
       connection_ids: editMemberConnectionIds,
       department_ids: editMemberDepartmentIds,
+      permission_template_id: editMemberTemplateId,
     };
     
     // Only include role if it's different and member is not owner
@@ -383,6 +418,98 @@ export default function Organizacoes() {
       setNewPassword('');
     } else if (error) {
       toast.error(error);
+    }
+  };
+
+  // Permission template feature keys
+  const FEATURE_KEYS = [
+    { key: 'chat', label: 'Chat', section: 'Atendimento' },
+    { key: 'group_secretary', label: 'Secretária IA', section: 'Atendimento' },
+    { key: 'chatbots', label: 'Chatbots', section: 'Atendimento' },
+    { key: 'flows', label: 'Fluxos', section: 'Atendimento' },
+    { key: 'departments', label: 'Departamentos', section: 'Atendimento' },
+    { key: 'scheduled_messages', label: 'Agendamentos', section: 'Atendimento' },
+    { key: 'tags', label: 'Tags', section: 'Atendimento' },
+    { key: 'contacts', label: 'Contatos', section: 'Atendimento' },
+    { key: 'crm_deals', label: 'Negociações', section: 'CRM' },
+    { key: 'crm_prospects', label: 'Prospects', section: 'CRM' },
+    { key: 'crm_companies', label: 'Empresas', section: 'CRM' },
+    { key: 'crm_map', label: 'Mapa', section: 'CRM' },
+    { key: 'crm_calendar', label: 'Agenda', section: 'CRM' },
+    { key: 'crm_tasks', label: 'Tarefas', section: 'CRM' },
+    { key: 'crm_reports', label: 'Relatórios', section: 'CRM' },
+    { key: 'crm_config', label: 'Configurações CRM', section: 'CRM' },
+    { key: 'campaign_lists', label: 'Listas', section: 'Disparos' },
+    { key: 'campaign_messages', label: 'Mensagens', section: 'Disparos' },
+    { key: 'campaigns', label: 'Campanhas', section: 'Disparos' },
+    { key: 'nurturing', label: 'Sequências', section: 'Disparos' },
+    { key: 'external_forms', label: 'Fluxos Externos', section: 'Disparos' },
+    { key: 'webhooks', label: 'Webhooks', section: 'Disparos' },
+    { key: 'connections', label: 'Conexões', section: 'Minha Conta' },
+    { key: 'settings', label: 'Ajustes', section: 'Minha Conta' },
+    { key: 'billing', label: 'Cobrança', section: 'Administração' },
+    { key: 'organizations', label: 'Organizações', section: 'Administração' },
+  ];
+
+  const featureSections = FEATURE_KEYS.reduce((acc, f) => {
+    if (!acc[f.section]) acc[f.section] = [];
+    acc[f.section].push(f);
+    return acc;
+  }, {} as Record<string, typeof FEATURE_KEYS>);
+
+  const handleOpenTemplateDialog = (template?: PermissionTemplate) => {
+    if (template) {
+      setEditingTemplate(template);
+      setTemplateName(template.name);
+      setTemplateDescription(template.description || '');
+      setTemplatePermissions({ ...template.permissions });
+    } else {
+      setEditingTemplate(null);
+      setTemplateName('');
+      setTemplateDescription('');
+      // Default all to true
+      const defaults: Record<string, boolean> = {};
+      FEATURE_KEYS.forEach(f => defaults[f.key] = true);
+      setTemplatePermissions(defaults);
+    }
+    setTemplateDialogOpen(true);
+  };
+
+  const handleSaveTemplate = async () => {
+    if (!selectedOrg || !templateName.trim()) {
+      toast.error('Nome é obrigatório');
+      return;
+    }
+    try {
+      if (editingTemplate) {
+        await api(`/api/organizations/${selectedOrg.id}/permission-templates/${editingTemplate.id}`, {
+          method: 'PATCH',
+          body: { name: templateName, description: templateDescription, permissions: templatePermissions },
+        });
+        toast.success('Template atualizado!');
+      } else {
+        await api(`/api/organizations/${selectedOrg.id}/permission-templates`, {
+          method: 'POST',
+          body: { name: templateName, description: templateDescription, permissions: templatePermissions },
+        });
+        toast.success('Template criado!');
+      }
+      setTemplateDialogOpen(false);
+      loadPermTemplates(selectedOrg.id);
+    } catch (e: any) {
+      toast.error(e.message || 'Erro ao salvar template');
+    }
+  };
+
+  const handleDeleteTemplate = async (templateId: string) => {
+    if (!selectedOrg) return;
+    try {
+      await api(`/api/organizations/${selectedOrg.id}/permission-templates/${templateId}`, { method: 'DELETE' });
+      toast.success('Template excluído!');
+      loadPermTemplates(selectedOrg.id);
+      loadMembers(selectedOrg.id);
+    } catch (e: any) {
+      toast.error(e.message || 'Erro ao excluir template');
     }
   };
 
@@ -617,10 +744,14 @@ export default function Organizacoes() {
 
                 {/* Tabs for Members and Settings */}
                 <Tabs value={activeTab} onValueChange={setActiveTab}>
-                  <TabsList className="grid w-full grid-cols-2">
+                  <TabsList className="grid w-full grid-cols-3">
                     <TabsTrigger value="members" className="flex items-center gap-2">
                       <Users className="h-4 w-4" />
                       Membros
+                    </TabsTrigger>
+                    <TabsTrigger value="templates" className="flex items-center gap-2">
+                      <KeyRound className="h-4 w-4" />
+                      Permissões
                     </TabsTrigger>
                     <TabsTrigger value="settings" className="flex items-center gap-2">
                       <Settings className="h-4 w-4" />
@@ -793,6 +924,15 @@ export default function Organizacoes() {
                                         <RoleIcon className="h-3 w-3 mr-1" />
                                         {roleLabels[member.role].label}
                                       </Badge>
+                                      {member.permission_template_id && (() => {
+                                        const tpl = permTemplates.find(t => t.id === member.permission_template_id);
+                                        return tpl ? (
+                                          <Badge variant="outline" className="text-[10px] ml-1">
+                                            <KeyRound className="h-2.5 w-2.5 mr-0.5" />
+                                            {tpl.name}
+                                          </Badge>
+                                        ) : null;
+                                      })()}
                                     </TableCell>
                                     <TableCell>
                                       {assignedConns.length === 0 ? (
@@ -907,6 +1047,107 @@ export default function Organizacoes() {
                               })}
                             </TableBody>
                           </Table>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
+                  {/* Permission Templates Tab */}
+                  <TabsContent value="templates">
+                    <Card>
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <CardTitle className="flex items-center gap-2">
+                              <KeyRound className="h-5 w-5" />
+                              Templates de Permissão
+                            </CardTitle>
+                            <CardDescription>
+                              Crie templates para controlar acesso a módulos e ferramentas por usuário
+                            </CardDescription>
+                          </div>
+                          {canManageOrg && (
+                            <Button onClick={() => handleOpenTemplateDialog()} size="sm">
+                              <Plus className="h-4 w-4 mr-2" />
+                              Novo Template
+                            </Button>
+                          )}
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        {permTemplates.length === 0 ? (
+                          <div className="text-center py-8 text-muted-foreground">
+                            <KeyRound className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                            <p>Nenhum template de permissão criado</p>
+                            <p className="text-sm mt-1">
+                              Templates permitem definir quais módulos cada usuário pode acessar
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            {permTemplates.map(tpl => (
+                              <div key={tpl.id} className="flex items-center justify-between p-4 border rounded-lg">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium">{tpl.name}</span>
+                                    {tpl.is_default && <Badge variant="secondary" className="text-[10px]">Padrão</Badge>}
+                                    <Badge variant="outline" className="text-[10px]">
+                                      {tpl.members_count || 0} membro(s)
+                                    </Badge>
+                                  </div>
+                                  {tpl.description && (
+                                    <p className="text-sm text-muted-foreground mt-1">{tpl.description}</p>
+                                  )}
+                                  <div className="flex flex-wrap gap-1 mt-2">
+                                    {Object.entries(tpl.permissions)
+                                      .filter(([, v]) => v === true)
+                                      .slice(0, 8)
+                                      .map(([key]) => {
+                                        const feat = FEATURE_KEYS.find(f => f.key === key);
+                                        return feat ? (
+                                          <Badge key={key} variant="outline" className="text-[10px] px-1.5 py-0">
+                                            {feat.label}
+                                          </Badge>
+                                        ) : null;
+                                      })}
+                                    {Object.values(tpl.permissions).filter(Boolean).length > 8 && (
+                                      <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                        +{Object.values(tpl.permissions).filter(Boolean).length - 8}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+                                {canManageOrg && (
+                                  <div className="flex items-center gap-1 ml-4">
+                                    <Button size="icon" variant="ghost" onClick={() => handleOpenTemplateDialog(tpl)}>
+                                      <Pencil className="h-4 w-4" />
+                                    </Button>
+                                    <AlertDialog>
+                                      <AlertDialogTrigger asChild>
+                                        <Button size="icon" variant="ghost" className="text-destructive">
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </AlertDialogTrigger>
+                                      <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                          <AlertDialogTitle>Excluir Template</AlertDialogTitle>
+                                          <AlertDialogDescription>
+                                            Os membros vinculados ficarão sem template atribuído.
+                                          </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                          <AlertDialogAction onClick={() => handleDeleteTemplate(tpl.id)}>
+                                            Excluir
+                                          </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                      </AlertDialogContent>
+                                    </AlertDialog>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
                         )}
                       </CardContent>
                     </Card>
@@ -1244,6 +1485,35 @@ export default function Organizacoes() {
                   Selecione os departamentos que este usuário pode atender
                 </p>
               </div>
+
+              {/* Permission Template */}
+              {editingMember?.role !== 'owner' && permTemplates.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <KeyRound className="h-4 w-4" />
+                    Template de Permissão
+                  </Label>
+                  <Select 
+                    value={editMemberTemplateId || 'none'} 
+                    onValueChange={(v) => setEditMemberTemplateId(v === 'none' ? null : v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sem template (acesso por cargo)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Sem template (acesso por cargo)</SelectItem>
+                      {permTemplates.map(tpl => (
+                        <SelectItem key={tpl.id} value={tpl.id}>
+                          {tpl.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    O template controla quais módulos e ferramentas o usuário pode acessar
+                  </p>
+                </div>
+              )}
             </div>
             <DialogFooter className="shrink-0">
               <Button variant="outline" onClick={() => setEditMemberDialogOpen(false)}>
@@ -1291,6 +1561,97 @@ export default function Organizacoes() {
               <Button onClick={handleUpdatePassword} disabled={loading}>
                 {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Salvar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Permission Template Dialog */}
+        <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
+          <DialogContent className="max-w-lg max-h-[90vh] flex flex-col">
+            <DialogHeader className="shrink-0">
+              <DialogTitle>{editingTemplate ? 'Editar Template' : 'Novo Template de Permissão'}</DialogTitle>
+              <DialogDescription>
+                Defina quais módulos e ferramentas os usuários com este template poderão acessar
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4 space-y-4 overflow-y-auto flex-1 pr-2">
+              <div className="space-y-2">
+                <Label>Nome do Template *</Label>
+                <Input
+                  placeholder="Ex: Vendedor, Suporte, Financeiro..."
+                  value={templateName}
+                  onChange={(e) => setTemplateName(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Descrição</Label>
+                <Input
+                  placeholder="Breve descrição do perfil de acesso"
+                  value={templateDescription}
+                  onChange={(e) => setTemplateDescription(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label>Permissões por Módulo</Label>
+                <div className="flex gap-2 mb-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const all: Record<string, boolean> = {};
+                      FEATURE_KEYS.forEach(f => all[f.key] = true);
+                      setTemplatePermissions(all);
+                    }}
+                  >
+                    Marcar Todos
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const none: Record<string, boolean> = {};
+                      FEATURE_KEYS.forEach(f => none[f.key] = false);
+                      setTemplatePermissions(none);
+                    }}
+                  >
+                    Desmarcar Todos
+                  </Button>
+                </div>
+              </div>
+
+              {Object.entries(featureSections).map(([section, features]) => (
+                <div key={section} className="space-y-2">
+                  <Label className="text-sm font-semibold text-muted-foreground">{section}</Label>
+                  <div className="border rounded-md p-3 space-y-2">
+                    {features.map(feat => (
+                      <div key={feat.key} className="flex items-center justify-between">
+                        <label htmlFor={`perm-${feat.key}`} className="text-sm cursor-pointer">
+                          {feat.label}
+                        </label>
+                        <Switch
+                          id={`perm-${feat.key}`}
+                          checked={templatePermissions[feat.key] !== false}
+                          onCheckedChange={(checked) => 
+                            setTemplatePermissions(prev => ({ ...prev, [feat.key]: checked }))
+                          }
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <DialogFooter className="shrink-0">
+              <Button variant="outline" onClick={() => setTemplateDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleSaveTemplate} disabled={loading}>
+                {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                {editingTemplate ? 'Salvar' : 'Criar Template'}
               </Button>
             </DialogFooter>
           </DialogContent>
