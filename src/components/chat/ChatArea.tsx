@@ -86,6 +86,7 @@ import {
   Briefcase,
   Sparkles,
   SmilePlus,
+  Forward,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -119,6 +120,7 @@ import { CallLogDialog } from "./CallLogDialog";
 import { useCRMDealsByPhone, CRMDeal } from "@/hooks/use-crm";
 import { DealDetailDialog } from "@/components/crm/DealDetailDialog";
 import { AIAgentBanner } from "./AIAgentBanner";
+import { ForwardMessageDialog } from "./ForwardMessageDialog";
 
 interface ChatAreaProps {
   conversation: Conversation | null;
@@ -249,6 +251,8 @@ export function ChatArea({
   const [showCallDialog, setShowCallDialog] = useState(false);
   const [savingCall, setSavingCall] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [forwardingMessage, setForwardingMessage] = useState<ChatMessage | null>(null);
+  const [forwardConversations, setForwardConversations] = useState<Conversation[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -264,7 +268,7 @@ export function ChatArea({
   const [isDragOver, setIsDragOver] = useState(false);
   const dragCounterRef = useRef(0);
   const { user, modulesEnabled } = useAuth();
-  const { getNotes, getTypingStatus, getScheduledMessages, scheduleMessage, cancelScheduledMessage, logCall } = useChat();
+  const { getNotes, getTypingStatus, getScheduledMessages, scheduleMessage, cancelScheduledMessage, logCall, getConversations, forwardMessage } = useChat();
   
   // AI Summary hooks
   const finishWithSummary = useFinishWithSummary();
@@ -1771,6 +1775,21 @@ export function ChatArea({
                       </div>
                     </PopoverContent>
                   </Popover>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={async () => {
+                      setForwardingMessage(msg);
+                      try {
+                        const convs = await getConversations({ archived: false });
+                        setForwardConversations(convs);
+                      } catch {}
+                    }}
+                    title="Encaminhar"
+                  >
+                    <Forward className="h-3 w-3" />
+                  </Button>
                 </div>
               )}
 
@@ -2042,6 +2061,21 @@ export function ChatArea({
                       </div>
                     </PopoverContent>
                   </Popover>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={async () => {
+                      setForwardingMessage(msg);
+                      try {
+                        const convs = await getConversations({ archived: false });
+                        setForwardConversations(convs);
+                      } catch {}
+                    }}
+                    title="Encaminhar"
+                  >
+                    <Forward className="h-3 w-3" />
+                  </Button>
                 </div>
               )}
             </div>
@@ -2879,6 +2913,27 @@ export function ChatArea({
         onOpenChange={(open) => {
           setShowDealDetailDialog(open);
           if (!open) setSelectedDeal(null);
+        }}
+      />
+
+      {/* Forward Message Dialog */}
+      <ForwardMessageDialog
+        open={!!forwardingMessage}
+        onOpenChange={(open) => {
+          if (!open) setForwardingMessage(null);
+        }}
+        message={forwardingMessage}
+        conversations={forwardConversations}
+        currentConversationId={conversation?.id}
+        onForward={async (targetId) => {
+          if (!forwardingMessage || !conversation) return;
+          try {
+            await forwardMessage(conversation.id, forwardingMessage.id, targetId);
+            toast.success("Mensagem encaminhada com sucesso!");
+            setForwardingMessage(null);
+          } catch (err: any) {
+            toast.error(err.message || "Erro ao encaminhar mensagem");
+          }
         }}
       />
     </div>

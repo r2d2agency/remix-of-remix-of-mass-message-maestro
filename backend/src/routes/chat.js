@@ -1517,6 +1517,128 @@ router.post('/conversations/:id/messages', authenticate, async (req, res) => {
 });
 
 // ==========================================
+// FORWARD MESSAGE
+// ==========================================
+
+// Forward a message to another conversation
+router.post('/conversations/:id/forward', authenticate, async (req, res) => {
+  try {
+    const userOrg = await getUserOrganization(req.userId);
+    if (userOrg && isViewOnlyRole(userOrg.role)) {
+      return res.status(403).json({ error: 'Supervisores não podem encaminhar mensagens' });
+    }
+
+    const { id: sourceConversationId } = req.params;
+    const { message_id, target_conversation_id } = req.body;
+    const connectionIds = await getUserConnections(req.userId);
+
+    if (!message_id || !target_conversation_id) {
+      return res.status(400).json({ error: 'message_id e target_conversation_id são obrigatórios' });
+    }
+
+    // Get source message
+    const msgResult = await query(
+      `SELECT * FROM chat_messages WHERE id = $1 AND conversation_id = $2`,
+      [message_id, sourceConversationId]
+    );
+    if (msgResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Mensagem não encontrada' });
+    }
+    const sourceMsg = msgResult.rows[0];
+
+    // Get target conversation with connection details
+    const targetConvResult = await query(
+      `SELECT 
+        conv.*,
+        conn.api_url,
+        conn.api_key,
+        conn.instance_name,
+        conn.provider,
+        conn.instance_id,
+        conn.wapi_token,
+        conn.status as connection_status
+      FROM conversations conv
+      JOIN connections conn ON conn.id = conv.connection_id
+      WHERE conv.id = $1 AND conv.connection_id = ANY($2)`,
+      [target_conversation_id, connectionIds]
+    );
+
+    if (targetConvResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Conversa de destino não encontrada' });
+    }
+
+    const targetConv = targetConvResult.rows[0];
+    const provider = whatsappProvider.detectProvider(targetConv);
+    const isConnected = targetConv.connection_status === 'connected' ||
+      (provider === 'wapi' && targetConv.instance_id && targetConv.wapi_token);
+
+    if (!isConnected) {
+      return res.status(400).json({ error: 'Conexão de destino não está ativa' });
+    }
+
+    const forwardContent = sourceMsg.content || '';
+    const forwardType = sourceMsg.message_type || 'text';
+    const forwardMediaUrl = sourceMsg.media_url || null;
+    const forwardMimetype = sourceMsg.media_mimetype || null;
+
+    const tempMessageId = `temp_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    const newMsgResult = await query(
+      `INSERT INTO chat_messages 
+        (conversation_id, message_id, from_me, sender_id, content, message_type, media_url, media_mimetype, status, timestamp)
+       VALUES ($1, $2, true, $3, $4, $5, $6, $7, 'pending', NOW())
+       RETURNING *`,
+      [target_conversation_id, tempMessageId, req.userId, forwardContent, forwardType, forwardMediaUrl, forwardMimetype]
+    );
+
+    const savedMessage = newMsgResult.rows[0];
+
+    await query(
+      `UPDATE conversations SET 
+        last_message_at = NOW(), updated_at = NOW(),
+        attendance_status = CASE WHEN attendance_status = 'waiting' THEN 'attending' ELSE attendance_status END,
+        accepted_at = CASE WHEN attendance_status = 'waiting' THEN NOW() ELSE accepted_at END,
+        accepted_by = CASE WHEN attendance_status = 'waiting' THEN $2 ELSE accepted_by END
+      WHERE id = $1`,
+      [target_conversation_id, req.userId]
+    );
+
+    res.status(201).json(savedMessage);
+
+    // Async: send to WhatsApp
+    (async () => {
+      try {
+        const isGroup = String(targetConv.remote_jid || '').includes('@g.us') || targetConv.is_group === true;
+        let to;
+        if (isGroup) {
+          to = targetConv.remote_jid;
+        } else {
+          const jid = String(targetConv.remote_jid || '');
+          if (jid.includes('@lid') && targetConv.contact_phone) {
+            to = targetConv.contact_phone;
+          } else {
+            to = jid.replace('@s.whatsapp.net', '').replace('@c.us', '').replace('@lid', '');
+          }
+        }
+
+        const result = await whatsappProvider.sendMessage(targetConv, to, forwardContent, forwardType, forwardMediaUrl);
+
+        if (result.success) {
+          await query(`UPDATE chat_messages SET message_id = $1, status = 'sent' WHERE id = $2`, [result.messageId || null, savedMessage.id]);
+        } else {
+          throw new Error(result.error || 'Falha ao enviar mensagem encaminhada');
+        }
+      } catch (bgError) {
+        console.error('Forward send error:', bgError.message);
+        await query(`UPDATE chat_messages SET status = 'failed', error_message = $2 WHERE id = $1`, [savedMessage.id, bgError.message || 'Erro desconhecido']).catch(() => {});
+      }
+    })();
+  } catch (error) {
+    console.error('Forward message error:', error);
+    res.status(500).json({ error: error.message || 'Erro ao encaminhar mensagem' });
+  }
+});
+
+// ==========================================
 // REACTIONS
 // ==========================================
 
