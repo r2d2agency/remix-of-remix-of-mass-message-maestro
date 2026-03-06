@@ -2915,6 +2915,27 @@ export function ChatArea({
           if (!open) setSelectedDeal(null);
         }}
       />
+
+      {/* Forward Message Dialog */}
+      <ForwardMessageDialog
+        open={!!forwardingMessage}
+        onOpenChange={(open) => {
+          if (!open) setForwardingMessage(null);
+        }}
+        message={forwardingMessage}
+        conversations={forwardConversations}
+        currentConversationId={conversation?.id}
+        onForward={async (targetId) => {
+          if (!forwardingMessage || !conversation) return;
+          try {
+            await forwardMessage(conversation.id, forwardingMessage.id, targetId);
+            toast.success("Mensagem encaminhada com sucesso!");
+            setForwardingMessage(null);
+          } catch (err: any) {
+            toast.error(err.message || "Erro ao encaminhar mensagem");
+          }
+        }}
+      />
     </div>
   );
 }
