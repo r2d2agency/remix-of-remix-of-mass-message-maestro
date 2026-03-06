@@ -270,6 +270,7 @@ export default function CRMTarefas() {
   const [colColor, setColColor] = useState("#94a3b8");
   const [colIsFinal, setColIsFinal] = useState(false);
   const [addColumnDialog, setAddColumnDialog] = useState(false);
+  const [colPosition, setColPosition] = useState<string>("");
 
   // Duplicate/migrate card
   const [migrateCardDialog, setMigrateCardDialog] = useState(false);
