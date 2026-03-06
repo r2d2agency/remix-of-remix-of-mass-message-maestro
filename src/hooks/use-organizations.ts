@@ -27,6 +27,7 @@ interface OrganizationMember {
   name: string;
   email: string;
   role: 'owner' | 'admin' | 'manager' | 'agent';
+  is_active: boolean;
   assigned_connections: AssignedConnection[];
   assigned_departments: AssignedDepartment[];
   created_at: string;
@@ -59,6 +60,7 @@ interface AddMemberParams {
 
 interface UpdateMemberParams {
   role?: string;
+  is_active?: boolean;
   connection_ids?: string[];
   department_ids?: string[];
 }
