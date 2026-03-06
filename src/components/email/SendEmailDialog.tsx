@@ -101,6 +101,7 @@ export function SendEmailDialog({
       }
       try {
         const url = await uploadFile(file);
+        if (!url) { toast.error(`Erro ao enviar ${file.name}`); continue; }
         setAttachments(prev => [...prev, {
           name: file.name,
           url,
