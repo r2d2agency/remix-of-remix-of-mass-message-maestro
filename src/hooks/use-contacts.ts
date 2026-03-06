@@ -125,6 +125,44 @@ export const useContacts = () => {
     }
   }, []);
 
+  const importContactsBatched = useCallback(async (
+    listId: string,
+    contacts: { name: string; phone: string; is_whatsapp?: boolean | null }[],
+    onProgress?: (progress: number, imported: number, total: number) => void
+  ): Promise<{ imported: number; duplicates: number }> => {
+    setLoading(true);
+    setError(null);
+    const BATCH_SIZE = 500;
+    let totalImported = 0;
+    let totalDuplicates = 0;
+
+    try {
+      for (let i = 0; i < contacts.length; i += BATCH_SIZE) {
+        const batch = contacts.slice(i, i + BATCH_SIZE);
+        const data = await api<{ imported: number; duplicates: number }>(`/api/contacts/lists/${listId}/import`, {
+          method: 'POST',
+          body: { contacts: batch },
+        });
+        totalImported += data.imported;
+        totalDuplicates += (data.duplicates || 0);
+        const progress = Math.min(100, Math.round(((i + batch.length) / contacts.length) * 100));
+        onProgress?.(progress, totalImported, contacts.length);
+      }
+
+      // Verification: count actual contacts in list
+      const listContacts = await api<any[]>(`/api/contacts/lists/${listId}/contacts`);
+      const actualCount = listContacts.length;
+
+      return { imported: totalImported, duplicates: totalDuplicates };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao importar contatos';
+      setError(message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   const deleteContact = useCallback(async (id: string): Promise<void> => {
     setLoading(true);
     setError(null);
@@ -166,6 +204,7 @@ export const useContacts = () => {
     getContacts,
     addContact,
     importContacts,
+    importContactsBatched,
     deleteContact,
     updateContact,
   };
