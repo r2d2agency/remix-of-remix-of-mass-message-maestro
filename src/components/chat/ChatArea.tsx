@@ -1775,6 +1775,21 @@ export function ChatArea({
                       </div>
                     </PopoverContent>
                   </Popover>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={async () => {
+                      setForwardingMessage(msg);
+                      try {
+                        const convs = await getConversations({ archived: false });
+                        setForwardConversations(convs);
+                      } catch {}
+                    }}
+                    title="Encaminhar"
+                  >
+                    <Forward className="h-3 w-3" />
+                  </Button>
                 </div>
               )}
 
@@ -2046,6 +2061,21 @@ export function ChatArea({
                       </div>
                     </PopoverContent>
                   </Popover>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={async () => {
+                      setForwardingMessage(msg);
+                      try {
+                        const convs = await getConversations({ archived: false });
+                        setForwardConversations(convs);
+                      } catch {}
+                    }}
+                    title="Encaminhar"
+                  >
+                    <Forward className="h-3 w-3" />
+                  </Button>
                 </div>
               )}
             </div>
