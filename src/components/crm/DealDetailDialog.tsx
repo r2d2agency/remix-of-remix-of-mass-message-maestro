@@ -127,6 +127,23 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
   const currentDeal = fullDeal || deal;
   const stages = funnelData?.stages || [];
 
+  // Sync custom fields from deal
+  useEffect(() => {
+    if (currentDeal?.custom_fields) {
+      setDealCustomFields(typeof currentDeal.custom_fields === 'string' ? JSON.parse(currentDeal.custom_fields) : currentDeal.custom_fields);
+    } else {
+      setDealCustomFields({});
+    }
+  }, [currentDeal?.id, currentDeal?.custom_fields]);
+
+  const handleCustomFieldChange = (fieldName: string, value: string) => {
+    const updated = { ...dealCustomFields, [fieldName]: value };
+    setDealCustomFields(updated);
+    if (deal?.id) {
+      updateDeal.mutate({ id: deal.id, custom_fields: updated } as any);
+    }
+  };
+
   // Load scheduled messages for deal's primary contact
   const loadScheduledMessages = async () => {
     const primaryContact = currentDeal?.contacts?.find(c => c.is_primary) || currentDeal?.contacts?.[0];
