@@ -93,7 +93,7 @@ export function CreateCardDialog({ open, onOpenChange, onSubmit, boardType, orgM
                 <SelectTrigger><SelectValue placeholder="Selecionar" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">Sem responsável</SelectItem>
-                  {orgMembers.filter(m => m.user_id).map(m => (
+                   {orgMembers.filter(m => m.user_id && m.is_active !== false).map(m => (
                     <SelectItem key={m.user_id} value={m.user_id}>{m.name}</SelectItem>
                   ))}
                 </SelectContent>
