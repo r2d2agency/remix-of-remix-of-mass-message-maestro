@@ -294,11 +294,12 @@ export async function queueEmail({
     // Interpolate variables
     if (variables) {
       for (const [key, value] of Object.entries(variables)) {
-        const regex = new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, 'gi');
-        finalSubject = finalSubject.replace(regex, value || '');
-        finalBodyHtml = finalBodyHtml.replace(regex, value || '');
+        const regexDouble = new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, 'gi');
+        const regexSingle = new RegExp(`\\{${key}\\}`, 'gi');
+        finalSubject = finalSubject.replace(regexDouble, value || '').replace(regexSingle, value || '');
+        finalBodyHtml = finalBodyHtml.replace(regexDouble, value || '').replace(regexSingle, value || '');
         if (finalBodyText) {
-          finalBodyText = finalBodyText.replace(regex, value || '');
+          finalBodyText = finalBodyText.replace(regexDouble, value || '').replace(regexSingle, value || '');
         }
       }
     }
