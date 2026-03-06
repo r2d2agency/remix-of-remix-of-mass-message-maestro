@@ -719,7 +719,6 @@ export function ConversationList({
                           </span>
                         );
                       })()}
-                      )}
                       
                       {/* Assigned user */}
                       {conv.assigned_name && (
