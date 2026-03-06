@@ -1,10 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Play, Pause, Loader2, Volume2, FileText } from "lucide-react";
-import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { useWhisperTranscription } from "@/hooks/use-whisper-transcription";
+import { API_URL } from "@/lib/api";
 
 interface AudioPlayerProps {
   src: string;
@@ -29,16 +28,7 @@ export function AudioPlayer({ src, mimetype, className, isFromMe }: AudioPlayerP
   const [waveformData, setWaveformData] = useState<number[]>([]);
   const [transcript, setTranscript] = useState<string | null>(null);
   const [showTranscript, setShowTranscript] = useState(false);
-
-  // Whisper transcription hook
-  const {
-    isTranscribing,
-    isLoadingModel,
-    progress: modelProgress,
-    transcribe,
-    cancel: cancelTranscription,
-    isModelLoaded,
-  } = useWhisperTranscription();
+  const [isTranscribing, setIsTranscribing] = useState(false);
 
   const formatTime = (time: number) => {
     if (!isFinite(time) || isNaN(time)) return "0:00";
@@ -199,17 +189,33 @@ export function AudioPlayer({ src, mimetype, className, isFromMe }: AudioPlayerP
     audio.currentTime = percentage * duration;
   };
 
-  // Transcribe audio using Whisper in browser (free)
+  // Transcribe audio using backend API (Gemini)
   const transcribeAudio = async () => {
+    setIsTranscribing(true);
     try {
-      if (!isModelLoaded) {
-        toast.info("Carregando modelo de transcrição... isso pode levar alguns segundos na primeira vez.");
+      // Fetch the audio file as blob
+      const audioResponse = await fetch(src);
+      if (!audioResponse.ok) throw new Error('Erro ao baixar áudio');
+      const audioBlob = await audioResponse.blob();
+
+      const formData = new FormData();
+      formData.append('audio', audioBlob, 'audio.ogg');
+
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch(`${API_URL}/api/transcribe-audio`, {
+        method: 'POST',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || 'Erro ao transcrever áudio');
       }
-      
-      const result = await transcribe(src);
-      
-      if (result && result.trim()) {
-        setTranscript(result);
+
+      const data = await response.json();
+      if (data.transcript && data.transcript.trim()) {
+        setTranscript(data.transcript);
         setShowTranscript(true);
         toast.success("Transcrição concluída!");
       } else {
@@ -218,6 +224,8 @@ export function AudioPlayer({ src, mimetype, className, isFromMe }: AudioPlayerP
     } catch (error) {
       console.error('Transcription error:', error);
       toast.error(error instanceof Error ? error.message : "Erro ao transcrever áudio");
+    } finally {
+      setIsTranscribing(false);
     }
   };
 
@@ -303,10 +311,10 @@ export function AudioPlayer({ src, mimetype, className, isFromMe }: AudioPlayerP
               : "bg-muted hover:bg-muted/80 text-muted-foreground"
           )}
           onClick={transcribeAudio}
-          disabled={isTranscribing || isLoadingModel || isLoading}
-          title={isModelLoaded ? "Transcrever áudio" : "Transcrever áudio (baixará modelo ~40MB na primeira vez)"}
+          disabled={isTranscribing || isLoading}
+          title="Transcrever áudio"
         >
-          {isTranscribing || isLoadingModel ? (
+          {isTranscribing ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
             <FileText className="h-4 w-4" />
@@ -314,20 +322,8 @@ export function AudioPlayer({ src, mimetype, className, isFromMe }: AudioPlayerP
         </Button>
       </div>
 
-      {/* Model loading progress */}
-      {isLoadingModel && (
-        <div className={cn(
-          "flex items-center gap-2 px-2 py-1 text-xs",
-          isFromMe ? "text-primary-foreground/70" : "text-muted-foreground"
-        )}>
-          <Loader2 className="h-3 w-3 animate-spin" />
-          <span>Carregando modelo... {modelProgress}%</span>
-          <Progress value={modelProgress} className="flex-1 h-1" />
-        </div>
-      )}
-
       {/* Transcribing indicator */}
-      {isTranscribing && !isLoadingModel && (
+      {isTranscribing && (
         <div className={cn(
           "flex items-center gap-2 px-2 py-1 text-xs",
           isFromMe ? "text-primary-foreground/70" : "text-muted-foreground"
