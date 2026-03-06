@@ -548,6 +548,18 @@ export const useChat = () => {
       return null;
     }
   }, []);
+  // Forward message to another conversation
+  const forwardMessage = useCallback(async (
+    sourceConversationId: string,
+    messageId: string,
+    targetConversationId: string
+  ): Promise<ChatMessage> => {
+    const data = await api<ChatMessage>(`/api/chat/conversations/${sourceConversationId}/forward`, {
+      method: 'POST',
+      body: { message_id: messageId, target_conversation_id: targetConversationId },
+    });
+    return data;
+  }, []);
 
   return {
     loading,
