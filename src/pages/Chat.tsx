@@ -814,7 +814,7 @@ const Chat = () => {
             )}
           </div>
         ) : (
-          <ResizablePanelGroup direction="horizontal" className="flex-1 overflow-hidden min-w-0 w-full">
+          <ResizablePanelGroup direction="horizontal" className="flex-1 overflow-hidden min-w-0 w-full relative">
             <ResizablePanel defaultSize={25} minSize={15} maxSize={45} className="overflow-hidden min-w-0">
               <ConversationList
                 conversations={conversations}
