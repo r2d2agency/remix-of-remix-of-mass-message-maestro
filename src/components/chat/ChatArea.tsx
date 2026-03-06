@@ -268,7 +268,7 @@ export function ChatArea({
   const [isDragOver, setIsDragOver] = useState(false);
   const dragCounterRef = useRef(0);
   const { user, modulesEnabled } = useAuth();
-  const { getNotes, getTypingStatus, getScheduledMessages, scheduleMessage, cancelScheduledMessage, logCall } = useChat();
+  const { getNotes, getTypingStatus, getScheduledMessages, scheduleMessage, cancelScheduledMessage, logCall, getConversations, forwardMessage } = useChat();
   
   // AI Summary hooks
   const finishWithSummary = useFinishWithSummary();
