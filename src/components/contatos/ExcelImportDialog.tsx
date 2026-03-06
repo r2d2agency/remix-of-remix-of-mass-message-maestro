@@ -674,26 +674,56 @@ export function ExcelImportDialog({
                 </Table>
               </ScrollArea>
 
-              <div className="flex justify-between pt-4 pb-2 flex-shrink-0 border-t mt-2">
-                <Button variant="outline" onClick={() => setStep("mapping")}>Voltar</Button>
-                <Button
-                  variant="gradient"
-                  onClick={handleImport}
-                  disabled={isImporting || importCount === 0}
-                >
-                  {isImporting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      Importando...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="h-4 w-4 mr-2" />
-                      Importar {importCount} {importOnlyValidated ? "Validados" : "Contatos"}
-                    </>
-                  )}
-                </Button>
-              </div>
+              {/* Import Progress */}
+              {isImporting && !importResult && (
+                <div className="p-4 bg-muted rounded-lg space-y-3 flex-shrink-0">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-medium">Importando contatos...</span>
+                    <span className="text-muted-foreground">{importProgress}%</span>
+                  </div>
+                  <Progress value={importProgress} className="h-3" />
+                  <p className="text-xs text-muted-foreground">
+                    {importedSoFar} contatos importados de {importCount}
+                  </p>
+                </div>
+              )}
+
+              {/* Import Result */}
+              {importResult && (
+                <div className="p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800 space-y-3 flex-shrink-0">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-5 w-5 text-green-600" />
+                    <span className="font-medium text-green-700 dark:text-green-400">Importação concluída!</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Importados:</span>{" "}
+                      <strong>{importResult.imported}</strong>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Duplicados:</span>{" "}
+                      <strong>{importResult.duplicates}</strong>
+                    </div>
+                  </div>
+                  <Button variant="default" className="w-full" onClick={handleClose}>
+                    Fechar
+                  </Button>
+                </div>
+              )}
+
+              {!isImporting && !importResult && (
+                <div className="flex justify-between pt-4 pb-2 flex-shrink-0 border-t mt-2">
+                  <Button variant="outline" onClick={() => setStep("mapping")}>Voltar</Button>
+                  <Button
+                    variant="gradient"
+                    onClick={handleImport}
+                    disabled={importCount === 0}
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    Importar {importCount} {importOnlyValidated ? "Validados" : "Contatos"}
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </div>
