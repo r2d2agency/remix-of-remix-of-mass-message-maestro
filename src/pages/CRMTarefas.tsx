@@ -210,7 +210,7 @@ export default function CRMTarefas() {
   const { data: boards, isLoading: loadingBoards } = useTaskBoards();
   const { createBoard, ensureDefault, deleteBoard, updateBoard } = useTaskBoardMutations();
   const { createCard, moveCard } = useTaskCardMutations();
-  const { createColumn, updateColumn, deleteColumn } = useTaskColumnMutations();
+  const { createColumn, updateColumn, deleteColumn, reorderColumns } = useTaskColumnMutations();
 
   const isAdmin = user?.role && ['owner', 'admin', 'manager'].includes(user.role);
   const isSuperadmin = (user as any)?.is_superadmin === true;
