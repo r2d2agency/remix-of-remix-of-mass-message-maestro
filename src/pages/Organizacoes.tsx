@@ -421,6 +421,98 @@ export default function Organizacoes() {
     }
   };
 
+  // Permission template feature keys
+  const FEATURE_KEYS = [
+    { key: 'chat', label: 'Chat', section: 'Atendimento' },
+    { key: 'group_secretary', label: 'Secretária IA', section: 'Atendimento' },
+    { key: 'chatbots', label: 'Chatbots', section: 'Atendimento' },
+    { key: 'flows', label: 'Fluxos', section: 'Atendimento' },
+    { key: 'departments', label: 'Departamentos', section: 'Atendimento' },
+    { key: 'scheduled_messages', label: 'Agendamentos', section: 'Atendimento' },
+    { key: 'tags', label: 'Tags', section: 'Atendimento' },
+    { key: 'contacts', label: 'Contatos', section: 'Atendimento' },
+    { key: 'crm_deals', label: 'Negociações', section: 'CRM' },
+    { key: 'crm_prospects', label: 'Prospects', section: 'CRM' },
+    { key: 'crm_companies', label: 'Empresas', section: 'CRM' },
+    { key: 'crm_map', label: 'Mapa', section: 'CRM' },
+    { key: 'crm_calendar', label: 'Agenda', section: 'CRM' },
+    { key: 'crm_tasks', label: 'Tarefas', section: 'CRM' },
+    { key: 'crm_reports', label: 'Relatórios', section: 'CRM' },
+    { key: 'crm_config', label: 'Configurações CRM', section: 'CRM' },
+    { key: 'campaign_lists', label: 'Listas', section: 'Disparos' },
+    { key: 'campaign_messages', label: 'Mensagens', section: 'Disparos' },
+    { key: 'campaigns', label: 'Campanhas', section: 'Disparos' },
+    { key: 'nurturing', label: 'Sequências', section: 'Disparos' },
+    { key: 'external_forms', label: 'Fluxos Externos', section: 'Disparos' },
+    { key: 'webhooks', label: 'Webhooks', section: 'Disparos' },
+    { key: 'connections', label: 'Conexões', section: 'Minha Conta' },
+    { key: 'settings', label: 'Ajustes', section: 'Minha Conta' },
+    { key: 'billing', label: 'Cobrança', section: 'Administração' },
+    { key: 'organizations', label: 'Organizações', section: 'Administração' },
+  ];
+
+  const featureSections = FEATURE_KEYS.reduce((acc, f) => {
+    if (!acc[f.section]) acc[f.section] = [];
+    acc[f.section].push(f);
+    return acc;
+  }, {} as Record<string, typeof FEATURE_KEYS>);
+
+  const handleOpenTemplateDialog = (template?: PermissionTemplate) => {
+    if (template) {
+      setEditingTemplate(template);
+      setTemplateName(template.name);
+      setTemplateDescription(template.description || '');
+      setTemplatePermissions({ ...template.permissions });
+    } else {
+      setEditingTemplate(null);
+      setTemplateName('');
+      setTemplateDescription('');
+      // Default all to true
+      const defaults: Record<string, boolean> = {};
+      FEATURE_KEYS.forEach(f => defaults[f.key] = true);
+      setTemplatePermissions(defaults);
+    }
+    setTemplateDialogOpen(true);
+  };
+
+  const handleSaveTemplate = async () => {
+    if (!selectedOrg || !templateName.trim()) {
+      toast.error('Nome é obrigatório');
+      return;
+    }
+    try {
+      if (editingTemplate) {
+        await api(`/api/organizations/${selectedOrg.id}/permission-templates/${editingTemplate.id}`, {
+          method: 'PATCH',
+          body: { name: templateName, description: templateDescription, permissions: templatePermissions },
+        });
+        toast.success('Template atualizado!');
+      } else {
+        await api(`/api/organizations/${selectedOrg.id}/permission-templates`, {
+          method: 'POST',
+          body: { name: templateName, description: templateDescription, permissions: templatePermissions },
+        });
+        toast.success('Template criado!');
+      }
+      setTemplateDialogOpen(false);
+      loadPermTemplates(selectedOrg.id);
+    } catch (e: any) {
+      toast.error(e.message || 'Erro ao salvar template');
+    }
+  };
+
+  const handleDeleteTemplate = async (templateId: string) => {
+    if (!selectedOrg) return;
+    try {
+      await api(`/api/organizations/${selectedOrg.id}/permission-templates/${templateId}`, { method: 'DELETE' });
+      toast.success('Template excluído!');
+      loadPermTemplates(selectedOrg.id);
+      loadMembers(selectedOrg.id);
+    } catch (e: any) {
+      toast.error(e.message || 'Erro ao excluir template');
+    }
+  };
+
   const generateSlug = (name: string) => {
     return name.toLowerCase()
       .normalize('NFD')
