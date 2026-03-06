@@ -439,6 +439,9 @@ const Contatos = () => {
                       <p className="font-semibold text-foreground">{list.name}</p>
                       <p className="text-sm text-muted-foreground">
                         {list.contact_count || 0} contatos
+                        {list.connection_name && (
+                          <span className="ml-1">· {list.connection_name}</span>
+                        )}
                       </p>
                     </div>
                   </div>
