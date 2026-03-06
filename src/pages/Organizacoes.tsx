@@ -48,7 +48,20 @@ interface OrganizationMember {
   is_active: boolean;
   assigned_connections: AssignedConnection[];
   assigned_departments: AssignedDepartment[];
+  permission_template_id?: string | null;
   created_at: string;
+}
+
+interface PermissionTemplate {
+  id: string;
+  organization_id: string;
+  name: string;
+  description?: string;
+  permissions: Record<string, boolean>;
+  is_default: boolean;
+  members_count?: number;
+  created_at: string;
+  updated_at: string;
 }
 
 interface OrgConnection {
