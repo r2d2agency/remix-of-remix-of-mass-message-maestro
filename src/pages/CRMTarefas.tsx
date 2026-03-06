@@ -14,7 +14,7 @@ import {
   rectIntersection,
   UniqueIdentifier,
 } from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
+import { SortableContext, verticalListSortingStrategy, horizontalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useDroppable } from "@dnd-kit/core";
 import {
@@ -123,7 +123,7 @@ function SortableTaskCard({ card, onClick, activeId }: { card: TaskCard; onClick
 
 // Droppable Column component
 function TaskKanbanColumn({
-  column, cards, onCardClick, onAddCard, activeId, overId, onEditColumn, onDeleteColumn, canManageColumns
+  column, cards, onCardClick, onAddCard, activeId, overId, onEditColumn, onDeleteColumn, canManageColumns, isDraggingColumn
 }: {
   column: TaskBoardColumn;
   cards: TaskCard[];
@@ -134,20 +134,41 @@ function TaskKanbanColumn({
   onEditColumn?: (col: TaskBoardColumn) => void;
   onDeleteColumn?: (colId: string) => void;
   canManageColumns?: boolean;
+  isDraggingColumn?: boolean;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ 
+  const { setNodeRef: setDroppableRef, isOver } = useDroppable({ 
     id: `column-${column.id}`,
     data: { type: 'column', columnId: column.id },
   });
   const hasActiveItem = cards.some(c => c.id === activeId);
 
+  const {
+    attributes: sortableAttrs,
+    listeners: sortableListeners,
+    setNodeRef: setSortableRef,
+    transform: sortableTransform,
+    transition: sortableTransition,
+    isDragging: isSortableDragging,
+  } = useSortable({
+    id: `col-sort-${column.id}`,
+    data: { type: 'column-sort', column },
+    transition: { duration: 200, easing: 'cubic-bezier(0.25, 1, 0.5, 1)' },
+  });
+
+  const sortableStyle = {
+    transform: CSS.Transform.toString(sortableTransform),
+    transition: isSortableDragging ? undefined : sortableTransition,
+  };
+
   return (
     <div
-      ref={setNodeRef}
+      ref={(node) => { setSortableRef(node); setDroppableRef(node); }}
+      style={sortableStyle}
       className={cn(
         "flex flex-col w-[320px] min-w-[320px] max-w-[320px] bg-muted/50 rounded-lg border overflow-hidden",
         "transition-all duration-300",
-        isOver && !hasActiveItem && "ring-2 ring-primary bg-primary/5 shadow-lg"
+        isOver && !hasActiveItem && "ring-2 ring-primary bg-primary/5 shadow-lg",
+        isSortableDragging && "opacity-30 scale-95"
       )}
     >
       <div
@@ -155,6 +176,13 @@ function TaskKanbanColumn({
         style={{ borderTopColor: column.color, borderTopWidth: 4, borderTopLeftRadius: 8, borderTopRightRadius: 8 }}
       >
         <div className="flex items-center gap-2 min-w-0">
+          <button
+            className="cursor-grab active:cursor-grabbing touch-manipulation text-muted-foreground hover:text-foreground"
+            {...sortableAttrs}
+            {...sortableListeners}
+          >
+            <GripVertical className="h-4 w-4" />
+          </button>
           <h3 className="font-semibold text-sm truncate">{column.name}</h3>
           <Badge variant="secondary" className="text-xs shrink-0">{cards.length}</Badge>
         </div>
@@ -210,7 +238,7 @@ export default function CRMTarefas() {
   const { data: boards, isLoading: loadingBoards } = useTaskBoards();
   const { createBoard, ensureDefault, deleteBoard, updateBoard } = useTaskBoardMutations();
   const { createCard, moveCard } = useTaskCardMutations();
-  const { createColumn, updateColumn, deleteColumn } = useTaskColumnMutations();
+  const { createColumn, updateColumn, deleteColumn, reorderColumns } = useTaskColumnMutations();
 
   const isAdmin = user?.role && ['owner', 'admin', 'manager'].includes(user.role);
   const isSuperadmin = (user as any)?.is_superadmin === true;
@@ -329,22 +357,38 @@ export default function CRMTarefas() {
     setOverId(null);
     if (!over || active.id === over.id) return;
 
-    const cardId = active.id as string;
-    const overId = over.id as string;
+    const activeIdStr = active.id as string;
+    const overIdStr = over.id as string;
+
+    // Column reorder
+    if (activeIdStr.startsWith('col-sort-') && overIdStr.startsWith('col-sort-')) {
+      const activeColId = activeIdStr.replace('col-sort-', '');
+      const overColId = overIdStr.replace('col-sort-', '');
+      if (columns) {
+        const oldIndex = columns.findIndex(c => c.id === activeColId);
+        const newIndex = columns.findIndex(c => c.id === overColId);
+        if (oldIndex !== -1 && newIndex !== -1) {
+          const newOrder = arrayMove(columns, oldIndex, newIndex);
+          reorderColumns.mutate(newOrder.map((c, i) => ({ id: c.id, position: i })));
+        }
+      }
+      return;
+    }
+
+    // Card drag
+    const cardId = activeIdStr;
     const currentColId = findColumnForCard(cardId);
     if (!currentColId) return;
 
-    // Check if dropping on a column droppable (prefixed with "column-")
-    if (overId.startsWith('column-')) {
-      const targetColId = overId.replace('column-', '');
+    if (overIdStr.startsWith('column-')) {
+      const targetColId = overIdStr.replace('column-', '');
       if (currentColId !== targetColId) {
         moveCard.mutate({ id: cardId, column_id: targetColId });
       }
     } else {
-      // Dropping on another card
-      const targetColId = findColumnForCard(overId);
+      const targetColId = findColumnForCard(overIdStr);
       if (targetColId) {
-        moveCard.mutate({ id: cardId, column_id: targetColId, over_card_id: overId });
+        moveCard.mutate({ id: cardId, column_id: targetColId, over_card_id: overIdStr });
       }
     }
   }
@@ -683,26 +727,28 @@ export default function CRMTarefas() {
                 measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
               >
                 <ScrollArea className="flex-1 w-full">
-                  <div className="flex gap-4 p-4 min-w-max">
-                    {columns.map(col => {
-                      const colCards = cardsByColumn[col.id] || [];
-                      return (
-                        <SortableContext key={col.id} items={colCards.map(c => c.id)} strategy={verticalListSortingStrategy}>
-                          <TaskKanbanColumn
-                            column={col}
-                            cards={colCards}
-                            onCardClick={(card) => { setSelectedCard(card); setCardDetailOpen(true); }}
-                            onAddCard={handleAddCard}
-                            activeId={activeId}
-                            overId={overId}
-                            onEditColumn={handleEditColumn}
-                            onDeleteColumn={handleDeleteColumn}
-                            canManageColumns={canManageColumns}
-                          />
-                        </SortableContext>
-                      );
-                    })}
-                  </div>
+                  <SortableContext items={columns.map(c => `col-sort-${c.id}`)} strategy={horizontalListSortingStrategy}>
+                    <div className="flex gap-4 p-4 min-w-max">
+                      {columns.map(col => {
+                        const colCards = cardsByColumn[col.id] || [];
+                        return (
+                          <SortableContext key={col.id} items={colCards.map(c => c.id)} strategy={verticalListSortingStrategy}>
+                            <TaskKanbanColumn
+                              column={col}
+                              cards={colCards}
+                              onCardClick={(card) => { setSelectedCard(card); setCardDetailOpen(true); }}
+                              onAddCard={handleAddCard}
+                              activeId={activeId}
+                              overId={overId}
+                              onEditColumn={handleEditColumn}
+                              onDeleteColumn={handleDeleteColumn}
+                              canManageColumns={canManageColumns}
+                            />
+                          </SortableContext>
+                        );
+                      })}
+                    </div>
+                  </SortableContext>
                   <ScrollBar orientation="horizontal" />
                 </ScrollArea>
 
