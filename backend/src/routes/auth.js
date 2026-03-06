@@ -299,7 +299,7 @@ router.get('/me', async (req, res) => {
 
     // Role and organization info (multi-tenant)
     const orgResult = await query(
-      `SELECT om.role, o.id as organization_id, o.modules_enabled
+      `SELECT om.role, o.id as organization_id, o.modules_enabled, om.permission_template_id
        FROM organization_members om
        JOIN organizations o ON o.id = om.organization_id
        WHERE om.user_id = $1
@@ -335,6 +335,23 @@ router.get('/me', async (req, res) => {
       modulesEnabled = orgResult.rows[0]?.modules_enabled || allModulesEnabled;
     }
 
+    // Get feature permissions from template
+    let featurePermissions = null;
+    const templateId = orgResult.rows[0]?.permission_template_id;
+    if (templateId && !isSuperadmin && role !== 'owner') {
+      try {
+        const tplResult = await query(
+          `SELECT permissions FROM permission_templates WHERE id = $1`,
+          [templateId]
+        );
+        if (tplResult.rows.length > 0) {
+          featurePermissions = tplResult.rows[0].permissions;
+        }
+      } catch (e) {
+        // Table may not exist yet
+      }
+    }
+
     res.json({ 
       user: { 
         id: user.id,
@@ -344,6 +361,7 @@ router.get('/me', async (req, res) => {
         role,
         organization_id: organizationId,
         modules_enabled: modulesEnabled,
+        feature_permissions: featurePermissions,
       } 
     });
   } catch (error) {
