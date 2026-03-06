@@ -310,7 +310,21 @@ const Contatos = () => {
       contact.phone.includes(searchTerm)
   );
 
-  const totalContacts = lists.reduce((sum, list) => sum + Number(list.contact_count || 0), 0);
+  // Get unique connections from lists for filter
+  const connectionOptions = lists.reduce<{ id: string; name: string }[]>((acc, list) => {
+    if (list.connection_id && list.connection_name && !acc.find(c => c.id === list.connection_id)) {
+      acc.push({ id: list.connection_id, name: list.connection_name });
+    }
+    return acc;
+  }, []);
+
+  const filteredLists = connectionFilter === "all"
+    ? lists
+    : connectionFilter === "none"
+      ? lists.filter(l => !l.connection_id)
+      : lists.filter(l => l.connection_id === connectionFilter);
+
+  const totalContacts = filteredLists.reduce((sum, list) => sum + Number(list.contact_count || 0), 0);
 
   return (
     <MainLayout>
