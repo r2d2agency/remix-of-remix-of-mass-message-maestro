@@ -1043,6 +1043,107 @@ export default function Organizacoes() {
                     </Card>
                   </TabsContent>
 
+                  {/* Permission Templates Tab */}
+                  <TabsContent value="templates">
+                    <Card>
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <CardTitle className="flex items-center gap-2">
+                              <KeyRound className="h-5 w-5" />
+                              Templates de Permissão
+                            </CardTitle>
+                            <CardDescription>
+                              Crie templates para controlar acesso a módulos e ferramentas por usuário
+                            </CardDescription>
+                          </div>
+                          {canManageOrg && (
+                            <Button onClick={() => handleOpenTemplateDialog()} size="sm">
+                              <Plus className="h-4 w-4 mr-2" />
+                              Novo Template
+                            </Button>
+                          )}
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        {permTemplates.length === 0 ? (
+                          <div className="text-center py-8 text-muted-foreground">
+                            <KeyRound className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                            <p>Nenhum template de permissão criado</p>
+                            <p className="text-sm mt-1">
+                              Templates permitem definir quais módulos cada usuário pode acessar
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            {permTemplates.map(tpl => (
+                              <div key={tpl.id} className="flex items-center justify-between p-4 border rounded-lg">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium">{tpl.name}</span>
+                                    {tpl.is_default && <Badge variant="secondary" className="text-[10px]">Padrão</Badge>}
+                                    <Badge variant="outline" className="text-[10px]">
+                                      {tpl.members_count || 0} membro(s)
+                                    </Badge>
+                                  </div>
+                                  {tpl.description && (
+                                    <p className="text-sm text-muted-foreground mt-1">{tpl.description}</p>
+                                  )}
+                                  <div className="flex flex-wrap gap-1 mt-2">
+                                    {Object.entries(tpl.permissions)
+                                      .filter(([, v]) => v === true)
+                                      .slice(0, 8)
+                                      .map(([key]) => {
+                                        const feat = FEATURE_KEYS.find(f => f.key === key);
+                                        return feat ? (
+                                          <Badge key={key} variant="outline" className="text-[10px] px-1.5 py-0">
+                                            {feat.label}
+                                          </Badge>
+                                        ) : null;
+                                      })}
+                                    {Object.values(tpl.permissions).filter(Boolean).length > 8 && (
+                                      <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                        +{Object.values(tpl.permissions).filter(Boolean).length - 8}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+                                {canManageOrg && (
+                                  <div className="flex items-center gap-1 ml-4">
+                                    <Button size="icon" variant="ghost" onClick={() => handleOpenTemplateDialog(tpl)}>
+                                      <Pencil className="h-4 w-4" />
+                                    </Button>
+                                    <AlertDialog>
+                                      <AlertDialogTrigger asChild>
+                                        <Button size="icon" variant="ghost" className="text-destructive">
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </AlertDialogTrigger>
+                                      <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                          <AlertDialogTitle>Excluir Template</AlertDialogTitle>
+                                          <AlertDialogDescription>
+                                            Os membros vinculados ficarão sem template atribuído.
+                                          </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                          <AlertDialogAction onClick={() => handleDeleteTemplate(tpl.id)}>
+                                            Excluir
+                                          </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                      </AlertDialogContent>
+                                    </AlertDialog>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
                   {/* Settings Tab */}
                   <TabsContent value="settings">
                     <Card>
