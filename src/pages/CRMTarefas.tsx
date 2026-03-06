@@ -14,7 +14,7 @@ import {
   rectIntersection,
   UniqueIdentifier,
 } from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
+import { SortableContext, verticalListSortingStrategy, horizontalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useDroppable } from "@dnd-kit/core";
 import {
