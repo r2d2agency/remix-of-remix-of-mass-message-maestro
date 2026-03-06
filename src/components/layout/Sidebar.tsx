@@ -142,7 +142,7 @@ interface SidebarContentProps {
 function SidebarContentComponent({ isExpanded, isSuperadmin, onNavigate }: SidebarContentProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { logout, user, modulesEnabled } = useAuth();
+  const { logout, user, modulesEnabled, hasFeatureAccess } = useAuth();
   const { branding } = useBranding();
   const [openSections, setOpenSections] = useState<string[]>(["Atendimento"]);
 
