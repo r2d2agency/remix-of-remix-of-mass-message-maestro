@@ -210,6 +210,16 @@ export default function Organizacoes() {
     setDepartments(depts);
   };
 
+  const loadPermTemplates = async (orgId: string) => {
+    try {
+      const templates = await api<PermissionTemplate[]>(`/api/organizations/${orgId}/permission-templates`);
+      setPermTemplates(templates);
+    } catch (e) {
+      console.log('Permission templates not available yet');
+      setPermTemplates([]);
+    }
+  };
+
   const loadModules = async (orgId: string) => {
     try {
       const modules = await api<Record<string, boolean>>(`/api/organizations/${orgId}/modules`);
