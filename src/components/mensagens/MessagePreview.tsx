@@ -19,7 +19,9 @@ export function MessagePreview({ items, previewName }: MessagePreviewProps) {
   } | null>(null);
 
   const replaceVariables = (text: string) => {
-    return text.replace(/\{\{nome\}\}/gi, previewName);
+    return text
+      .replace(/\{\{nome\}\}/gi, previewName)
+      .replace(/\{nome\}/gi, previewName);
   };
 
   const getFileExtension = (url?: string, fileName?: string) => {
