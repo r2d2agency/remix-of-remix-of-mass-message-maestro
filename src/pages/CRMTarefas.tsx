@@ -760,9 +760,8 @@ export default function CRMTarefas() {
                 measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
               >
                 <ScrollArea className="flex-1 w-full">
-                  <SortableContext items={columns.map(c => `col-sort-${c.id}`)} strategy={horizontalListSortingStrategy}>
                     <div className="flex gap-4 p-4 min-w-max">
-                      {columns.map(col => {
+                      {columns.map((col, colIndex) => {
                         const colCards = cardsByColumn[col.id] || [];
                         return (
                           <SortableContext key={col.id} items={colCards.map(c => c.id)} strategy={verticalListSortingStrategy}>
@@ -776,12 +775,15 @@ export default function CRMTarefas() {
                               onEditColumn={handleEditColumn}
                               onDeleteColumn={handleDeleteColumn}
                               canManageColumns={canManageColumns}
+                              onMoveLeft={() => handleMoveColumn(col.id, 'left')}
+                              onMoveRight={() => handleMoveColumn(col.id, 'right')}
+                              isFirst={colIndex === 0}
+                              isLast={colIndex === columns.length - 1}
                             />
                           </SortableContext>
                         );
                       })}
                     </div>
-                  </SortableContext>
                   <ScrollBar orientation="horizontal" />
                 </ScrollArea>
 
@@ -886,6 +888,18 @@ export default function CRMTarefas() {
                     style={{ backgroundColor: c }} onClick={() => setColColor(c)} />
                 ))}
               </div>
+            </div>
+            <div>
+              <Label>Posição (opcional)</Label>
+              <Input 
+                type="number" 
+                min="1" 
+                max={columns ? columns.length + 1 : 1}
+                value={colPosition} 
+                onChange={e => setColPosition(e.target.value)} 
+                placeholder={`1 a ${columns ? columns.length + 1 : 1}`} 
+              />
+              <p className="text-xs text-muted-foreground mt-1">Deixe vazio para adicionar no final</p>
             </div>
             <div className="flex items-center gap-2">
               <input type="checkbox" checked={colIsFinal} onChange={e => setColIsFinal(e.target.checked)} id="add-col-final" />
