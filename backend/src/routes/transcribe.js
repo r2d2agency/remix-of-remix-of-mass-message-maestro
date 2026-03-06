@@ -2,7 +2,7 @@ import express from 'express';
 import multer from 'multer';
 import { authenticate } from '../middleware/auth.js';
 import { log, logError } from '../logger.js';
-import pool from '../db.js';
+import { pool } from '../db.js';
 import { callAI } from '../lib/ai-caller.js';
 
 const router = express.Router();
