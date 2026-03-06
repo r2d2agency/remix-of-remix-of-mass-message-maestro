@@ -1670,7 +1670,10 @@ async function handleMessageUpsert(connection, data) {
                  unread_count = unread_count + 1,
                  group_name = COALESCE($2, group_name),
                  is_group = true,
-                 updated_at = NOW()
+                 updated_at = NOW(),
+                 attendance_status = CASE WHEN attendance_status = 'finished' THEN 'waiting' ELSE attendance_status END,
+                 accepted_at = CASE WHEN attendance_status = 'finished' THEN NULL ELSE accepted_at END,
+                 accepted_by = CASE WHEN attendance_status = 'finished' THEN NULL ELSE accepted_by END
              WHERE id = $1`,
             [conversationId, groupSubject]
           );
@@ -1693,7 +1696,10 @@ async function handleMessageUpsert(connection, data) {
              SET last_message_at = NOW(), 
                  unread_count = unread_count + 1,
                  contact_name = COALESCE(NULLIF($2, ''), contact_name),
-                 updated_at = NOW()
+                 updated_at = NOW(),
+                 attendance_status = CASE WHEN attendance_status = 'finished' THEN 'waiting' ELSE attendance_status END,
+                 accepted_at = CASE WHEN attendance_status = 'finished' THEN NULL ELSE accepted_at END,
+                 accepted_by = CASE WHEN attendance_status = 'finished' THEN NULL ELSE accepted_by END
              WHERE id = $1`,
             [conversationId, pushName]
           );
