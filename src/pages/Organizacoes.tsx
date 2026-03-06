@@ -45,6 +45,7 @@ interface OrganizationMember {
   name: string;
   email: string;
   role: 'owner' | 'admin' | 'manager' | 'agent';
+  is_active: boolean;
   assigned_connections: AssignedConnection[];
   assigned_departments: AssignedDepartment[];
   created_at: string;
@@ -764,6 +765,7 @@ export default function Organizacoes() {
                                 <TableHead>Função</TableHead>
                                 <TableHead>Conexões</TableHead>
                                 <TableHead>Departamentos</TableHead>
+                              <TableHead>Status</TableHead>
                                 <TableHead>Desde</TableHead>
                                 {canManageOrg && <TableHead className="w-[120px]">Ações</TableHead>}
                               </TableRow>
@@ -826,6 +828,25 @@ export default function Organizacoes() {
                                             </Badge>
                                           )}
                                         </div>
+                                      )}
+                                    </TableCell>
+                                    <TableCell>
+                                      {canManageOrg && member.role !== 'owner' ? (
+                                        <Switch
+                                          checked={member.is_active !== false}
+                                          onCheckedChange={async (checked) => {
+                                            if (!selectedOrg) return;
+                                            const success = await updateMember(selectedOrg.id, member.user_id, { is_active: checked });
+                                            if (success) {
+                                              toast.success(checked ? 'Usuário ativado' : 'Usuário desativado');
+                                              loadMembers(selectedOrg.id);
+                                            }
+                                          }}
+                                        />
+                                      ) : (
+                                        <Badge variant={member.is_active !== false ? 'default' : 'secondary'}>
+                                          {member.is_active !== false ? 'Ativo' : 'Inativo'}
+                                        </Badge>
                                       )}
                                     </TableCell>
                                     <TableCell className="text-muted-foreground">

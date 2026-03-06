@@ -251,7 +251,8 @@ router.get('/:id([0-9a-fA-F-]{36})/members', async (req, res) => {
       `SELECT 
         om.*, 
         u.name, 
-        u.email
+        u.email,
+        COALESCE(om.is_active, true) as is_active
        FROM organization_members om
        JOIN users u ON u.id = om.user_id
        WHERE om.organization_id = $1
@@ -441,6 +442,14 @@ router.patch('/:id/members/:userId', async (req, res) => {
       await query(
         `UPDATE organization_members SET role = $1 WHERE organization_id = $2 AND user_id = $3`,
         [role, id, userId]
+      );
+    }
+
+    // Update is_active if provided
+    if (typeof req.body.is_active === 'boolean' && targetCheck.rows[0]?.role !== 'owner') {
+      await query(
+        `UPDATE organization_members SET is_active = $1 WHERE organization_id = $2 AND user_id = $3`,
+        [req.body.is_active, id, userId]
       );
     }
 
