@@ -99,6 +99,7 @@ export interface CRMDeal {
   status: 'open' | 'won' | 'lost' | 'paused';
   description?: string;
   tags?: string[];
+  custom_fields?: Record<string, any>;
   stage_name?: string;
   stage_color?: string;
   inactivity_hours?: number;

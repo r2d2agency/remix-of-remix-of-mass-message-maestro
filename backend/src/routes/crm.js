@@ -950,7 +950,7 @@ router.put('/deals/:id', async (req, res) => {
     if (!org) return res.status(403).json({ error: 'No organization' });
 
     const { stage_id, title, value, probability, expected_close_date, description, 
-            tags, owner_id, group_id, status, lost_reason, loss_reason_id, company_id } = req.body;
+            tags, owner_id, group_id, status, lost_reason, loss_reason_id, company_id, custom_fields } = req.body;
 
     // Get current deal for history
     const current = await query(`SELECT * FROM crm_deals WHERE id = $1`, [req.params.id]);
@@ -962,7 +962,8 @@ router.put('/deals/:id', async (req, res) => {
 
     // Build dynamic update
     const fieldsToUpdate = { stage_id, title, value, probability, expected_close_date, 
-                             description, tags, owner_id, group_id, status, lost_reason, loss_reason_id, company_id };
+                             description, tags, owner_id, group_id, status, lost_reason, loss_reason_id, company_id,
+                             custom_fields: custom_fields !== undefined ? JSON.stringify(custom_fields) : undefined };
     
     for (const [key, val] of Object.entries(fieldsToUpdate)) {
       if (val !== undefined) {
