@@ -213,8 +213,6 @@ export function ChatArea({
   const [transferAgents, setTransferAgents] = useState<Array<{ id: string; name: string; is_active: boolean }>>([]);
   const [transferToAgent, setTransferToAgent] = useState<string>("");
   const [transferringToAI, setTransferringToAI] = useState(false);
-  const [showSyncDialog, setShowSyncDialog] = useState(false);
-  const [syncDays, setSyncDays] = useState<string>("7");
   const [showTagDialog, setShowTagDialog] = useState(false);
   const [newTagName, setNewTagName] = useState("");
   const [newTagColor, setNewTagColor] = useState("#6366f1");
