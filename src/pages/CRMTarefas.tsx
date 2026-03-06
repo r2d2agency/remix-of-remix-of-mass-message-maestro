@@ -357,22 +357,38 @@ export default function CRMTarefas() {
     setOverId(null);
     if (!over || active.id === over.id) return;
 
-    const cardId = active.id as string;
-    const overId = over.id as string;
+    const activeIdStr = active.id as string;
+    const overIdStr = over.id as string;
+
+    // Column reorder
+    if (activeIdStr.startsWith('col-sort-') && overIdStr.startsWith('col-sort-')) {
+      const activeColId = activeIdStr.replace('col-sort-', '');
+      const overColId = overIdStr.replace('col-sort-', '');
+      if (columns) {
+        const oldIndex = columns.findIndex(c => c.id === activeColId);
+        const newIndex = columns.findIndex(c => c.id === overColId);
+        if (oldIndex !== -1 && newIndex !== -1) {
+          const newOrder = arrayMove(columns, oldIndex, newIndex);
+          reorderColumns.mutate(newOrder.map((c, i) => ({ id: c.id, position: i })));
+        }
+      }
+      return;
+    }
+
+    // Card drag
+    const cardId = activeIdStr;
     const currentColId = findColumnForCard(cardId);
     if (!currentColId) return;
 
-    // Check if dropping on a column droppable (prefixed with "column-")
-    if (overId.startsWith('column-')) {
-      const targetColId = overId.replace('column-', '');
+    if (overIdStr.startsWith('column-')) {
+      const targetColId = overIdStr.replace('column-', '');
       if (currentColId !== targetColId) {
         moveCard.mutate({ id: cardId, column_id: targetColId });
       }
     } else {
-      // Dropping on another card
-      const targetColId = findColumnForCard(overId);
+      const targetColId = findColumnForCard(overIdStr);
       if (targetColId) {
-        moveCard.mutate({ id: cardId, column_id: targetColId, over_card_id: overId });
+        moveCard.mutate({ id: cardId, column_id: targetColId, over_card_id: overIdStr });
       }
     }
   }
