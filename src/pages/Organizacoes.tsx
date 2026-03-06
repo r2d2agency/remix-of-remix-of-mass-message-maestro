@@ -354,15 +354,17 @@ export default function Organizacoes() {
     setEditMemberRole(member.role);
     setEditMemberConnectionIds(member.assigned_connections?.map(c => c.id) || []);
     setEditMemberDepartmentIds(member.assigned_departments?.map(d => d.id) || []);
+    setEditMemberTemplateId(member.permission_template_id || null);
     setEditMemberDialogOpen(true);
   };
 
   const handleUpdateMember = async () => {
     if (!selectedOrg || !editingMember) return;
 
-    const updateData: { role?: string; connection_ids?: string[]; department_ids?: string[] } = {
+    const updateData: { role?: string; connection_ids?: string[]; department_ids?: string[]; permission_template_id?: string | null } = {
       connection_ids: editMemberConnectionIds,
       department_ids: editMemberDepartmentIds,
+      permission_template_id: editMemberTemplateId,
     };
     
     // Only include role if it's different and member is not owner
