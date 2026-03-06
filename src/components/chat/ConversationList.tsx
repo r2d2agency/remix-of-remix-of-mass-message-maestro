@@ -163,6 +163,7 @@ export function ConversationList({
   filters,
   onFiltersChange,
   isAdmin = false,
+  connections,
   onNewConversation,
   onAcceptConversation,
   onReleaseConversation,
