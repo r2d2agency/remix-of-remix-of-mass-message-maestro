@@ -581,7 +581,7 @@ export default function CRMTarefas() {
                     )}
                   </Button>
                   {canManageColumns && (
-                    <Button size="sm" variant="outline" onClick={() => { setColName(""); setColColor("#94a3b8"); setColIsFinal(false); setAddColumnDialog(true); }}>
+                    <Button size="sm" variant="outline" onClick={() => { setColName(""); setColColor("#94a3b8"); setColIsFinal(false); setColPosition(""); setAddColumnDialog(true); }}>
                       <Plus className="h-4 w-4 mr-1" /> Coluna
                     </Button>
                   )}
