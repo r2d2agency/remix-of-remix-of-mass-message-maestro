@@ -414,7 +414,7 @@ router.post('/:id([0-9a-fA-F-]{36})/members', async (req, res) => {
 router.patch('/:id/members/:userId', async (req, res) => {
   try {
     const { id, userId } = req.params;
-    const { role, connection_ids, department_ids } = req.body;
+    const { role, connection_ids, department_ids, permission_template_id } = req.body;
 
     // Check if user is admin/owner
     const memberCheck = await query(
