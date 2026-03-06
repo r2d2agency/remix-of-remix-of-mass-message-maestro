@@ -60,6 +60,7 @@ const Contatos = () => {
     getContacts,
     addContact,
     importContacts,
+    importContactsBatched,
     deleteContact,
     updateContact,
   } = useContacts();
@@ -265,22 +266,22 @@ const Contatos = () => {
   };
 
   const handleImportContacts = async (
-    contactsToImport: { name: string; phone: string; is_whatsapp?: boolean | null; customFields?: Record<string, string> }[]
-  ) => {
+    contactsToImport: { name: string; phone: string; is_whatsapp?: boolean | null; customFields?: Record<string, string> }[],
+    onProgress?: (progress: number, imported: number, total: number) => void
+  ): Promise<{ imported: number; duplicates: number; actualCount?: number }> => {
     if (!selectedList) {
       toast.error("Selecione uma lista primeiro");
-      return;
+      return { imported: 0, duplicates: 0 };
     }
 
     try {
-      const result = await importContacts(
-        selectedList,
-        contactsToImport.map((c) => ({
-          name: c.name,
-          phone: c.phone,
-          is_whatsapp: c.is_whatsapp ?? null,
-        }))
-      );
+      const mapped = contactsToImport.map((c) => ({
+        name: c.name,
+        phone: c.phone,
+        is_whatsapp: c.is_whatsapp ?? null,
+      }));
+
+      const result = await importContactsBatched(selectedList, mapped, onProgress);
       
       if (result.duplicates > 0) {
         toast.success(`${result.imported} contatos importados! (${result.duplicates} duplicados ignorados)`);
@@ -290,6 +291,7 @@ const Contatos = () => {
       
       loadContacts(selectedList);
       loadLists();
+      return result;
     } catch (err) {
       toast.error("Erro ao importar contatos");
       throw err;
