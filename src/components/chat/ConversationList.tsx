@@ -705,10 +705,20 @@ export function ConversationList({
                     {/* Connection name, Assigned user, and Unread count */}
                     <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                       {/* Connection name */}
-                      {conv.connection_name && (
-                        <span className="text-[10px] text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded truncate max-w-[70px]">
-                          {conv.connection_name}
-                        </span>
+                      {conv.connection_name && (() => {
+                        const cColor = connColor;
+                        return (
+                          <span 
+                            className="text-[10px] px-1.5 py-0.5 rounded truncate max-w-[80px] font-medium"
+                            style={cColor 
+                              ? { backgroundColor: `${cColor}20`, color: cColor, border: `1px solid ${cColor}40` }
+                              : { backgroundColor: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' }
+                            }
+                          >
+                            {conv.connection_name}
+                          </span>
+                        );
+                      })()}
                       )}
                       
                       {/* Assigned user */}
