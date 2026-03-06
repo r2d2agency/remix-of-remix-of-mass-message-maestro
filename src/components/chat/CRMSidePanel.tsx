@@ -517,6 +517,17 @@ export function CRMSidePanel({
             <Plus className="h-3 w-3" />
             Nova
           </Button>
+          {!isMobile && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={onToggle}
+              title="Fechar painel CRM"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       </div>
 
