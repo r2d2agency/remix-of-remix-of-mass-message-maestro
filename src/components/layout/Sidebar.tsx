@@ -50,6 +50,7 @@ interface NavItem {
   name: string;
   href: string;
   icon: any;
+  featureKey?: string;
   moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents' | 'group_secretary' | 'ghost' | 'aasp' | 'lead_gleego';
   adminOnly?: boolean;
   ownerOnly?: boolean;
