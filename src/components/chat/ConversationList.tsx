@@ -562,6 +562,22 @@ export function ConversationList({
             </Select>
           )}
 
+          {/* Favorites toggle */}
+          {onToggleFavorites && (
+            <Button
+              variant={showFavorites ? "default" : "ghost"}
+              size="icon"
+              className={cn(
+                "h-8 w-8 flex-shrink-0 transition-colors",
+                showFavorites && "bg-yellow-500 hover:bg-yellow-600 text-white"
+              )}
+              onClick={onToggleFavorites}
+              title={showFavorites ? "Ver todas" : "Ver favoritas"}
+            >
+              <Star className={cn("h-3 w-3", showFavorites && "fill-current")} />
+            </Button>
+          )}
+
           {/* Archive toggle */}
           <Button
             variant={filters.archived ? "default" : "ghost"}
