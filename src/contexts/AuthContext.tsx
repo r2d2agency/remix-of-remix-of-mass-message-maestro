@@ -21,6 +21,12 @@ export interface FeaturePermissions {
   [key: string]: boolean;
 }
 
+export interface OrgThemeConfig {
+  preset?: string;
+  light?: Record<string, string>;
+  dark?: Record<string, string>;
+}
+
 interface User {
   id: string;
   email: string;
@@ -29,6 +35,7 @@ interface User {
   organization_id?: string;
   modules_enabled?: ModulesEnabled;
   feature_permissions?: FeaturePermissions | null;
+  theme_config?: OrgThemeConfig | null;
 }
 
 interface AuthContextType {
