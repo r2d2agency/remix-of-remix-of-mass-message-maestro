@@ -433,8 +433,8 @@ const ContatosChat = () => {
       setSelectedConnectionForImport("");
       loadData();
       return { imported: totalImported, duplicates: totalDuplicates, actualCount };
-    } catch (err) {
-      toast.error("Erro ao importar contatos");
+    } catch (err: any) {
+      toast.error(err?.message || "Erro ao importar contatos");
       throw err;
     }
   };
