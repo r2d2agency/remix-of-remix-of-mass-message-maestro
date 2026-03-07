@@ -631,15 +631,6 @@ const handleGetQRCode = async (connection: Connection) => {
                           <p>• Rejeição de chamadas: <span className="text-foreground">Desabilitada</span></p>
                           <p>• Grupos: <span className="text-foreground">Habilitados</span></p>
                         </div>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="text-xs h-7"
-                          onClick={() => setShowIntegratorConfig(true)}
-                        >
-                          <Key className="h-3 w-3 mr-1" />
-                          Alterar token
-                        </Button>
                       </div>
                     ) : (
                       <div className="space-y-3">
@@ -649,17 +640,8 @@ const handleGetQRCode = async (connection: Connection) => {
                             <span className="text-sm font-medium">Token do Integrador não configurado</span>
                           </div>
                           <p className="text-xs text-muted-foreground">
-                            Configure o token para criar instâncias automaticamente, ou preencha os dados manualmente abaixo.
+                            Solicite ao administrador para configurar o token no painel SuperAdmin, ou preencha os dados manualmente abaixo.
                           </p>
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            className="text-xs h-7"
-                            onClick={() => setShowIntegratorConfig(true)}
-                          >
-                            <Key className="h-3 w-3 mr-1" />
-                            Configurar Token do Integrador
-                          </Button>
                         </div>
 
                         <div className="space-y-2">
