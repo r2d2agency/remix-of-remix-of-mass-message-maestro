@@ -99,6 +99,12 @@ const Conexao = () => {
   const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [loadingPairingCode, setLoadingPairingCode] = useState(false);
 
+  // W-API Integrator token state
+  const [wapiIntegratorToken, setWapiIntegratorToken] = useState("");
+  const [hasIntegratorToken, setHasIntegratorToken] = useState(false);
+  const [loadingIntegratorToken, setLoadingIntegratorToken] = useState(false);
+  const [showIntegratorConfig, setShowIntegratorConfig] = useState(false);
+
   useEffect(() => {
     loadConnections();
     loadPlanLimits();
