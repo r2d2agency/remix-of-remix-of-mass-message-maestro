@@ -125,8 +125,8 @@ export async function processIncomingWithAgent({
     let userMessageForAI = null; // Will be a string or multimodal content array
 
     if (messageType === 'audio' && mediaUrl) {
-      // Transcribe audio using Lovable AI
-      const transcript = await transcribeAudio(mediaUrl, mediaMimetype);
+      // Transcribe audio using org AI config or Gemini direct
+      const transcript = await transcribeAudio(audioUrl = mediaUrl, mediaMimetype, organizationId);
       if (transcript) {
         userMessageForHistory = `[Áudio transcrito]: ${transcript}`;
         userMessageForAI = transcript;
