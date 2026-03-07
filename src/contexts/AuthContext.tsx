@@ -132,33 +132,44 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const refreshUser = async () => {
     const token = getAuthToken();
-    if (token) {
-      try {
-        const { user } = await authApi.getMe();
-        setUser(user);
-      } catch {
-        // Ignore errors on refresh
-      }
+    if (!token) {
+      setUser(null);
+      return;
+    }
+
+    try {
+      const { user } = await authApi.getMe();
+      setUser(user);
+    } catch {
+      setUser(null);
+      clearAuthToken();
     }
   };
 
   useEffect(() => {
     const checkAuth = async () => {
       const token = getAuthToken();
-      if (token) {
-        try {
-          const { user } = await authApi.getMe();
-          setUser(user);
-        } catch (error) {
-          // Only clear token on auth errors (401), not network errors
-          const msg = error instanceof Error ? error.message : '';
-          if (msg.includes('401') || msg.includes('Token') || msg.includes('inválido')) {
-            clearAuthToken();
-          }
-        }
+
+      if (!token) {
+        setUser(null);
+        setIsLoading(false);
+        return;
       }
-      setIsLoading(false);
+
+      try {
+        const { user } = await authApi.getMe();
+        setUser(user);
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : '';
+        if (msg.includes('401') || msg.includes('Token') || msg.includes('inválido')) {
+          clearAuthToken();
+        }
+        setUser(null);
+      } finally {
+        setIsLoading(false);
+      }
     };
+
     checkAuth();
   }, []);
 

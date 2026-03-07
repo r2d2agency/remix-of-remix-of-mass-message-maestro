@@ -659,9 +659,11 @@ const ContatosChat = () => {
                                 <SelectValue placeholder="Selecione a conexão" />
                               </SelectTrigger>
                               <SelectContent>
-                                {connections.filter(c => c.status === "connected").map(conn => (
+                                {connections
+                                  .filter((conn) => conn.id && conn.id.trim() !== "")
+                                  .map((conn) => (
                                   <SelectItem key={conn.id} value={conn.id}>
-                                    {conn.name}
+                                    {conn.name} {conn.status !== 'connected' ? '• desconectada' : ''}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
