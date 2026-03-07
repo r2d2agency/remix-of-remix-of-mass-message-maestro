@@ -8,7 +8,20 @@ import { processKnowledgeSource, searchKnowledge } from '../lib/knowledge-proces
 const router = Router();
 
 // Helper to get user's organization and info
-async function getUserContext(userId) {
+async function getUserContext(userId, tokenOrgId = null) {
+  // If we have org from JWT, use it directly for accuracy
+  if (tokenOrgId) {
+    const result = await query(
+      `SELECT u.id, u.name, u.email, om.organization_id, om.role 
+       FROM users u 
+       JOIN organization_members om ON om.user_id = u.id AND om.organization_id = $2
+       WHERE u.id = $1 
+       LIMIT 1`,
+      [userId, tokenOrgId]
+    );
+    if (result.rows[0]) return result.rows[0];
+  }
+  // Fallback: pick primary org by role priority
   const result = await query(
     `SELECT u.id, u.name, u.email, om.organization_id, om.role 
      FROM users u 
