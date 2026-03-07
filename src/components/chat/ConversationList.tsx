@@ -801,8 +801,8 @@ export function ConversationList({
                     )}
                   </div>
 
-                  {/* Admin actions - only on desktop */}
-                  {!isMobile && isAdmin && (
+                  {/* Actions dropdown - visible for all users */}
+                  {!isMobile && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button
@@ -815,17 +815,44 @@ export function ConversationList({
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          className="text-destructive focus:text-destructive"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setConversationToDelete(conv);
-                            setDeleteDialogOpen(true);
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Excluir conversa
-                        </DropdownMenuItem>
+                        {onPinConversation && (
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onPinConversation(conv.id, !conv.is_pinned);
+                            }}
+                          >
+                            <Pin className={cn("h-4 w-4 mr-2", conv.is_pinned && "fill-current text-primary")} />
+                            {conv.is_pinned ? 'Desafixar' : 'Fixar no topo'}
+                          </DropdownMenuItem>
+                        )}
+                        {onFavoriteConversation && (
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onFavoriteConversation(conv.id, !conv.is_favorited);
+                            }}
+                          >
+                            <Star className={cn("h-4 w-4 mr-2", conv.is_favorited && "fill-yellow-400 text-yellow-400")} />
+                            {conv.is_favorited ? 'Desfavoritar' : 'Favoritar'}
+                          </DropdownMenuItem>
+                        )}
+                        {isAdmin && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setConversationToDelete(conv);
+                                setDeleteDialogOpen(true);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Excluir conversa
+                            </DropdownMenuItem>
+                          </>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   )}
