@@ -610,6 +610,7 @@ const ContatosChat = () => {
                       <Trash2 className="h-4 w-4 mr-2" />
                       Remover Duplicados
                     </Button>
+                    <Dialog open={showChatImportDialog} onOpenChange={(open) => {
                       setShowChatImportDialog(open);
                       if (!open) setSelectedConnectionForImport("");
                     }}>
