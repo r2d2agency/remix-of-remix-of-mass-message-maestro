@@ -10,7 +10,7 @@ import { Slider } from "@/components/ui/slider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Settings, Shield, Bell, Save, Sun, Moon, Monitor, Volume2, VolumeX, BellRing, Smartphone, User, Lock, Loader2, Mail, FileText, Sparkles, Scale, Building2 } from "lucide-react";
 import { useTheme, Theme } from "@/hooks/use-theme";
-import { useNotificationSound, NOTIFICATION_SOUNDS, NotificationSoundId } from "@/hooks/use-notification-sound";
+import { useNotificationSound, NOTIFICATION_SOUNDS, NEW_CONVERSATION_SOUNDS, NotificationSoundId, NewConversationSoundId } from "@/hooks/use-notification-sound";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
@@ -378,6 +378,51 @@ const Configuracoes = () => {
                                   onClick={(e) => {
                                     e.preventDefault();
                                     previewSound(sound.id);
+                                  }}
+                                >
+                                  <Volume2 className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
+                          ))}
+                        </RadioGroup>
+                      </div>
+
+                      {/* New conversation sound selection */}
+                      <div className="space-y-3">
+                        <Label className="flex items-center gap-2">
+                          <BellRing className="h-4 w-4" />
+                          Som para novas conversas (fila de espera)
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Som diferenciado quando uma nova conversa entra na fila
+                        </p>
+                        <RadioGroup
+                          value={notifSettings.newConversationSoundId}
+                          onValueChange={(value) => {
+                            updateNotifSettings({ newConversationSoundId: value as NewConversationSoundId });
+                            if (value !== 'none') {
+                              previewSound(value as NotificationSoundId);
+                            }
+                          }}
+                          className="grid gap-2"
+                        >
+                          {NEW_CONVERSATION_SOUNDS.map((sound) => (
+                            <div
+                              key={sound.id}
+                              className="flex items-center space-x-3 rounded-lg border border-border p-3 hover:bg-accent/50 transition-colors cursor-pointer"
+                            >
+                              <RadioGroupItem value={sound.id} id={`new-conv-sound-${sound.id}`} />
+                              <Label htmlFor={`new-conv-sound-${sound.id}`} className="cursor-pointer flex-1">
+                                {sound.name}
+                              </Label>
+                              {sound.file && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    previewSound(sound.id as NotificationSoundId);
                                   }}
                                 >
                                   <Volume2 className="h-4 w-4" />
