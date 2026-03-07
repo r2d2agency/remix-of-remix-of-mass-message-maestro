@@ -38,6 +38,7 @@ const Chat = () => {
     markAsRead,
     transferConversation,
     pinConversation,
+    favoriteConversation,
     acceptConversation,
     releaseConversation,
     finishConversation,
@@ -75,6 +76,7 @@ const Chat = () => {
   const [newConversationOpen, setNewConversationOpen] = useState(false);
   const [crmPanelOpen, setCrmPanelOpen] = useState(false);
   const [attendanceCounts, setAttendanceCounts] = useState<{ waiting: number; attending: number; finished: number }>({ waiting: 0, attending: 0, finished: 0 });
+  const [showFavorites, setShowFavorites] = useState(false);
   const [filters, setFilters] = useState({
     search: '',
     tag: 'all',
