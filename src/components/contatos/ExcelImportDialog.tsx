@@ -488,6 +488,9 @@ export function ExcelImportDialog({
                       <SelectValue placeholder="Selecione a coluna" />
                     </SelectTrigger>
                     <SelectContent>
+                      {mapping.name === "__google_full_name__" || columns.some(c => c === "First Name") ? (
+                        <SelectItem value="__google_full_name__">📇 Nome completo (Google Contatos)</SelectItem>
+                      ) : null}
                       {columns.map((col) => (
                         <SelectItem key={col} value={col}>{col}</SelectItem>
                       ))}
