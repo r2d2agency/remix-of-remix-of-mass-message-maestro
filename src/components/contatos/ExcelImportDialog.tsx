@@ -704,6 +704,12 @@ export function ExcelImportDialog({
                       <span className="text-muted-foreground">Duplicados:</span>{" "}
                       <strong>{importResult.duplicates}</strong>
                     </div>
+                    {typeof importResult.actualCount === "number" && (
+                      <div className="col-span-2">
+                        <span className="text-muted-foreground">Total após importação:</span>{" "}
+                        <strong>{importResult.actualCount}</strong>
+                      </div>
+                    )}
                   </div>
                   <Button variant="default" className="w-full" onClick={handleClose}>
                     Fechar
