@@ -99,11 +99,8 @@ const Conexao = () => {
   const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [loadingPairingCode, setLoadingPairingCode] = useState(false);
 
-  // W-API Integrator token state
-  const [wapiIntegratorToken, setWapiIntegratorToken] = useState("");
+  // W-API Integrator token state (read-only, managed by superadmin)
   const [hasIntegratorToken, setHasIntegratorToken] = useState(false);
-  const [loadingIntegratorToken, setLoadingIntegratorToken] = useState(false);
-  const [showIntegratorConfig, setShowIntegratorConfig] = useState(false);
 
   useEffect(() => {
     loadConnections();
@@ -132,27 +129,6 @@ const Conexao = () => {
     }
   };
 
-  const saveIntegratorToken = async () => {
-    if (!wapiIntegratorToken.trim()) {
-      toast.error('Digite o token do integrador');
-      return;
-    }
-    setLoadingIntegratorToken(true);
-    try {
-      await api('/api/connections/wapi-integrator/token', {
-        method: 'PUT',
-        body: { token: wapiIntegratorToken },
-      });
-      setHasIntegratorToken(true);
-      setShowIntegratorConfig(false);
-      setWapiIntegratorToken('');
-      toast.success('Token do integrador salvo com sucesso!');
-    } catch (error: any) {
-      toast.error(error.message || 'Erro ao salvar token');
-    } finally {
-      setLoadingIntegratorToken(false);
-    }
-  };
 
   const loadPlanLimits = async () => {
     try {
