@@ -253,10 +253,12 @@ export function ExcelImportDialog({
       } else {
         name = contact.rawData[mapping.name] || "Sem nome";
       }
+      const email = mapping.email ? (contact.rawData[mapping.email] || "").trim() : "";
       return {
         ...contact,
         name,
         phone: normalizePhone(contact.rawData[mapping.phone] || ""),
+        email,
       };
     });
 
@@ -401,6 +403,7 @@ export function ExcelImportDialog({
       .map((c) => ({
         name: c.name,
         phone: c.phone,
+        email: c.email || undefined,
         is_whatsapp: c.isValidWhatsApp,
         customFields: c.rawData,
       }));
