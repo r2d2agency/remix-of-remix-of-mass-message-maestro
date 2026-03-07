@@ -318,6 +318,26 @@ const Chat = () => {
     }
   };
 
+  const handlePinConversation = useCallback(async (id: string, pinned: boolean) => {
+    try {
+      await pinConversation(id, pinned);
+      toast.success(pinned ? 'Conversa fixada' : 'Conversa desafixada');
+      loadConversations();
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao fixar conversa');
+    }
+  }, [pinConversation, loadConversations]);
+
+  const handleFavoriteConversation = useCallback(async (id: string, favorited: boolean) => {
+    try {
+      await favoriteConversation(id, favorited);
+      toast.success(favorited ? 'Conversa favoritada' : 'Conversa desfavoritada');
+      loadConversations();
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao favoritar conversa');
+    }
+  }, [favoriteConversation, loadConversations]);
+
   const handleSelectConversation = useCallback(async (conversation: Conversation) => {
     // Update the ref immediately to prevent race conditions
     selectedIdRef.current = conversation.id;
