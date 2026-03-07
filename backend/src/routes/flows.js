@@ -479,28 +479,48 @@ router.get('/available/:connectionId', async (req, res) => {
     }
 
     const { connectionId } = req.params;
+    const isAdminUser = isAdmin(org.role);
 
-    // Buscar fluxos ativos que incluem esta conexão ou que não têm conexão definida (funcionam em todas)
-    const result = await query(
-      `SELECT 
+    // Buscar fluxos ativos que incluem esta conexão ou que não têm conexão definida
+    // Se não for admin, filtrar apenas fluxos com acesso permitido (ou sem restrição de acesso)
+    let queryText = `
+      SELECT 
         f.id,
         f.name,
         f.description,
         f.trigger_enabled,
         f.trigger_keywords,
         f.is_active,
+        f.category_id,
+        fc.name as category_name,
+        fc.color as category_color,
+        fc.sort_order as category_sort_order,
         (SELECT COUNT(*) FROM flow_nodes WHERE flow_id = f.id) as node_count
        FROM flows f
+       LEFT JOIN flow_categories fc ON fc.id = f.category_id
        WHERE f.organization_id = $1
          AND f.is_active = true
          AND (
            f.connection_ids IS NULL 
            OR f.connection_ids = '{}'
            OR $2 = ANY(f.connection_ids)
-         )
-       ORDER BY f.name`,
-      [org.organization_id, connectionId]
-    );
+         )`;
+
+    const params = [org.organization_id, connectionId];
+
+    if (!isAdminUser) {
+      // Non-admin: only flows with no access restrictions OR flows they have access to
+      queryText += `
+         AND (
+           NOT EXISTS (SELECT 1 FROM flow_member_access WHERE flow_id = f.id)
+           OR EXISTS (SELECT 1 FROM flow_member_access WHERE flow_id = f.id AND user_id = $3)
+         )`;
+      params.push(req.userId);
+    }
+
+    queryText += ` ORDER BY fc.sort_order NULLS LAST, f.name`;
+
+    const result = await query(queryText, params);
 
     res.json(result.rows);
   } catch (error) {
