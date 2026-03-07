@@ -3342,5 +3342,48 @@ router.post('/contacts/dedup', authenticate, async (req, res) => {
     res.status(500).json({ error: 'Erro ao remover duplicados' });
   }
 });
+// Delete chat contacts that have no active conversation
+router.post('/contacts/cleanup-inactive', authenticate, async (req, res) => {
+  try {
+    const connectionIds = await getUserConnections(req.userId);
+
+    if (connectionIds.length === 0) {
+      return res.json({ removed: 0, remaining: 0 });
+    }
+
+    // Delete contacts that don't have a matching conversation
+    const deleteResult = await query(
+      `DELETE FROM chat_contacts
+       WHERE connection_id = ANY($1)
+         AND COALESCE(is_deleted, false) = false
+         AND (jid IS NULL OR jid NOT LIKE '%@g.us')
+         AND NOT EXISTS (
+           SELECT 1 FROM conversations conv
+           WHERE conv.connection_id = chat_contacts.connection_id
+             AND (
+               conv.remote_jid = chat_contacts.jid
+               OR conv.contact_phone = chat_contacts.phone
+             )
+         )`,
+      [connectionIds]
+    );
+
+    const removed = deleteResult.rowCount || 0;
+
+    const countResult = await query(
+      `SELECT COUNT(*)::int as total
+       FROM chat_contacts
+       WHERE connection_id = ANY($1)
+         AND COALESCE(is_deleted, false) = false
+         AND (jid IS NULL OR jid NOT LIKE '%@g.us')`,
+      [connectionIds]
+    );
+
+    res.json({ removed, remaining: countResult.rows[0]?.total ?? 0 });
+  } catch (error) {
+    console.error('Cleanup inactive contacts error:', error);
+    res.status(500).json({ error: 'Erro ao limpar contatos inativos' });
+  }
+});
 
 export default router;

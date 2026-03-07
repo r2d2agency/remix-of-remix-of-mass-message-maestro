@@ -589,7 +589,7 @@ const ContatosChat = () => {
                     <p className="text-sm text-muted-foreground">Total de Contatos</p>
                     <p className="text-2xl font-bold">{chatContacts.length}</p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <Button 
                       variant="outline" 
                       size="sm"
@@ -609,6 +609,27 @@ const ContatosChat = () => {
                     >
                       <Trash2 className="h-4 w-4 mr-2" />
                       Remover Duplicados
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={async () => {
+                        if (!confirm("Tem certeza? Isso apagará todos os contatos que NÃO possuem conversa ativa.")) return;
+                        try {
+                          const result = await api<{ removed: number; remaining: number }>("/api/chat/contacts/cleanup-inactive", { method: "POST" });
+                          if (result.removed > 0) {
+                            toast.success(`${result.removed} contatos sem conversa removidos! Restam ${result.remaining}.`);
+                            loadData();
+                          } else {
+                            toast.info("Todos os contatos já possuem conversa ativa.");
+                          }
+                        } catch (err) {
+                          toast.error("Erro ao limpar contatos inativos");
+                        }
+                      }}
+                    >
+                      <XCircle className="h-4 w-4 mr-2" />
+                      Apagar sem Conversa
                     </Button>
                     <Dialog open={showChatImportDialog} onOpenChange={(open) => {
                       setShowChatImportDialog(open);
