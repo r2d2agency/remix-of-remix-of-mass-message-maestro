@@ -1760,8 +1760,6 @@ EXCEPTION WHEN duplicate_column THEN null; END $$;
 DO $$ BEGIN
   ALTER TABLE crm_companies ADD COLUMN IF NOT EXISTS neighborhood VARCHAR(255);
 EXCEPTION WHEN duplicate_column THEN null; END $$;
-  WHEN undefined_table THEN null;
-END $$;
 
 -- Index for segment lookup on companies
 CREATE INDEX IF NOT EXISTS idx_crm_companies_segment ON crm_companies(segment_id);
