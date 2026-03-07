@@ -85,10 +85,34 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const USER_CACHE_KEY = 'cached_user';
+
+function getCachedUser(): User | null {
+  try {
+    const raw = localStorage.getItem(USER_CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function setCachedUser(user: User | null) {
+  if (user) {
+    localStorage.setItem(USER_CACHE_KEY, JSON.stringify(user));
+  } else {
+    localStorage.removeItem(USER_CACHE_KEY);
+  }
+}
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUserState] = useState<User | null>(getCachedUser);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+
+  const setUser = (u: User | null) => {
+    setUserState(u);
+    setCachedUser(u);
+  };
 
   const defaultModules: ModulesEnabled = {
     campaigns: true,
@@ -154,6 +178,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const logout = () => {
     clearAuthToken();
     setUser(null);
+    setCachedUser(null);
     toast({ title: 'Logout realizado' });
   };
 
