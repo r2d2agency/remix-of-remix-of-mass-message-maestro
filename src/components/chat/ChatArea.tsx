@@ -1807,6 +1807,14 @@ export function ChatArea({
                 )}
                 style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
               >
+                {/* Forwarded message indicator */}
+                {msg.is_forwarded && !msg.from_me && (
+                  <div className="flex items-center gap-1 text-[11px] text-muted-foreground italic mb-1">
+                    <Forward className="h-3 w-3" />
+                    <span>Encaminhada</span>
+                  </div>
+                )}
+
                 {/* Sender name for group messages */}
                 {conversation?.is_group && !msg.from_me && msg.sender_name && (
                   <div className="text-xs font-semibold mb-1 text-primary">

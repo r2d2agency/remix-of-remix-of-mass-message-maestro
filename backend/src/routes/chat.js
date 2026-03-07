@@ -1581,13 +1581,19 @@ router.post('/conversations/:id/forward', authenticate, async (req, res) => {
     const forwardMediaUrl = sourceMsg.media_url || null;
     const forwardMimetype = sourceMsg.media_mimetype || null;
 
+    // Determine forwarded_from_name: only set if original message was NOT from_me
+    const forwardedFromName = !sourceMsg.from_me 
+      ? (sourceMsg.sender_name || sourceMsg.content?.substring(0, 50) || 'Contato')
+      : null;
+    const isForwarded = !sourceMsg.from_me;
+
     const tempMessageId = `temp_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
     const newMsgResult = await query(
       `INSERT INTO chat_messages 
-        (conversation_id, message_id, from_me, sender_id, content, message_type, media_url, media_mimetype, status, timestamp)
-       VALUES ($1, $2, true, $3, $4, $5, $6, $7, 'pending', NOW())
+        (conversation_id, message_id, from_me, sender_id, content, message_type, media_url, media_mimetype, status, timestamp, is_forwarded, forwarded_from_name)
+       VALUES ($1, $2, true, $3, $4, $5, $6, $7, 'pending', NOW(), $8, $9)
        RETURNING *`,
-      [target_conversation_id, tempMessageId, req.userId, forwardContent, forwardType, forwardMediaUrl, forwardMimetype]
+      [target_conversation_id, tempMessageId, req.userId, forwardContent, forwardType, forwardMediaUrl, forwardMimetype, isForwarded, forwardedFromName]
     );
 
     const savedMessage = newMsgResult.rows[0];
