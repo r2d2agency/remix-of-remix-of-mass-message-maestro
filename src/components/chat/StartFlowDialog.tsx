@@ -17,10 +17,8 @@ import { toast } from "sonner";
 import { useFlows, Flow } from "@/hooks/use-flows";
 import { api } from "@/lib/api";
 
-interface AvailableFlow extends Flow {
+interface AvailableFlow extends Omit<Flow, 'node_count'> {
   node_count?: number;
-  category_name?: string | null;
-  category_color?: string | null;
   category_sort_order?: number | null;
 }
 
