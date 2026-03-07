@@ -838,6 +838,7 @@ CREATE TABLE IF NOT EXISTS chat_contacts (
 DO $$ BEGIN
     ALTER TABLE chat_contacts ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false;
     ALTER TABLE chat_contacts ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;
+    ALTER TABLE chat_contacts ADD COLUMN IF NOT EXISTS email VARCHAR(255);
 EXCEPTION
     WHEN duplicate_column THEN null;
     WHEN others THEN null;

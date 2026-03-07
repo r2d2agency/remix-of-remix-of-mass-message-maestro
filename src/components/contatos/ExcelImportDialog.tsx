@@ -47,6 +47,7 @@ interface ImportedContact {
   id: string;
   name: string;
   phone: string;
+  email: string;
   isValidWhatsApp: boolean | null;
   isValidating: boolean;
   selected: boolean;
@@ -62,7 +63,7 @@ interface ColumnMapping {
 interface ExcelImportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onImport: (contacts: { name: string; phone: string; is_whatsapp?: boolean | null; customFields?: Record<string, string> }[], onProgress?: (progress: number, imported: number, total: number) => void) => Promise<{ imported: number; duplicates: number; actualCount?: number }>;
+  onImport: (contacts: { name: string; phone: string; email?: string; is_whatsapp?: boolean | null; customFields?: Record<string, string> }[], onProgress?: (progress: number, imported: number, total: number) => void) => Promise<{ imported: number; duplicates: number; actualCount?: number }>;
   validateWhatsApp?: (phone: string) => Promise<boolean>;
   customFields?: string[];
 }
