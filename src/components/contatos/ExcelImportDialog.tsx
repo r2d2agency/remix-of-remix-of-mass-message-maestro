@@ -242,8 +242,10 @@ export function ExcelImportDialog({
   };
 
   const normalizePhone = (phone: string): string => {
+    // Google Contacts may have multiple numbers separated by " ::: "
+    const firstPhone = phone.split(":::")[0].trim();
     // Remove all non-numeric characters
-    let normalized = phone.replace(/\D/g, "");
+    let normalized = firstPhone.replace(/\D/g, "");
     
     // Add Brazil country code if not present
     if (normalized.length === 10 || normalized.length === 11) {
