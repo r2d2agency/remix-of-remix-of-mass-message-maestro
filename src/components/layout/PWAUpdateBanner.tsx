@@ -66,9 +66,9 @@ export function PWAUpdateBanner() {
 
   return (
     <div className={cn(
-      "fixed bottom-4 left-4 right-4 z-[9999] mx-auto max-w-md",
+      "fixed bottom-4 left-4 right-4 z-[9999] mx-auto max-w-md pointer-events-auto",
       "bg-card border border-primary/30 rounded-xl shadow-2xl shadow-primary/10 p-4",
-      "animate-in slide-in-from-bottom-4 duration-300"
+      "animate-in slide-in-from-bottom-4 duration-300 isolate"
     )}>
       {updating ? (
         <div className="space-y-3">
