@@ -132,8 +132,9 @@ router.post('/register', async (req, res) => {
     );
 
     // Generate token
+    const tokenOrgId = orgRoleResult.rows[0]?.organization_id || null;
     const token = jwt.sign(
-      { userId: user.id, email: user.email },
+      { userId: user.id, email: user.email, organizationId: tokenOrgId },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -250,7 +251,7 @@ router.post('/login', async (req, res) => {
 
     // Generate token
     const token = jwt.sign(
-      { userId: user.id, email: user.email },
+      { userId: user.id, email: user.email, organizationId },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
