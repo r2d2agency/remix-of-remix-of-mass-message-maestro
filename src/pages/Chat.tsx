@@ -242,6 +242,7 @@ const Chat = () => {
       filterParams.archived = filters.archived;
       filterParams.is_group = activeTab === 'groups' ? 'true' : 'false';
       filterParams.attendance_status = filters.attendance_status;
+      if (showFavorites) filterParams.favorited = 'true';
 
       const data = await getConversations(filterParams);
 
