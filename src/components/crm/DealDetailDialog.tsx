@@ -1286,6 +1286,71 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
                 </div>
               </Card>
 
+              {/* Create new contact section */}
+              <Card className="p-4 mb-4">
+                <h4 className="font-medium mb-3 flex items-center gap-2">
+                  <Plus className="h-4 w-4" />
+                  Criar Novo Contato
+                </h4>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Nome"
+                    value={newDealContactName}
+                    onChange={(e) => setNewDealContactName(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Input
+                    placeholder="Telefone (ex: 65999999999)"
+                    value={newDealContactPhone}
+                    onChange={(e) => setNewDealContactPhone(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Button
+                    variant="gradient"
+                    disabled={!newDealContactName.trim() || !newDealContactPhone.trim() || creatingDealContact}
+                    onClick={async () => {
+                      if (!deal) return;
+                      setCreatingDealContact(true);
+                      try {
+                        let phone = newDealContactPhone.replace(/\D/g, "");
+                        if (phone.length === 10 || phone.length === 11) {
+                          phone = "55" + phone;
+                        }
+                        // Create contact in CRM Contacts list and link to deal
+                        const listRes = await api<any>('/api/contacts/lists');
+                        let crmList = listRes.find((l: any) => l.name === 'CRM Contacts');
+                        if (!crmList) {
+                          crmList = await api<any>('/api/contacts/lists', {
+                            method: 'POST',
+                            body: { name: 'CRM Contacts' },
+                          });
+                        }
+                        const newContact = await api<any>(`/api/contacts/lists/${crmList.id}/contacts`, {
+                          method: 'POST',
+                          body: { name: newDealContactName.trim(), phone },
+                        });
+                        // Link to deal
+                        addContact.mutate({
+                          dealId: deal.id,
+                          contactId: newContact.id,
+                          isPrimary: !fullDeal?.contacts?.length,
+                        });
+                        setNewDealContactName("");
+                        setNewDealContactPhone("");
+                        toast.success("Contato criado e vinculado!");
+                      } catch (err) {
+                        toast.error("Erro ao criar contato");
+                      } finally {
+                        setCreatingDealContact(false);
+                      }
+                    }}
+                  >
+                    {creatingDealContact ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">O código 55 será adicionado automaticamente se necessário</p>
+              </Card>
+
               {/* Contact list */}
               <div className="space-y-2">
                 {fullDeal?.contacts?.map((contact: any) => (
@@ -1337,7 +1402,7 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
                 ))}
                 {(!fullDeal?.contacts || fullDeal.contacts.length === 0) && (
                   <p className="text-center text-muted-foreground py-8">
-                    Nenhum contato vinculado. Selecione uma lista e busque contatos acima.
+                    Nenhum contato vinculado. Busque na agenda ou crie um novo acima.
                   </p>
                 )}
               </div>
