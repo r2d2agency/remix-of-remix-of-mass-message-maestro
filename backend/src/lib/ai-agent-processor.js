@@ -1287,13 +1287,9 @@ async function transcribeAudio(audioUrl, mimetype) {
             content: [
               { type: 'text', text: 'Transcreva este áudio:' },
               {
-                type: 'input_audio',
-                input_audio: {
-                  data: base64Audio,
-                  format: mimeType.includes('mp3') ? 'mp3' :
-                          mimeType.includes('wav') ? 'wav' :
-                          mimeType.includes('ogg') ? 'ogg' :
-                          mimeType.includes('webm') ? 'webm' : 'mp3'
+                type: 'image_url',
+                image_url: {
+                  url: `data:${mimeType};base64,${base64Audio}`
                 }
               }
             ]
