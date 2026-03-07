@@ -709,6 +709,8 @@ DO $$ BEGIN
     ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS is_edited BOOLEAN DEFAULT false;
     ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false;
     ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS transcript TEXT;
+    ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS is_forwarded BOOLEAN DEFAULT false;
+    ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS forwarded_from_name VARCHAR(255);
 EXCEPTION
     WHEN duplicate_column THEN null;
 END $$;

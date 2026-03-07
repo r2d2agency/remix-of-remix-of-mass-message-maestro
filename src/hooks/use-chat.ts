@@ -76,6 +76,8 @@ export interface ChatMessage {
   is_edited?: boolean;
   is_deleted?: boolean;
   transcript?: string | null;
+  is_forwarded?: boolean;
+  forwarded_from_name?: string | null;
 }
 
 export interface TeamMember {
