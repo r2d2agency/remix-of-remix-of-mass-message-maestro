@@ -139,7 +139,9 @@ router.post('/', async (req, res) => {
     // Auto-configure webhooks for W-API connections
     if (provider === 'wapi') {
       try {
-        const webhookResult = await wapiProvider.configureWebhooks(instance_id, wapi_token);
+        const whUrlResult = await query(`SELECT value FROM system_settings WHERE key = 'wapi_default_webhook' LIMIT 1`);
+        const defaultWh = whUrlResult.rows[0]?.value || null;
+        const webhookResult = await wapiProvider.configureWebhooks(instance_id, wapi_token, defaultWh);
         console.log('[W-API] Webhook configuration result:', webhookResult);
         connection.webhooks_configured = webhookResult.success;
         connection.webhooks_count = webhookResult.configured;
@@ -281,8 +283,10 @@ router.post('/:id/configure-webhooks', async (req, res) => {
       return res.status(400).json({ error: 'Instance ID e Token não configurados' });
     }
 
-    // Configure webhooks
-    const result = await wapiProvider.configureWebhooks(connection.instance_id, connection.wapi_token);
+    // Configure webhooks with default URL
+    const whUrlResult = await query(`SELECT value FROM system_settings WHERE key = 'wapi_default_webhook' LIMIT 1`);
+    const defaultWh = whUrlResult.rows[0]?.value || null;
+    const result = await wapiProvider.configureWebhooks(connection.instance_id, connection.wapi_token, defaultWh);
 
     // Backfill provider for older rows
     if (connection.provider !== 'wapi') {
@@ -386,6 +390,19 @@ router.get('/wapi-integrator/token', async (req, res) => {
   }
 });
 
+// Get W-API default webhook URL (global from system_settings)
+router.get('/wapi-integrator/webhook-url', async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT value FROM system_settings WHERE key = 'wapi_default_webhook' LIMIT 1`
+    );
+    res.json({ value: result.rows[0]?.value || null });
+  } catch (error) {
+    console.error('Get webhook URL error:', error);
+    res.status(500).json({ error: 'Erro ao buscar webhook URL' });
+  }
+});
+
 // Create W-API instance via Integrator API
 router.post('/wapi-integrator/create-instance', async (req, res) => {
   try {
@@ -442,9 +459,13 @@ router.post('/wapi-integrator/create-instance', async (req, res) => {
 
     const connection = connResult.rows[0];
 
-    // Auto-configure webhooks
+    // Auto-configure webhooks with default URL from system_settings
     try {
-      const webhookResult = await wapiProvider.configureWebhooks(instanceId, instanceToken);
+      const webhookUrlResult = await query(
+        `SELECT value FROM system_settings WHERE key = 'wapi_default_webhook' LIMIT 1`
+      );
+      const defaultWebhookUrl = webhookUrlResult.rows[0]?.value || null;
+      const webhookResult = await wapiProvider.configureWebhooks(instanceId, instanceToken, defaultWebhookUrl);
       console.log('[W-API Integrator] Webhook configuration:', webhookResult);
       connection.webhooks_configured = webhookResult.success;
     } catch (webhookError) {

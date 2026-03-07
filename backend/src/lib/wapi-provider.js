@@ -119,8 +119,8 @@ function getHeaders(token) {
  * Configure all webhooks for a W-API instance
  * Called when creating or updating a connection
  */
-export async function configureWebhooks(instanceId, token) {
-  const webhookUrl = `${WEBHOOK_BASE_URL}/api/wapi/webhook`;
+export async function configureWebhooks(instanceId, token, customWebhookUrl) {
+  const webhookUrl = customWebhookUrl || `${WEBHOOK_BASE_URL}/api/wapi/webhook`;
 
   logInfo('wapi.webhooks_configure_started', {
     instance_id: instanceId,
@@ -128,10 +128,14 @@ export async function configureWebhooks(instanceId, token) {
   });
   
   const webhookTypes = [
-    { endpoint: 'update-webhook-received', name: 'received' },      // Mensagens recebidas
-    { endpoint: 'update-webhook-delivery', name: 'delivery' },      // Status de entrega
-    { endpoint: 'update-webhook-connected', name: 'connected' },    // Conexão estabelecida
-    { endpoint: 'update-webhook-disconnected', name: 'disconnected' }, // Desconexão
+    { endpoint: 'update-webhook-received', name: 'received' },
+    { endpoint: 'update-webhook-delivery', name: 'delivery' },
+    { endpoint: 'update-webhook-connected', name: 'connected' },
+    { endpoint: 'update-webhook-disconnected', name: 'disconnected' },
+    { endpoint: 'update-webhook-chat-presence', name: 'chat-presence' },
+    { endpoint: 'update-webhook-call', name: 'call' },
+    { endpoint: 'update-webhook-group-join', name: 'group-join' },
+    { endpoint: 'update-webhook-group-leave', name: 'group-leave' },
   ];
 
   const results = [];
