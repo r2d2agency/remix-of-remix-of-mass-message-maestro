@@ -14,6 +14,9 @@ async function getUserContext(userId) {
      FROM users u 
      LEFT JOIN organization_members om ON om.user_id = u.id 
      WHERE u.id = $1 
+     ORDER BY 
+       CASE om.role WHEN 'owner' THEN 1 WHEN 'admin' THEN 2 WHEN 'manager' THEN 3 ELSE 4 END,
+       om.created_at ASC
      LIMIT 1`,
     [userId]
   );
