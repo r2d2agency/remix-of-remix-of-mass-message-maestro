@@ -2,7 +2,7 @@ import express from 'express';
 import multer from 'multer';
 import { authenticate } from '../middleware/auth.js';
 import { log, logError } from '../logger.js';
-import { pool } from '../db.js';
+import { pool, query } from '../db.js';
 import { callAI } from '../lib/ai-caller.js';
 
 const router = express.Router();
@@ -39,6 +39,9 @@ router.post('/', authenticate, upload.single('audio'), async (req, res) => {
     if (!audioFile) {
       return res.status(400).json({ error: 'No audio file provided' });
     }
+
+    // Get optional message_id to save transcript
+    const { message_id } = req.body;
 
     // Get AI config from org
     const aiConfig = await getOrgAIConfig(req.userId);
@@ -135,13 +138,35 @@ router.post('/', authenticate, upload.single('audio'), async (req, res) => {
       return res.status(400).json({ error: `Provedor de IA não suportado para transcrição: ${aiConfig.provider}` });
     }
 
+    const trimmedTranscript = transcript.trim();
+
+    // Save transcript to chat_messages if message_id provided
+    if (message_id && trimmedTranscript) {
+      try {
+        await query(
+          `UPDATE chat_messages SET transcript = $1 WHERE id = $2`,
+          [trimmedTranscript, message_id]
+        );
+        log('info', 'transcribe.saved_to_db', { message_id });
+      } catch (dbError) {
+        // If column doesn't exist, try to add it
+        if (dbError.message?.includes('column "transcript"')) {
+          await query(`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS transcript TEXT`);
+          await query(`UPDATE chat_messages SET transcript = $1 WHERE id = $2`, [trimmedTranscript, message_id]);
+          log('info', 'transcribe.created_column_and_saved', { message_id });
+        } else {
+          logError('transcribe.save_db_error', dbError);
+        }
+      }
+    }
+
     log('info', 'transcribe.success', {
-      transcriptLength: transcript.length,
-      preview: transcript.substring(0, 50),
+      transcriptLength: trimmedTranscript.length,
+      preview: trimmedTranscript.substring(0, 50),
       provider: aiConfig.provider,
     });
 
-    res.json({ transcript: transcript.trim() });
+    res.json({ transcript: trimmedTranscript });
   } catch (error) {
     logError('transcribe.error', error);
     res.status(500).json({
