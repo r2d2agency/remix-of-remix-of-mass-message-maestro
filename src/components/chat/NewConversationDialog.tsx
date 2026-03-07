@@ -309,21 +309,21 @@ export function NewConversationDialog({
                       key={contact.id}
                       onClick={() => handleSelectFromAgenda(contact)}
                       disabled={creating}
-                      className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-accent transition-colors text-left disabled:opacity-50"
+                      className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-accent transition-colors text-left disabled:opacity-50 overflow-hidden"
                     >
-                      <Avatar className="h-10 w-10">
+                      <Avatar className="h-10 w-10 shrink-0">
                         <AvatarFallback className="bg-primary/10 text-primary text-sm">
                           {getInitials(contact.name, contact.phone)}
                         </AvatarFallback>
                       </Avatar>
-                      <div className="flex-1 min-w-0">
+                      <div className="flex-1 min-w-0 overflow-hidden">
                         <p className="font-medium truncate">{contact.name || "Sem nome"}</p>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <Phone className="h-3 w-3" />
-                          <span>{contact.phone || "Sem telefone"}</span>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground min-w-0">
+                          <Phone className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{contact.phone || "Sem telefone"}</span>
                         </div>
                       </div>
-                      <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                      <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded shrink-0 max-w-[80px] truncate">
                         {contact.connection_name}
                       </span>
                     </button>
