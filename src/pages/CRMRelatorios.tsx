@@ -352,6 +352,7 @@ export default function CRMRelatorios() {
                                 backgroundColor: "hsl(var(--card))",
                                 border: "1px solid hsl(var(--border))",
                                 borderRadius: "8px",
+                                color: "hsl(var(--card-foreground))",
                               }}
                             />
                             <Legend />
@@ -415,6 +416,7 @@ export default function CRMRelatorios() {
                                 backgroundColor: "hsl(var(--card))",
                                 border: "1px solid hsl(var(--border))",
                                 borderRadius: "8px",
+                                color: "hsl(var(--card-foreground))",
                               }}
                             />
                           </PieChart>
@@ -473,6 +475,7 @@ export default function CRMRelatorios() {
                               backgroundColor: "hsl(var(--card))",
                               border: "1px solid hsl(var(--border))",
                               borderRadius: "8px",
+                              color: "hsl(var(--card-foreground))",
                             }}
                             formatter={(value: number) => formatCurrency(value)}
                           />
@@ -717,6 +720,7 @@ export default function CRMRelatorios() {
                                 backgroundColor: "hsl(var(--card))",
                                 border: "1px solid hsl(var(--border))",
                                 borderRadius: "8px",
+                                color: "hsl(var(--card-foreground))",
                               }}
                               formatter={(value: number, name: string) => {
                                 if (name.includes("Valor")) return formatCurrency(value);
@@ -797,6 +801,7 @@ export default function CRMRelatorios() {
                                 backgroundColor: "hsl(var(--card))",
                                 border: "1px solid hsl(var(--border))",
                                 borderRadius: "8px",
+                                color: "hsl(var(--card-foreground))",
                               }}
                               formatter={(value: number) => [`${value}%`, "Taxa de Conversão"]}
                             />
@@ -896,6 +901,7 @@ export default function CRMRelatorios() {
                               backgroundColor: "hsl(var(--card))",
                               border: "1px solid hsl(var(--border))",
                               borderRadius: "8px",
+                              color: "hsl(var(--card-foreground))",
                             }}
                             formatter={(value: number) => [`${value} dias`, "Tempo médio"]}
                           />
@@ -952,6 +958,7 @@ export default function CRMRelatorios() {
                                 backgroundColor: "hsl(var(--card))",
                                 border: "1px solid hsl(var(--border))",
                                 borderRadius: "8px",
+                                color: "hsl(var(--card-foreground))",
                               }}
                             />
                           </PieChart>
