@@ -2832,59 +2832,183 @@ router.post('/contacts/import', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'Conexão não encontrada' });
     }
 
+    const emailColumnResult = await query(
+      `SELECT 1
+       FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = 'chat_contacts'
+         AND column_name = 'email'
+       LIMIT 1`
+    );
+    const hasEmailColumn = emailColumnResult.rows.length > 0;
+
     let imported = 0;
     let duplicates = 0;
-    const errors = [];
 
-    // Batch insert for performance (instead of one-by-one)
     const BATCH_SIZE = 500;
     const normalizedContacts = [];
 
     for (const contact of contacts) {
       const { name, phone, email } = contact;
-      if (!phone) {
-        errors.push(`Contato sem telefone: ${name || 'sem nome'}`);
-        continue;
-      }
+      if (!phone) continue;
+
       let normalizedPhone = String(phone).replace(/\D/g, '');
       if (!normalizedPhone.startsWith('55') && normalizedPhone.length <= 11) {
         normalizedPhone = '55' + normalizedPhone;
       }
+      if (!normalizedPhone || normalizedPhone.length < 12) continue;
+
       const jid = `${normalizedPhone}@s.whatsapp.net`;
-      normalizedContacts.push({ name: name || normalizedPhone, phone: normalizedPhone, jid, email: email || null });
+      normalizedContacts.push({
+        name: name || normalizedPhone,
+        phone: normalizedPhone,
+        jid,
+        email: email || null,
+      });
     }
 
-    for (let i = 0; i < normalizedContacts.length; i += BATCH_SIZE) {
-      const batch = normalizedContacts.slice(i, i + BATCH_SIZE);
-      const values = batch.map((_, idx) => 
-        `($1, $${idx * 5 + 2}, $${idx * 5 + 3}, $${idx * 5 + 4}, $${idx * 5 + 5}, $${idx * 5 + 6})`
-      ).join(', ');
-      const params = [connection_id, ...batch.flatMap(c => [c.name, c.phone, c.jid, req.userId, c.email])];
+    // Deduplicate same phone within payload to avoid inflated batches and duplicate inserts on legacy DBs
+    const uniqueByPhone = new Map();
+    for (const contact of normalizedContacts) {
+      if (uniqueByPhone.has(contact.phone)) {
+        duplicates++;
+        continue;
+      }
+      uniqueByPhone.set(contact.phone, contact);
+    }
+    const dedupedContacts = Array.from(uniqueByPhone.values());
+
+    const canUseOnConflictFallback = (err) => {
+      const msg = String(err?.message || '').toLowerCase();
+      return msg.includes('there is no unique or exclusion constraint matching the on conflict specification');
+    };
+
+    for (let i = 0; i < dedupedContacts.length; i += BATCH_SIZE) {
+      const batch = dedupedContacts.slice(i, i + BATCH_SIZE);
+
+      const upsertValues = batch.map((_, idx) => {
+        return hasEmailColumn
+          ? `($1, $${idx * 5 + 2}, $${idx * 5 + 3}, $${idx * 5 + 4}, $${idx * 5 + 5}, $${idx * 5 + 6})`
+          : `($1, $${idx * 4 + 2}, $${idx * 4 + 3}, $${idx * 4 + 4}, $${idx * 4 + 5})`;
+      }).join(', ');
+
+      const upsertParams = hasEmailColumn
+        ? [connection_id, ...batch.flatMap(c => [c.name, c.phone, c.jid, req.userId, c.email])]
+        : [connection_id, ...batch.flatMap(c => [c.name, c.phone, c.jid, req.userId])];
 
       try {
-        const result = await query(
-          `WITH ins AS (
-            INSERT INTO chat_contacts (connection_id, name, phone, jid, created_by, email, created_at, updated_at, is_deleted)
-            VALUES ${values}
-            ON CONFLICT (connection_id, phone)
-            DO UPDATE SET
-              name = EXCLUDED.name,
-              email = COALESCE(NULLIF(EXCLUDED.email, ''), chat_contacts.email),
-              updated_at = NOW(),
-              is_deleted = false,
-              deleted_at = NULL
-            RETURNING id, (xmax = 0) as is_new
-          )
-          SELECT 
-            COUNT(*) FILTER (WHERE is_new = true) as new_count,
-            COUNT(*) FILTER (WHERE is_new = false) as dup_count
-          FROM ins`,
-          params
-        );
-        imported += parseInt(result.rows[0].new_count || '0');
-        duplicates += parseInt(result.rows[0].dup_count || '0');
+        const upsertQuery = hasEmailColumn
+          ? `WITH ins AS (
+              INSERT INTO chat_contacts (connection_id, name, phone, jid, created_by, email, created_at, updated_at, is_deleted)
+              VALUES ${upsertValues}
+              ON CONFLICT (connection_id, phone)
+              DO UPDATE SET
+                name = EXCLUDED.name,
+                email = COALESCE(NULLIF(EXCLUDED.email, ''), chat_contacts.email),
+                updated_at = NOW(),
+                is_deleted = false,
+                deleted_at = NULL
+              RETURNING id, (xmax = 0) as is_new
+            )
+            SELECT
+              COUNT(*) FILTER (WHERE is_new = true) as new_count,
+              COUNT(*) FILTER (WHERE is_new = false) as dup_count
+            FROM ins`
+          : `WITH ins AS (
+              INSERT INTO chat_contacts (connection_id, name, phone, jid, created_by, created_at, updated_at, is_deleted)
+              VALUES ${upsertValues}
+              ON CONFLICT (connection_id, phone)
+              DO UPDATE SET
+                name = EXCLUDED.name,
+                updated_at = NOW(),
+                is_deleted = false,
+                deleted_at = NULL
+              RETURNING id, (xmax = 0) as is_new
+            )
+            SELECT
+              COUNT(*) FILTER (WHERE is_new = true) as new_count,
+              COUNT(*) FILTER (WHERE is_new = false) as dup_count
+            FROM ins`;
+
+        const result = await query(upsertQuery, upsertParams);
+        imported += parseInt(result.rows[0].new_count || '0', 10);
+        duplicates += parseInt(result.rows[0].dup_count || '0', 10);
       } catch (err) {
-        errors.push(`Erro no lote ${i}-${i + batch.length}: ${err.message}`);
+        if (!canUseOnConflictFallback(err)) {
+          throw err;
+        }
+
+        // Legacy fallback: no unique constraint for ON CONFLICT.
+        const batchPhones = batch.map(c => c.phone);
+        const existingResult = await query(
+          `SELECT DISTINCT phone
+           FROM chat_contacts
+           WHERE connection_id = $1
+             AND phone = ANY($2)`,
+          [connection_id, batchPhones]
+        );
+        const existingPhones = new Set(existingResult.rows.map(r => r.phone));
+
+        const existingRows = batch.filter(c => existingPhones.has(c.phone));
+        const newRows = batch.filter(c => !existingPhones.has(c.phone));
+
+        duplicates += existingRows.length;
+
+        if (existingRows.length > 0) {
+          if (hasEmailColumn) {
+            const updateValues = existingRows.map((_, idx) => `($1, $${idx * 3 + 2}, $${idx * 3 + 3}, $${idx * 3 + 4})`).join(', ');
+            const updateParams = [connection_id, ...existingRows.flatMap(c => [c.phone, c.name, c.email])];
+
+            await query(
+              `UPDATE chat_contacts cc
+               SET name = COALESCE(NULLIF(v.name, ''), cc.name),
+                   email = COALESCE(NULLIF(v.email, ''), cc.email),
+                   updated_at = NOW(),
+                   is_deleted = false,
+                   deleted_at = NULL
+               FROM (VALUES ${updateValues}) AS v(connection_id, phone, name, email)
+               WHERE cc.connection_id = v.connection_id
+                 AND cc.phone = v.phone`,
+              updateParams
+            );
+          } else {
+            const updateValues = existingRows.map((_, idx) => `($1, $${idx * 2 + 2}, $${idx * 2 + 3})`).join(', ');
+            const updateParams = [connection_id, ...existingRows.flatMap(c => [c.phone, c.name])];
+
+            await query(
+              `UPDATE chat_contacts cc
+               SET name = COALESCE(NULLIF(v.name, ''), cc.name),
+                   updated_at = NOW(),
+                   is_deleted = false,
+                   deleted_at = NULL
+               FROM (VALUES ${updateValues}) AS v(connection_id, phone, name)
+               WHERE cc.connection_id = v.connection_id
+                 AND cc.phone = v.phone`,
+              updateParams
+            );
+          }
+        }
+
+        if (newRows.length > 0) {
+          const insertValues = newRows.map((_, idx) => {
+            return hasEmailColumn
+              ? `($1, $${idx * 5 + 2}, $${idx * 5 + 3}, $${idx * 5 + 4}, $${idx * 5 + 5}, $${idx * 5 + 6}, NOW(), NOW(), false)`
+              : `($1, $${idx * 4 + 2}, $${idx * 4 + 3}, $${idx * 4 + 4}, $${idx * 4 + 5}, NOW(), NOW(), false)`;
+          }).join(', ');
+
+          const insertParams = hasEmailColumn
+            ? [connection_id, ...newRows.flatMap(c => [c.name, c.phone, c.jid, req.userId, c.email])]
+            : [connection_id, ...newRows.flatMap(c => [c.name, c.phone, c.jid, req.userId])];
+
+          const insertQuery = hasEmailColumn
+            ? `INSERT INTO chat_contacts (connection_id, name, phone, jid, created_by, email, created_at, updated_at, is_deleted)
+               VALUES ${insertValues}`
+            : `INSERT INTO chat_contacts (connection_id, name, phone, jid, created_by, created_at, updated_at, is_deleted)
+               VALUES ${insertValues}`;
+
+          await query(insertQuery, insertParams);
+          imported += newRows.length;
+        }
       }
     }
 
@@ -2900,10 +3024,10 @@ router.post('/contacts/import', authenticate, async (req, res) => {
       total_contacts = totalResult.rows[0]?.total ?? 0;
     }
 
-    res.json({ imported, duplicates, total_contacts, errors: errors.slice(0, 10) });
+    res.json({ imported, duplicates, total_contacts });
   } catch (error) {
     console.error('Import contacts error:', error);
-    res.status(500).json({ error: 'Erro ao importar contatos' });
+    res.status(500).json({ error: error?.message || 'Erro ao importar contatos' });
   }
 });
 
