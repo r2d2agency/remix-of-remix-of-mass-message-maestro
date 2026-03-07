@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { useBranding } from "@/hooks/use-branding";
+import { PWAUpdateBanner } from "@/components/layout/PWAUpdateBanner";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import LandingPage from "./pages/LandingPage";
 import Index from "./pages/Index";
@@ -77,6 +78,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <FaviconUpdater />
+      <PWAUpdateBanner />
       <BrowserRouter>
         <AuthProvider>
           <Routes>
