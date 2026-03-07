@@ -178,6 +178,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const logout = () => {
     clearAuthToken();
     setUser(null);
+    setCachedUser(null);
     toast({ title: 'Logout realizado' });
   };
 
