@@ -455,9 +455,13 @@ router.post('/wapi-integrator/create-instance', async (req, res) => {
 
     const connection = connResult.rows[0];
 
-    // Auto-configure webhooks
+    // Auto-configure webhooks with default URL from system_settings
     try {
-      const webhookResult = await wapiProvider.configureWebhooks(instanceId, instanceToken);
+      const webhookUrlResult = await query(
+        `SELECT value FROM system_settings WHERE key = 'wapi_default_webhook' LIMIT 1`
+      );
+      const defaultWebhookUrl = webhookUrlResult.rows[0]?.value || null;
+      const webhookResult = await wapiProvider.configureWebhooks(instanceId, instanceToken, defaultWebhookUrl);
       console.log('[W-API Integrator] Webhook configuration:', webhookResult);
       connection.webhooks_configured = webhookResult.success;
     } catch (webhookError) {
