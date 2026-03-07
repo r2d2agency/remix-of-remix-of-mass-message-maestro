@@ -2687,49 +2687,54 @@ router.post('/contacts/import', authenticate, async (req, res) => {
     let duplicates = 0;
     const errors = [];
 
+    // Batch insert for performance (instead of one-by-one)
+    const BATCH_SIZE = 500;
+    const normalizedContacts = [];
+
     for (const contact of contacts) {
       const { name, phone } = contact;
-
       if (!phone) {
         errors.push(`Contato sem telefone: ${name || 'sem nome'}`);
         continue;
       }
-
-      // Normalize phone number
       let normalizedPhone = String(phone).replace(/\D/g, '');
-
-      // Ensure country code
       if (!normalizedPhone.startsWith('55') && normalizedPhone.length <= 11) {
         normalizedPhone = '55' + normalizedPhone;
       }
-
-      // Generate JID
       const jid = `${normalizedPhone}@s.whatsapp.net`;
+      normalizedContacts.push({ name: name || normalizedPhone, phone: normalizedPhone, jid });
+    }
+
+    for (let i = 0; i < normalizedContacts.length; i += BATCH_SIZE) {
+      const batch = normalizedContacts.slice(i, i + BATCH_SIZE);
+      const values = batch.map((_, idx) => 
+        `($1, $${idx * 4 + 2}, $${idx * 4 + 3}, $${idx * 4 + 4}, $${idx * 4 + 5})`
+      ).join(', ');
+      const params = [connection_id, ...batch.flatMap(c => [c.name, c.phone, c.jid, req.userId])];
 
       try {
-        // Insert or update contact in agenda (restore if was deleted)
         const result = await query(
-          `INSERT INTO chat_contacts
-            (connection_id, name, phone, jid, created_by, created_at, updated_at, is_deleted)
-           VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), false)
-           ON CONFLICT (connection_id, phone)
-           DO UPDATE SET
-             name = EXCLUDED.name,
-             updated_at = NOW(),
-             is_deleted = false,
-             deleted_at = NULL
-           RETURNING id, (xmax = 0) as is_new, (is_deleted = false AND xmax <> 0) as was_restored`,
-          [connection_id, name || normalizedPhone, normalizedPhone, jid, req.userId]
+          `WITH ins AS (
+            INSERT INTO chat_contacts (connection_id, name, phone, jid, created_by, created_at, updated_at, is_deleted)
+            VALUES ${values}
+            ON CONFLICT (connection_id, phone)
+            DO UPDATE SET
+              name = EXCLUDED.name,
+              updated_at = NOW(),
+              is_deleted = false,
+              deleted_at = NULL
+            RETURNING id, (xmax = 0) as is_new
+          )
+          SELECT 
+            COUNT(*) FILTER (WHERE is_new = true) as new_count,
+            COUNT(*) FILTER (WHERE is_new = false) as dup_count
+          FROM ins`,
+          params
         );
-
-        // Count as imported if new OR was restored from deleted state
-        if (result.rows[0].is_new || result.rows[0].was_restored) {
-          imported++;
-        } else {
-          duplicates++;
-        }
+        imported += parseInt(result.rows[0].new_count || '0');
+        duplicates += parseInt(result.rows[0].dup_count || '0');
       } catch (err) {
-        errors.push(`Erro ao importar ${name || phone}: ${err.message}`);
+        errors.push(`Erro no lote ${i}-${i + batch.length}: ${err.message}`);
       }
     }
 
@@ -2763,38 +2768,35 @@ router.get('/contacts', authenticate, async (req, res) => {
 
     const { search, connection } = req.query;
 
-    // Auto-populate agenda with contacts from existing conversations
+    // Auto-populate agenda with contacts from existing conversations (non-blocking)
     // IMPORTANT: do not resurrect contacts that the user deleted (is_deleted=true)
     // IMPORTANT: exclude group chats (JIDs ending with @g.us)
-    try {
-      await query(
-        `INSERT INTO chat_contacts (connection_id, name, phone, jid, created_by, created_at, updated_at, is_deleted)
-         SELECT 
-           conv.connection_id,
-           COALESCE(NULLIF(conv.contact_name, ''), conv.contact_phone) as name,
-           conv.contact_phone as phone,
-           conv.remote_jid as jid,
-           conv.assigned_to as created_by,
-           conv.created_at,
-           NOW(),
-           false
-         FROM conversations conv
-         WHERE conv.connection_id = ANY($1)
-           AND conv.contact_phone IS NOT NULL
-           AND conv.contact_phone <> ''
-           AND (conv.remote_jid IS NULL OR conv.remote_jid NOT LIKE '%@g.us')
-         ON CONFLICT (connection_id, phone)
-         DO UPDATE SET
-           name = COALESCE(NULLIF(EXCLUDED.name, ''), chat_contacts.name),
-           jid = COALESCE(EXCLUDED.jid, chat_contacts.jid),
-           updated_at = NOW()
-         WHERE COALESCE(chat_contacts.is_deleted, false) = false`,
-        [connectionIds]
-      );
-    } catch (autoPopulateError) {
-      // Log but don't fail if auto-populate has issues
-      console.warn('Auto-populate chat contacts failed (non-critical):', autoPopulateError.message);
-    }
+    query(
+      `INSERT INTO chat_contacts (connection_id, name, phone, jid, created_by, created_at, updated_at, is_deleted)
+       SELECT 
+         conv.connection_id,
+         COALESCE(NULLIF(conv.contact_name, ''), conv.contact_phone) as name,
+         conv.contact_phone as phone,
+         conv.remote_jid as jid,
+         conv.assigned_to as created_by,
+         conv.created_at,
+         NOW(),
+         false
+       FROM conversations conv
+       WHERE conv.connection_id = ANY($1)
+         AND conv.contact_phone IS NOT NULL
+         AND conv.contact_phone <> ''
+         AND (conv.remote_jid IS NULL OR conv.remote_jid NOT LIKE '%@g.us')
+       ON CONFLICT (connection_id, phone)
+       DO UPDATE SET
+         name = COALESCE(NULLIF(EXCLUDED.name, ''), chat_contacts.name),
+         jid = COALESCE(EXCLUDED.jid, chat_contacts.jid),
+         updated_at = NOW()
+       WHERE COALESCE(chat_contacts.is_deleted, false) = false`,
+      [connectionIds]
+    ).catch(err => {
+      console.warn('Auto-populate chat contacts failed (non-critical):', err.message);
+    });
 
     let sql = `
       SELECT 
