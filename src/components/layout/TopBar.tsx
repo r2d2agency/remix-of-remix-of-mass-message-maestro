@@ -52,9 +52,11 @@ export function TopBar() {
             className="h-8 w-8 object-contain rounded"
           />
         ) : (
-          <div className="h-8 w-8 rounded bg-primary/10 flex items-center justify-center">
-            <Building2 className="h-4 w-4 text-primary" />
-          </div>
+          <img 
+            src="/icons/default-logo.png" 
+            alt="Logo" 
+            className="h-8 w-8 object-contain rounded"
+          />
         )}
         {branding.company_name && (
           <span className="text-base font-semibold text-foreground">
