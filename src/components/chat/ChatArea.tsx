@@ -1897,6 +1897,8 @@ export function ChatArea({
                         src={mediaUrl} 
                         mimetype={msg.media_mimetype || undefined}
                         isFromMe={msg.from_me}
+                        messageId={msg.id}
+                        initialTranscript={msg.transcript}
                       />
                     </div>
                   ) : (
