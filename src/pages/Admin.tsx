@@ -1753,88 +1753,7 @@ export default function Admin() {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Wifi className="h-5 w-5 text-primary" />
-                  Webhook Padrão W-API
-                </CardTitle>
-                <CardDescription>
-                  URL de webhook padrão que será configurada automaticamente em todas as instâncias W-API criadas pelo sistema.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {loadingWebhookUrl ? (
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Carregando...
-                  </div>
-                ) : currentWebhookUrl ? (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4">
-                      <Wifi className="h-5 w-5 text-primary" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium">Webhook configurado</p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {currentWebhookUrl}
-                        </p>
-                      </div>
-                      <Button 
-                        variant="destructive" 
-                        size="sm"
-                        onClick={removeWebhookUrl}
-                        disabled={savingWebhookUrl}
-                      >
-                        {savingWebhookUrl ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                      </Button>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Substituir URL</Label>
-                      <div className="flex gap-2">
-                        <Input
-                          type="url"
-                          placeholder="https://seu-backend.com/api/wapi/webhook"
-                          value={wapiWebhookUrl}
-                          onChange={(e) => setWapiWebhookUrl(e.target.value)}
-                        />
-                        <Button onClick={saveWebhookUrl} disabled={savingWebhookUrl || !wapiWebhookUrl.trim()}>
-                          {savingWebhookUrl ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Salvar'}
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-3 rounded-lg border border-yellow-500/20 bg-yellow-500/5 p-4">
-                      <AlertTriangle className="h-5 w-5 text-yellow-500" />
-                      <div>
-                        <p className="text-sm font-medium">Nenhum webhook configurado</p>
-                        <p className="text-xs text-muted-foreground">
-                          Configure a URL para que os webhooks sejam preenchidos automaticamente ao criar instâncias.
-                        </p>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>URL do Webhook</Label>
-                      <div className="flex gap-2">
-                        <Input
-                          type="url"
-                          placeholder="https://seu-backend.com/api/wapi/webhook"
-                          value={wapiWebhookUrl}
-                          onChange={(e) => setWapiWebhookUrl(e.target.value)}
-                        />
-                        <Button onClick={saveWebhookUrl} disabled={savingWebhookUrl || !wapiWebhookUrl.trim()}>
-                          {savingWebhookUrl ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Salvar'}
-                        </Button>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Esta URL será usada para todos os 8 tipos de webhook (received, delivery, connected, disconnected, chat-presence, call, group-join, group-leave).
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+
           </TabsContent>
 
           {/* Integrações Tab */}
@@ -1915,6 +1834,89 @@ export default function Admin() {
                       </div>
                       <p className="text-xs text-muted-foreground">
                         Acesse o painel W-API → Integração para obter seu token.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Wifi className="h-5 w-5 text-primary" />
+                  Webhook Padrão W-API
+                </CardTitle>
+                <CardDescription>
+                  URL de webhook padrão que será configurada automaticamente em todas as instâncias W-API criadas pelo sistema.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {loadingWebhookUrl ? (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Carregando...
+                  </div>
+                ) : currentWebhookUrl ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4">
+                      <Wifi className="h-5 w-5 text-primary" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium">Webhook configurado</p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {currentWebhookUrl}
+                        </p>
+                      </div>
+                      <Button 
+                        variant="destructive" 
+                        size="sm"
+                        onClick={removeWebhookUrl}
+                        disabled={savingWebhookUrl}
+                      >
+                        {savingWebhookUrl ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Substituir URL</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          type="url"
+                          placeholder="https://seu-backend.com/api/wapi/webhook"
+                          value={wapiWebhookUrl}
+                          onChange={(e) => setWapiWebhookUrl(e.target.value)}
+                        />
+                        <Button onClick={saveWebhookUrl} disabled={savingWebhookUrl || !wapiWebhookUrl.trim()}>
+                          {savingWebhookUrl ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Salvar'}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3 rounded-lg border border-yellow-500/20 bg-yellow-500/5 p-4">
+                      <AlertTriangle className="h-5 w-5 text-yellow-500" />
+                      <div>
+                        <p className="text-sm font-medium">Nenhum webhook configurado</p>
+                        <p className="text-xs text-muted-foreground">
+                          Configure a URL para que os webhooks sejam preenchidos automaticamente ao criar instâncias.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>URL do Webhook</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          type="url"
+                          placeholder="https://seu-backend.com/api/wapi/webhook"
+                          value={wapiWebhookUrl}
+                          onChange={(e) => setWapiWebhookUrl(e.target.value)}
+                        />
+                        <Button onClick={saveWebhookUrl} disabled={savingWebhookUrl || !wapiWebhookUrl.trim()}>
+                          {savingWebhookUrl ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Salvar'}
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Esta URL será usada para todos os 8 tipos de webhook (received, delivery, connected, disconnected, chat-presence, call, group-join, group-leave).
                       </p>
                     </div>
                   </div>
