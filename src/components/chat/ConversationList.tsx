@@ -25,6 +25,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -52,6 +53,8 @@ import {
   SearchCode,
   Users,
   Building2,
+  Pin,
+  Star,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -95,6 +98,7 @@ interface ConversationListProps {
   isAdmin?: boolean;
   connections?: Connection[];
   onPinConversation?: (id: string, pinned: boolean) => void;
+  onFavoriteConversation?: (id: string, favorited: boolean) => void;
   onNewConversation?: () => void;
   onAcceptConversation?: (id: string) => Promise<void>;
   onReleaseConversation?: (id: string) => Promise<void>;
@@ -103,6 +107,8 @@ interface ConversationListProps {
   onFinishConversation?: (id: string) => Promise<void>;
   onReopenConversation?: (id: string) => Promise<void>;
   onGlobalSearchSelect?: (conversationId: string, messageId?: string) => void;
+  showFavorites?: boolean;
+  onToggleFavorites?: () => void;
 }
 
 // Generate a consistent color for a connection_id
@@ -165,6 +171,8 @@ export function ConversationList({
   isAdmin = false,
   connections,
   onNewConversation,
+  onPinConversation,
+  onFavoriteConversation,
   onAcceptConversation,
   onReleaseConversation,
   onArchiveConversation,
@@ -172,6 +180,8 @@ export function ConversationList({
   onReopenConversation,
   attendanceCounts,
   onGlobalSearchSelect,
+  showFavorites,
+  onToggleFavorites,
 }: ConversationListProps) {
   const isMobile = useIsMobile();
   const [localSearch, setLocalSearch] = useState(filters.search);
