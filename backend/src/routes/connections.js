@@ -139,7 +139,9 @@ router.post('/', async (req, res) => {
     // Auto-configure webhooks for W-API connections
     if (provider === 'wapi') {
       try {
-        const webhookResult = await wapiProvider.configureWebhooks(instance_id, wapi_token);
+        const whUrlResult = await query(`SELECT value FROM system_settings WHERE key = 'wapi_default_webhook' LIMIT 1`);
+        const defaultWh = whUrlResult.rows[0]?.value || null;
+        const webhookResult = await wapiProvider.configureWebhooks(instance_id, wapi_token, defaultWh);
         console.log('[W-API] Webhook configuration result:', webhookResult);
         connection.webhooks_configured = webhookResult.success;
         connection.webhooks_count = webhookResult.configured;
@@ -281,8 +283,10 @@ router.post('/:id/configure-webhooks', async (req, res) => {
       return res.status(400).json({ error: 'Instance ID e Token não configurados' });
     }
 
-    // Configure webhooks
-    const result = await wapiProvider.configureWebhooks(connection.instance_id, connection.wapi_token);
+    // Configure webhooks with default URL
+    const whUrlResult = await query(`SELECT value FROM system_settings WHERE key = 'wapi_default_webhook' LIMIT 1`);
+    const defaultWh = whUrlResult.rows[0]?.value || null;
+    const result = await wapiProvider.configureWebhooks(connection.instance_id, connection.wapi_token, defaultWh);
 
     // Backfill provider for older rows
     if (connection.provider !== 'wapi') {
