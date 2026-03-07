@@ -653,11 +653,12 @@ CREATE TABLE IF NOT EXISTS conversations (
     UNIQUE (connection_id, remote_jid)
 );
 
--- Add is_pinned column if not exists (for existing databases)
+-- Add columns if not exists (for existing databases)
 DO $$ BEGIN
     ALTER TABLE conversations ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN DEFAULT false;
     ALTER TABLE conversations ADD COLUMN IF NOT EXISTS is_group BOOLEAN DEFAULT false;
     ALTER TABLE conversations ADD COLUMN IF NOT EXISTS group_name VARCHAR(255);
+    ALTER TABLE conversations ADD COLUMN IF NOT EXISTS is_favorited BOOLEAN DEFAULT false;
 EXCEPTION
     WHEN duplicate_column THEN null;
 END $$;

@@ -38,6 +38,7 @@ const Chat = () => {
     markAsRead,
     transferConversation,
     pinConversation,
+    favoriteConversation,
     acceptConversation,
     releaseConversation,
     finishConversation,
@@ -75,6 +76,7 @@ const Chat = () => {
   const [newConversationOpen, setNewConversationOpen] = useState(false);
   const [crmPanelOpen, setCrmPanelOpen] = useState(false);
   const [attendanceCounts, setAttendanceCounts] = useState<{ waiting: number; attending: number; finished: number }>({ waiting: 0, attending: 0, finished: 0 });
+  const [showFavorites, setShowFavorites] = useState(false);
   const [filters, setFilters] = useState({
     search: '',
     tag: 'all',
@@ -240,6 +242,7 @@ const Chat = () => {
       filterParams.archived = filters.archived;
       filterParams.is_group = activeTab === 'groups' ? 'true' : 'false';
       filterParams.attendance_status = filters.attendance_status;
+      if (showFavorites) filterParams.favorited = 'true';
 
       const data = await getConversations(filterParams);
 
@@ -283,7 +286,7 @@ const Chat = () => {
       isLoadingConversationsRef.current = false;
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [getConversations, filters.search, filters.tag, filters.assigned, filters.connection, filters.archived, filters.attendance_status, filters.department, activeTab, loadAttendanceCounts]);
+  }, [getConversations, filters.search, filters.tag, filters.assigned, filters.connection, filters.archived, filters.attendance_status, filters.department, activeTab, showFavorites, loadAttendanceCounts]);
 
   // Keep ref pointing to the latest loadConversations (used by intervals above)
   useEffect(() => {
@@ -295,7 +298,7 @@ const Chat = () => {
   useEffect(() => {
     loadConversations();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.search, filters.tag, filters.assigned, filters.connection, filters.archived, filters.attendance_status, filters.department, activeTab]);
+  }, [filters.search, filters.tag, filters.assigned, filters.connection, filters.archived, filters.attendance_status, filters.department, activeTab, showFavorites]);
 
   const loadTags = async () => {
     try {
@@ -314,6 +317,26 @@ const Chat = () => {
       console.error('Error loading team:', error);
     }
   };
+
+  const handlePinConversation = useCallback(async (id: string, pinned: boolean) => {
+    try {
+      await pinConversation(id, pinned);
+      toast.success(pinned ? 'Conversa fixada' : 'Conversa desafixada');
+      loadConversations();
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao fixar conversa');
+    }
+  }, [pinConversation, loadConversations]);
+
+  const handleFavoriteConversation = useCallback(async (id: string, favorited: boolean) => {
+    try {
+      await favoriteConversation(id, favorited);
+      toast.success(favorited ? 'Conversa favoritada' : 'Conversa desfavoritada');
+      loadConversations();
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao favoritar conversa');
+    }
+  }, [favoriteConversation, loadConversations]);
 
   const handleSelectConversation = useCallback(async (conversation: Conversation) => {
     // Update the ref immediately to prevent race conditions
@@ -767,6 +790,10 @@ const Chat = () => {
                   onFiltersChange={setFilters}
                   isAdmin={isAdmin}
                   connections={connections}
+                  onPinConversation={handlePinConversation}
+                  onFavoriteConversation={handleFavoriteConversation}
+                  showFavorites={showFavorites}
+                  onToggleFavorites={() => { setShowFavorites(v => !v); }}
                   onNewConversation={activeTab === 'chats' ? () => setNewConversationOpen(true) : undefined}
                   onAcceptConversation={handleAcceptConversation}
                   onReleaseConversation={async (id) => {
@@ -828,6 +855,10 @@ const Chat = () => {
                 onFiltersChange={setFilters}
                 isAdmin={isAdmin}
                 connections={connections}
+                onPinConversation={handlePinConversation}
+                onFavoriteConversation={handleFavoriteConversation}
+                showFavorites={showFavorites}
+                onToggleFavorites={() => { setShowFavorites(v => !v); }}
                 onNewConversation={activeTab === 'chats' ? () => setNewConversationOpen(true) : undefined}
                 onAcceptConversation={handleAcceptConversation}
                 onReleaseConversation={async (id) => {

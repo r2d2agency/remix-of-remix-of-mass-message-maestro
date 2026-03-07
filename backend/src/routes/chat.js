@@ -668,6 +668,11 @@ router.get('/conversations', authenticate, async (req, res) => {
         paramIndex++;
       }
 
+      // Filter by favorited
+      if (req.query.favorited === 'true') {
+        sql += ` AND COALESCE(conv.is_favorited, false) = true`;
+      }
+
       // Order by pinned first, then by last_message_at
       sql += ` ORDER BY COALESCE(conv.is_pinned, false) DESC, conv.last_message_at DESC NULLS LAST, conv.created_at DESC`;
 
@@ -987,6 +992,34 @@ router.post('/conversations/:id/pin', authenticate, async (req, res) => {
   } catch (error) {
     console.error('Pin conversation error:', error);
     res.status(500).json({ error: 'Erro ao fixar conversa' });
+  }
+});
+
+// Favorite/Unfavorite conversation
+router.post('/conversations/:id/favorite', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { favorited } = req.body;
+    const connectionIds = await getUserConnections(req.userId);
+
+    const check = await query(
+      `SELECT id FROM conversations WHERE id = $1 AND connection_id = ANY($2)`,
+      [id, connectionIds]
+    );
+
+    if (check.rows.length === 0) {
+      return res.status(404).json({ error: 'Conversa não encontrada' });
+    }
+
+    await query(
+      `UPDATE conversations SET is_favorited = COALESCE($1, false), updated_at = NOW() WHERE id = $2`,
+      [favorited, id]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Favorite conversation error:', error);
+    res.status(500).json({ error: 'Erro ao favoritar conversa' });
   }
 });
 

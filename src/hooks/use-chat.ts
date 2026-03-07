@@ -18,6 +18,7 @@ export interface Conversation {
   unread_count: number;
   is_archived: boolean;
   is_pinned: boolean;
+  is_favorited: boolean;
   is_group: boolean;
   group_name: string | null;
   assigned_to: string | null;
@@ -210,23 +211,21 @@ export const useChat = () => {
     is_group?: boolean | string;
     attendance_status?: 'waiting' | 'attending';
     department?: string;
+    favorited?: string;
   }): Promise<Conversation[]> => {
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams();
       if (filters?.search) params.append('search', filters.search);
-      // Only append tag if it's a valid UUID (not 'all')
       if (filters?.tag && filters.tag !== 'all') params.append('tag', filters.tag);
-      // Only append assigned if it's a specific value (not 'all')
       if (filters?.assigned && filters.assigned !== 'all') params.append('assigned', filters.assigned);
       if (filters?.archived !== undefined) params.append('archived', String(filters.archived));
-      // Only append connection if it's a valid UUID (not 'all')
       if (filters?.connection && filters.connection !== 'all') params.append('connection', filters.connection);
       if (filters?.is_group !== undefined) params.append('is_group', String(filters.is_group));
       if (filters?.attendance_status) params.append('attendance_status', filters.attendance_status);
-      // Only append department if it's a specific value (not 'all')
       if (filters?.department && filters.department !== 'all') params.append('department', filters.department);
+      if (filters?.favorited === 'true') params.append('favorited', 'true');
       const url = `/api/chat/conversations${params.toString() ? `?${params}` : ''}`;
       const data = await api<Conversation[]>(url);
       return data;
@@ -261,6 +260,14 @@ export const useChat = () => {
     await api(`/api/chat/conversations/${id}/pin`, {
       method: 'POST',
       body: { pinned },
+    });
+  }, []);
+
+  // Favorite/unfavorite conversation
+  const favoriteConversation = useCallback(async (id: string, favorited: boolean): Promise<void> => {
+    await api(`/api/chat/conversations/${id}/favorite`, {
+      method: 'POST',
+      body: { favorited },
     });
   }, []);
 
@@ -578,6 +585,7 @@ export const useChat = () => {
     releaseConversation,
     finishConversation,
     reopenConversation,
+    favoriteConversation,
     // Connections
     getConnections,
     // Stats
