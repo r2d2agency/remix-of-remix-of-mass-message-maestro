@@ -41,7 +41,7 @@ async function getUserContext(userId, tokenOrgId = null) {
 // Listar agentes da organização
 router.get('/', authenticate, async (req, res) => {
   try {
-    const userCtx = await getUserContext(req.userId);
+    const userCtx = await getUserContext(req.userId, req.organizationId);
     if (!userCtx?.organization_id) {
       return res.status(403).json({ error: 'Usuário não pertence a uma organização' });
     }
@@ -69,7 +69,7 @@ router.get('/', authenticate, async (req, res) => {
 // Buscar agente por ID
 router.get('/:id', authenticate, async (req, res) => {
   try {
-    const userCtx = await getUserContext(req.userId);
+    const userCtx = await getUserContext(req.userId, req.organizationId);
     if (!userCtx?.organization_id) {
       return res.status(403).json({ error: 'Usuário não pertence a uma organização' });
     }
@@ -97,7 +97,7 @@ router.get('/:id', authenticate, async (req, res) => {
 // Criar agente
 router.post('/', authenticate, async (req, res) => {
   try {
-    const userCtx = await getUserContext(req.userId);
+    const userCtx = await getUserContext(req.userId, req.organizationId);
     if (!userCtx?.organization_id) {
       return res.status(403).json({ error: 'Usuário não pertence a uma organização' });
     }
@@ -175,7 +175,7 @@ router.post('/', authenticate, async (req, res) => {
 // Atualizar agente
 router.patch('/:id', authenticate, async (req, res) => {
   try {
-    const userCtx = await getUserContext(req.userId);
+    const userCtx = await getUserContext(req.userId, req.organizationId);
     if (!userCtx?.organization_id) {
       return res.status(403).json({ error: 'Usuário não pertence a uma organização' });
     }
@@ -246,7 +246,7 @@ router.patch('/:id', authenticate, async (req, res) => {
 // Deletar agente
 router.delete('/:id', authenticate, async (req, res) => {
   try {
-    const userCtx = await getUserContext(req.userId);
+    const userCtx = await getUserContext(req.userId, req.organizationId);
     if (!userCtx?.organization_id) {
       return res.status(403).json({ error: 'Usuário não pertence a uma organização' });
     }
@@ -270,7 +270,7 @@ router.delete('/:id', authenticate, async (req, res) => {
 // Toggle ativo/inativo
 router.post('/:id/toggle', authenticate, async (req, res) => {
   try {
-    const userCtx = await getUserContext(req.userId);
+    const userCtx = await getUserContext(req.userId, req.organizationId);
     if (!userCtx?.organization_id) {
       return res.status(403).json({ error: 'Usuário não pertence a uma organização' });
     }
@@ -318,7 +318,7 @@ router.get('/:id/knowledge', authenticate, async (req, res) => {
 // Adicionar fonte de conhecimento
 router.post('/:id/knowledge', authenticate, async (req, res) => {
   try {
-    const userCtx = await getUserContext(req.userId);
+    const userCtx = await getUserContext(req.userId, req.organizationId);
     if (!userCtx?.organization_id) {
       return res.status(403).json({ error: 'Usuário não pertence a uma organização' });
     }
@@ -459,7 +459,7 @@ router.post('/:id/knowledge/:sourceId/reprocess', authenticate, async (req, res)
 // Buscar na base de conhecimento (RAG search)
 router.post('/:id/knowledge/search', authenticate, async (req, res) => {
   try {
-    const userCtx = await getUserContext(req.userId);
+    const userCtx = await getUserContext(req.userId, req.organizationId);
     if (!userCtx?.organization_id) {
       return res.status(403).json({ error: 'Usuário não pertence a uma organização' });
     }
@@ -514,7 +514,7 @@ router.post('/:id/knowledge/:sourceId/process', authenticate, async (req, res) =
 // Consultar agente de IA com contexto de conversa
 router.post('/:id/consult', authenticate, async (req, res) => {
   try {
-    const userCtx = await getUserContext(req.userId);
+    const userCtx = await getUserContext(req.userId, req.organizationId);
     if (!userCtx?.organization_id) {
       return res.status(403).json({ error: 'Usuário não pertence a uma organização' });
     }
@@ -632,7 +632,7 @@ router.get('/:id/connections', authenticate, async (req, res) => {
 // Vincular agente a uma conexão
 router.post('/:id/connections', authenticate, async (req, res) => {
   try {
-    const userCtx = await getUserContext(req.userId);
+    const userCtx = await getUserContext(req.userId, req.organizationId);
     if (!userCtx?.organization_id) {
       return res.status(403).json({ error: 'Usuário não pertence a uma organização' });
     }
