@@ -300,5 +300,75 @@ router.post('/:id/configure-webhooks', async (req, res) => {
   }
 });
 
+// Get pairing code for W-API connection (connect by phone)
+router.post('/:id/pairing-code', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { phoneNumber } = req.body;
+
+    if (!phoneNumber) {
+      return res.status(400).json({ error: 'Número de telefone é obrigatório' });
+    }
+
+    const org = await getUserOrganization(req.userId);
+
+    let whereClause = 'id = $1 AND user_id = $2';
+    let params = [id, req.userId];
+
+    if (org) {
+      whereClause = 'id = $1 AND organization_id = $2';
+      params = [id, org.organization_id];
+    }
+
+    const connResult = await query(
+      `SELECT * FROM connections WHERE ${whereClause}`,
+      params
+    );
+
+    if (connResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Conexão não encontrada' });
+    }
+
+    const connection = connResult.rows[0];
+    const provider = connection.provider || (connection.instance_id && connection.wapi_token ? 'wapi' : 'evolution');
+
+    if (provider !== 'wapi') {
+      return res.status(400).json({ error: 'Código de pareamento disponível apenas para conexões W-API' });
+    }
+
+    if (!connection.instance_id || !connection.wapi_token) {
+      return res.status(400).json({ error: 'Instance ID e Token não configurados' });
+    }
+
+    // Call W-API pairing code endpoint
+    const cleanPhone = phoneNumber.replace(/\D/g, '');
+    const response = await fetch(
+      `https://api.w-api.app/v1/instance/pairing-code?instanceId=${connection.instance_id}&phoneNumber=${cleanPhone}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${connection.wapi_token}`,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      return res.status(400).json({ error: errorData.message || errorData.error || 'Falha ao gerar código de pareamento' });
+    }
+
+    const data = await response.json();
+    const code = data.code || data.pairingCode || data.pairing_code || null;
+
+    if (code) {
+      res.json({ success: true, code });
+    } else {
+      res.status(400).json({ error: 'Código não retornado pela API' });
+    }
+  } catch (error) {
+    console.error('Pairing code error:', error);
+    res.status(500).json({ error: 'Erro ao gerar código de pareamento' });
+  }
+});
+
 export default router;
 
