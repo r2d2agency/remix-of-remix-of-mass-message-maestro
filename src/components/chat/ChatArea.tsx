@@ -1001,10 +1001,10 @@ export function ChatArea({
 
   if (!conversation) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center bg-muted/30 text-muted-foreground">
+      <div className="flex-1 flex items-center justify-center h-full bg-muted/30 text-muted-foreground">
         <div className="text-center">
-          <div className="w-24 h-24 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-            <Send className="h-10 w-10 text-primary" />
+          <div className="w-32 h-32 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-6">
+            <Send className="h-14 w-14 text-primary" />
           </div>
           <h3 className="text-lg font-medium text-foreground mb-2">
             Selecione uma conversa
