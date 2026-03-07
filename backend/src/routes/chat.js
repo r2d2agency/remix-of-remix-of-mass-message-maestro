@@ -2656,7 +2656,7 @@ router.post('/alerts/read-all', authenticate, async (req, res) => {
 
 router.post('/contacts/import', authenticate, async (req, res) => {
   try {
-    const { contacts, connection_id } = req.body;
+    const { contacts, connection_id, include_total = true } = req.body;
 
     if (!Array.isArray(contacts) || contacts.length === 0) {
       return res.status(400).json({ error: 'Lista de contatos é obrigatória' });
@@ -2696,8 +2696,8 @@ router.post('/contacts/import', authenticate, async (req, res) => {
       }
 
       // Normalize phone number
-      let normalizedPhone = phone.replace(/\D/g, '');
-      
+      let normalizedPhone = String(phone).replace(/\D/g, '');
+
       // Ensure country code
       if (!normalizedPhone.startsWith('55') && normalizedPhone.length <= 11) {
         normalizedPhone = '55' + normalizedPhone;
@@ -2709,12 +2709,12 @@ router.post('/contacts/import', authenticate, async (req, res) => {
       try {
         // Insert or update contact in agenda (restore if was deleted)
         const result = await query(
-          `INSERT INTO chat_contacts 
+          `INSERT INTO chat_contacts
             (connection_id, name, phone, jid, created_by, created_at, updated_at, is_deleted)
            VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), false)
-           ON CONFLICT (connection_id, phone) 
-           DO UPDATE SET 
-             name = EXCLUDED.name, 
+           ON CONFLICT (connection_id, phone)
+           DO UPDATE SET
+             name = EXCLUDED.name,
              updated_at = NOW(),
              is_deleted = false,
              deleted_at = NULL
@@ -2733,7 +2733,19 @@ router.post('/contacts/import', authenticate, async (req, res) => {
       }
     }
 
-    res.json({ imported, duplicates, errors: errors.slice(0, 10) });
+    let total_contacts;
+    if (include_total) {
+      const totalResult = await query(
+        `SELECT COUNT(*)::int AS total
+         FROM chat_contacts
+         WHERE connection_id = $1
+           AND COALESCE(is_deleted, false) = false`,
+        [connection_id]
+      );
+      total_contacts = totalResult.rows[0]?.total ?? 0;
+    }
+
+    res.json({ imported, duplicates, total_contacts, errors: errors.slice(0, 10) });
   } catch (error) {
     console.error('Import contacts error:', error);
     res.status(500).json({ error: 'Erro ao importar contatos' });
@@ -2820,7 +2832,7 @@ router.get('/contacts', authenticate, async (req, res) => {
       paramIndex++;
     }
 
-    sql += ` ORDER BY cc.name ASC NULLS LAST LIMIT 200`;
+    sql += ` ORDER BY cc.name ASC NULLS LAST`;
 
     const result = await query(sql, params);
     res.json(result.rows);

@@ -400,11 +400,17 @@ router.post('/lists/:listId/import', async (req, res) => {
       }
     }
 
+    const totalResult = await query(
+      'SELECT COUNT(*)::int as total FROM contacts WHERE list_id = $1',
+      [listId]
+    );
+
     res.json({ 
       success: true, 
       imported: uniqueContacts.length,
       duplicates: duplicateCount,
-      invalid_whatsapp: invalidCount
+      invalid_whatsapp: invalidCount,
+      total_contacts: totalResult.rows[0]?.total ?? 0
     });
   } catch (error) {
     console.error('Import contacts error:', error);

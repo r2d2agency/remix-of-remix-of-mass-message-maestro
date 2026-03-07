@@ -379,36 +379,58 @@ const ContatosChat = () => {
   // Import chat contacts from Excel (to agenda, not conversations)
   const handleImportChatContacts = async (
     contacts: { name: string; phone: string; is_whatsapp?: boolean | null; customFields?: Record<string, string> }[],
-    _onProgress?: (progress: number, imported: number, total: number) => void
-  ): Promise<{ imported: number; duplicates: number }> => {
+    onProgress?: (progress: number, imported: number, total: number) => void
+  ): Promise<{ imported: number; duplicates: number; actualCount?: number }> => {
     if (!selectedConnectionForImport) {
       toast.error("Selecione uma conexão para importar");
       return { imported: 0, duplicates: 0 };
     }
 
-    try {
-      const result = await api<{ imported: number; duplicates: number }>(
-        "/api/chat/contacts/import",
-        {
-          method: "POST",
-          body: {
-            connection_id: selectedConnectionForImport,
-            contacts: contacts.map(c => ({
-              name: c.name,
-              phone: c.phone,
-            })),
-          },
-        }
-      );
+    const BATCH_SIZE = 500;
+    let totalImported = 0;
+    let totalDuplicates = 0;
+    let actualCount: number | undefined;
 
-      let description = `${result.imported} contatos importados para a agenda`;
-      if (result.duplicates) description += `, ${result.duplicates} já existiam`;
+    try {
+      for (let i = 0; i < contacts.length; i += BATCH_SIZE) {
+        const batch = contacts.slice(i, i + BATCH_SIZE);
+        const isLastBatch = i + BATCH_SIZE >= contacts.length;
+
+        const result = await api<{ imported: number; duplicates: number; total_contacts?: number }>(
+          "/api/chat/contacts/import",
+          {
+            method: "POST",
+            body: {
+              connection_id: selectedConnectionForImport,
+              contacts: batch.map(c => ({
+                name: c.name,
+                phone: c.phone,
+              })),
+              include_total: isLastBatch,
+            },
+          }
+        );
+
+        totalImported += result.imported;
+        totalDuplicates += result.duplicates || 0;
+
+        if (typeof result.total_contacts === "number") {
+          actualCount = result.total_contacts;
+        }
+
+        const progress = Math.min(100, Math.round(((i + batch.length) / contacts.length) * 100));
+        onProgress?.(progress, totalImported, contacts.length);
+      }
+
+      let description = `${totalImported} contatos importados para a agenda`;
+      if (totalDuplicates) description += `, ${totalDuplicates} já existiam`;
+      if (typeof actualCount === "number") description += `, total na agenda: ${actualCount}`;
 
       toast.success("Importação concluída!", { description });
       setShowChatImportDialog(false);
       setSelectedConnectionForImport("");
       loadData();
-      return result;
+      return { imported: totalImported, duplicates: totalDuplicates, actualCount };
     } catch (err) {
       toast.error("Erro ao importar contatos");
       throw err;

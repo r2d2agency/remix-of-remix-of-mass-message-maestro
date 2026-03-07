@@ -129,7 +129,7 @@ export const useContacts = () => {
     listId: string,
     contacts: { name: string; phone: string; is_whatsapp?: boolean | null }[],
     onProgress?: (progress: number, imported: number, total: number) => void
-  ): Promise<{ imported: number; duplicates: number }> => {
+  ): Promise<{ imported: number; duplicates: number; actualCount?: number }> => {
     setLoading(true);
     setError(null);
     const BATCH_SIZE = 500;
@@ -153,7 +153,7 @@ export const useContacts = () => {
       const listContacts = await api<any[]>(`/api/contacts/lists/${listId}/contacts`);
       const actualCount = listContacts.length;
 
-      return { imported: totalImported, duplicates: totalDuplicates };
+      return { imported: totalImported, duplicates: totalDuplicates, actualCount };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao importar contatos';
       setError(message);
