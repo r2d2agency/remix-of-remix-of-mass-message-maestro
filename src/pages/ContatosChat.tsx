@@ -590,6 +590,26 @@ const ContatosChat = () => {
                     <p className="text-2xl font-bold">{chatContacts.length}</p>
                   </div>
                   <div className="flex items-center gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={async () => {
+                        try {
+                          const result = await api<{ removed: number; remaining: number }>("/api/chat/contacts/dedup", { method: "POST" });
+                          if (result.removed > 0) {
+                            toast.success(`${result.removed} duplicados removidos! Restam ${result.remaining} contatos.`);
+                            loadData();
+                          } else {
+                            toast.info("Nenhum duplicado encontrado.");
+                          }
+                        } catch (err) {
+                          toast.error("Erro ao remover duplicados");
+                        }
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Remover Duplicados
+                    </Button>
                     <Dialog open={showChatImportDialog} onOpenChange={(open) => {
                       setShowChatImportDialog(open);
                       if (!open) setSelectedConnectionForImport("");

@@ -66,13 +66,14 @@ const Index = () => {
   const loadDashboardData = async () => {
     setLoading(true);
     try {
-      const [listsData, messagesData, campaignsData, chatStats, attendanceCounts, orgs] = await Promise.all([
+      const [listsData, messagesData, campaignsData, chatStats, attendanceCounts, orgs, chatContactsCount] = await Promise.all([
         getLists(),
         getMessages(),
         getCampaigns(),
         getChatStats().catch(() => null),
         api<{ waiting: number; attending: number; finished: number }>('/api/chat/conversations/attendance-counts?is_group=false').catch(() => ({ waiting: 0, attending: 0, finished: 0 })),
         api<Array<{ id: string; name: string }>>('/api/organizations').catch(() => []),
+        api<{ total: number }>('/api/chat/contacts/count').catch(() => ({ total: 0 })),
       ]);
 
       const orgId = orgs?.[0]?.id;
@@ -80,8 +81,8 @@ const Index = () => {
         ? await api<Array<{ id: string }>>(`/api/organizations/${orgId}/members`).catch(() => [])
         : [];
 
-      // Calculate stats
-      const totalContacts = listsData.reduce((sum, list) => sum + Number(list.contact_count || 0), 0);
+      // Use chat contacts count (agenda) as the real total
+      const totalContacts = chatContactsCount.total;
       const totalMessages = messagesData.length;
       const activeCampaigns = campaignsData.filter(c => c.status === 'running').length;
       const scheduledCampaigns = campaignsData.filter(c => c.status === 'pending').length;
@@ -160,7 +161,7 @@ const Index = () => {
           <StatsCard
             title="Total de Contatos"
             value={stats.totalContacts.toLocaleString('pt-BR')}
-            description="Em todas as listas"
+            description="Na agenda do chat"
             icon={<Users className="h-6 w-6 text-primary" />}
           />
           <StatsCard

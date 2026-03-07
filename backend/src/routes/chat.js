@@ -3274,4 +3274,73 @@ router.post('/conversations/:id/agent-session/takeover', authenticate, async (re
   }
 });
 
+// Get total count of chat contacts (for dashboard)
+router.get('/contacts/count', authenticate, async (req, res) => {
+  try {
+    const connectionIds = await getUserConnections(req.userId);
+
+    if (connectionIds.length === 0) {
+      return res.json({ total: 0 });
+    }
+
+    const result = await query(
+      `SELECT COUNT(*)::int as total
+       FROM chat_contacts
+       WHERE connection_id = ANY($1)
+         AND COALESCE(is_deleted, false) = false
+         AND (jid IS NULL OR jid NOT LIKE '%@g.us')`,
+      [connectionIds]
+    );
+
+    res.json({ total: result.rows[0]?.total ?? 0 });
+  } catch (error) {
+    console.error('Get chat contacts count error:', error);
+    res.status(500).json({ error: 'Erro ao contar contatos' });
+  }
+});
+
+// Remove duplicate chat contacts (keep the oldest per phone+connection)
+router.post('/contacts/dedup', authenticate, async (req, res) => {
+  try {
+    const connectionIds = await getUserConnections(req.userId);
+
+    if (connectionIds.length === 0) {
+      return res.json({ removed: 0, remaining: 0 });
+    }
+
+    // Delete duplicates keeping the one with smallest id (oldest)
+    const deleteResult = await query(
+      `DELETE FROM chat_contacts
+       WHERE id IN (
+         SELECT id FROM (
+           SELECT id,
+             ROW_NUMBER() OVER (PARTITION BY connection_id, phone ORDER BY created_at ASC, id ASC) as rn
+           FROM chat_contacts
+           WHERE connection_id = ANY($1)
+             AND COALESCE(is_deleted, false) = false
+         ) sub
+         WHERE rn > 1
+       )`,
+      [connectionIds]
+    );
+
+    const removed = deleteResult.rowCount || 0;
+
+    // Count remaining
+    const countResult = await query(
+      `SELECT COUNT(*)::int as total
+       FROM chat_contacts
+       WHERE connection_id = ANY($1)
+         AND COALESCE(is_deleted, false) = false
+         AND (jid IS NULL OR jid NOT LIKE '%@g.us')`,
+      [connectionIds]
+    );
+
+    res.json({ removed, remaining: countResult.rows[0]?.total ?? 0 });
+  } catch (error) {
+    console.error('Dedup chat contacts error:', error);
+    res.status(500).json({ error: 'Erro ao remover duplicados' });
+  }
+});
+
 export default router;
