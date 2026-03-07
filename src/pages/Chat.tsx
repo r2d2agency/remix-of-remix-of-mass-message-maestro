@@ -790,6 +790,10 @@ const Chat = () => {
                   onFiltersChange={setFilters}
                   isAdmin={isAdmin}
                   connections={connections}
+                  onPinConversation={handlePinConversation}
+                  onFavoriteConversation={handleFavoriteConversation}
+                  showFavorites={showFavorites}
+                  onToggleFavorites={() => { setShowFavorites(v => !v); }}
                   onNewConversation={activeTab === 'chats' ? () => setNewConversationOpen(true) : undefined}
                   onAcceptConversation={handleAcceptConversation}
                   onReleaseConversation={async (id) => {
@@ -851,6 +855,10 @@ const Chat = () => {
                 onFiltersChange={setFilters}
                 isAdmin={isAdmin}
                 connections={connections}
+                onPinConversation={handlePinConversation}
+                onFavoriteConversation={handleFavoriteConversation}
+                showFavorites={showFavorites}
+                onToggleFavorites={() => { setShowFavorites(v => !v); }}
                 onNewConversation={activeTab === 'chats' ? () => setNewConversationOpen(true) : undefined}
                 onAcceptConversation={handleAcceptConversation}
                 onReleaseConversation={async (id) => {
