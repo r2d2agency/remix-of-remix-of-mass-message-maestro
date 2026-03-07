@@ -17,9 +17,9 @@ export default defineConfig(({ mode }) => ({
       registerType: "autoUpdate",
       includeAssets: ["favicon.ico", "icons/*.png", "sounds/*.mp3"],
       manifest: {
-        name: "Whatsale - Disparo em Massa",
-        short_name: "Whatsale",
-        description: "Sistema de disparo de mensagens em massa via WhatsApp",
+        name: "Legal Glee-go",
+        short_name: "Legal Glee-go",
+        description: "Sistema de atendimento e CRM via WhatsApp",
         theme_color: "#0ea5e9",
         background_color: "#0f172a",
         display: "standalone",
