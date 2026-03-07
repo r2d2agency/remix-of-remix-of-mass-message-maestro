@@ -372,43 +372,17 @@ router.post('/:id/pairing-code', async (req, res) => {
   }
 });
 
-// Get W-API integrator token for the organization
+// Get W-API integrator token (global from system_settings)
 router.get('/wapi-integrator/token', async (req, res) => {
   try {
-    const org = await getUserOrganization(req.userId);
-    if (!org) return res.status(404).json({ error: 'Organização não encontrada' });
-
     const result = await query(
-      `SELECT wapi_integrator_token FROM organizations WHERE id = $1`,
-      [org.organization_id]
+      `SELECT value FROM system_settings WHERE key = 'wapi_integrator_token' LIMIT 1`
     );
-
-    res.json({ token: result.rows[0]?.wapi_integrator_token || null });
+    const token = result.rows[0]?.value || null;
+    res.json({ token: token ? '***configured***' : null });
   } catch (error) {
     console.error('Get integrator token error:', error);
     res.status(500).json({ error: 'Erro ao buscar token' });
-  }
-});
-
-// Save W-API integrator token
-router.put('/wapi-integrator/token', async (req, res) => {
-  try {
-    const { token } = req.body;
-    const org = await getUserOrganization(req.userId);
-    if (!org) return res.status(404).json({ error: 'Organização não encontrada' });
-    if (!['owner', 'admin'].includes(org.role)) {
-      return res.status(403).json({ error: 'Sem permissão' });
-    }
-
-    await query(
-      `UPDATE organizations SET wapi_integrator_token = $1, updated_at = NOW() WHERE id = $2`,
-      [token || null, org.organization_id]
-    );
-
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Save integrator token error:', error);
-    res.status(500).json({ error: 'Erro ao salvar token' });
   }
 });
 
@@ -421,14 +395,13 @@ router.post('/wapi-integrator/create-instance', async (req, res) => {
     const org = await getUserOrganization(req.userId);
     if (!org) return res.status(404).json({ error: 'Organização não encontrada' });
 
-    // Get integrator token
+    // Get global integrator token from system_settings
     const tokenResult = await query(
-      `SELECT wapi_integrator_token FROM organizations WHERE id = $1`,
-      [org.organization_id]
+      `SELECT value FROM system_settings WHERE key = 'wapi_integrator_token' LIMIT 1`
     );
-    const integratorToken = tokenResult.rows[0]?.wapi_integrator_token;
+    const integratorToken = tokenResult.rows[0]?.value;
     if (!integratorToken) {
-      return res.status(400).json({ error: 'Token do integrador W-API não configurado. Configure nas configurações da conexão.' });
+      return res.status(400).json({ error: 'Token do integrador W-API não configurado. Solicite ao administrador.' });
     }
 
     // Create instance via W-API Integrator API
@@ -492,10 +465,9 @@ router.get('/wapi-integrator/instances', async (req, res) => {
     if (!org) return res.status(404).json({ error: 'Organização não encontrada' });
 
     const tokenResult = await query(
-      `SELECT wapi_integrator_token FROM organizations WHERE id = $1`,
-      [org.organization_id]
+      `SELECT value FROM system_settings WHERE key = 'wapi_integrator_token' LIMIT 1`
     );
-    const integratorToken = tokenResult.rows[0]?.wapi_integrator_token;
+    const integratorToken = tokenResult.rows[0]?.value;
     if (!integratorToken) {
       return res.status(400).json({ error: 'Token do integrador não configurado' });
     }
