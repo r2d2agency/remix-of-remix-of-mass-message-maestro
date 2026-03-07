@@ -708,6 +708,7 @@ DO $$ BEGIN
     ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS error_message TEXT;
     ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS is_edited BOOLEAN DEFAULT false;
     ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false;
+    ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS transcript TEXT;
 EXCEPTION
     WHEN duplicate_column THEN null;
 END $$;
