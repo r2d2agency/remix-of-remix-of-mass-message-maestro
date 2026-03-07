@@ -1003,8 +1003,12 @@ export function ChatArea({
     return (
       <div className="flex-1 flex items-center justify-center h-full bg-muted/30 text-muted-foreground">
         <div className="text-center">
-          <div className="w-32 h-32 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-6">
-            <Send className="h-14 w-14 text-primary" />
+          <div className="w-32 h-32 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-6 overflow-hidden">
+            {user?.organization_logo ? (
+              <img src={user.organization_logo} alt="Logo" className="h-20 w-20 object-contain" />
+            ) : (
+              <img src="/icons/default-logo.png" alt="Logo" className="h-20 w-20 object-contain" />
+            )}
           </div>
           <h3 className="text-lg font-medium text-foreground mb-2">
             Selecione uma conversa
