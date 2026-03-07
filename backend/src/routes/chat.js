@@ -190,60 +190,39 @@ router.get('/conversations/attendance-stats', authenticate, async (req, res) => 
       groupFilter = ` AND COALESCE(conv.is_group, false) = false`;
     }
 
+    // Check if attendance_status column exists
+    let hasAttendanceStatus = false;
     try {
-      // Count conversations that received messages each day, grouped by their current attendance_status
-      // This gives a much more accurate picture of daily activity
-      const dateFilter = startDate 
-        ? `AND msg_date >= '${startDate}'::date`
-        : `AND msg_date >= (CURRENT_DATE - INTERVAL '${days - 1} days')`;
+      const colCheck = await query(`
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'conversations' AND column_name = 'attendance_status' LIMIT 1
+      `);
+      hasAttendanceStatus = colCheck.rows.length > 0;
+    } catch (e) {}
 
-      const result = await query(`
-        WITH daily_active AS (
-          SELECT DISTINCT
-            DATE(m.timestamp) as msg_date,
-            m.conversation_id
-          FROM chat_messages m
-          JOIN conversations conv ON conv.id = m.conversation_id
-          WHERE conv.connection_id = ANY($1)
-            AND conv.is_archived = false
-            ${groupFilter.replace(/conv\./g, 'conv.')}
-            AND m.timestamp >= NOW() - INTERVAL '${Math.max(days, 30)} days'
-        )
-        SELECT 
-          da.msg_date as date,
-          COUNT(*) FILTER (WHERE conv.attendance_status = 'waiting') as waiting,
-          COUNT(*) FILTER (WHERE conv.attendance_status = 'attending' OR conv.attendance_status IS NULL) as attending,
-          COUNT(*) FILTER (WHERE conv.attendance_status = 'finished') as finished
-        FROM daily_active da
-        JOIN conversations conv ON conv.id = da.conversation_id
-        WHERE 1=1 ${dateFilter}
-        GROUP BY da.msg_date
-        ORDER BY da.msg_date ASC
-      `, [connectionIds]);
+    const startFilter = startDate 
+      ? `AND DATE(COALESCE(conv.last_message_at, conv.created_at)) >= '${startDate}'::date`
+      : `AND COALESCE(conv.last_message_at, conv.created_at) >= NOW() - INTERVAL '${days} days'`;
 
-      // If no message-based data, fallback to conversation dates
-      if (result.rows.length === 0) {
-        const fallbackDateFilter = startDate 
-          ? `AND DATE(COALESCE(conv.last_message_at, conv.created_at)) >= '${startDate}'::date`
-          : `AND COALESCE(conv.last_message_at, conv.created_at) >= NOW() - INTERVAL '${days} days'`;
-
-        const fallback = await query(`
+    try {
+      if (hasAttendanceStatus) {
+        const result = await query(`
           SELECT 
             DATE(COALESCE(conv.last_message_at, conv.created_at)) as date,
             COUNT(*) FILTER (WHERE conv.attendance_status = 'waiting') as waiting,
-            COUNT(*) FILTER (WHERE conv.attendance_status = 'attending' OR conv.attendance_status IS NULL) as attending,
+            COUNT(*) FILTER (WHERE conv.attendance_status = 'attending' OR (conv.attendance_status IS NULL AND conv.is_archived = false)) as attending,
             COUNT(*) FILTER (WHERE conv.attendance_status = 'finished') as finished
           FROM conversations conv
           WHERE conv.connection_id = ANY($1)
             AND conv.is_archived = false
-            ${fallbackDateFilter}
+            ${startFilter}
             ${groupFilter}
           GROUP BY DATE(COALESCE(conv.last_message_at, conv.created_at))
           ORDER BY date ASC
         `, [connectionIds]);
 
         return res.json({
-          daily_stats: fallback.rows.map(row => ({
+          daily_stats: result.rows.map(row => ({
             date: row.date,
             waiting: parseInt(row.waiting || 0),
             attending: parseInt(row.attending || 0),
@@ -251,6 +230,21 @@ router.get('/conversations/attendance-stats', authenticate, async (req, res) => 
           }))
         });
       }
+
+      // Fallback: count all conversations by day (no attendance_status column)
+      const result = await query(`
+        SELECT 
+          DATE(COALESCE(conv.last_message_at, conv.created_at)) as date,
+          COUNT(*) FILTER (WHERE conv.unread_count > 0) as waiting,
+          COUNT(*) FILTER (WHERE conv.unread_count = 0 AND conv.is_archived = false) as attending,
+          COUNT(*) FILTER (WHERE conv.is_archived = true) as finished
+        FROM conversations conv
+        WHERE conv.connection_id = ANY($1)
+          ${startFilter}
+          ${groupFilter}
+        GROUP BY DATE(COALESCE(conv.last_message_at, conv.created_at))
+        ORDER BY date ASC
+      `, [connectionIds]);
 
       res.json({
         daily_stats: result.rows.map(row => ({
@@ -261,12 +255,8 @@ router.get('/conversations/attendance-stats', authenticate, async (req, res) => 
         }))
       });
     } catch (dbError) {
-      const message = String(dbError?.message || '');
-      if (/accepted_at|attendance_status/i.test(message)) {
-        res.json({ daily_stats: [] });
-      } else {
-        throw dbError;
-      }
+      console.error('Attendance stats DB error:', dbError);
+      res.json({ daily_stats: [] });
     }
   } catch (error) {
     console.error('Get attendance stats error:', error);
