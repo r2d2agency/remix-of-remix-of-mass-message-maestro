@@ -2841,7 +2841,7 @@ router.post('/contacts/import', authenticate, async (req, res) => {
     const normalizedContacts = [];
 
     for (const contact of contacts) {
-      const { name, phone } = contact;
+      const { name, phone, email } = contact;
       if (!phone) {
         errors.push(`Contato sem telefone: ${name || 'sem nome'}`);
         continue;
@@ -2851,7 +2851,7 @@ router.post('/contacts/import', authenticate, async (req, res) => {
         normalizedPhone = '55' + normalizedPhone;
       }
       const jid = `${normalizedPhone}@s.whatsapp.net`;
-      normalizedContacts.push({ name: name || normalizedPhone, phone: normalizedPhone, jid });
+      normalizedContacts.push({ name: name || normalizedPhone, phone: normalizedPhone, jid, email: email || null });
     }
 
     for (let i = 0; i < normalizedContacts.length; i += BATCH_SIZE) {
