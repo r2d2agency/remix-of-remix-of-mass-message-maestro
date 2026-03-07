@@ -18,6 +18,7 @@ export interface Conversation {
   unread_count: number;
   is_archived: boolean;
   is_pinned: boolean;
+  is_favorited: boolean;
   is_group: boolean;
   group_name: string | null;
   assigned_to: string | null;
@@ -261,6 +262,14 @@ export const useChat = () => {
     await api(`/api/chat/conversations/${id}/pin`, {
       method: 'POST',
       body: { pinned },
+    });
+  }, []);
+
+  // Favorite/unfavorite conversation
+  const favoriteConversation = useCallback(async (id: string, favorited: boolean): Promise<void> => {
+    await api(`/api/chat/conversations/${id}/favorite`, {
+      method: 'POST',
+      body: { favorited },
     });
   }, []);
 
@@ -578,6 +587,7 @@ export const useChat = () => {
     releaseConversation,
     finishConversation,
     reopenConversation,
+    favoriteConversation,
     // Connections
     getConnections,
     // Stats
