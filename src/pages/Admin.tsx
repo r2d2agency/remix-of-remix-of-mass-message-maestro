@@ -186,6 +186,12 @@ export default function Admin() {
   const [loadingIntegratorToken, setLoadingIntegratorToken] = useState(false);
   const [savingIntegratorToken, setSavingIntegratorToken] = useState(false);
 
+  // W-API Default Webhook URL
+  const [wapiWebhookUrl, setWapiWebhookUrl] = useState('');
+  const [currentWebhookUrl, setCurrentWebhookUrl] = useState('');
+  const [loadingWebhookUrl, setLoadingWebhookUrl] = useState(false);
+  const [savingWebhookUrl, setSavingWebhookUrl] = useState(false);
+
   // Add user to org dialog
   const [addUserDialogOpen, setAddUserDialogOpen] = useState(false);
   const [newUserEmail, setNewUserEmail] = useState('');
@@ -246,6 +252,7 @@ export default function Admin() {
     setPlans(plansData);
     setLoading(false);
     loadIntegratorToken();
+    loadWebhookUrl();
   };
 
   const loadIntegratorToken = async () => {
@@ -257,6 +264,55 @@ export default function Admin() {
       console.error('Error loading integrator token:', err);
     } finally {
       setLoadingIntegratorToken(false);
+    }
+  };
+
+  const loadWebhookUrl = async () => {
+    setLoadingWebhookUrl(true);
+    try {
+      const data = await api<{ value: string | null }>('/api/connections/wapi-integrator/webhook-url');
+      setCurrentWebhookUrl(data.value || '');
+    } catch (err) {
+      console.error('Error loading webhook URL:', err);
+    } finally {
+      setLoadingWebhookUrl(false);
+    }
+  };
+
+  const saveWebhookUrl = async () => {
+    if (!wapiWebhookUrl.trim()) {
+      toast.error('Digite a URL do webhook');
+      return;
+    }
+    setSavingWebhookUrl(true);
+    try {
+      await api('/api/admin/settings/wapi_default_webhook', {
+        method: 'PATCH',
+        body: { value: wapiWebhookUrl.trim() },
+      });
+      setCurrentWebhookUrl(wapiWebhookUrl.trim());
+      setWapiWebhookUrl('');
+      toast.success('Webhook padrão salvo com sucesso!');
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao salvar webhook');
+    } finally {
+      setSavingWebhookUrl(false);
+    }
+  };
+
+  const removeWebhookUrl = async () => {
+    setSavingWebhookUrl(true);
+    try {
+      await api('/api/admin/settings/wapi_default_webhook', {
+        method: 'PATCH',
+        body: { value: null },
+      });
+      setCurrentWebhookUrl('');
+      toast.success('Webhook removido com sucesso');
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao remover webhook');
+    } finally {
+      setSavingWebhookUrl(false);
     }
   };
 
