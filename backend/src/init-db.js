@@ -3161,6 +3161,7 @@ const migrationSteps = [
   { name: 'CNPJ Config', sql: step37CNPJConfig, critical: false },
   { name: 'Company Extra Fields', sql: step38CompanyExtraFields, critical: false },
   { name: 'Task Boards', sql: step39TaskBoards, critical: false },
+  { name: 'Flow Categories & Access', sql: step40FlowCategoriesAccess, critical: false },
 ];
 
 export async function initDatabase() {
