@@ -129,7 +129,7 @@ export const useContacts = () => {
     listId: string,
     contacts: { name: string; phone: string; is_whatsapp?: boolean | null }[],
     onProgress?: (progress: number, imported: number, total: number) => void
-  ): Promise<{ imported: number; duplicates: number }> => {
+  ): Promise<{ imported: number; duplicates: number; actualCount?: number }> => {
     setLoading(true);
     setError(null);
     const BATCH_SIZE = 500;
