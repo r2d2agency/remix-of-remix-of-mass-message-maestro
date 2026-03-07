@@ -1246,17 +1246,29 @@ function parseArray(value, defaultValue) {
 // ==================== MEDIA HELPERS ====================
 
 /**
- * Transcribe audio using Lovable AI (Gemini)
+ * Transcribe audio using org AI config (Gemini direct API or OpenAI Whisper)
  */
-async function transcribeAudio(audioUrl, mimetype) {
+async function transcribeAudio(audioUrl, mimetype, organizationId) {
   try {
-    const LOVABLE_API_KEY = process.env.LOVABLE_API_KEY;
-    if (!LOVABLE_API_KEY) {
-      logInfo('ai_agent_processor.transcribe_no_api_key', {});
+    // Get org AI config
+    let aiConfig = null;
+    if (organizationId) {
+      const orgResult = await query(
+        `SELECT ai_provider, ai_model, ai_api_key FROM organizations WHERE id = $1`,
+        [organizationId]
+      );
+      const row = orgResult.rows[0];
+      if (row && row.ai_provider && row.ai_provider !== 'none' && row.ai_api_key) {
+        aiConfig = { provider: row.ai_provider, model: row.ai_model, apiKey: row.ai_api_key };
+      }
+    }
+
+    if (!aiConfig) {
+      logInfo('ai_agent_processor.transcribe_no_ai_config', {});
       return null;
     }
 
-    // Download audio to base64
+    // Download audio
     const audioResponse = await fetch(audioUrl);
     if (!audioResponse.ok) {
       logError('ai_agent_processor.transcribe_download_failed', new Error(`HTTP ${audioResponse.status}`));
@@ -1267,47 +1279,74 @@ async function transcribeAudio(audioUrl, mimetype) {
     const base64Audio = Buffer.from(audioBuffer).toString('base64');
     const mimeType = mimetype || 'audio/ogg';
 
-    logInfo('ai_agent_processor.transcribe_start', { size: audioBuffer.byteLength, mimetype: mimeType });
+    logInfo('ai_agent_processor.transcribe_start', { size: audioBuffer.byteLength, mimetype: mimeType, provider: aiConfig.provider });
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          {
-            role: 'system',
-            content: 'Você é um transcritor de áudio. Transcreva o áudio com precisão. Retorne APENAS o texto transcrito, sem explicações. Se inaudível, retorne "[Áudio inaudível]".'
-          },
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: 'Transcreva este áudio:' },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: `data:${mimeType};base64,${base64Audio}`
-                }
-              }
-            ]
-          }
-        ],
-      }),
-    });
+    let transcript = '';
 
-    if (!response.ok) {
-      logError('ai_agent_processor.transcribe_ai_error', new Error(`AI error ${response.status}`));
-      return null;
+    if (aiConfig.provider === 'openai') {
+      // OpenAI Whisper API - supports ogg natively
+      const formData = new FormData();
+      const blob = new Blob([Buffer.from(audioBuffer)], { type: mimeType });
+      formData.append('file', blob, 'audio.ogg');
+      formData.append('model', 'whisper-1');
+      formData.append('language', 'pt');
+
+      const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${aiConfig.apiKey}` },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        logError('ai_agent_processor.transcribe_openai_error', new Error(`Whisper error: ${response.status}`), { body: errorText });
+        return null;
+      }
+
+      const data = await response.json();
+      transcript = data.text || '';
+
+    } else if (aiConfig.provider === 'gemini') {
+      // Gemini direct API - supports ogg natively
+      const model = aiConfig.model || 'gemini-2.0-flash';
+      const audioFormat = mimeType.includes('mp3') ? 'mp3' :
+                          mimeType.includes('wav') ? 'wav' :
+                          mimeType.includes('ogg') ? 'ogg' :
+                          mimeType.includes('webm') ? 'webm' : 'mp3';
+
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${aiConfig.apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              role: 'user',
+              parts: [
+                { text: 'Transcreva o seguinte áudio em português com precisão. Retorne APENAS o texto transcrito, sem explicações. Se inaudível, retorne "[Áudio inaudível]".' },
+                { inlineData: { mimeType: `audio/${audioFormat}`, data: base64Audio } }
+              ]
+            }],
+            generationConfig: { temperature: 0.1, maxOutputTokens: 2000 }
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        logError('ai_agent_processor.transcribe_gemini_error', new Error(`Gemini error: ${response.status}`), { body: errorText });
+        return null;
+      }
+
+      const data = await response.json();
+      transcript = data.candidates?.[0]?.content?.parts
+        ?.filter(p => p.text)
+        .map(p => p.text)
+        .join('') || '';
     }
 
-    const data = await response.json();
-    const transcript = data.choices?.[0]?.message?.content?.trim() || null;
-
-    logInfo('ai_agent_processor.transcribe_success', { length: transcript?.length });
-    return transcript;
+    logInfo('ai_agent_processor.transcribe_success', { length: transcript?.length, provider: aiConfig.provider });
+    return transcript.trim() || null;
   } catch (error) {
     logError('ai_agent_processor.transcribe_error', error);
     return null;
