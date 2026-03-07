@@ -108,6 +108,9 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
   const [loadingContacts, setLoadingContacts] = useState(false);
   const [contactSearchOpen, setContactSearchOpen] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
+  const [newDealContactName, setNewDealContactName] = useState("");
+  const [newDealContactPhone, setNewDealContactPhone] = useState("");
+  const [creatingDealContact, setCreatingDealContact] = useState(false);
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [showSequenceDialog, setShowSequenceDialog] = useState(false);
   const [dealCustomFields, setDealCustomFields] = useState<Record<string, any>>({});
