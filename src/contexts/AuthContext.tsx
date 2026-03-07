@@ -68,6 +68,7 @@ interface User {
   modules_enabled?: ModulesEnabled;
   feature_permissions?: FeaturePermissions | null;
   theme_config?: OrgThemeConfig | null;
+  organization_logo?: string | null;
 }
 
 interface AuthContextType {

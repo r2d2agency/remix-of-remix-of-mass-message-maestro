@@ -212,7 +212,7 @@ router.post('/login', async (req, res) => {
 
     // Get role and organization info
     const orgResult = await query(
-      `SELECT om.role, o.id as organization_id, o.modules_enabled
+      `SELECT om.role, o.id as organization_id, o.modules_enabled, o.logo_url as organization_logo
        FROM organization_members om
        JOIN organizations o ON o.id = om.organization_id
        WHERE om.user_id = $1
@@ -264,6 +264,7 @@ router.post('/login', async (req, res) => {
         role,
         organization_id: organizationId,
         modules_enabled: modulesEnabled,
+        organization_logo: orgResult.rows[0]?.organization_logo || null,
       },
       token
     });
@@ -299,7 +300,7 @@ router.get('/me', async (req, res) => {
 
     // Role and organization info (multi-tenant)
     const orgResult = await query(
-      `SELECT om.role, o.id as organization_id, o.modules_enabled, om.permission_template_id, o.theme_config
+      `SELECT om.role, o.id as organization_id, o.modules_enabled, om.permission_template_id, o.theme_config, o.logo_url as organization_logo
        FROM organization_members om
        JOIN organizations o ON o.id = om.organization_id
        WHERE om.user_id = $1
@@ -366,6 +367,7 @@ router.get('/me', async (req, res) => {
         modules_enabled: modulesEnabled,
         feature_permissions: featurePermissions,
         theme_config: themeConfig,
+        organization_logo: orgResult.rows[0]?.organization_logo || null,
       } 
     });
   } catch (error) {

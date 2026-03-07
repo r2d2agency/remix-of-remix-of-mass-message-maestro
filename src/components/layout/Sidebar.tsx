@@ -305,9 +305,9 @@ function SidebarContentComponent({ isExpanded, isSuperadmin, onNavigate }: Sideb
           isExpanded ? "px-6" : "px-3 justify-center"
         )}
       >
-        {branding.logo_sidebar ? (
+        {(user?.organization_logo || branding.logo_sidebar) ? (
           <img 
-            src={branding.logo_sidebar} 
+            src={user?.organization_logo || branding.logo_sidebar!} 
             alt="Logo" 
             className="h-10 w-10 object-contain shrink-0 rounded-xl"
           />
