@@ -16,7 +16,7 @@ import { useOrganizations } from '@/hooks/use-organizations';
 import { useSuperadmin } from '@/hooks/use-superadmin';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
-import { Building2, Plus, Users, Trash2, UserPlus, Crown, Shield, User, Briefcase, Loader2, Pencil, Link2, Settings, KeyRound, Megaphone, Receipt, UsersRound, CalendarClock, Bot, Layers, MessagesSquare, Upload, Image } from 'lucide-react';
+import { Building2, Plus, Users, Trash2, UserPlus, Crown, Shield, User, Briefcase, Loader2, Pencil, Link2, Settings, KeyRound, Megaphone, Receipt, UsersRound, CalendarClock, Bot, Layers, MessagesSquare, Upload, Image, Sparkles } from 'lucide-react';
 import { useUpload } from '@/hooks/use-upload';
 
 interface Organization {
