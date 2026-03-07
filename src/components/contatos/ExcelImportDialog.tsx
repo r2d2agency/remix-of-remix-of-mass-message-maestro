@@ -132,21 +132,31 @@ export function ExcelImportDialog({
 
         // Auto-detect mapping
         const autoMapping: ColumnMapping = { name: "", phone: "" };
-        headers.forEach((header) => {
-          const lowerHeader = header.toLowerCase();
-          if (lowerHeader.includes("nome") || lowerHeader === "name") {
-            autoMapping.name = header;
-          }
-          if (
-            lowerHeader.includes("telefone") ||
-            lowerHeader.includes("whatsapp") ||
-            lowerHeader.includes("phone") ||
-            lowerHeader.includes("numero") ||
-            lowerHeader.includes("celular")
-          ) {
-            autoMapping.phone = header;
-          }
-        });
+        // Detect Google Contacts CSV format
+        const isGoogleContacts = headers.some(h => h === "First Name") && headers.some(h => /^Phone \d+ - Value$/.test(h));
+        if (isGoogleContacts) {
+          // For Google Contacts, we'll synthesize name from First/Middle/Last and use Phone 1
+          autoMapping.name = "__google_full_name__";
+          const phoneCol = headers.find(h => h === "Phone 1 - Value");
+          if (phoneCol) autoMapping.phone = phoneCol;
+        } else {
+          headers.forEach((header) => {
+            const lowerHeader = header.toLowerCase();
+            if (!autoMapping.name && (lowerHeader.includes("nome") || lowerHeader === "name" || lowerHeader === "first name")) {
+              autoMapping.name = header;
+            }
+            if (
+              !autoMapping.phone && (
+              lowerHeader.includes("telefone") ||
+              lowerHeader.includes("whatsapp") ||
+              lowerHeader.includes("phone") ||
+              lowerHeader.includes("numero") ||
+              lowerHeader.includes("celular"))
+            ) {
+              autoMapping.phone = header;
+            }
+          });
+        }
         setMapping(autoMapping);
 
         // Parse contacts
@@ -184,10 +194,10 @@ export function ExcelImportDialog({
       e.preventDefault();
       setIsDragging(false);
       const file = e.dataTransfer.files[0];
-      if (file && (file.name.endsWith(".xlsx") || file.name.endsWith(".xls"))) {
+      if (file && (file.name.endsWith(".xlsx") || file.name.endsWith(".xls") || file.name.endsWith(".csv"))) {
         parseExcelFile(file);
       } else {
-        alert("Por favor, envie um arquivo Excel (.xlsx ou .xls)");
+        alert("Por favor, envie um arquivo Excel (.xlsx, .xls) ou CSV (.csv)");
       }
     },
     [parseExcelFile]
@@ -206,11 +216,26 @@ export function ExcelImportDialog({
       return;
     }
 
-    const mappedContacts = contacts.map((contact) => ({
-      ...contact,
-      name: contact.rawData[mapping.name] || "Sem nome",
-      phone: normalizePhone(contact.rawData[mapping.phone] || ""),
-    }));
+    const mappedContacts = contacts.map((contact) => {
+      let name: string;
+      if (mapping.name === "__google_full_name__") {
+        // Build name from Google Contacts columns
+        const parts = [
+          contact.rawData["First Name"],
+          contact.rawData["Middle Name"],
+          contact.rawData["Last Name"],
+        ].filter(Boolean);
+        const orgName = contact.rawData["Organization Name"];
+        name = parts.length > 0 ? parts.join(" ") : (orgName || "Sem nome");
+      } else {
+        name = contact.rawData[mapping.name] || "Sem nome";
+      }
+      return {
+        ...contact,
+        name,
+        phone: normalizePhone(contact.rawData[mapping.phone] || ""),
+      };
+    });
 
     setContacts(mappedContacts.filter(c => c.phone));
     setStep("preview");
@@ -392,7 +417,7 @@ export function ExcelImportDialog({
         <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <FileSpreadsheet className="h-5 w-5 text-primary" />
-            Importar Contatos do Excel
+            Importar Contatos
           </DialogTitle>
           <DialogDescription>
             {step === "upload" && "Arraste um arquivo Excel ou clique para selecionar"}
@@ -441,13 +466,13 @@ export function ExcelImportDialog({
                 <Input
                   id="file-upload"
                   type="file"
-                  accept=".xlsx,.xls"
+                  accept=".xlsx,.xls,.csv"
                   className="hidden"
                   onChange={handleFileSelect}
                 />
               </Label>
               <p className="text-xs text-muted-foreground mt-4">
-                Formatos suportados: .xlsx, .xls
+                Formatos suportados: .xlsx, .xls, .csv (Google Contatos)
               </p>
             </div>
           )}
