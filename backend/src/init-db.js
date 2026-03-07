@@ -862,6 +862,7 @@ CREATE INDEX IF NOT EXISTS idx_connections_org ON connections(organization_id);
 CREATE INDEX IF NOT EXISTS idx_contact_lists_user_id ON contact_lists(user_id);
 CREATE INDEX IF NOT EXISTS idx_contact_lists_conn ON contact_lists(connection_id);
 CREATE INDEX IF NOT EXISTS idx_contacts_list_id ON contacts(list_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_contacts_list_phone ON contacts(list_id, phone);
 CREATE INDEX IF NOT EXISTS idx_contacts_jid ON contacts(jid);
 CREATE INDEX IF NOT EXISTS idx_message_templates_user_id ON message_templates(user_id);
 CREATE INDEX IF NOT EXISTS idx_campaigns_user_id ON campaigns(user_id);
