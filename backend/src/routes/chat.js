@@ -191,26 +191,66 @@ router.get('/conversations/attendance-stats', authenticate, async (req, res) => 
     }
 
     try {
-      // Get daily counts per status
-      // Use last_message_at as the primary date for grouping (most reliable)
+      // Count conversations that received messages each day, grouped by their current attendance_status
+      // This gives a much more accurate picture of daily activity
       const dateFilter = startDate 
-        ? `AND DATE(COALESCE(conv.last_message_at, conv.updated_at)) >= '${startDate}'::date`
-        : `AND COALESCE(conv.last_message_at, conv.updated_at) >= NOW() - INTERVAL '${days} days'`;
+        ? `AND msg_date >= '${startDate}'::date`
+        : `AND msg_date >= (CURRENT_DATE - INTERVAL '${days - 1} days')`;
 
       const result = await query(`
+        WITH daily_active AS (
+          SELECT DISTINCT
+            DATE(m.timestamp) as msg_date,
+            m.conversation_id
+          FROM chat_messages m
+          JOIN conversations conv ON conv.id = m.conversation_id
+          WHERE conv.connection_id = ANY($1)
+            AND conv.is_archived = false
+            ${groupFilter.replace(/conv\./g, 'conv.')}
+            AND m.timestamp >= NOW() - INTERVAL '${Math.max(days, 30)} days'
+        )
         SELECT 
-          DATE(COALESCE(conv.last_message_at, conv.updated_at)) as date,
+          da.msg_date as date,
           COUNT(*) FILTER (WHERE conv.attendance_status = 'waiting') as waiting,
           COUNT(*) FILTER (WHERE conv.attendance_status = 'attending' OR conv.attendance_status IS NULL) as attending,
           COUNT(*) FILTER (WHERE conv.attendance_status = 'finished') as finished
-        FROM conversations conv
-        WHERE conv.connection_id = ANY($1)
-          AND conv.is_archived = false
-          ${dateFilter}
-          ${groupFilter}
-        GROUP BY DATE(COALESCE(conv.last_message_at, conv.updated_at))
-        ORDER BY date ASC
+        FROM daily_active da
+        JOIN conversations conv ON conv.id = da.conversation_id
+        WHERE 1=1 ${dateFilter}
+        GROUP BY da.msg_date
+        ORDER BY da.msg_date ASC
       `, [connectionIds]);
+
+      // If no message-based data, fallback to conversation dates
+      if (result.rows.length === 0) {
+        const fallbackDateFilter = startDate 
+          ? `AND DATE(COALESCE(conv.last_message_at, conv.created_at)) >= '${startDate}'::date`
+          : `AND COALESCE(conv.last_message_at, conv.created_at) >= NOW() - INTERVAL '${days} days'`;
+
+        const fallback = await query(`
+          SELECT 
+            DATE(COALESCE(conv.last_message_at, conv.created_at)) as date,
+            COUNT(*) FILTER (WHERE conv.attendance_status = 'waiting') as waiting,
+            COUNT(*) FILTER (WHERE conv.attendance_status = 'attending' OR conv.attendance_status IS NULL) as attending,
+            COUNT(*) FILTER (WHERE conv.attendance_status = 'finished') as finished
+          FROM conversations conv
+          WHERE conv.connection_id = ANY($1)
+            AND conv.is_archived = false
+            ${fallbackDateFilter}
+            ${groupFilter}
+          GROUP BY DATE(COALESCE(conv.last_message_at, conv.created_at))
+          ORDER BY date ASC
+        `, [connectionIds]);
+
+        return res.json({
+          daily_stats: fallback.rows.map(row => ({
+            date: row.date,
+            waiting: parseInt(row.waiting || 0),
+            attending: parseInt(row.attending || 0),
+            finished: parseInt(row.finished || 0)
+          }))
+        });
+      }
 
       res.json({
         daily_stats: result.rows.map(row => ({
@@ -221,7 +261,6 @@ router.get('/conversations/attendance-stats', authenticate, async (req, res) => 
         }))
       });
     } catch (dbError) {
-      // Fallback if columns don't exist
       const message = String(dbError?.message || '');
       if (/accepted_at|attendance_status/i.test(message)) {
         res.json({ daily_stats: [] });
@@ -296,6 +335,87 @@ router.get('/conversations/user-avg-time', authenticate, async (req, res) => {
   } catch (error) {
     console.error('Get user avg time error:', error);
     res.status(500).json({ error: 'Erro ao buscar tempo médio' });
+  }
+});
+
+// Hourly message distribution
+router.get('/conversations/hourly-stats', authenticate, async (req, res) => {
+  try {
+    let connectionIds = await getUserConnections(req.userId);
+    if (connectionIds.length === 0) return res.json({ hourly_stats: [] });
+
+    const { date, connection_id } = req.query;
+
+    if (connection_id && connectionIds.includes(connection_id)) {
+      connectionIds = [connection_id];
+    }
+
+    let dateFilter;
+    let isAverage = false;
+
+    if (date) {
+      // Specific date
+      dateFilter = `AND DATE(m.timestamp) = '${date}'::date`;
+    } else {
+      // Last 30 days average
+      dateFilter = `AND m.timestamp >= NOW() - INTERVAL '30 days'`;
+      isAverage = true;
+    }
+
+    const result = await query(`
+      SELECT 
+        EXTRACT(HOUR FROM m.timestamp)::int as hour,
+        COUNT(*) as total_messages,
+        COUNT(*) FILTER (WHERE m.from_me = false) as received,
+        COUNT(*) FILTER (WHERE m.from_me = true) as sent
+      FROM chat_messages m
+      JOIN conversations conv ON conv.id = m.conversation_id
+      WHERE conv.connection_id = ANY($1)
+        ${dateFilter}
+      GROUP BY EXTRACT(HOUR FROM m.timestamp)
+      ORDER BY hour
+    `, [connectionIds]);
+
+    // Fill all 24 hours
+    const hourlyMap = new Map();
+    result.rows.forEach(r => {
+      hourlyMap.set(r.hour, {
+        hour: r.hour,
+        total: parseInt(r.total_messages),
+        received: parseInt(r.received),
+        sent: parseInt(r.sent)
+      });
+    });
+
+    // If average, calculate how many days we're spanning
+    let divisor = 1;
+    if (isAverage && result.rows.length > 0) {
+      const daysResult = await query(`
+        SELECT COUNT(DISTINCT DATE(m.timestamp)) as day_count
+        FROM chat_messages m
+        JOIN conversations conv ON conv.id = m.conversation_id
+        WHERE conv.connection_id = ANY($1)
+          AND m.timestamp >= NOW() - INTERVAL '30 days'
+      `, [connectionIds]);
+      divisor = Math.max(parseInt(daysResult.rows[0]?.day_count || 1), 1);
+    }
+
+    const hourly = [];
+    for (let h = 0; h < 24; h++) {
+      const data = hourlyMap.get(h);
+      hourly.push({
+        hour: h,
+        label: `${String(h).padStart(2, '0')}:00`,
+        total: data ? Math.round(data.total / divisor) : 0,
+        received: data ? Math.round(data.received / divisor) : 0,
+        sent: data ? Math.round(data.sent / divisor) : 0,
+      });
+    }
+
+    res.json({ hourly_stats: hourly, is_average: isAverage });
+  } catch (error) {
+    console.error('Get hourly stats error:', error);
+    res.status(500).json({ error: 'Erro ao buscar estatísticas por hora' });
   }
 });
 

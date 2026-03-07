@@ -3,6 +3,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { ConnectionStatus } from "@/components/dashboard/ConnectionStatus";
 import { AttendanceChart } from "@/components/dashboard/AttendanceChart";
+import { HourlyChart } from "@/components/dashboard/HourlyChart";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Users, MessageSquare, Send, CheckCircle2, Loader2, Play, Clock, Calendar as CalendarIcon, Pause, MessageCircle, CheckCheck, Hourglass, Headphones, Megaphone } from "lucide-react";
@@ -223,6 +224,9 @@ const Index = () => {
                 finished: stats.conversationsFinished,
               }}
             />
+
+            {/* Hourly Distribution Chart */}
+            <HourlyChart className="lg:col-span-2 animate-fade-in" />
           </div>
         </div>
 
