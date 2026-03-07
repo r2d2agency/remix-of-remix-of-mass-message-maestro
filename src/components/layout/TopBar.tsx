@@ -45,9 +45,9 @@ export function TopBar() {
     <div className="hidden lg:flex fixed top-0 right-0 left-16 h-14 items-center justify-between gap-4 px-6 bg-background/80 backdrop-blur-sm border-b border-border/50 z-40">
       {/* Company Name/Logo - Left Side */}
       <div className="flex items-center gap-3">
-        {branding.logo_topbar ? (
+        {(user?.organization_logo || branding.logo_topbar) ? (
           <img 
-            src={branding.logo_topbar} 
+            src={user?.organization_logo || branding.logo_topbar!} 
             alt="Logo" 
             className="h-8 w-8 object-contain rounded"
           />
