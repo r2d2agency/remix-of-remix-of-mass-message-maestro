@@ -2687,49 +2687,54 @@ router.post('/contacts/import', authenticate, async (req, res) => {
     let duplicates = 0;
     const errors = [];
 
+    // Batch insert for performance (instead of one-by-one)
+    const BATCH_SIZE = 500;
+    const normalizedContacts = [];
+
     for (const contact of contacts) {
       const { name, phone } = contact;
-
       if (!phone) {
         errors.push(`Contato sem telefone: ${name || 'sem nome'}`);
         continue;
       }
-
-      // Normalize phone number
       let normalizedPhone = String(phone).replace(/\D/g, '');
-
-      // Ensure country code
       if (!normalizedPhone.startsWith('55') && normalizedPhone.length <= 11) {
         normalizedPhone = '55' + normalizedPhone;
       }
-
-      // Generate JID
       const jid = `${normalizedPhone}@s.whatsapp.net`;
+      normalizedContacts.push({ name: name || normalizedPhone, phone: normalizedPhone, jid });
+    }
+
+    for (let i = 0; i < normalizedContacts.length; i += BATCH_SIZE) {
+      const batch = normalizedContacts.slice(i, i + BATCH_SIZE);
+      const values = batch.map((_, idx) => 
+        `($1, $${idx * 4 + 2}, $${idx * 4 + 3}, $${idx * 4 + 4}, $${idx * 4 + 5})`
+      ).join(', ');
+      const params = [connection_id, ...batch.flatMap(c => [c.name, c.phone, c.jid, req.userId])];
 
       try {
-        // Insert or update contact in agenda (restore if was deleted)
         const result = await query(
-          `INSERT INTO chat_contacts
-            (connection_id, name, phone, jid, created_by, created_at, updated_at, is_deleted)
-           VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), false)
-           ON CONFLICT (connection_id, phone)
-           DO UPDATE SET
-             name = EXCLUDED.name,
-             updated_at = NOW(),
-             is_deleted = false,
-             deleted_at = NULL
-           RETURNING id, (xmax = 0) as is_new, (is_deleted = false AND xmax <> 0) as was_restored`,
-          [connection_id, name || normalizedPhone, normalizedPhone, jid, req.userId]
+          `WITH ins AS (
+            INSERT INTO chat_contacts (connection_id, name, phone, jid, created_by, created_at, updated_at, is_deleted)
+            VALUES ${values}
+            ON CONFLICT (connection_id, phone)
+            DO UPDATE SET
+              name = EXCLUDED.name,
+              updated_at = NOW(),
+              is_deleted = false,
+              deleted_at = NULL
+            RETURNING id, (xmax = 0) as is_new
+          )
+          SELECT 
+            COUNT(*) FILTER (WHERE is_new = true) as new_count,
+            COUNT(*) FILTER (WHERE is_new = false) as dup_count
+          FROM ins`,
+          params
         );
-
-        // Count as imported if new OR was restored from deleted state
-        if (result.rows[0].is_new || result.rows[0].was_restored) {
-          imported++;
-        } else {
-          duplicates++;
-        }
+        imported += parseInt(result.rows[0].new_count || '0');
+        duplicates += parseInt(result.rows[0].dup_count || '0');
       } catch (err) {
-        errors.push(`Erro ao importar ${name || phone}: ${err.message}`);
+        errors.push(`Erro no lote ${i}-${i + batch.length}: ${err.message}`);
       }
     }
 
