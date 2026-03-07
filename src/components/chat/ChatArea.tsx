@@ -216,6 +216,7 @@ export function ChatArea({
   const [transferToAgent, setTransferToAgent] = useState<string>("");
   const [transferringToAI, setTransferringToAI] = useState(false);
   const [showTagDialog, setShowTagDialog] = useState(false);
+  const [showMobileTagPanel, setShowMobileTagPanel] = useState(false);
   const [newTagName, setNewTagName] = useState("");
   const [newTagColor, setNewTagColor] = useState("#6366f1");
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -1654,9 +1655,9 @@ export function ChatArea({
                   onClick={() => {
                     if (!conversation) return;
                     if (isActive) {
-                      onRemoveTag?.(conversation.id, tag.id);
+                      onRemoveTag(tag.id);
                     } else {
-                      onAddTag?.(conversation.id, tag.id);
+                      onAddTag(tag.id);
                     }
                   }}
                 >
