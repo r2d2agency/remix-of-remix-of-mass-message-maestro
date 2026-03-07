@@ -372,5 +372,150 @@ router.post('/:id/pairing-code', async (req, res) => {
   }
 });
 
+// Get W-API integrator token for the organization
+router.get('/wapi-integrator/token', async (req, res) => {
+  try {
+    const org = await getUserOrganization(req.userId);
+    if (!org) return res.status(404).json({ error: 'Organização não encontrada' });
+
+    const result = await query(
+      `SELECT wapi_integrator_token FROM organizations WHERE id = $1`,
+      [org.organization_id]
+    );
+
+    res.json({ token: result.rows[0]?.wapi_integrator_token || null });
+  } catch (error) {
+    console.error('Get integrator token error:', error);
+    res.status(500).json({ error: 'Erro ao buscar token' });
+  }
+});
+
+// Save W-API integrator token
+router.put('/wapi-integrator/token', async (req, res) => {
+  try {
+    const { token } = req.body;
+    const org = await getUserOrganization(req.userId);
+    if (!org) return res.status(404).json({ error: 'Organização não encontrada' });
+    if (!['owner', 'admin'].includes(org.role)) {
+      return res.status(403).json({ error: 'Sem permissão' });
+    }
+
+    await query(
+      `UPDATE organizations SET wapi_integrator_token = $1, updated_at = NOW() WHERE id = $2`,
+      [token || null, org.organization_id]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Save integrator token error:', error);
+    res.status(500).json({ error: 'Erro ao salvar token' });
+  }
+});
+
+// Create W-API instance via Integrator API
+router.post('/wapi-integrator/create-instance', async (req, res) => {
+  try {
+    const { instanceName } = req.body;
+    if (!instanceName) return res.status(400).json({ error: 'Nome da instância é obrigatório' });
+
+    const org = await getUserOrganization(req.userId);
+    if (!org) return res.status(404).json({ error: 'Organização não encontrada' });
+
+    // Get integrator token
+    const tokenResult = await query(
+      `SELECT wapi_integrator_token FROM organizations WHERE id = $1`,
+      [org.organization_id]
+    );
+    const integratorToken = tokenResult.rows[0]?.wapi_integrator_token;
+    if (!integratorToken) {
+      return res.status(400).json({ error: 'Token do integrador W-API não configurado. Configure nas configurações da conexão.' });
+    }
+
+    // Create instance via W-API Integrator API
+    const response = await fetch(`${W_API_INTEGRATOR_URL}/create-instance`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${integratorToken}`,
+      },
+      body: JSON.stringify({
+        instanceName,
+        rejectCalls: false,
+        callMessage: 'No momento não posso atender. Por favor, envie uma mensagem de texto.',
+      }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      return res.status(response.status).json({ 
+        error: data.message || data.error || 'Falha ao criar instância na W-API' 
+      });
+    }
+
+    const instanceId = data.instanceId || data.instance_id;
+    const instanceToken = data.token;
+
+    if (!instanceId || !instanceToken) {
+      return res.status(500).json({ error: 'Resposta inválida da W-API: instanceId ou token ausente' });
+    }
+
+    // Save connection in database
+    const connResult = await query(
+      `INSERT INTO connections (user_id, organization_id, provider, instance_id, wapi_token, name)
+       VALUES ($1, $2, 'wapi', $3, $4, $5) RETURNING *`,
+      [req.userId, org.organization_id, instanceId, instanceToken, instanceName]
+    );
+
+    const connection = connResult.rows[0];
+
+    // Auto-configure webhooks
+    try {
+      const webhookResult = await wapiProvider.configureWebhooks(instanceId, instanceToken);
+      console.log('[W-API Integrator] Webhook configuration:', webhookResult);
+      connection.webhooks_configured = webhookResult.success;
+    } catch (webhookError) {
+      console.error('[W-API Integrator] Webhook config failed:', webhookError);
+    }
+
+    res.status(201).json(connection);
+  } catch (error) {
+    console.error('Create W-API instance error:', error);
+    res.status(500).json({ error: 'Erro ao criar instância W-API' });
+  }
+});
+
+// List W-API instances via Integrator API
+router.get('/wapi-integrator/instances', async (req, res) => {
+  try {
+    const org = await getUserOrganization(req.userId);
+    if (!org) return res.status(404).json({ error: 'Organização não encontrada' });
+
+    const tokenResult = await query(
+      `SELECT wapi_integrator_token FROM organizations WHERE id = $1`,
+      [org.organization_id]
+    );
+    const integratorToken = tokenResult.rows[0]?.wapi_integrator_token;
+    if (!integratorToken) {
+      return res.status(400).json({ error: 'Token do integrador não configurado' });
+    }
+
+    const response = await fetch(`${W_API_INTEGRATOR_URL}/instances?pageSize=100&page=1`, {
+      headers: { 'Authorization': `Bearer ${integratorToken}` },
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      return res.status(response.status).json({ error: data.message || 'Falha ao listar instâncias' });
+    }
+
+    res.json(data);
+  } catch (error) {
+    console.error('List W-API instances error:', error);
+    res.status(500).json({ error: 'Erro ao listar instâncias' });
+  }
+});
+
 export default router;
 
