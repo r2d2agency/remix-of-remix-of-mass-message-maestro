@@ -108,6 +108,7 @@ const Conexao = () => {
   useEffect(() => {
     loadConnections();
     loadPlanLimits();
+    loadIntegratorToken();
   }, []);
 
   const loadConnections = async () => {
