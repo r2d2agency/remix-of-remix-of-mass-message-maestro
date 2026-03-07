@@ -128,12 +128,14 @@ export function ExcelImportDialog({
       setColumns(headers.filter(Boolean));
 
       // Auto-detect mapping
-      const autoMapping: ColumnMapping = { name: "", phone: "" };
+      const autoMapping: ColumnMapping = { name: "", phone: "", email: "" };
       const isGoogleContacts = headers.some(h => h === "First Name") && headers.some(h => /^Phone \d+ - Value$/.test(h));
       if (isGoogleContacts) {
         autoMapping.name = "__google_full_name__";
         const phoneCol = headers.find(h => h === "Phone 1 - Value");
         if (phoneCol) autoMapping.phone = phoneCol;
+        const emailCol = headers.find(h => h === "E-mail 1 - Value");
+        if (emailCol) autoMapping.email = emailCol;
       } else {
         headers.forEach((header) => {
           const lowerHeader = header.toLowerCase();
@@ -149,6 +151,9 @@ export function ExcelImportDialog({
             lowerHeader.includes("celular"))
           ) {
             autoMapping.phone = header;
+          }
+          if (!autoMapping.email && (lowerHeader.includes("email") || lowerHeader.includes("e-mail"))) {
+            autoMapping.email = header;
           }
         });
       }
@@ -167,6 +172,7 @@ export function ExcelImportDialog({
             id: `contact-${index}`,
             name: "",
             phone: "",
+            email: "",
             isValidWhatsApp: null,
             isValidating: false,
             selected: true,
