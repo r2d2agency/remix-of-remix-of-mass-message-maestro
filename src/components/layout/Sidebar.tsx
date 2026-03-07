@@ -312,9 +312,11 @@ function SidebarContentComponent({ isExpanded, isSuperadmin, onNavigate }: Sideb
             className="h-10 w-10 object-contain shrink-0 rounded-xl"
           />
         ) : (
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl gradient-primary neon-glow shrink-0">
-            <Zap className="h-5 w-5 text-primary-foreground" />
-          </div>
+          <img 
+            src="/icons/default-logo.png" 
+            alt="Logo" 
+            className="h-10 w-10 object-contain shrink-0 rounded-xl"
+          />
         )}
         {isExpanded && (
           <div className="overflow-hidden">
