@@ -10,7 +10,7 @@ import { Slider } from "@/components/ui/slider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Settings, Shield, Bell, Save, Sun, Moon, Monitor, Volume2, VolumeX, BellRing, Smartphone, User, Lock, Loader2, Mail, FileText, Sparkles, Scale, Building2 } from "lucide-react";
 import { useTheme, Theme } from "@/hooks/use-theme";
-import { useNotificationSound, NOTIFICATION_SOUNDS, NotificationSoundId } from "@/hooks/use-notification-sound";
+import { useNotificationSound, NOTIFICATION_SOUNDS, NEW_CONVERSATION_SOUNDS, NotificationSoundId, NewConversationSoundId } from "@/hooks/use-notification-sound";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
