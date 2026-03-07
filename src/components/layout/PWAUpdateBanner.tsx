@@ -31,26 +31,29 @@ export function PWAUpdateBanner() {
     setUpdating(true);
     setProgress(10);
 
-    // Simulate progress while SW updates
     const interval = setInterval(() => {
       setProgress(prev => {
         if (prev >= 90) {
-          clearInterval(interval);
           return 90;
         }
         return prev + Math.random() * 15;
       });
     }, 300);
 
+    const fallbackReload = setTimeout(() => {
+      window.location.reload();
+    }, 8000);
+
     try {
       await updateServiceWorker(true);
       setProgress(100);
-      // The page will reload automatically
     } catch (err) {
       console.error('Update failed:', err);
-      clearInterval(interval);
       setUpdating(false);
       setProgress(0);
+    } finally {
+      clearInterval(interval);
+      clearTimeout(fallbackReload);
     }
   };
 
