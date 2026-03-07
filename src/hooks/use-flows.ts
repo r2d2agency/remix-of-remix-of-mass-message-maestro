@@ -1,6 +1,20 @@
 import { useState, useCallback } from 'react';
 import { API_URL, getAuthToken } from '@/lib/api';
 
+export interface FlowCategory {
+  id: string;
+  organization_id: string;
+  name: string;
+  color: string;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface FlowMemberAccess {
+  user_id: string;
+  user_name: string;
+}
+
 export interface Flow {
   id: string;
   organization_id: string;
@@ -16,6 +30,10 @@ export interface Flow {
   last_edited_by: string | null;
   last_edited_by_name: string | null;
   node_count: number;
+  category_id: string | null;
+  category_name: string | null;
+  category_color: string | null;
+  member_access: FlowMemberAccess[];
   created_at: string;
   updated_at: string;
 }
@@ -228,6 +246,61 @@ export function useFlows() {
     }
   }, []);
 
+  // Categories
+  const getCategories = useCallback(async (): Promise<FlowCategory[]> => {
+    try {
+      const response = await fetch(`${API_URL}/api/flows/categories/list`, { headers: getHeaders() });
+      if (!response.ok) throw new Error('Erro ao buscar categorias');
+      return response.json();
+    } catch (err) {
+      console.error('Get categories error:', err);
+      return [];
+    }
+  }, []);
+
+  const createCategory = useCallback(async (name: string, color?: string): Promise<FlowCategory | null> => {
+    try {
+      const response = await fetch(`${API_URL}/api/flows/categories`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ name, color })
+      });
+      if (!response.ok) throw new Error('Erro ao criar categoria');
+      return response.json();
+    } catch (err) {
+      console.error('Create category error:', err);
+      return null;
+    }
+  }, []);
+
+  const deleteCategory = useCallback(async (id: string): Promise<boolean> => {
+    try {
+      const response = await fetch(`${API_URL}/api/flows/categories/${id}`, {
+        method: 'DELETE',
+        headers: getHeaders()
+      });
+      return response.ok;
+    } catch (err) {
+      console.error('Delete category error:', err);
+      return false;
+    }
+  }, []);
+
+  // Member Access
+  const setFlowAccess = useCallback(async (flowId: string, userIds: string[]): Promise<boolean> => {
+    try {
+      const response = await fetch(`${API_URL}/api/flows/${flowId}/access`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify({ user_ids: userIds })
+      });
+      return response.ok;
+    } catch (err) {
+      console.error('Set flow access error:', err);
+      return false;
+    }
+  }, []);
+
   return {
     loading,
     error,
@@ -239,6 +312,12 @@ export function useFlows() {
     toggleFlow,
     duplicateFlow,
     getCanvas,
-    saveCanvas
+    saveCanvas,
+    // Categories
+    getCategories,
+    createCategory,
+    deleteCategory,
+    // Access
+    setFlowAccess
   };
 }
