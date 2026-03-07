@@ -37,7 +37,6 @@ import {
 
 export default function AgentesIA() {
   const [agents, setAgents] = useState<AIAgent[]>([]);
-  const [agents, setAgents] = useState<AIAgent[]>([]);
   const [search, setSearch] = useState('');
   const [editorOpen, setEditorOpen] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<AIAgent | null>(null);
