@@ -2888,8 +2888,8 @@ router.post('/contacts/import', authenticate, async (req, res) => {
 
       const upsertValues = batch.map((_, idx) => {
         return hasEmailColumn
-          ? `($1, $${idx * 5 + 2}, $${idx * 5 + 3}, $${idx * 5 + 4}, $${idx * 5 + 5}, $${idx * 5 + 6})`
-          : `($1, $${idx * 4 + 2}, $${idx * 4 + 3}, $${idx * 4 + 4}, $${idx * 4 + 5})`;
+          ? `($1, $${idx * 5 + 2}, $${idx * 5 + 3}, $${idx * 5 + 4}, $${idx * 5 + 5}, $${idx * 5 + 6}, NOW(), NOW(), false)`
+          : `($1, $${idx * 4 + 2}, $${idx * 4 + 3}, $${idx * 4 + 4}, $${idx * 4 + 5}, NOW(), NOW(), false)`;
       }).join(', ');
 
       const upsertParams = hasEmailColumn
