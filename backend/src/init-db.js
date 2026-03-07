@@ -3119,6 +3119,42 @@ CREATE INDEX IF NOT EXISTS idx_task_cards_company ON task_cards(company_id);
 CREATE INDEX IF NOT EXISTS idx_task_card_checklists_card ON task_card_checklists(card_id);
 `;
 
+// Step 40: Flow Categories & Member Access
+const step40FlowCategoriesAccess = `
+-- Categorias de fluxos
+CREATE TABLE IF NOT EXISTS flow_categories (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  name VARCHAR(255) NOT NULL,
+  color VARCHAR(20) DEFAULT '#6366f1',
+  sort_order INTEGER DEFAULT 0,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_flow_categories_org ON flow_categories(organization_id);
+
+-- Acesso de membros a fluxos
+CREATE TABLE IF NOT EXISTS flow_member_access (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  flow_id UUID NOT NULL REFERENCES flows(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(flow_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_flow_member_access_flow ON flow_member_access(flow_id);
+CREATE INDEX IF NOT EXISTS idx_flow_member_access_user ON flow_member_access(user_id);
+
+-- Add category_id to flows
+DO $$ BEGIN
+    ALTER TABLE flows ADD COLUMN IF NOT EXISTS category_id UUID REFERENCES flow_categories(id) ON DELETE SET NULL;
+EXCEPTION
+    WHEN duplicate_column THEN null;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_flows_category ON flows(category_id);
+`;
+
 // Migration steps in order of execution
 const migrationSteps = [
   { name: 'Enums', sql: step1Enums, critical: true },
