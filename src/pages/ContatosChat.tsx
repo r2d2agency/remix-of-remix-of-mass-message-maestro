@@ -635,7 +635,7 @@ const ContatosChat = () => {
                     </Button>
                     <Dialog open={showChatImportDialog} onOpenChange={(open) => {
                       setShowChatImportDialog(open);
-                      if (!open) setSelectedConnectionForImport("");
+                      if (!open && !showExcelDialog) setSelectedConnectionForImport("");
                     }}>
                       <DialogTrigger asChild>
                         <Button variant="outline" size="sm">
