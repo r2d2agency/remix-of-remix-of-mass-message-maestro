@@ -113,10 +113,14 @@ const Configuracoes = () => {
         </div>
 
         <Tabs defaultValue="geral" className="w-full">
-          <TabsList className="grid w-full grid-cols-6 lg:w-[900px]">
+          <TabsList className="grid w-full grid-cols-7 lg:w-[1050px]">
             <TabsTrigger value="geral" className="flex items-center gap-2">
               <Settings className="h-4 w-4" />
               Geral
+            </TabsTrigger>
+            <TabsTrigger value="aparencia" className="flex items-center gap-2">
+              <Palette className="h-4 w-4" />
+              Aparência
             </TabsTrigger>
             <TabsTrigger value="ia" className="flex items-center gap-2">
               <Sparkles className="h-4 w-4" />
@@ -672,6 +676,11 @@ const Configuracoes = () => {
           {/* Features Documentation Tab */}
           <TabsContent value="docs" className="mt-6">
             <FeaturesDocumentation />
+          </TabsContent>
+
+          {/* Appearance Tab */}
+          <TabsContent value="aparencia" className="mt-6">
+            <ThemeCustomizationPanel />
           </TabsContent>
         </Tabs>
       </div>
