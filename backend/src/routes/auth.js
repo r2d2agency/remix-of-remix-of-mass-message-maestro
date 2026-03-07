@@ -299,7 +299,7 @@ router.get('/me', async (req, res) => {
 
     // Role and organization info (multi-tenant)
     const orgResult = await query(
-      `SELECT om.role, o.id as organization_id, o.modules_enabled, om.permission_template_id
+      `SELECT om.role, o.id as organization_id, o.modules_enabled, om.permission_template_id, o.theme_config
        FROM organization_members om
        JOIN organizations o ON o.id = om.organization_id
        WHERE om.user_id = $1
@@ -352,6 +352,9 @@ router.get('/me', async (req, res) => {
       }
     }
 
+    // Get org theme_config
+    const themeConfig = orgResult.rows[0]?.theme_config || null;
+
     res.json({ 
       user: { 
         id: user.id,
@@ -362,6 +365,7 @@ router.get('/me', async (req, res) => {
         organization_id: organizationId,
         modules_enabled: modulesEnabled,
         feature_permissions: featurePermissions,
+        theme_config: themeConfig,
       } 
     });
   } catch (error) {
