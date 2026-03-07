@@ -714,7 +714,7 @@ export function ExcelImportDialog({
                       </div>
                     )}
                   </div>
-                  <Button variant="default" className="w-full" onClick={handleClose}>
+                  <Button variant="default" className="w-full" onClick={() => handleClose(true)}>
                     Fechar
                   </Button>
                 </div>
