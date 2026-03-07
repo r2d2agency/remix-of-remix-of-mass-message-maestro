@@ -1698,6 +1698,92 @@ export default function Admin() {
             </Card>
           </TabsContent>
 
+          {/* Integrações Tab */}
+          <TabsContent value="integrations" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Key className="h-5 w-5 text-primary" />
+                  Token do Integrador W-API
+                </CardTitle>
+                <CardDescription>
+                  Token global usado por todas as organizações para criar instâncias W-API automaticamente.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {loadingIntegratorToken ? (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Carregando...
+                  </div>
+                ) : hasIntegratorToken ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4">
+                      <Wifi className="h-5 w-5 text-primary" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">Token configurado</p>
+                        <p className="text-xs text-muted-foreground">
+                          Todas as organizações podem criar instâncias W-API automaticamente.
+                        </p>
+                      </div>
+                      <Button 
+                        variant="destructive" 
+                        size="sm"
+                        onClick={removeIntegratorToken}
+                        disabled={savingIntegratorToken}
+                      >
+                        {savingIntegratorToken ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Substituir Token</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          type="password"
+                          placeholder="Cole o novo token aqui"
+                          value={wapiIntegratorToken}
+                          onChange={(e) => setWapiIntegratorToken(e.target.value)}
+                        />
+                        <Button onClick={saveIntegratorToken} disabled={savingIntegratorToken || !wapiIntegratorToken.trim()}>
+                          {savingIntegratorToken ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Salvar'}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3 rounded-lg border border-yellow-500/20 bg-yellow-500/5 p-4">
+                      <AlertTriangle className="h-5 w-5 text-yellow-500" />
+                      <div>
+                        <p className="text-sm font-medium">Nenhum token configurado</p>
+                        <p className="text-xs text-muted-foreground">
+                          Sem o token, as organizações precisarão fornecer Instance ID e Token manualmente.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Token do Integrador</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          type="password"
+                          placeholder="Cole o token de integração da W-API"
+                          value={wapiIntegratorToken}
+                          onChange={(e) => setWapiIntegratorToken(e.target.value)}
+                        />
+                        <Button onClick={saveIntegratorToken} disabled={savingIntegratorToken || !wapiIntegratorToken.trim()}>
+                          {savingIntegratorToken ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Salvar'}
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Acesse o painel W-API → Integração para obter seu token.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           {/* Branding Tab */}
           <BrandingTab />
         </Tabs>
