@@ -125,6 +125,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     toast({ title: 'Logout realizado' });
   };
 
+  // Apply org theme when user changes
+  useEffect(() => {
+    if (user?.theme_config) {
+      applyOrgTheme(user.theme_config);
+    } else {
+      clearOrgTheme();
+    }
+  }, [user?.theme_config]);
+
   const modulesEnabled = user?.modules_enabled || defaultModules;
   const featurePermissions = user?.feature_permissions || null;
 
