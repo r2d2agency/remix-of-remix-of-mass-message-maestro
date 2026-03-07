@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Slider } from "@/components/ui/slider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Shield, Bell, Save, Sun, Moon, Monitor, Volume2, VolumeX, BellRing, Smartphone, User, Lock, Loader2, Mail, FileText, Sparkles, Scale, Building2 } from "lucide-react";
+import { Settings, Shield, Bell, Save, Sun, Moon, Monitor, Volume2, VolumeX, BellRing, Smartphone, User, Lock, Loader2, Mail, FileText, Sparkles, Scale, Building2, Palette } from "lucide-react";
 import { useTheme, Theme } from "@/hooks/use-theme";
 import { useNotificationSound, NOTIFICATION_SOUNDS, NEW_CONVERSATION_SOUNDS, NotificationSoundId, NewConversationSoundId } from "@/hooks/use-notification-sound";
 import { toast } from "sonner";
@@ -22,6 +22,7 @@ import { WorkSchedulePanel } from "@/components/settings/WorkSchedulePanel";
 import { AASPConfigPanel } from "@/components/settings/AASPConfigPanel";
 import { CNPJConfigPanel } from "@/components/settings/CNPJConfigPanel";
 import { LeadGleegoConfigPanel } from "@/components/settings/LeadGleegoConfigPanel";
+import { ThemeCustomizationPanel } from "@/components/settings/ThemeCustomizationPanel";
 
 const Configuracoes = () => {
   const { user } = useAuth();
@@ -112,10 +113,14 @@ const Configuracoes = () => {
         </div>
 
         <Tabs defaultValue="geral" className="w-full">
-          <TabsList className="grid w-full grid-cols-6 lg:w-[900px]">
+          <TabsList className="grid w-full grid-cols-7 lg:w-[1050px]">
             <TabsTrigger value="geral" className="flex items-center gap-2">
               <Settings className="h-4 w-4" />
               Geral
+            </TabsTrigger>
+            <TabsTrigger value="aparencia" className="flex items-center gap-2">
+              <Palette className="h-4 w-4" />
+              Aparência
             </TabsTrigger>
             <TabsTrigger value="ia" className="flex items-center gap-2">
               <Sparkles className="h-4 w-4" />
@@ -671,6 +676,11 @@ const Configuracoes = () => {
           {/* Features Documentation Tab */}
           <TabsContent value="docs" className="mt-6">
             <FeaturesDocumentation />
+          </TabsContent>
+
+          {/* Appearance Tab */}
+          <TabsContent value="aparencia" className="mt-6">
+            <ThemeCustomizationPanel />
           </TabsContent>
         </Tabs>
       </div>

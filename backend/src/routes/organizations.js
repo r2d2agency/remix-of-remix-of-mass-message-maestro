@@ -1090,4 +1090,57 @@ router.patch('/:id([0-9a-fA-F-]{36})/members/:userId/permission-template', async
   }
 });
 
+// ============================================
+// ORGANIZATION THEME
+// ============================================
+
+// Get org theme config
+router.get('/theme-config', async (req, res) => {
+  try {
+    const memberResult = await query(
+      `SELECT om.organization_id, om.role FROM organization_members om WHERE om.user_id = $1 LIMIT 1`,
+      [req.userId]
+    );
+    if (memberResult.rows.length === 0) return res.status(403).json({ error: 'Sem organização' });
+
+    const orgResult = await query(
+      `SELECT theme_config FROM organizations WHERE id = $1`,
+      [memberResult.rows[0].organization_id]
+    );
+
+    res.json(orgResult.rows[0]?.theme_config || null);
+  } catch (error) {
+    console.error('Get theme config error:', error);
+    res.status(500).json({ error: 'Erro ao buscar tema' });
+  }
+});
+
+// Save org theme config
+router.put('/theme-config', async (req, res) => {
+  try {
+    const memberResult = await query(
+      `SELECT om.organization_id, om.role FROM organization_members om WHERE om.user_id = $1 LIMIT 1`,
+      [req.userId]
+    );
+    if (memberResult.rows.length === 0) return res.status(403).json({ error: 'Sem organização' });
+
+    const { role, organization_id } = memberResult.rows[0];
+    if (!['owner', 'admin'].includes(role)) {
+      return res.status(403).json({ error: 'Apenas admin/owner pode alterar o tema' });
+    }
+
+    const { theme_config } = req.body;
+
+    await query(
+      `UPDATE organizations SET theme_config = $1, updated_at = NOW() WHERE id = $2`,
+      [theme_config ? JSON.stringify(theme_config) : null, organization_id]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Save theme config error:', error);
+    res.status(500).json({ error: 'Erro ao salvar tema' });
+  }
+});
+
 export default router;

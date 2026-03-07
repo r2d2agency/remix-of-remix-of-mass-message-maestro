@@ -2,6 +2,38 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { authApi, setAuthToken, clearAuthToken, getAuthToken } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 
+// Apply organization theme CSS variables
+function applyOrgTheme(config: OrgThemeConfig) {
+  const root = document.documentElement;
+  const isDark = root.classList.contains('dark');
+  const vars = isDark ? config.dark : config.light;
+  if (!vars) return;
+  
+  // Create or update the org-theme style element
+  let style = document.getElementById('org-theme-vars') as HTMLStyleElement;
+  if (!style) {
+    style = document.createElement('style');
+    style.id = 'org-theme-vars';
+    document.head.appendChild(style);
+  }
+
+  const lightVars = config.light ? Object.entries(config.light).map(([k, v]) => `--${k}: ${v};`).join('\n    ') : '';
+  const darkVars = config.dark ? Object.entries(config.dark).map(([k, v]) => `--${k}: ${v};`).join('\n    ') : '';
+
+  style.textContent = `
+  :root, .light {
+    ${lightVars}
+  }
+  .dark {
+    ${darkVars}
+  }`;
+}
+
+function clearOrgTheme() {
+  const style = document.getElementById('org-theme-vars');
+  if (style) style.remove();
+}
+
 interface ModulesEnabled {
   campaigns: boolean;
   billing: boolean;
@@ -21,6 +53,12 @@ export interface FeaturePermissions {
   [key: string]: boolean;
 }
 
+export interface OrgThemeConfig {
+  preset?: string;
+  light?: Record<string, string>;
+  dark?: Record<string, string>;
+}
+
 interface User {
   id: string;
   email: string;
@@ -29,6 +67,7 @@ interface User {
   organization_id?: string;
   modules_enabled?: ModulesEnabled;
   feature_permissions?: FeaturePermissions | null;
+  theme_config?: OrgThemeConfig | null;
 }
 
 interface AuthContextType {
@@ -117,6 +156,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(null);
     toast({ title: 'Logout realizado' });
   };
+
+  // Apply org theme when user changes
+  useEffect(() => {
+    if (user?.theme_config) {
+      applyOrgTheme(user.theme_config);
+    } else {
+      clearOrgTheme();
+    }
+  }, [user?.theme_config]);
 
   const modulesEnabled = user?.modules_enabled || defaultModules;
   const featurePermissions = user?.feature_permissions || null;

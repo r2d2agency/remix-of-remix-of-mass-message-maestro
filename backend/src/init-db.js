@@ -170,6 +170,11 @@ DO $$ BEGIN
       "buffer_minutes": 15
     }'::jsonb;
 EXCEPTION WHEN duplicate_column THEN null; END $$;
+
+-- Organização: tema/personalização visual
+DO $$ BEGIN
+    ALTER TABLE organizations ADD COLUMN IF NOT EXISTS theme_config JSONB DEFAULT NULL;
+EXCEPTION WHEN duplicate_column THEN null; END $$;
 `;
 
 // ============================================
