@@ -623,7 +623,9 @@ const handleGetQRCode = async (connection: Connection) => {
                   <p className="text-xs text-muted-foreground">
                     {newConnectionProvider === 'evolution' 
                       ? 'Evolution API: Gera QR Code para conexão' 
-                      : 'W-API: Use seu Instance ID e Token fornecidos'}
+                      : hasIntegratorToken
+                        ? 'W-API: Instância será criada automaticamente via integrador'
+                        : 'W-API: Configure o token do integrador ou forneça dados manualmente'}
                   </p>
                 </div>
 
@@ -637,26 +639,72 @@ const handleGetQRCode = async (connection: Connection) => {
                   />
                 </div>
 
-                {/* W-API specific fields */}
+                {/* W-API: Integrator mode or manual mode */}
                 {newConnectionProvider === 'wapi' && (
                   <>
-                    <div className="space-y-2">
-                      <Label>Instance ID</Label>
-                      <Input 
-                        placeholder="Seu Instance ID da W-API"
-                        value={newConnectionInstanceId}
-                        onChange={(e) => setNewConnectionInstanceId(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Token</Label>
-                      <Input 
-                        type="password"
-                        placeholder="Seu Token da W-API"
-                        value={newConnectionWapiToken}
-                        onChange={(e) => setNewConnectionWapiToken(e.target.value)}
-                      />
-                    </div>
+                    {hasIntegratorToken ? (
+                      <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="h-4 w-4 text-primary" />
+                          <span className="text-sm font-medium">Token do Integrador configurado</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          A instância será criada automaticamente. Basta informar o nome acima.
+                        </p>
+                        <div className="text-xs text-muted-foreground space-y-1">
+                          <p>• Rejeição de chamadas: <span className="text-foreground">Desabilitada</span></p>
+                          <p>• Grupos: <span className="text-foreground">Habilitados</span></p>
+                        </div>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="text-xs h-7"
+                          onClick={() => setShowIntegratorConfig(true)}
+                        >
+                          <Key className="h-3 w-3 mr-1" />
+                          Alterar token
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 p-3 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                            <span className="text-sm font-medium">Token do Integrador não configurado</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Configure o token para criar instâncias automaticamente, ou preencha os dados manualmente abaixo.
+                          </p>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="text-xs h-7"
+                            onClick={() => setShowIntegratorConfig(true)}
+                          >
+                            <Key className="h-3 w-3 mr-1" />
+                            Configurar Token do Integrador
+                          </Button>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Instance ID</Label>
+                          <Input 
+                            placeholder="Seu Instance ID da W-API"
+                            value={newConnectionInstanceId}
+                            onChange={(e) => setNewConnectionInstanceId(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Token</Label>
+                          <Input 
+                            type="password"
+                            placeholder="Seu Token da W-API"
+                            value={newConnectionWapiToken}
+                            onChange={(e) => setNewConnectionWapiToken(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
               </div>
