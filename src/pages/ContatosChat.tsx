@@ -400,6 +400,7 @@ const ContatosChat = () => {
           "/api/chat/contacts/import",
           {
             method: "POST",
+            auth: true,
             body: {
               connection_id: selectedConnectionForImport,
               contacts: batch.map(c => ({

@@ -211,18 +211,18 @@ export function ExcelImportDialog({
       setIsDragging(false);
       const file = e.dataTransfer.files[0];
       if (file && (file.name.endsWith(".xlsx") || file.name.endsWith(".xls") || file.name.endsWith(".csv"))) {
-        parseExcelFile(file);
+        parseFile(file);
       } else {
         alert("Por favor, envie um arquivo Excel (.xlsx, .xls) ou CSV (.csv)");
       }
     },
-    [parseExcelFile]
+    [parseFile]
   );
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      parseExcelFile(file);
+      parseFile(file);
     }
   };
 
