@@ -14,6 +14,7 @@ export const authenticate = (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.userId = decoded.userId;
     req.userEmail = decoded.email;
+    req.organizationId = decoded.organizationId || null;
 
     // enrich structured logs
     setRequestContext({ user_id: decoded.userId, user_email: decoded.email });

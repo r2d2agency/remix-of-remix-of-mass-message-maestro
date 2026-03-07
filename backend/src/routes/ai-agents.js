@@ -8,7 +8,20 @@ import { processKnowledgeSource, searchKnowledge } from '../lib/knowledge-proces
 const router = Router();
 
 // Helper to get user's organization and info
-async function getUserContext(userId) {
+async function getUserContext(userId, tokenOrgId = null) {
+  // If we have org from JWT, use it directly for accuracy
+  if (tokenOrgId) {
+    const result = await query(
+      `SELECT u.id, u.name, u.email, om.organization_id, om.role 
+       FROM users u 
+       JOIN organization_members om ON om.user_id = u.id AND om.organization_id = $2
+       WHERE u.id = $1 
+       LIMIT 1`,
+      [userId, tokenOrgId]
+    );
+    if (result.rows[0]) return result.rows[0];
+  }
+  // Fallback: pick primary org by role priority
   const result = await query(
     `SELECT u.id, u.name, u.email, om.organization_id, om.role 
      FROM users u 
@@ -28,7 +41,7 @@ async function getUserContext(userId) {
 // Listar agentes da organização
 router.get('/', authenticate, async (req, res) => {
   try {
-    const userCtx = await getUserContext(req.userId);
+    const userCtx = await getUserContext(req.userId, req.organizationId);
     if (!userCtx?.organization_id) {
       return res.status(403).json({ error: 'Usuário não pertence a uma organização' });
     }
@@ -56,7 +69,7 @@ router.get('/', authenticate, async (req, res) => {
 // Buscar agente por ID
 router.get('/:id', authenticate, async (req, res) => {
   try {
-    const userCtx = await getUserContext(req.userId);
+    const userCtx = await getUserContext(req.userId, req.organizationId);
     if (!userCtx?.organization_id) {
       return res.status(403).json({ error: 'Usuário não pertence a uma organização' });
     }
@@ -84,7 +97,7 @@ router.get('/:id', authenticate, async (req, res) => {
 // Criar agente
 router.post('/', authenticate, async (req, res) => {
   try {
-    const userCtx = await getUserContext(req.userId);
+    const userCtx = await getUserContext(req.userId, req.organizationId);
     if (!userCtx?.organization_id) {
       return res.status(403).json({ error: 'Usuário não pertence a uma organização' });
     }
@@ -162,7 +175,7 @@ router.post('/', authenticate, async (req, res) => {
 // Atualizar agente
 router.patch('/:id', authenticate, async (req, res) => {
   try {
-    const userCtx = await getUserContext(req.userId);
+    const userCtx = await getUserContext(req.userId, req.organizationId);
     if (!userCtx?.organization_id) {
       return res.status(403).json({ error: 'Usuário não pertence a uma organização' });
     }
@@ -233,7 +246,7 @@ router.patch('/:id', authenticate, async (req, res) => {
 // Deletar agente
 router.delete('/:id', authenticate, async (req, res) => {
   try {
-    const userCtx = await getUserContext(req.userId);
+    const userCtx = await getUserContext(req.userId, req.organizationId);
     if (!userCtx?.organization_id) {
       return res.status(403).json({ error: 'Usuário não pertence a uma organização' });
     }
@@ -257,7 +270,7 @@ router.delete('/:id', authenticate, async (req, res) => {
 // Toggle ativo/inativo
 router.post('/:id/toggle', authenticate, async (req, res) => {
   try {
-    const userCtx = await getUserContext(req.userId);
+    const userCtx = await getUserContext(req.userId, req.organizationId);
     if (!userCtx?.organization_id) {
       return res.status(403).json({ error: 'Usuário não pertence a uma organização' });
     }
@@ -305,7 +318,7 @@ router.get('/:id/knowledge', authenticate, async (req, res) => {
 // Adicionar fonte de conhecimento
 router.post('/:id/knowledge', authenticate, async (req, res) => {
   try {
-    const userCtx = await getUserContext(req.userId);
+    const userCtx = await getUserContext(req.userId, req.organizationId);
     if (!userCtx?.organization_id) {
       return res.status(403).json({ error: 'Usuário não pertence a uma organização' });
     }
@@ -446,7 +459,7 @@ router.post('/:id/knowledge/:sourceId/reprocess', authenticate, async (req, res)
 // Buscar na base de conhecimento (RAG search)
 router.post('/:id/knowledge/search', authenticate, async (req, res) => {
   try {
-    const userCtx = await getUserContext(req.userId);
+    const userCtx = await getUserContext(req.userId, req.organizationId);
     if (!userCtx?.organization_id) {
       return res.status(403).json({ error: 'Usuário não pertence a uma organização' });
     }
@@ -501,7 +514,7 @@ router.post('/:id/knowledge/:sourceId/process', authenticate, async (req, res) =
 // Consultar agente de IA com contexto de conversa
 router.post('/:id/consult', authenticate, async (req, res) => {
   try {
-    const userCtx = await getUserContext(req.userId);
+    const userCtx = await getUserContext(req.userId, req.organizationId);
     if (!userCtx?.organization_id) {
       return res.status(403).json({ error: 'Usuário não pertence a uma organização' });
     }
@@ -619,7 +632,7 @@ router.get('/:id/connections', authenticate, async (req, res) => {
 // Vincular agente a uma conexão
 router.post('/:id/connections', authenticate, async (req, res) => {
   try {
-    const userCtx = await getUserContext(req.userId);
+    const userCtx = await getUserContext(req.userId, req.organizationId);
     if (!userCtx?.organization_id) {
       return res.status(403).json({ error: 'Usuário não pertence a uma organização' });
     }
@@ -1410,7 +1423,7 @@ async function executeCallAgent(organizationId, agentName, question) {
 // Test agent chat endpoint
 router.post('/:id/test', authenticate, async (req, res) => {
   try {
-    const userCtx = await getUserContext(req.userId);
+    const userCtx = await getUserContext(req.userId, req.organizationId);
     if (!userCtx?.organization_id) {
       return res.status(403).json({ error: 'Usuário não pertence a uma organização' });
     }
@@ -1650,7 +1663,7 @@ router.get('/config/models', authenticate, async (req, res) => {
 // Listar templates
 router.get('/templates', authenticate, async (req, res) => {
   try {
-    const userCtx = await getUserContext(req.userId);
+    const userCtx = await getUserContext(req.userId, req.organizationId);
     if (!userCtx?.organization_id) {
       return res.status(403).json({ error: 'Usuário não pertence a uma organização' });
     }
@@ -1681,7 +1694,7 @@ router.get('/templates', authenticate, async (req, res) => {
 // Criar template
 router.post('/templates', authenticate, async (req, res) => {
   try {
-    const userCtx = await getUserContext(req.userId);
+    const userCtx = await getUserContext(req.userId, req.organizationId);
     if (!userCtx?.organization_id) {
       return res.status(403).json({ error: 'Usuário não pertence a uma organização' });
     }
