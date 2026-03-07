@@ -1411,49 +1411,6 @@ const handleGetQRCode = async (connection: Connection) => {
           connection={leadDistributionConnection}
         />
 
-        {/* W-API Integrator Token Dialog */}
-        <Dialog open={showIntegratorConfig} onOpenChange={setShowIntegratorConfig}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Key className="h-5 w-5 text-primary" />
-                Token do Integrador W-API
-              </DialogTitle>
-              <DialogDescription>
-                Cole o token de integração fornecido pela W-API. Ele será usado para criar e gerenciar instâncias automaticamente.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label>Token do Integrador</Label>
-                <Input 
-                  type="password"
-                  placeholder="Cole seu token de integrador aqui"
-                  value={wapiIntegratorToken}
-                  onChange={(e) => setWapiIntegratorToken(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Acesse o painel W-API → Integração para obter seu token.
-                </p>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => { setShowIntegratorConfig(false); setWapiIntegratorToken(''); }}>
-                Cancelar
-              </Button>
-              <Button onClick={saveIntegratorToken} disabled={loadingIntegratorToken}>
-                {loadingIntegratorToken ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Salvando...
-                  </>
-                ) : (
-                  'Salvar Token'
-                )}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </div>
     </MainLayout>
   );
