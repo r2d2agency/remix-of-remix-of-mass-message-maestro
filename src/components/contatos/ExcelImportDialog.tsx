@@ -102,7 +102,9 @@ export function ExcelImportDialog({
     setImportOnlyValidated(false);
   };
 
-  const handleClose = () => {
+  const handleClose = (forceClose?: boolean) => {
+    // Prevent closing while import is in progress (not yet finished)
+    if (isImporting && !importResult && !forceClose) return;
     resetState();
     onOpenChange(false);
   };
@@ -370,6 +372,7 @@ export function ExcelImportDialog({
       });
       setImportResult(result);
       setImportProgress(100);
+      setIsImporting(false);
     } catch (error) {
       console.error("Import error:", error);
       alert("Erro ao importar contatos");
@@ -384,7 +387,7 @@ export function ExcelImportDialog({
   const importCount = importOnlyValidated ? validCount : selectedCount;
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
+    <Dialog open={open} onOpenChange={() => handleClose()}>
       <DialogContent className="max-w-4xl w-[95vw] h-[90vh] flex flex-col overflow-hidden">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
