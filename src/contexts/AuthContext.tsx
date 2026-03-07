@@ -85,8 +85,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         try {
           const { user } = await authApi.getMe();
           setUser(user);
-        } catch {
-          clearAuthToken();
+        } catch (error) {
+          // Only clear token on auth errors (401), not network errors
+          const msg = error instanceof Error ? error.message : '';
+          if (msg.includes('401') || msg.includes('Token') || msg.includes('inválido')) {
+            clearAuthToken();
+          }
         }
       }
       setIsLoading(false);
