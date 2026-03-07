@@ -99,11 +99,8 @@ const Conexao = () => {
   const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [loadingPairingCode, setLoadingPairingCode] = useState(false);
 
-  // W-API Integrator token state
-  const [wapiIntegratorToken, setWapiIntegratorToken] = useState("");
+  // W-API Integrator token state (read-only, managed by superadmin)
   const [hasIntegratorToken, setHasIntegratorToken] = useState(false);
-  const [loadingIntegratorToken, setLoadingIntegratorToken] = useState(false);
-  const [showIntegratorConfig, setShowIntegratorConfig] = useState(false);
 
   useEffect(() => {
     loadConnections();
@@ -132,27 +129,6 @@ const Conexao = () => {
     }
   };
 
-  const saveIntegratorToken = async () => {
-    if (!wapiIntegratorToken.trim()) {
-      toast.error('Digite o token do integrador');
-      return;
-    }
-    setLoadingIntegratorToken(true);
-    try {
-      await api('/api/connections/wapi-integrator/token', {
-        method: 'PUT',
-        body: { token: wapiIntegratorToken },
-      });
-      setHasIntegratorToken(true);
-      setShowIntegratorConfig(false);
-      setWapiIntegratorToken('');
-      toast.success('Token do integrador salvo com sucesso!');
-    } catch (error: any) {
-      toast.error(error.message || 'Erro ao salvar token');
-    } finally {
-      setLoadingIntegratorToken(false);
-    }
-  };
 
   const loadPlanLimits = async () => {
     try {
@@ -655,15 +631,6 @@ const handleGetQRCode = async (connection: Connection) => {
                           <p>• Rejeição de chamadas: <span className="text-foreground">Desabilitada</span></p>
                           <p>• Grupos: <span className="text-foreground">Habilitados</span></p>
                         </div>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="text-xs h-7"
-                          onClick={() => setShowIntegratorConfig(true)}
-                        >
-                          <Key className="h-3 w-3 mr-1" />
-                          Alterar token
-                        </Button>
                       </div>
                     ) : (
                       <div className="space-y-3">
@@ -673,17 +640,8 @@ const handleGetQRCode = async (connection: Connection) => {
                             <span className="text-sm font-medium">Token do Integrador não configurado</span>
                           </div>
                           <p className="text-xs text-muted-foreground">
-                            Configure o token para criar instâncias automaticamente, ou preencha os dados manualmente abaixo.
+                            Solicite ao administrador para configurar o token no painel SuperAdmin, ou preencha os dados manualmente abaixo.
                           </p>
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            className="text-xs h-7"
-                            onClick={() => setShowIntegratorConfig(true)}
-                          >
-                            <Key className="h-3 w-3 mr-1" />
-                            Configurar Token do Integrador
-                          </Button>
                         </div>
 
                         <div className="space-y-2">
@@ -1453,49 +1411,6 @@ const handleGetQRCode = async (connection: Connection) => {
           connection={leadDistributionConnection}
         />
 
-        {/* W-API Integrator Token Dialog */}
-        <Dialog open={showIntegratorConfig} onOpenChange={setShowIntegratorConfig}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Key className="h-5 w-5 text-primary" />
-                Token do Integrador W-API
-              </DialogTitle>
-              <DialogDescription>
-                Cole o token de integração fornecido pela W-API. Ele será usado para criar e gerenciar instâncias automaticamente.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label>Token do Integrador</Label>
-                <Input 
-                  type="password"
-                  placeholder="Cole seu token de integrador aqui"
-                  value={wapiIntegratorToken}
-                  onChange={(e) => setWapiIntegratorToken(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Acesse o painel W-API → Integração para obter seu token.
-                </p>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => { setShowIntegratorConfig(false); setWapiIntegratorToken(''); }}>
-                Cancelar
-              </Button>
-              <Button onClick={saveIntegratorToken} disabled={loadingIntegratorToken}>
-                {loadingIntegratorToken ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Salvando...
-                  </>
-                ) : (
-                  'Salvar Token'
-                )}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </div>
     </MainLayout>
   );
