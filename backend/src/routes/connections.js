@@ -386,6 +386,19 @@ router.get('/wapi-integrator/token', async (req, res) => {
   }
 });
 
+// Get W-API default webhook URL (global from system_settings)
+router.get('/wapi-integrator/webhook-url', async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT value FROM system_settings WHERE key = 'wapi_default_webhook' LIMIT 1`
+    );
+    res.json({ value: result.rows[0]?.value || null });
+  } catch (error) {
+    console.error('Get webhook URL error:', error);
+    res.status(500).json({ error: 'Erro ao buscar webhook URL' });
+  }
+});
+
 // Create W-API instance via Integrator API
 router.post('/wapi-integrator/create-instance', async (req, res) => {
   try {
