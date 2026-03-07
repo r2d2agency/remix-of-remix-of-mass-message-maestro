@@ -175,6 +175,11 @@ EXCEPTION WHEN duplicate_column THEN null; END $$;
 DO $$ BEGIN
     ALTER TABLE organizations ADD COLUMN IF NOT EXISTS theme_config JSONB DEFAULT NULL;
 EXCEPTION WHEN duplicate_column THEN null; END $$;
+
+-- Organização: token de integrador W-API
+DO $$ BEGIN
+    ALTER TABLE organizations ADD COLUMN IF NOT EXISTS wapi_integrator_token TEXT DEFAULT NULL;
+EXCEPTION WHEN duplicate_column THEN null; END $$;
 `;
 
 // ============================================

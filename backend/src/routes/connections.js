@@ -3,6 +3,8 @@ import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import * as wapiProvider from '../lib/wapi-provider.js';
 
+const W_API_INTEGRATOR_URL = 'https://api.w-api.app/v1/integrator';
+
 const router = Router();
 router.use(authenticate);
 
