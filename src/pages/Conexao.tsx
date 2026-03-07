@@ -123,6 +123,37 @@ const Conexao = () => {
     }
   };
 
+  const loadIntegratorToken = async () => {
+    try {
+      const data = await api<{ token: string | null }>('/api/connections/wapi-integrator/token');
+      setHasIntegratorToken(!!data.token);
+    } catch (error) {
+      console.error('Error loading integrator token:', error);
+    }
+  };
+
+  const saveIntegratorToken = async () => {
+    if (!wapiIntegratorToken.trim()) {
+      toast.error('Digite o token do integrador');
+      return;
+    }
+    setLoadingIntegratorToken(true);
+    try {
+      await api('/api/connections/wapi-integrator/token', {
+        method: 'PUT',
+        body: { token: wapiIntegratorToken },
+      });
+      setHasIntegratorToken(true);
+      setShowIntegratorConfig(false);
+      setWapiIntegratorToken('');
+      toast.success('Token do integrador salvo com sucesso!');
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao salvar token');
+    } finally {
+      setLoadingIntegratorToken(false);
+    }
+  };
+
   const loadPlanLimits = async () => {
     try {
       const data = await api<PlanLimits>('/api/evolution/limits');
@@ -147,9 +178,10 @@ const Conexao = () => {
       return;
     }
 
-    if (newConnectionProvider === 'wapi') {
+    if (newConnectionProvider === 'wapi' && !hasIntegratorToken) {
+      // Manual mode: need instanceId and token
       if (!newConnectionInstanceId.trim() || !newConnectionWapiToken.trim()) {
-        toast.error('Instance ID e Token são obrigatórios para W-API');
+        toast.error('Configure o token do integrador ou forneça Instance ID e Token manualmente');
         return;
       }
     }
@@ -159,17 +191,26 @@ const Conexao = () => {
       let result: Connection & { qrCode?: string };
 
       if (newConnectionProvider === 'wapi') {
-        // Create W-API connection via connections endpoint
-        result = await api<Connection>('/api/connections', {
-          method: 'POST',
-          body: {
-            provider: 'wapi',
-            name: newConnectionName,
-            instance_id: newConnectionInstanceId,
-            wapi_token: newConnectionWapiToken,
-          },
-        });
-        toast.success('Conexão W-API criada com sucesso!');
+        if (hasIntegratorToken) {
+          // Create via Integrator API (automatic)
+          result = await api<Connection>('/api/connections/wapi-integrator/create-instance', {
+            method: 'POST',
+            body: { instanceName: newConnectionName },
+          });
+          toast.success('Instância W-API criada automaticamente!');
+        } else {
+          // Manual mode
+          result = await api<Connection>('/api/connections', {
+            method: 'POST',
+            body: {
+              provider: 'wapi',
+              name: newConnectionName,
+              instance_id: newConnectionInstanceId,
+              wapi_token: newConnectionWapiToken,
+            },
+          });
+          toast.success('Conexão W-API criada com sucesso!');
+        }
       } else {
         // Create Evolution API connection
         result = await api<Connection & { qrCode?: string }>('/api/evolution/create', {
