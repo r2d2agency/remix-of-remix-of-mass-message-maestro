@@ -244,6 +244,56 @@ export default function Admin() {
     setOrganizations(orgsData);
     setPlans(plansData);
     setLoading(false);
+    loadIntegratorToken();
+  };
+
+  const loadIntegratorToken = async () => {
+    setLoadingIntegratorToken(true);
+    try {
+      const data = await api<{ token: string | null }>('/api/connections/wapi-integrator/token');
+      setHasIntegratorToken(!!data.token);
+    } catch (err) {
+      console.error('Error loading integrator token:', err);
+    } finally {
+      setLoadingIntegratorToken(false);
+    }
+  };
+
+  const saveIntegratorToken = async () => {
+    if (!wapiIntegratorToken.trim()) {
+      toast.error('Digite o token do integrador');
+      return;
+    }
+    setSavingIntegratorToken(true);
+    try {
+      await api('/api/admin/settings/wapi_integrator_token', {
+        method: 'PATCH',
+        body: { value: wapiIntegratorToken },
+      });
+      setHasIntegratorToken(true);
+      setWapiIntegratorToken('');
+      toast.success('Token do integrador salvo com sucesso!');
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao salvar token');
+    } finally {
+      setSavingIntegratorToken(false);
+    }
+  };
+
+  const removeIntegratorToken = async () => {
+    setSavingIntegratorToken(true);
+    try {
+      await api('/api/admin/settings/wapi_integrator_token', {
+        method: 'PATCH',
+        body: { value: null },
+      });
+      setHasIntegratorToken(false);
+      toast.success('Token removido com sucesso');
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao remover token');
+    } finally {
+      setSavingIntegratorToken(false);
+    }
   };
 
   // Reload users with search/filter
