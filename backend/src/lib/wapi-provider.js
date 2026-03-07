@@ -147,7 +147,7 @@ export async function configureWebhooks(instanceId, token, customWebhookUrl) {
         {
           method: 'PUT',
           headers: getHeaders(token),
-          body: JSON.stringify({ url: webhookUrl }),
+          body: JSON.stringify({ value: webhookUrl }),
         }
       );
 
