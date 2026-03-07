@@ -109,85 +109,101 @@ export function ExcelImportDialog({
     onOpenChange(false);
   };
 
-  const parseExcelFile = useCallback((file: File) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: "array" });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json<Record<string, string>>(worksheet, {
-          header: 1,
-          raw: false,
+  const processWorkbook = useCallback((workbook: XLSX.WorkBook) => {
+    try {
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json<Record<string, string>>(worksheet, {
+        header: 1,
+        raw: false,
+      });
+
+      if (jsonData.length < 2) {
+        alert("Arquivo vazio ou sem dados válidos");
+        return;
+      }
+
+      const headers = (jsonData[0] as unknown as string[]).map(h => String(h || "").trim());
+      setColumns(headers.filter(Boolean));
+
+      // Auto-detect mapping
+      const autoMapping: ColumnMapping = { name: "", phone: "" };
+      const isGoogleContacts = headers.some(h => h === "First Name") && headers.some(h => /^Phone \d+ - Value$/.test(h));
+      if (isGoogleContacts) {
+        autoMapping.name = "__google_full_name__";
+        const phoneCol = headers.find(h => h === "Phone 1 - Value");
+        if (phoneCol) autoMapping.phone = phoneCol;
+      } else {
+        headers.forEach((header) => {
+          const lowerHeader = header.toLowerCase();
+          if (!autoMapping.name && (lowerHeader.includes("nome") || lowerHeader === "name" || lowerHeader === "first name")) {
+            autoMapping.name = header;
+          }
+          if (
+            !autoMapping.phone && (
+            lowerHeader.includes("telefone") ||
+            lowerHeader.includes("whatsapp") ||
+            lowerHeader.includes("phone") ||
+            lowerHeader.includes("numero") ||
+            lowerHeader.includes("celular"))
+          ) {
+            autoMapping.phone = header;
+          }
+        });
+      }
+      setMapping(autoMapping);
+
+      // Parse contacts
+      const rows = jsonData.slice(1) as unknown as string[][];
+      const parsedContacts: ImportedContact[] = rows
+        .filter(row => row && row.length > 0)
+        .map((row, index) => {
+          const rawData: Record<string, string> = {};
+          headers.forEach((header, i) => {
+            rawData[header] = String(row[i] || "").trim();
+          });
+          return {
+            id: `contact-${index}`,
+            name: "",
+            phone: "",
+            isValidWhatsApp: null,
+            isValidating: false,
+            selected: true,
+            rawData,
+          };
         });
 
-        if (jsonData.length < 2) {
-          alert("Arquivo vazio ou sem dados válidos");
-          return;
-        }
-
-        const headers = (jsonData[0] as unknown as string[]).map(h => String(h || "").trim());
-        setColumns(headers.filter(Boolean));
-
-        // Auto-detect mapping
-        const autoMapping: ColumnMapping = { name: "", phone: "" };
-        // Detect Google Contacts CSV format
-        const isGoogleContacts = headers.some(h => h === "First Name") && headers.some(h => /^Phone \d+ - Value$/.test(h));
-        if (isGoogleContacts) {
-          // For Google Contacts, we'll synthesize name from First/Middle/Last and use Phone 1
-          autoMapping.name = "__google_full_name__";
-          const phoneCol = headers.find(h => h === "Phone 1 - Value");
-          if (phoneCol) autoMapping.phone = phoneCol;
-        } else {
-          headers.forEach((header) => {
-            const lowerHeader = header.toLowerCase();
-            if (!autoMapping.name && (lowerHeader.includes("nome") || lowerHeader === "name" || lowerHeader === "first name")) {
-              autoMapping.name = header;
-            }
-            if (
-              !autoMapping.phone && (
-              lowerHeader.includes("telefone") ||
-              lowerHeader.includes("whatsapp") ||
-              lowerHeader.includes("phone") ||
-              lowerHeader.includes("numero") ||
-              lowerHeader.includes("celular"))
-            ) {
-              autoMapping.phone = header;
-            }
-          });
-        }
-        setMapping(autoMapping);
-
-        // Parse contacts
-        const rows = jsonData.slice(1) as unknown as string[][];
-        const parsedContacts: ImportedContact[] = rows
-          .filter(row => row && row.length > 0)
-          .map((row, index) => {
-            const rawData: Record<string, string> = {};
-            headers.forEach((header, i) => {
-              rawData[header] = String(row[i] || "").trim();
-            });
-            return {
-              id: `contact-${index}`,
-              name: "",
-              phone: "",
-              isValidWhatsApp: null,
-              isValidating: false,
-              selected: true,
-              rawData,
-            };
-          });
-
-        setContacts(parsedContacts);
-        setStep("mapping");
-      } catch (error) {
-        console.error("Error parsing Excel:", error);
-        alert("Erro ao processar arquivo. Verifique o formato.");
-      }
-    };
-    reader.readAsArrayBuffer(file);
+      setContacts(parsedContacts);
+      setStep("mapping");
+    } catch (error) {
+      console.error("Error parsing file:", error);
+      alert("Erro ao processar arquivo. Verifique o formato.");
+    }
   }, []);
+
+  const parseFile = useCallback((file: File) => {
+    const isCSV = file.name.toLowerCase().endsWith(".csv");
+
+    if (isCSV) {
+      // Read CSV as text with proper UTF-8 encoding to preserve accents
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const text = e.target?.result as string;
+        const workbook = XLSX.read(text, { type: "string" });
+        processWorkbook(workbook);
+      };
+      reader.readAsText(file, "UTF-8");
+    } else {
+      // Excel files: read as ArrayBuffer
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: "array" });
+        processWorkbook(workbook);
+      };
+      reader.readAsArrayBuffer(file);
+    }
+  }, [processWorkbook]);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -195,18 +211,18 @@ export function ExcelImportDialog({
       setIsDragging(false);
       const file = e.dataTransfer.files[0];
       if (file && (file.name.endsWith(".xlsx") || file.name.endsWith(".xls") || file.name.endsWith(".csv"))) {
-        parseExcelFile(file);
+        parseFile(file);
       } else {
         alert("Por favor, envie um arquivo Excel (.xlsx, .xls) ou CSV (.csv)");
       }
     },
-    [parseExcelFile]
+    [parseFile]
   );
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      parseExcelFile(file);
+      parseFile(file);
     }
   };
 
