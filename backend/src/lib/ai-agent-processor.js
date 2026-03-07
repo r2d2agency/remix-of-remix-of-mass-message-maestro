@@ -126,7 +126,7 @@ export async function processIncomingWithAgent({
 
     if (messageType === 'audio' && mediaUrl) {
       // Transcribe audio using org AI config or Gemini direct
-      const transcript = await transcribeAudio(audioUrl = mediaUrl, mediaMimetype, organizationId);
+      const transcript = await transcribeAudio(mediaUrl, mediaMimetype, organizationId);
       if (transcript) {
         userMessageForHistory = `[Áudio transcrito]: ${transcript}`;
         userMessageForAI = transcript;
