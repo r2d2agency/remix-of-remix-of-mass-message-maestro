@@ -539,6 +539,20 @@ export function ExcelImportDialog({
                   </Select>
                 </div>
               </div>
+              <div className="space-y-2">
+                <Label>Coluna Email (opcional)</Label>
+                <Select value={mapping.email || "__none__"} onValueChange={(v) => setMapping((m) => ({ ...m, email: v === "__none__" ? "" : v }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Nenhuma" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Nenhuma</SelectItem>
+                    {columns.map((col) => (
+                      <SelectItem key={col} value={col}>{col}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
               <div className="rounded-lg bg-muted/50 p-4">
                 <p className="text-sm font-medium mb-2">Colunas detectadas:</p>
