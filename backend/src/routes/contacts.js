@@ -394,7 +394,8 @@ router.post('/lists/:listId/import', async (req, res) => {
         const insertParams = [listId, ...batch.flatMap((c) => [c.name, c.phone, c.is_whatsapp])];
 
         await query(
-          `INSERT INTO contacts (list_id, name, phone, is_whatsapp) VALUES ${values}`,
+          `INSERT INTO contacts (list_id, name, phone, is_whatsapp) VALUES ${values}
+           ON CONFLICT (list_id, phone) DO NOTHING`,
           insertParams
         );
       }
