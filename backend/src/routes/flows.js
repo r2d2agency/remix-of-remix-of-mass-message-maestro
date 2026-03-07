@@ -703,4 +703,133 @@ router.delete('/execution-logs/:conversationId?', authenticate, async (req, res)
   }
 });
 
+// ============================================
+// FLOW CATEGORIES
+// ============================================
+
+// List categories
+router.get('/categories/list', async (req, res) => {
+  try {
+    const org = await getUserOrganization(req.userId);
+    if (!org) return res.status(403).json({ error: 'Acesso negado' });
+
+    const result = await query(
+      `SELECT * FROM flow_categories WHERE organization_id = $1 ORDER BY sort_order, name`,
+      [org.organization_id]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('List flow categories error:', error);
+    res.status(500).json({ error: 'Erro ao listar categorias' });
+  }
+});
+
+// Create category
+router.post('/categories', async (req, res) => {
+  try {
+    const org = await getUserOrganization(req.userId);
+    if (!org || !isAdmin(org.role)) return res.status(403).json({ error: 'Sem permissão' });
+
+    const { name, color } = req.body;
+    if (!name) return res.status(400).json({ error: 'Nome é obrigatório' });
+
+    const result = await query(
+      `INSERT INTO flow_categories (organization_id, name, color) VALUES ($1, $2, $3) RETURNING *`,
+      [org.organization_id, name, color || '#6366f1']
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Create flow category error:', error);
+    res.status(500).json({ error: 'Erro ao criar categoria' });
+  }
+});
+
+// Update category
+router.patch('/categories/:id', async (req, res) => {
+  try {
+    const org = await getUserOrganization(req.userId);
+    if (!org || !isAdmin(org.role)) return res.status(403).json({ error: 'Sem permissão' });
+
+    const { name, color } = req.body;
+    const result = await query(
+      `UPDATE flow_categories SET name = COALESCE($1, name), color = COALESCE($2, color) 
+       WHERE id = $3 AND organization_id = $4 RETURNING *`,
+      [name, color, req.params.id, org.organization_id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Categoria não encontrada' });
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update flow category error:', error);
+    res.status(500).json({ error: 'Erro ao atualizar categoria' });
+  }
+});
+
+// Delete category
+router.delete('/categories/:id', async (req, res) => {
+  try {
+    const org = await getUserOrganization(req.userId);
+    if (!org || !isAdmin(org.role)) return res.status(403).json({ error: 'Sem permissão' });
+
+    await query(
+      `DELETE FROM flow_categories WHERE id = $1 AND organization_id = $2`,
+      [req.params.id, org.organization_id]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete flow category error:', error);
+    res.status(500).json({ error: 'Erro ao deletar categoria' });
+  }
+});
+
+// ============================================
+// FLOW MEMBER ACCESS
+// ============================================
+
+// Get members for a flow
+router.get('/:id/access', async (req, res) => {
+  try {
+    const org = await getUserOrganization(req.userId);
+    if (!org) return res.status(403).json({ error: 'Acesso negado' });
+
+    const result = await query(
+      `SELECT fma.user_id, u.name as user_name, u.email
+       FROM flow_member_access fma
+       JOIN users u ON u.id = fma.user_id
+       WHERE fma.flow_id = $1`,
+      [req.params.id]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get flow access error:', error);
+    res.status(500).json({ error: 'Erro ao buscar acessos' });
+  }
+});
+
+// Set members for a flow (replace all)
+router.put('/:id/access', async (req, res) => {
+  try {
+    const org = await getUserOrganization(req.userId);
+    if (!org || !isAdmin(org.role)) return res.status(403).json({ error: 'Sem permissão' });
+
+    const { user_ids } = req.body; // array of user_ids, empty = everyone has access
+
+    // Delete existing access
+    await query(`DELETE FROM flow_member_access WHERE flow_id = $1`, [req.params.id]);
+
+    // Insert new access
+    if (user_ids && user_ids.length > 0) {
+      const values = user_ids.map((uid, i) => `($1, $${i + 2})`).join(', ');
+      await query(
+        `INSERT INTO flow_member_access (flow_id, user_id) VALUES ${values} ON CONFLICT DO NOTHING`,
+        [req.params.id, ...user_ids]
+      );
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Set flow access error:', error);
+    res.status(500).json({ error: 'Erro ao definir acessos' });
+  }
+});
+
 export default router;
