@@ -140,6 +140,7 @@ export default function Organizacoes() {
     crm: true,
     group_secretary: false,
     ghost: false,
+    ai_agents: false,
   });
   const [savingModules, setSavingModules] = useState(false);
 
@@ -234,6 +235,7 @@ export default function Organizacoes() {
         crm: modules.crm ?? true,
         group_secretary: modules.group_secretary ?? false,
         ghost: modules.ghost ?? false,
+        ai_agents: modules.ai_agents ?? false,
       });
     } catch (error) {
       console.error('Error loading modules:', error);
@@ -1322,6 +1324,26 @@ export default function Organizacoes() {
                           <Switch
                             checked={modulesEnabled.group_secretary}
                             onCheckedChange={(checked) => setModulesEnabled(prev => ({ ...prev, group_secretary: checked }))}
+                            disabled={!canManageOrg}
+                          />
+                        </div>
+
+                        {/* AI Agents */}
+                        <div className="flex items-center justify-between rounded-lg border p-4">
+                          <div className="flex items-center gap-4">
+                            <div className="h-10 w-10 rounded-lg bg-violet-500/10 flex items-center justify-center">
+                              <Sparkles className="h-5 w-5 text-violet-500" />
+                            </div>
+                            <div>
+                              <p className="font-medium">Agentes de IA</p>
+                              <p className="text-sm text-muted-foreground">
+                                Agentes inteligentes para atendimento automatizado
+                              </p>
+                            </div>
+                          </div>
+                          <Switch
+                            checked={modulesEnabled.ai_agents}
+                            onCheckedChange={(checked) => setModulesEnabled(prev => ({ ...prev, ai_agents: checked }))}
                             disabled={!canManageOrg}
                           />
                         </div>
