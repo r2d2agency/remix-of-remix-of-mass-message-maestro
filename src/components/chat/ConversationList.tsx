@@ -666,7 +666,9 @@ export function ConversationList({
                   {/* Content */}
                   <div className="flex-1 min-w-0" onClick={() => onSelect(conv)}>
                     <div className="flex items-start justify-between gap-2">
-                      <span className="font-medium truncate flex-1 min-w-0">
+                      <span className="font-medium truncate flex-1 min-w-0 flex items-center gap-1">
+                        {conv.is_pinned && <Pin className="h-3 w-3 text-primary flex-shrink-0 fill-current" />}
+                        {conv.is_favorited && <Star className="h-3 w-3 text-yellow-400 flex-shrink-0 fill-yellow-400" />}
                         {conv.is_group 
                           ? (conv.group_name || 'Grupo sem nome')
                           : (conv.contact_name || conv.contact_phone || 'Desconhecido')}
