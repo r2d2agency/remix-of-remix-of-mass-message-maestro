@@ -288,6 +288,35 @@ export const wapiApi = {
     }
   },
 
+  // Obter código de pareamento (conectar por telefone)
+  async getPairingCode(config: WApiConfig, phoneNumber: string): Promise<{ success: boolean; code?: string; error?: string }> {
+    try {
+      const response = await fetch(
+        `${BASE_URL}/instance/pairing-code?instanceId=${config.instanceId}&phoneNumber=${phoneNumber.replace(/\D/g, "")}`,
+        {
+          headers: this.getHeaders(config.token),
+        }
+      );
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        return { success: false, error: data.message || data.error || "Falha ao gerar código de pareamento" };
+      }
+
+      const data = await response.json();
+      const code = data.code || data.pairingCode || data.pairing_code || null;
+      
+      if (code) {
+        return { success: true, code };
+      }
+      
+      return { success: false, error: "Código não retornado pela API" };
+    } catch (error) {
+      console.error("W-API: Erro ao buscar código de pareamento:", error);
+      return { success: false, error: String(error) };
+    }
+  },
+
   // Desconectar instância
   async disconnect(config: WApiConfig): Promise<boolean> {
     try {
