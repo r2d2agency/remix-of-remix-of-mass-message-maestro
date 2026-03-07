@@ -161,7 +161,7 @@ const Index = () => {
           <StatsCard
             title="Total de Contatos"
             value={stats.totalContacts.toLocaleString('pt-BR')}
-            description="Em todas as listas"
+            description="Na agenda do chat"
             icon={<Users className="h-6 w-6 text-primary" />}
           />
           <StatsCard
