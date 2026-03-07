@@ -50,45 +50,7 @@ export default function AgentesIA() {
   const [agentToDelete, setAgentToDelete] = useState<AIAgent | null>(null);
   const [testChatOpen, setTestChatOpen] = useState(false);
   const [testChatAgent, setTestChatAgent] = useState<AIAgent | null>(null);
-  const [isSuperadmin, setIsSuperadmin] = useState(false);
-  const [checkingAccess, setCheckingAccess] = useState(true);
-
   const { getAgents, toggleAgent, deleteAgent, loading } = useAIAgents();
-
-  // Check superadmin access
-  useEffect(() => {
-    const checkAccess = async () => {
-      try {
-        const token = getAuthToken();
-        if (!token) {
-          navigate('/dashboard');
-          return;
-        }
-
-        const response = await fetch(`${API_URL}/api/admin/check`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          if (!data.isSuperadmin) {
-            toast.error('Acesso restrito a superadmins');
-            navigate('/dashboard');
-            return;
-          }
-          setIsSuperadmin(true);
-        } else {
-          navigate('/dashboard');
-          return;
-        }
-      } catch {
-        navigate('/dashboard');
-      } finally {
-        setCheckingAccess(false);
-      }
-    };
-    checkAccess();
-  }, [navigate]);
 
   const loadAgents = async () => {
     const data = await getAgents();
@@ -96,10 +58,8 @@ export default function AgentesIA() {
   };
 
   useEffect(() => {
-    if (isSuperadmin) {
-      loadAgents();
-    }
-  }, [isSuperadmin]);
+    loadAgents();
+  }, []);
 
   const handleToggle = async (agent: AIAgent) => {
     const result = await toggleAgent(agent.id);
