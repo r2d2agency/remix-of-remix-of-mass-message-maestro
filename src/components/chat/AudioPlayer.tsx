@@ -10,9 +10,11 @@ interface AudioPlayerProps {
   mimetype?: string;
   className?: string;
   isFromMe?: boolean;
+  messageId?: string;
+  initialTranscript?: string | null;
 }
 
-export function AudioPlayer({ src, mimetype, className, isFromMe }: AudioPlayerProps) {
+export function AudioPlayer({ src, mimetype, className, isFromMe, messageId, initialTranscript }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number>();
@@ -26,8 +28,8 @@ export function AudioPlayer({ src, mimetype, className, isFromMe }: AudioPlayerP
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [waveformData, setWaveformData] = useState<number[]>([]);
-  const [transcript, setTranscript] = useState<string | null>(null);
-  const [showTranscript, setShowTranscript] = useState(false);
+  const [transcript, setTranscript] = useState<string | null>(initialTranscript || null);
+  const [showTranscript, setShowTranscript] = useState(!!initialTranscript);
   const [isTranscribing, setIsTranscribing] = useState(false);
 
   const formatTime = (time: number) => {
