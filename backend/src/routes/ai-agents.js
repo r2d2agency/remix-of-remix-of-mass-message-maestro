@@ -1423,7 +1423,7 @@ async function executeCallAgent(organizationId, agentName, question) {
 // Test agent chat endpoint
 router.post('/:id/test', authenticate, async (req, res) => {
   try {
-    const userCtx = await getUserContext(req.userId);
+    const userCtx = await getUserContext(req.userId, req.organizationId);
     if (!userCtx?.organization_id) {
       return res.status(403).json({ error: 'Usuário não pertence a uma organização' });
     }
@@ -1663,7 +1663,7 @@ router.get('/config/models', authenticate, async (req, res) => {
 // Listar templates
 router.get('/templates', authenticate, async (req, res) => {
   try {
-    const userCtx = await getUserContext(req.userId);
+    const userCtx = await getUserContext(req.userId, req.organizationId);
     if (!userCtx?.organization_id) {
       return res.status(403).json({ error: 'Usuário não pertence a uma organização' });
     }
@@ -1694,7 +1694,7 @@ router.get('/templates', authenticate, async (req, res) => {
 // Criar template
 router.post('/templates', authenticate, async (req, res) => {
   try {
-    const userCtx = await getUserContext(req.userId);
+    const userCtx = await getUserContext(req.userId, req.organizationId);
     if (!userCtx?.organization_id) {
       return res.status(403).json({ error: 'Usuário não pertence a uma organização' });
     }
