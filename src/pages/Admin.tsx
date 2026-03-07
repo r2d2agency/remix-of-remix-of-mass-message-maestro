@@ -20,7 +20,7 @@ import { useAdminSettings } from '@/hooks/use-branding';
 import { useUpload } from '@/hooks/use-upload';
 import { BrandingTab } from '@/components/admin/BrandingTab';
 import { toast } from 'sonner';
-import { Shield, Building2, Users, Plus, Trash2, Loader2, Pencil, Crown, Image, Package, CalendarIcon, UserPlus, Eye, MessageSquare, Receipt, Wifi, Upload, Palette, Bot, Clock, Briefcase, Search, AlertTriangle, Mail, Sparkles } from 'lucide-react';
+import { Shield, Building2, Users, Plus, Trash2, Loader2, Pencil, Crown, Image, Package, CalendarIcon, UserPlus, Eye, MessageSquare, Receipt, Wifi, Upload, Palette, Bot, Clock, Briefcase, Search, AlertTriangle, Mail, Sparkles, Key } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -178,6 +178,12 @@ export default function Admin() {
     plan_name: string;
   } | null>(null);
   const [loadingMembers, setLoadingMembers] = useState(false);
+
+  // W-API Integrator Token (global)
+  const [wapiIntegratorToken, setWapiIntegratorToken] = useState('');
+  const [hasIntegratorToken, setHasIntegratorToken] = useState(false);
+  const [loadingIntegratorToken, setLoadingIntegratorToken] = useState(false);
+  const [savingIntegratorToken, setSavingIntegratorToken] = useState(false);
 
   // Add user to org dialog
   const [addUserDialogOpen, setAddUserDialogOpen] = useState(false);
