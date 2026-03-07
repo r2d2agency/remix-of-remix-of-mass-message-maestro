@@ -318,8 +318,8 @@ function SidebarContentComponent({ isExpanded, isSuperadmin, onNavigate }: Sideb
         )}
         {isExpanded && (
           <div className="overflow-hidden">
-            <h1 className="text-lg font-bold text-foreground whitespace-nowrap">Whatsale</h1>
-            <p className="text-xs text-muted-foreground whitespace-nowrap">Disparo em Massa</p>
+            <h1 className="text-lg font-bold text-foreground whitespace-nowrap">Legal Glee-go</h1>
+            <p className="text-xs text-muted-foreground whitespace-nowrap">Atendimento & CRM</p>
           </div>
         )}
       </div>
