@@ -91,7 +91,7 @@ export function ExcelImportDialog({
   const resetState = () => {
     setStep("upload");
     setColumns([]);
-    setMapping({ name: "", phone: "" });
+    setMapping({ name: "", phone: "", email: "" });
     setContacts([]);
     setIsImporting(false);
     setImportProgress(0);
