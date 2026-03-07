@@ -378,7 +378,7 @@ const ContatosChat = () => {
 
   // Import chat contacts from Excel (to agenda, not conversations)
   const handleImportChatContacts = async (
-    contacts: { name: string; phone: string; is_whatsapp?: boolean | null; customFields?: Record<string, string> }[],
+    contacts: { name: string; phone: string; email?: string; is_whatsapp?: boolean | null; customFields?: Record<string, string> }[],
     onProgress?: (progress: number, imported: number, total: number) => void
   ): Promise<{ imported: number; duplicates: number; actualCount?: number }> => {
     if (!selectedConnectionForImport) {
@@ -406,6 +406,7 @@ const ContatosChat = () => {
               contacts: batch.map(c => ({
                 name: c.name,
                 phone: c.phone,
+                email: c.email,
               })),
               include_total: isLastBatch,
             },

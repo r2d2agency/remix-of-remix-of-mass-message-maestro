@@ -47,6 +47,7 @@ interface ImportedContact {
   id: string;
   name: string;
   phone: string;
+  email: string;
   isValidWhatsApp: boolean | null;
   isValidating: boolean;
   selected: boolean;
@@ -62,7 +63,7 @@ interface ColumnMapping {
 interface ExcelImportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onImport: (contacts: { name: string; phone: string; is_whatsapp?: boolean | null; customFields?: Record<string, string> }[], onProgress?: (progress: number, imported: number, total: number) => void) => Promise<{ imported: number; duplicates: number; actualCount?: number }>;
+  onImport: (contacts: { name: string; phone: string; email?: string; is_whatsapp?: boolean | null; customFields?: Record<string, string> }[], onProgress?: (progress: number, imported: number, total: number) => void) => Promise<{ imported: number; duplicates: number; actualCount?: number }>;
   validateWhatsApp?: (phone: string) => Promise<boolean>;
   customFields?: string[];
 }
@@ -90,7 +91,7 @@ export function ExcelImportDialog({
   const resetState = () => {
     setStep("upload");
     setColumns([]);
-    setMapping({ name: "", phone: "" });
+    setMapping({ name: "", phone: "", email: "" });
     setContacts([]);
     setIsImporting(false);
     setImportProgress(0);
@@ -127,12 +128,14 @@ export function ExcelImportDialog({
       setColumns(headers.filter(Boolean));
 
       // Auto-detect mapping
-      const autoMapping: ColumnMapping = { name: "", phone: "" };
+      const autoMapping: ColumnMapping = { name: "", phone: "", email: "" };
       const isGoogleContacts = headers.some(h => h === "First Name") && headers.some(h => /^Phone \d+ - Value$/.test(h));
       if (isGoogleContacts) {
         autoMapping.name = "__google_full_name__";
         const phoneCol = headers.find(h => h === "Phone 1 - Value");
         if (phoneCol) autoMapping.phone = phoneCol;
+        const emailCol = headers.find(h => h === "E-mail 1 - Value");
+        if (emailCol) autoMapping.email = emailCol;
       } else {
         headers.forEach((header) => {
           const lowerHeader = header.toLowerCase();
@@ -148,6 +151,9 @@ export function ExcelImportDialog({
             lowerHeader.includes("celular"))
           ) {
             autoMapping.phone = header;
+          }
+          if (!autoMapping.email && (lowerHeader.includes("email") || lowerHeader.includes("e-mail"))) {
+            autoMapping.email = header;
           }
         });
       }
@@ -166,6 +172,7 @@ export function ExcelImportDialog({
             id: `contact-${index}`,
             name: "",
             phone: "",
+            email: "",
             isValidWhatsApp: null,
             isValidating: false,
             selected: true,
@@ -246,10 +253,12 @@ export function ExcelImportDialog({
       } else {
         name = contact.rawData[mapping.name] || "Sem nome";
       }
+      const email = mapping.email ? (contact.rawData[mapping.email] || "").trim() : "";
       return {
         ...contact,
         name,
         phone: normalizePhone(contact.rawData[mapping.phone] || ""),
+        email,
       };
     });
 
@@ -394,6 +403,7 @@ export function ExcelImportDialog({
       .map((c) => ({
         name: c.name,
         phone: c.phone,
+        email: c.email || undefined,
         is_whatsapp: c.isValidWhatsApp,
         customFields: c.rawData,
       }));
@@ -528,6 +538,20 @@ export function ExcelImportDialog({
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Coluna Email (opcional)</Label>
+                <Select value={mapping.email || "__none__"} onValueChange={(v) => setMapping((m) => ({ ...m, email: v === "__none__" ? "" : v }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Nenhuma" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Nenhuma</SelectItem>
+                    {columns.map((col) => (
+                      <SelectItem key={col} value={col}>{col}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="rounded-lg bg-muted/50 p-4">
