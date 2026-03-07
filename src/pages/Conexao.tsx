@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Plus, QrCode, RefreshCw, Plug, Unplug, Trash2, Phone, Loader2, Wifi, WifiOff, Send, Settings2, AlertTriangle, CheckCircle, Eye, Activity, Radio, Users, Download, Pencil, UserCheck } from "lucide-react";
+import { Plus, QrCode, RefreshCw, Plug, Unplug, Trash2, Phone, Loader2, Wifi, WifiOff, Send, Settings2, AlertTriangle, CheckCircle, Eye, Activity, Radio, Users, Download, Pencil, UserCheck, Smartphone } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
@@ -17,6 +17,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { LeadDistributionDialog } from "@/components/conexao/LeadDistributionDialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface Connection {
   id: string;
@@ -92,6 +93,11 @@ const Conexao = () => {
   // Lead distribution state
   const [leadDistributionDialogOpen, setLeadDistributionDialogOpen] = useState(false);
   const [leadDistributionConnection, setLeadDistributionConnection] = useState<Connection | null>(null);
+
+  // Phone code pairing state
+  const [phoneCodeNumber, setPhoneCodeNumber] = useState("");
+  const [pairingCode, setPairingCode] = useState<string | null>(null);
+  const [loadingPairingCode, setLoadingPairingCode] = useState(false);
 
   useEffect(() => {
     loadConnections();
