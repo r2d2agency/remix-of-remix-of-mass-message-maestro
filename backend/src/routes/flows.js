@@ -38,15 +38,40 @@ router.get('/', async (req, res) => {
       `SELECT 
         f.*,
         u.name as last_edited_by_name,
+        fc.name as category_name,
+        fc.color as category_color,
         (SELECT COUNT(*) FROM flow_nodes WHERE flow_id = f.id) as node_count
        FROM flows f
        LEFT JOIN users u ON u.id = f.last_edited_by
+       LEFT JOIN flow_categories fc ON fc.id = f.category_id
        WHERE f.organization_id = $1
        ORDER BY f.updated_at DESC`,
       [org.organization_id]
     );
 
-    res.json(result.rows);
+    // For each flow, get member access list
+    const flowIds = result.rows.map(f => f.id);
+    let accessMap = {};
+    if (flowIds.length > 0) {
+      const accessResult = await query(
+        `SELECT fma.flow_id, fma.user_id, u.name as user_name
+         FROM flow_member_access fma
+         JOIN users u ON u.id = fma.user_id
+         WHERE fma.flow_id = ANY($1)`,
+        [flowIds]
+      );
+      for (const row of accessResult.rows) {
+        if (!accessMap[row.flow_id]) accessMap[row.flow_id] = [];
+        accessMap[row.flow_id].push({ user_id: row.user_id, user_name: row.user_name });
+      }
+    }
+
+    const flows = result.rows.map(f => ({
+      ...f,
+      member_access: accessMap[f.id] || []
+    }));
+
+    res.json(flows);
   } catch (error) {
     console.error('List flows error:', error);
     res.status(500).json({ error: 'Erro ao listar fluxos' });
@@ -85,7 +110,7 @@ router.post('/', async (req, res) => {
       return res.status(403).json({ error: 'Sem permissão para criar fluxos' });
     }
 
-    const { name, description, trigger_enabled, trigger_keywords, trigger_match_mode, connection_ids } = req.body;
+    const { name, description, trigger_enabled, trigger_keywords, trigger_match_mode, connection_ids, category_id } = req.body;
 
     if (!name) {
       return res.status(400).json({ error: 'Nome é obrigatório' });
@@ -95,8 +120,8 @@ router.post('/', async (req, res) => {
       `INSERT INTO flows (
         organization_id, name, description, 
         trigger_enabled, trigger_keywords, trigger_match_mode,
-        connection_ids, last_edited_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        connection_ids, last_edited_by, category_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *`,
       [
         org.organization_id,
@@ -106,7 +131,8 @@ router.post('/', async (req, res) => {
         trigger_keywords || [],
         trigger_match_mode || 'exact',
         connection_ids || [],
-        req.userId
+        req.userId,
+        category_id || null
       ]
     );
 
@@ -143,7 +169,7 @@ router.patch('/:id', async (req, res) => {
 
     const allowedFields = [
       'name', 'description', 'trigger_enabled', 'trigger_keywords', 
-      'trigger_match_mode', 'is_active', 'is_draft', 'connection_ids'
+      'trigger_match_mode', 'is_active', 'is_draft', 'connection_ids', 'category_id'
     ];
 
     const updates = [];
