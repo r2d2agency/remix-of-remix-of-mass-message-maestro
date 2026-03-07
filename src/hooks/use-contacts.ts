@@ -153,7 +153,7 @@ export const useContacts = () => {
       const listContacts = await api<any[]>(`/api/contacts/lists/${listId}/contacts`);
       const actualCount = listContacts.length;
 
-      return { imported: totalImported, duplicates: totalDuplicates };
+      return { imported: totalImported, duplicates: totalDuplicates, actualCount };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao importar contatos';
       setError(message);
