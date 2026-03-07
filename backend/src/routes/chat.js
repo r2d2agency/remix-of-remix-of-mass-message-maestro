@@ -2857,18 +2857,19 @@ router.post('/contacts/import', authenticate, async (req, res) => {
     for (let i = 0; i < normalizedContacts.length; i += BATCH_SIZE) {
       const batch = normalizedContacts.slice(i, i + BATCH_SIZE);
       const values = batch.map((_, idx) => 
-        `($1, $${idx * 4 + 2}, $${idx * 4 + 3}, $${idx * 4 + 4}, $${idx * 4 + 5})`
+        `($1, $${idx * 5 + 2}, $${idx * 5 + 3}, $${idx * 5 + 4}, $${idx * 5 + 5}, $${idx * 5 + 6})`
       ).join(', ');
-      const params = [connection_id, ...batch.flatMap(c => [c.name, c.phone, c.jid, req.userId])];
+      const params = [connection_id, ...batch.flatMap(c => [c.name, c.phone, c.jid, req.userId, c.email])];
 
       try {
         const result = await query(
           `WITH ins AS (
-            INSERT INTO chat_contacts (connection_id, name, phone, jid, created_by, created_at, updated_at, is_deleted)
+            INSERT INTO chat_contacts (connection_id, name, phone, jid, created_by, email, created_at, updated_at, is_deleted)
             VALUES ${values}
             ON CONFLICT (connection_id, phone)
             DO UPDATE SET
               name = EXCLUDED.name,
+              email = COALESCE(NULLIF(EXCLUDED.email, ''), chat_contacts.email),
               updated_at = NOW(),
               is_deleted = false,
               deleted_at = NULL
