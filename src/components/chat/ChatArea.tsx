@@ -216,6 +216,7 @@ export function ChatArea({
   const [transferToAgent, setTransferToAgent] = useState<string>("");
   const [transferringToAI, setTransferringToAI] = useState(false);
   const [showTagDialog, setShowTagDialog] = useState(false);
+  const [showMobileTagPanel, setShowMobileTagPanel] = useState(false);
   const [newTagName, setNewTagName] = useState("");
   const [newTagColor, setNewTagColor] = useState("#6366f1");
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -1068,7 +1069,7 @@ export function ChatArea({
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 flex-shrink-0"
+              className="h-9 w-9 flex-shrink-0 bg-muted/50"
               onClick={onMobileBack}
             >
               <ArrowLeft className="h-5 w-5" />
@@ -1610,6 +1611,21 @@ export function ChatArea({
               IA Consulta
             </Button>
           )}
+          {/* Tags button - replaces Depto and Notas */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs gap-1 flex-shrink-0"
+            onClick={() => setShowMobileTagPanel(!showMobileTagPanel)}
+          >
+            <Tag className="h-3 w-3" />
+            Tags
+            {conversation?.tags && conversation.tags.length > 0 && (
+              <Badge variant="secondary" className="h-4 px-1 text-[9px] ml-0.5">
+                {conversation.tags.length}
+              </Badge>
+            )}
+          </Button>
           {!isViewOnly && (
             <Button
               variant="outline"
@@ -1621,30 +1637,44 @@ export function ChatArea({
               Transferir
             </Button>
           )}
-          {!isViewOnly && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 text-xs gap-1 flex-shrink-0"
-              onClick={() => setShowDepartmentDialog(true)}
-            >
-              <Building2 className="h-3 w-3" />
-              Depto
-            </Button>
-          )}
+        </div>
+      )}
+
+      {/* Mobile Tag Panel */}
+      {isMobile && showMobileTagPanel && (
+        <div className="border-b bg-muted/30 p-2 flex-shrink-0">
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {tags.map((tag) => {
+              const isActive = conversation?.tags?.some(t => t.id === tag.id);
+              return (
+                <Badge
+                  key={tag.id}
+                  variant={isActive ? "default" : "outline"}
+                  className="cursor-pointer text-xs"
+                  style={isActive ? { backgroundColor: tag.color, borderColor: tag.color } : { borderColor: tag.color, color: tag.color }}
+                  onClick={() => {
+                    if (!conversation) return;
+                    if (isActive) {
+                      onRemoveTag(tag.id);
+                    } else {
+                      onAddTag(tag.id);
+                    }
+                  }}
+                >
+                  {tag.name}
+                  {isActive && <X className="h-3 w-3 ml-1" />}
+                </Badge>
+              );
+            })}
+          </div>
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
-            className="h-7 text-xs gap-1 flex-shrink-0"
-            onClick={() => setShowNotes(!showNotes)}
+            className="h-6 text-xs gap-1"
+            onClick={() => setShowTagDialog(true)}
           >
-            <StickyNote className="h-3 w-3" />
-            Notas
-            {notesCount > 0 && (
-              <Badge variant="secondary" className="h-4 px-1 text-[9px] ml-0.5">
-                {notesCount}
-              </Badge>
-            )}
+            <Plus className="h-3 w-3" />
+            Nova Tag
           </Button>
         </div>
       )}
@@ -2470,8 +2500,14 @@ export function ChatArea({
                     }
                     handleKeyPress(e);
                   }}
-                  className="min-h-[40px] max-h-[120px] resize-none"
-                  rows={1}
+                  className={cn("min-h-[40px] resize-none", isMobile ? "max-h-[100px]" : "max-h-[120px]")}
+                  rows={isMobile ? 2 : 1}
+                  onInput={(e) => {
+                    const target = e.target as HTMLTextAreaElement;
+                    target.style.height = 'auto';
+                    const maxH = isMobile ? 100 : 120;
+                    target.style.height = Math.min(target.scrollHeight, maxH) + 'px';
+                  }}
                 />
                 
                 {/* Mention suggestions */}
