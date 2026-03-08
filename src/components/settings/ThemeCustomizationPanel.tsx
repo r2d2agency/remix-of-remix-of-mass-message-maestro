@@ -534,30 +534,42 @@ export function ThemeCustomizationPanel() {
   const [editingMode, setEditingMode] = useState<'light' | 'dark'>('dark');
   const [customVarsLight, setCustomVarsLight] = useState<Record<string, string>>({});
   const [customVarsDark, setCustomVarsDark] = useState<Record<string, string>>({});
+  
+  // Custom themes management
+  const [savedCustomThemes, setSavedCustomThemes] = useState<ThemePreset[]>([]);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [editingTheme, setEditingTheme] = useState<ThemePreset | null>(null);
+  const [newThemeName, setNewThemeName] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
   const isAdmin = user?.role && ['owner', 'admin'].includes(user.role);
 
+  // Load saved custom themes and active preset from theme_config
   useEffect(() => {
     if (user?.theme_config) {
-      if (user.theme_config.preset && user.theme_config.preset !== 'custom') {
-        setActivePreset(user.theme_config.preset);
+      const tc = user.theme_config as any;
+      if (tc.preset && tc.preset !== 'custom') {
+        setActivePreset(tc.preset);
         setCustomMode(false);
-      } else {
+      } else if (tc.preset === 'custom') {
         setCustomMode(true);
         setActivePreset('custom');
       }
-      if (user.theme_config.light) setCustomVarsLight(user.theme_config.light);
-      if (user.theme_config.dark) setCustomVarsDark(user.theme_config.dark);
+      if (tc.light) setCustomVarsLight(tc.light);
+      if (tc.dark) setCustomVarsDark(tc.dark);
+      if (tc.custom_themes && Array.isArray(tc.custom_themes)) {
+        setSavedCustomThemes(tc.custom_themes.map((t: any) => ({ ...t, isCustom: true })));
+      }
     }
   }, []);
+
+  const allPresets = [...PRESETS, ...savedCustomThemes];
 
   const handleSelectPreset = (preset: ThemePreset) => {
     setActivePreset(preset.id);
     setCustomMode(false);
     setCustomVarsLight(preset.light);
     setCustomVarsDark(preset.dark);
-    
-    // Live preview
     previewTheme({ preset: preset.id, light: preset.light, dark: preset.dark });
   };
 
@@ -568,8 +580,6 @@ export function ThemeCustomizationPanel() {
     } else {
       setCustomVarsDark(prev => ({ ...prev, [key]: hsl }));
     }
-    
-    // Also update sidebar variants for primary
     if (key === 'primary') {
       const updates = { [key]: hsl, 'sidebar-primary': hsl, ring: hsl };
       if (editingMode === 'light') {
@@ -581,7 +591,6 @@ export function ThemeCustomizationPanel() {
   };
 
   const previewTheme = (config: OrgThemeConfig) => {
-    // Create temporary style element
     let style = document.getElementById('org-theme-vars') as HTMLStyleElement;
     if (!style) {
       style = document.createElement('style');
@@ -599,18 +608,93 @@ export function ThemeCustomizationPanel() {
     previewTheme({ preset: 'custom', light: customVarsLight, dark: customVarsDark });
   };
 
+  // Save as a named custom theme
+  const handleSaveCustomTheme = () => {
+    if (!newThemeName.trim()) {
+      toast.error('Digite um nome para o tema');
+      return;
+    }
+
+    const primaryLight = customVarsLight['primary'] || '250 90% 55%';
+    const primaryDark = customVarsDark['primary'] || '250 100% 65%';
+    const accentDark = customVarsDark['accent'] || '260 60% 20%';
+
+    const newTheme: ThemePreset = {
+      id: editingTheme ? editingTheme.id : `custom-${Date.now()}`,
+      name: newThemeName.trim(),
+      isCustom: true,
+      light: { ...customVarsLight },
+      dark: { ...customVarsDark },
+      preview: {
+        primary: hslToHex(primaryDark),
+        accent: hslToHex(accentDark),
+        bg: hslToHex(customVarsDark['background'] || '240 20% 6%'),
+      },
+    };
+
+    // Auto-fill foreground/ring/sidebar if missing
+    if (!newTheme.light['primary-foreground']) newTheme.light['primary-foreground'] = '0 0% 100%';
+    if (!newTheme.light['ring']) newTheme.light['ring'] = primaryLight;
+    if (!newTheme.light['sidebar-primary']) newTheme.light['sidebar-primary'] = primaryLight;
+    if (!newTheme.dark['primary-foreground']) newTheme.dark['primary-foreground'] = '0 0% 100%';
+    if (!newTheme.dark['ring']) newTheme.dark['ring'] = primaryDark;
+    if (!newTheme.dark['sidebar-primary']) newTheme.dark['sidebar-primary'] = primaryDark;
+
+    setSavedCustomThemes(prev => {
+      if (editingTheme) {
+        return prev.map(t => t.id === editingTheme.id ? newTheme : t);
+      }
+      return [...prev, newTheme];
+    });
+
+    setActivePreset(newTheme.id);
+    setCustomMode(false);
+    setShowCreateDialog(false);
+    setEditingTheme(null);
+    setNewThemeName('');
+    toast.success(editingTheme ? 'Tema atualizado!' : 'Tema criado! Clique em "Salvar Tema" para aplicar.');
+  };
+
+  const handleEditCustomTheme = (theme: ThemePreset) => {
+    setEditingTheme(theme);
+    setNewThemeName(theme.name);
+    setCustomVarsLight(theme.light);
+    setCustomVarsDark(theme.dark);
+    setShowCreateDialog(true);
+    previewTheme({ preset: 'custom', light: theme.light, dark: theme.dark });
+  };
+
+  const handleDeleteCustomTheme = (themeId: string) => {
+    setSavedCustomThemes(prev => prev.filter(t => t.id !== themeId));
+    if (activePreset === themeId) {
+      setActivePreset('default');
+      const style = document.getElementById('org-theme-vars');
+      if (style) style.remove();
+    }
+    setDeleteConfirm(null);
+    toast.success('Tema excluído');
+  };
+
+  const handleOpenCreateDialog = () => {
+    setEditingTheme(null);
+    setNewThemeName('');
+    // Start from current colors
+    setShowCreateDialog(true);
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
-      const config: OrgThemeConfig = {
+      const config: any = {
         preset: activePreset,
         light: customVarsLight,
         dark: customVarsDark,
+        custom_themes: savedCustomThemes.map(({ isCustom, ...rest }) => rest),
       };
 
-      // If it's a preset, use the preset's vars
+      // If it's a built-in preset, use the preset's vars
       if (activePreset !== 'custom') {
-        const preset = PRESETS.find(p => p.id === activePreset);
+        const preset = allPresets.find(p => p.id === activePreset);
         if (preset) {
           config.light = preset.light;
           config.dark = preset.dark;
@@ -619,7 +703,7 @@ export function ThemeCustomizationPanel() {
 
       await api('/api/organizations/theme-config', {
         method: 'PUT',
-        body: { theme_config: activePreset === 'default' ? null : config },
+        body: { theme_config: activePreset === 'default' && savedCustomThemes.length === 0 ? null : config },
       });
 
       await refreshUser();
@@ -636,7 +720,6 @@ export function ThemeCustomizationPanel() {
     setCustomMode(false);
     setCustomVarsLight({});
     setCustomVarsDark({});
-    // Remove custom styles
     const style = document.getElementById('org-theme-vars');
     if (style) style.remove();
   };
@@ -654,109 +737,274 @@ export function ThemeCustomizationPanel() {
   const currentVars = editingMode === 'light' ? customVarsLight : customVarsDark;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Palette className="h-5 w-5 text-primary" />
-          Personalização Visual
-        </CardTitle>
-        <CardDescription>
-          Personalize as cores do sistema com sua identidade visual. Escolha um template ou crie suas próprias cores.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Presets Grid */}
-        <div>
-          <Label className="text-sm font-medium mb-3 block">Templates Prontos</Label>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {PRESETS.map(preset => (
-              <button
-                key={preset.id}
-                className={`relative p-3 rounded-lg border-2 transition-all text-left ${
-                  activePreset === preset.id 
-                    ? 'border-primary ring-2 ring-primary/30' 
-                    : 'border-border hover:border-primary/50'
-                }`}
-                onClick={() => handleSelectPreset(preset)}
-              >
-                <div className="flex gap-1.5 mb-2">
-                  <div className="w-6 h-6 rounded-full" style={{ backgroundColor: preset.preview.primary }} />
-                  <div className="w-6 h-6 rounded-full" style={{ backgroundColor: preset.preview.accent }} />
-                  <div className="w-6 h-6 rounded-full border" style={{ backgroundColor: preset.preview.bg }} />
-                </div>
-                <p className="text-xs font-medium truncate">{preset.name}</p>
-                {activePreset === preset.id && (
-                  <Check className="absolute top-2 right-2 h-4 w-4 text-primary" />
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Custom Colors */}
-        <div className="border-t pt-4">
-          <div className="flex items-center justify-between mb-4">
-            <Label className="text-sm font-medium">Cores Personalizadas</Label>
-            <Tabs value={editingMode} onValueChange={(v) => setEditingMode(v as 'light' | 'dark')}>
-              <TabsList className="h-8">
-                <TabsTrigger value="light" className="text-xs h-7 gap-1">
-                  <Sun className="h-3 w-3" />
-                  Claro
-                </TabsTrigger>
-                <TabsTrigger value="dark" className="text-xs h-7 gap-1">
-                  <Moon className="h-3 w-3" />
-                  Escuro
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {EDITABLE_VARS.map(v => {
-              const hslValue = currentVars[v.key] || '';
-              const hexValue = hslValue ? hslToHex(hslValue) : '#6366f1';
-              return (
-                <div key={v.key} className="flex items-center gap-3">
-                  <div className="relative">
-                    <input
-                      type="color"
-                      value={hexValue}
-                      onChange={(e) => handleCustomColorChange(v.key, e.target.value)}
-                      className="w-10 h-10 rounded-lg cursor-pointer border-2 border-border"
-                      style={{ padding: 0 }}
-                    />
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Palette className="h-5 w-5 text-primary" />
+            Personalização Visual
+          </CardTitle>
+          <CardDescription>
+            Escolha um template pronto, crie seus próprios temas com nome e cores personalizadas, ou edite as cores manualmente.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Presets Grid */}
+          <div>
+            <Label className="text-sm font-medium mb-3 block">Templates Prontos</Label>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {PRESETS.map(preset => (
+                <button
+                  key={preset.id}
+                  className={`relative p-3 rounded-lg border-2 transition-all text-left ${
+                    activePreset === preset.id
+                      ? 'border-primary ring-2 ring-primary/30'
+                      : 'border-border hover:border-primary/50'
+                  }`}
+                  onClick={() => handleSelectPreset(preset)}
+                >
+                  <div className="flex gap-1.5 mb-2">
+                    <div className="w-6 h-6 rounded-full" style={{ backgroundColor: preset.preview.primary }} />
+                    <div className="w-6 h-6 rounded-full" style={{ backgroundColor: preset.preview.accent }} />
+                    <div className="w-6 h-6 rounded-full border" style={{ backgroundColor: preset.preview.bg }} />
                   </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">{v.label}</p>
-                    <p className="text-xs text-muted-foreground font-mono">{hslValue || 'padrão'}</p>
-                  </div>
-                </div>
-              );
-            })}
+                  <p className="text-xs font-medium truncate">{preset.name}</p>
+                  {activePreset === preset.id && (
+                    <Check className="absolute top-2 right-2 h-4 w-4 text-primary" />
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <Button variant="outline" size="sm" className="mt-3" onClick={handlePreviewCustom}>
-            Pré-visualizar Personalizado
-          </Button>
-        </div>
-
-        {/* Actions */}
-        <div className="flex items-center gap-3 pt-4 border-t">
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-            Salvar Tema
-          </Button>
-          <Button variant="outline" onClick={handleReset}>
-            <RotateCcw className="h-4 w-4 mr-2" />
-            Restaurar Padrão
-          </Button>
-          {activePreset !== 'default' && (
-            <Badge variant="secondary">
-              {customMode ? 'Personalizado' : PRESETS.find(p => p.id === activePreset)?.name}
-            </Badge>
+          {/* Custom Saved Themes */}
+          {savedCustomThemes.length > 0 && (
+            <div className="border-t pt-4">
+              <Label className="text-sm font-medium mb-3 block">Meus Temas</Label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {savedCustomThemes.map(theme => (
+                  <div
+                    key={theme.id}
+                    className={`relative p-3 rounded-lg border-2 transition-all text-left group ${
+                      activePreset === theme.id
+                        ? 'border-primary ring-2 ring-primary/30'
+                        : 'border-border hover:border-primary/50'
+                    }`}
+                  >
+                    <button
+                      className="w-full text-left"
+                      onClick={() => handleSelectPreset(theme)}
+                    >
+                      <div className="flex gap-1.5 mb-2">
+                        <div className="w-6 h-6 rounded-full" style={{ backgroundColor: theme.preview.primary }} />
+                        <div className="w-6 h-6 rounded-full" style={{ backgroundColor: theme.preview.accent }} />
+                        <div className="w-6 h-6 rounded-full border" style={{ backgroundColor: theme.preview.bg }} />
+                      </div>
+                      <p className="text-xs font-medium truncate pr-10">{theme.name}</p>
+                    </button>
+                    {activePreset === theme.id && (
+                      <Check className="absolute top-2 right-2 h-4 w-4 text-primary" />
+                    )}
+                    {/* Edit/Delete buttons */}
+                    <div className="absolute bottom-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleEditCustomTheme(theme); }}
+                        className="p-1 rounded bg-muted hover:bg-accent"
+                        title="Editar"
+                      >
+                        <Pencil className="h-3 w-3 text-muted-foreground" />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setDeleteConfirm(theme.id); }}
+                        className="p-1 rounded bg-muted hover:bg-destructive/20"
+                        title="Excluir"
+                      >
+                        <Trash2 className="h-3 w-3 text-destructive" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
-        </div>
-      </CardContent>
-    </Card>
+
+          {/* Create Custom Theme Button */}
+          <div className="border-t pt-4">
+            <div className="flex items-center justify-between mb-4">
+              <Label className="text-sm font-medium">Cores Personalizadas</Label>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={handleOpenCreateDialog}>
+                  <Plus className="h-3.5 w-3.5 mr-1" />
+                  Criar Meu Tema
+                </Button>
+                <Tabs value={editingMode} onValueChange={(v) => setEditingMode(v as 'light' | 'dark')}>
+                  <TabsList className="h-8">
+                    <TabsTrigger value="light" className="text-xs h-7 gap-1">
+                      <Sun className="h-3 w-3" />
+                      Claro
+                    </TabsTrigger>
+                    <TabsTrigger value="dark" className="text-xs h-7 gap-1">
+                      <Moon className="h-3 w-3" />
+                      Escuro
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {EDITABLE_VARS.map(v => {
+                const hslValue = currentVars[v.key] || '';
+                const hexValue = hslValue ? hslToHex(hslValue) : '#6366f1';
+                return (
+                  <div key={v.key} className="flex items-center gap-3">
+                    <div className="relative">
+                      <input
+                        type="color"
+                        value={hexValue}
+                        onChange={(e) => handleCustomColorChange(v.key, e.target.value)}
+                        className="w-10 h-10 rounded-lg cursor-pointer border-2 border-border"
+                        style={{ padding: 0 }}
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">{v.label}</p>
+                      <p className="text-xs text-muted-foreground font-mono">{hslValue || 'padrão'}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <Button variant="outline" size="sm" className="mt-3" onClick={handlePreviewCustom}>
+              Pré-visualizar Personalizado
+            </Button>
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center gap-3 pt-4 border-t">
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+              Salvar Tema
+            </Button>
+            <Button variant="outline" onClick={handleReset}>
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Restaurar Padrão
+            </Button>
+            {activePreset !== 'default' && (
+              <Badge variant="secondary">
+                {customMode ? 'Personalizado' : allPresets.find(p => p.id === activePreset)?.name}
+              </Badge>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Create/Edit Custom Theme Dialog */}
+      <Dialog open={showCreateDialog} onOpenChange={(open) => { if (!open) { setShowCreateDialog(false); setEditingTheme(null); } }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Palette className="h-5 w-5 text-primary" />
+              {editingTheme ? 'Editar Tema' : 'Criar Novo Tema'}
+            </DialogTitle>
+            <DialogDescription>
+              Defina um nome e escolha as cores do seu tema personalizado.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-2">
+            <div>
+              <Label>Nome do Tema</Label>
+              <Input
+                value={newThemeName}
+                onChange={e => setNewThemeName(e.target.value)}
+                placeholder="Ex: Minha Empresa, Tema Dark Pro..."
+                className="mt-1"
+              />
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <Label className="text-sm">Cores</Label>
+                <Tabs value={editingMode} onValueChange={(v) => setEditingMode(v as 'light' | 'dark')}>
+                  <TabsList className="h-7">
+                    <TabsTrigger value="light" className="text-xs h-6 gap-1">
+                      <Sun className="h-3 w-3" />
+                      Claro
+                    </TabsTrigger>
+                    <TabsTrigger value="dark" className="text-xs h-6 gap-1">
+                      <Moon className="h-3 w-3" />
+                      Escuro
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {EDITABLE_VARS.map(v => {
+                  const vars = editingMode === 'light' ? customVarsLight : customVarsDark;
+                  const hslValue = vars[v.key] || '';
+                  const hexValue = hslValue ? hslToHex(hslValue) : '#6366f1';
+                  return (
+                    <div key={v.key} className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={hexValue}
+                        onChange={(e) => handleCustomColorChange(v.key, e.target.value)}
+                        className="w-8 h-8 rounded cursor-pointer border border-border"
+                        style={{ padding: 0 }}
+                      />
+                      <span className="text-xs">{v.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Live preview strip */}
+            <div className="flex gap-2 items-center p-3 rounded-lg bg-muted/50 border">
+              <span className="text-xs text-muted-foreground">Preview:</span>
+              <div className="flex gap-1.5">
+                <div className="w-8 h-8 rounded-full border" style={{ backgroundColor: hslToHex(customVarsDark['primary'] || '250 100% 65%') }} />
+                <div className="w-8 h-8 rounded-full border" style={{ backgroundColor: hslToHex(customVarsDark['accent'] || '260 60% 20%') }} />
+                <div className="w-8 h-8 rounded-full border" style={{ backgroundColor: hslToHex(customVarsDark['background'] || '240 20% 6%') }} />
+              </div>
+              <Button variant="ghost" size="sm" className="ml-auto text-xs" onClick={handlePreviewCustom}>
+                Pré-visualizar
+              </Button>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowCreateDialog(false); setEditingTheme(null); }}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveCustomTheme}>
+              <Save className="h-4 w-4 mr-2" />
+              {editingTheme ? 'Atualizar Tema' : 'Criar Tema'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirmation */}
+      <Dialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Excluir Tema</DialogTitle>
+            <DialogDescription>
+              Tem certeza que deseja excluir este tema? Esta ação não pode ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteConfirm(null)}>Cancelar</Button>
+            <Button variant="destructive" onClick={() => deleteConfirm && handleDeleteCustomTheme(deleteConfirm)}>
+              <Trash2 className="h-4 w-4 mr-2" />
+              Excluir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
