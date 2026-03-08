@@ -530,11 +530,11 @@ const PRESETS: ThemePreset[] = [
 
 // CSS variable keys that can be customized
 const EDITABLE_VARS = [
-  { key: 'primary', label: 'Cor Principal' },
-  { key: 'accent', label: 'Cor de Destaque' },
-  { key: 'background', label: 'Fundo' },
-  { key: 'card', label: 'Cartão' },
-  { key: 'sidebar-background', label: 'Fundo Sidebar' },
+  { key: 'primary', label: 'Cor Principal', desc: 'Botões, links, mensagens enviadas, ícones ativos', highlight: 'sent' },
+  { key: 'accent', label: 'Cor de Destaque', desc: 'Badges, seleção, hover, itens destacados', highlight: 'accent' },
+  { key: 'background', label: 'Fundo', desc: 'Fundo geral da aplicação e área de chat', highlight: 'bg' },
+  { key: 'card', label: 'Cartão', desc: 'Cards, painéis, mensagens recebidas', highlight: 'received' },
+  { key: 'sidebar-background', label: 'Fundo Sidebar', desc: 'Menu lateral e navegação principal', highlight: 'sidebar' },
 ];
 
 function hslToHex(hsl: string): string {
