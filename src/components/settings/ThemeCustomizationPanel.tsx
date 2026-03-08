@@ -17,6 +17,7 @@ interface ThemePreset {
   light: Record<string, string>;
   dark: Record<string, string>;
   preview: { primary: string; accent: string; bg: string };
+  isCustom?: boolean;
 }
 
 const PRESETS: ThemePreset[] = [
