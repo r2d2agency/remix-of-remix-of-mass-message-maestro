@@ -161,6 +161,7 @@ const PRESETS: ThemePreset[] = [
   {
     id: 'cyan',
     name: 'Ciano',
+    description: 'Azul-turquesa vibrante. Moderno e refrescante.',
     preview: { primary: '#06b6d4', accent: '#0891b2', bg: '#0f171a' },
     light: {
       primary: '187 92% 43%',
