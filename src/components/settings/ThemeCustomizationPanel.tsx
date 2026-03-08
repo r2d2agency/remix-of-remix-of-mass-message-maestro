@@ -839,7 +839,7 @@ export function ThemeCustomizationPanel() {
           {savedCustomThemes.length > 0 && (
             <div className="border-t pt-4">
               <Label className="text-sm font-medium mb-3 block">Meus Temas</Label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {savedCustomThemes.map(theme => (
                   <div
                     key={theme.id}
@@ -853,15 +853,22 @@ export function ThemeCustomizationPanel() {
                       className="w-full text-left"
                       onClick={() => handleSelectPreset(theme)}
                     >
-                      <div className="flex gap-1.5 mb-2">
-                        <div className="w-6 h-6 rounded-full" style={{ backgroundColor: theme.preview.primary }} />
-                        <div className="w-6 h-6 rounded-full" style={{ backgroundColor: theme.preview.accent }} />
-                        <div className="w-6 h-6 rounded-full border" style={{ backgroundColor: theme.preview.bg }} />
+                      {/* Mini UI Preview */}
+                      <ThemeMiniPreview 
+                        primary={theme.preview.primary} 
+                        accent={theme.preview.accent} 
+                        bg={theme.preview.bg} 
+                      />
+                      {/* Name */}
+                      <div className="mt-2">
+                        <p className="text-sm font-medium truncate pr-10">{theme.name}</p>
+                        {theme.description && (
+                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{theme.description}</p>
+                        )}
                       </div>
-                      <p className="text-xs font-medium truncate pr-10">{theme.name}</p>
                     </button>
                     {activePreset === theme.id && (
-                      <Check className="absolute top-2 right-2 h-4 w-4 text-primary" />
+                      <Check className="absolute top-2 right-2 h-4 w-4 text-primary bg-primary/10 rounded-full p-0.5" />
                     )}
                     {/* Edit/Delete buttons */}
                     <div className="absolute bottom-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
