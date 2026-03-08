@@ -291,6 +291,7 @@ const PRESETS: ThemePreset[] = [
   {
     id: 'crimson',
     name: 'Vermelho Intenso',
+    description: 'Vermelho impactante. Urgência e paixão.',
     preview: { primary: '#dc2626', accent: '#b91c1c', bg: '#1a0f0f' },
     light: {
       primary: '0 72% 51%',
