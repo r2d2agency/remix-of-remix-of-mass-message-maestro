@@ -143,7 +143,8 @@ function LiveCustomPreview({ vars, mode }: { vars: Record<string, string>; mode:
   );
 }
 
-
+const PRESETS: ThemePreset[] = [
+  {
     id: 'default',
     name: 'Neon Azul (Padrão)',
     description: 'Azul vibrante com toques roxos. Ideal para empresas de tecnologia.',
