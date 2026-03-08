@@ -14,16 +14,50 @@ import { useAuth, OrgThemeConfig } from '@/contexts/AuthContext';
 interface ThemePreset {
   id: string;
   name: string;
+  description?: string;
   light: Record<string, string>;
   dark: Record<string, string>;
   preview: { primary: string; accent: string; bg: string };
   isCustom?: boolean;
 }
 
+// Mini UI mockup component for theme preview
+function ThemeMiniPreview({ primary, accent, bg }: { primary: string; accent: string; bg: string }) {
+  // Derive lighter shade for received message
+  const receivedBg = accent + '40';
+  return (
+    <div className="w-full h-20 rounded-md overflow-hidden border border-border/50 flex" style={{ backgroundColor: bg }}>
+      {/* Mini sidebar */}
+      <div className="w-6 h-full flex flex-col items-center gap-1 pt-1.5" style={{ backgroundColor: accent }}>
+        <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: primary }} />
+        <div className="w-3 h-0.5 rounded-full opacity-40" style={{ backgroundColor: primary }} />
+        <div className="w-3 h-0.5 rounded-full opacity-25" style={{ backgroundColor: primary }} />
+        <div className="w-3 h-0.5 rounded-full opacity-25" style={{ backgroundColor: primary }} />
+      </div>
+      {/* Mini chat area */}
+      <div className="flex-1 flex flex-col justify-end p-1.5 gap-1">
+        {/* Received message */}
+        <div className="self-start rounded-md px-1.5 py-0.5 max-w-[60%]" style={{ backgroundColor: receivedBg }}>
+          <div className="h-1 w-8 rounded-full opacity-60" style={{ backgroundColor: primary }} />
+          <div className="h-1 w-5 rounded-full opacity-40 mt-0.5" style={{ backgroundColor: primary }} />
+        </div>
+        {/* Sent message */}
+        <div className="self-end rounded-md px-1.5 py-0.5 max-w-[55%]" style={{ backgroundColor: primary }}>
+          <div className="h-1 w-7 rounded-full bg-white/80" />
+          <div className="h-1 w-4 rounded-full bg-white/60 mt-0.5" />
+        </div>
+        {/* Input bar */}
+        <div className="w-full h-2.5 rounded-sm border opacity-40" style={{ borderColor: primary + '60', backgroundColor: bg }} />
+      </div>
+    </div>
+  );
+}
+
 const PRESETS: ThemePreset[] = [
   {
     id: 'default',
     name: 'Neon Azul (Padrão)',
+    description: 'Azul vibrante com toques roxos. Ideal para empresas de tecnologia.',
     preview: { primary: '#6366f1', accent: '#8b5cf6', bg: '#0f0f17' },
     light: {
       primary: '250 90% 55%',
@@ -49,6 +83,7 @@ const PRESETS: ThemePreset[] = [
   {
     id: 'emerald',
     name: 'Esmeralda',
+    description: 'Verde sofisticado. Transmite confiança e crescimento.',
     preview: { primary: '#10b981', accent: '#059669', bg: '#0f1a17' },
     light: {
       primary: '160 84% 39%',
@@ -74,6 +109,7 @@ const PRESETS: ThemePreset[] = [
   {
     id: 'rose',
     name: 'Rosa',
+    description: 'Rosa elegante. Perfeito para marcas modernas e ousadas.',
     preview: { primary: '#f43f5e', accent: '#e11d48', bg: '#1a0f12' },
     light: {
       primary: '350 89% 60%',
@@ -99,6 +135,7 @@ const PRESETS: ThemePreset[] = [
   {
     id: 'amber',
     name: 'Âmbar',
+    description: 'Laranja dourado. Energia e entusiasmo.',
     preview: { primary: '#f59e0b', accent: '#d97706', bg: '#1a170f' },
     light: {
       primary: '38 92% 50%',
@@ -124,6 +161,7 @@ const PRESETS: ThemePreset[] = [
   {
     id: 'cyan',
     name: 'Ciano',
+    description: 'Azul-turquesa vibrante. Moderno e refrescante.',
     preview: { primary: '#06b6d4', accent: '#0891b2', bg: '#0f171a' },
     light: {
       primary: '187 92% 43%',
@@ -149,6 +187,7 @@ const PRESETS: ThemePreset[] = [
   {
     id: 'violet',
     name: 'Violeta',
+    description: 'Roxo suave. Sofisticação e criatividade.',
     preview: { primary: '#8b5cf6', accent: '#7c3aed', bg: '#150f1a' },
     light: {
       primary: '263 70% 66%',
@@ -174,6 +213,7 @@ const PRESETS: ThemePreset[] = [
   {
     id: 'orange',
     name: 'Laranja',
+    description: 'Laranja vivo. Dinâmico e energético.',
     preview: { primary: '#f97316', accent: '#ea580c', bg: '#1a130f' },
     light: {
       primary: '25 95% 53%',
@@ -199,6 +239,7 @@ const PRESETS: ThemePreset[] = [
   {
     id: 'slate',
     name: 'Corporativo',
+    description: 'Cinza profissional. Sóbrio e confiável.',
     preview: { primary: '#475569', accent: '#334155', bg: '#0f1115' },
     light: {
       primary: '215 16% 37%',
@@ -224,6 +265,7 @@ const PRESETS: ThemePreset[] = [
   {
     id: 'teal',
     name: 'Teal Profissional',
+    description: 'Verde-azulado elegante. Equilíbrio e serenidade.',
     preview: { primary: '#14b8a6', accent: '#0d9488', bg: '#0f1a19' },
     light: {
       primary: '173 80% 40%',
@@ -249,6 +291,7 @@ const PRESETS: ThemePreset[] = [
   {
     id: 'crimson',
     name: 'Vermelho Intenso',
+    description: 'Vermelho impactante. Urgência e paixão.',
     preview: { primary: '#dc2626', accent: '#b91c1c', bg: '#1a0f0f' },
     light: {
       primary: '0 72% 51%',
@@ -274,6 +317,7 @@ const PRESETS: ThemePreset[] = [
   {
     id: 'forest',
     name: 'Floresta',
+    description: 'Verde natural. Sustentabilidade e harmonia.',
     preview: { primary: '#16a34a', accent: '#15803d', bg: '#0f1a12' },
     light: {
       primary: '142 72% 42%',
@@ -299,6 +343,7 @@ const PRESETS: ThemePreset[] = [
   {
     id: 'sapphire',
     name: 'Safira',
+    description: 'Azul real. Confiança e autoridade.',
     preview: { primary: '#2563eb', accent: '#1d4ed8', bg: '#0f1320' },
     light: {
       primary: '221 83% 53%',
@@ -324,6 +369,7 @@ const PRESETS: ThemePreset[] = [
   {
     id: 'gold',
     name: 'Ouro Premium',
+    description: 'Dourado luxuoso. Exclusividade e prestígio.',
     preview: { primary: '#ca8a04', accent: '#a16207', bg: '#1a170d' },
     light: {
       primary: '45 93% 40%',
@@ -349,6 +395,7 @@ const PRESETS: ThemePreset[] = [
   {
     id: 'magenta',
     name: 'Magenta',
+    description: 'Rosa intenso. Criativo e marcante.',
     preview: { primary: '#d946ef', accent: '#c026d3', bg: '#1a0f1a' },
     light: {
       primary: '292 84% 61%',
@@ -374,6 +421,7 @@ const PRESETS: ThemePreset[] = [
   {
     id: 'midnight',
     name: 'Meia-Noite',
+    description: 'Azul profundo. Elegante para modo escuro.',
     preview: { primary: '#3b82f6', accent: '#1e3a5f', bg: '#080c14' },
     light: {
       primary: '217 91% 60%',
@@ -403,6 +451,7 @@ const PRESETS: ThemePreset[] = [
   {
     id: 'wine',
     name: 'Vinho',
+    description: 'Bordô sofisticado. Clássico e refinado.',
     preview: { primary: '#9f1239', accent: '#881337', bg: '#1a0d10' },
     light: {
       primary: '343 88% 35%',
@@ -428,6 +477,7 @@ const PRESETS: ThemePreset[] = [
   {
     id: 'lime',
     name: 'Lima',
+    description: 'Verde-limão vivo. Jovem e inovador.',
     preview: { primary: '#84cc16', accent: '#65a30d', bg: '#141a0f' },
     light: {
       primary: '84 81% 44%',
@@ -453,6 +503,7 @@ const PRESETS: ThemePreset[] = [
   {
     id: 'oceanic',
     name: 'Oceano',
+    description: 'Azul oceano. Calmo e profissional.',
     preview: { primary: '#0284c7', accent: '#0369a1', bg: '#0c1520' },
     light: {
       primary: '199 89% 48%',
@@ -752,7 +803,7 @@ export function ThemeCustomizationPanel() {
           {/* Presets Grid */}
           <div>
             <Label className="text-sm font-medium mb-3 block">Templates Prontos</Label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {PRESETS.map(preset => (
                 <button
                   key={preset.id}
@@ -763,14 +814,21 @@ export function ThemeCustomizationPanel() {
                   }`}
                   onClick={() => handleSelectPreset(preset)}
                 >
-                  <div className="flex gap-1.5 mb-2">
-                    <div className="w-6 h-6 rounded-full" style={{ backgroundColor: preset.preview.primary }} />
-                    <div className="w-6 h-6 rounded-full" style={{ backgroundColor: preset.preview.accent }} />
-                    <div className="w-6 h-6 rounded-full border" style={{ backgroundColor: preset.preview.bg }} />
+                  {/* Mini UI Preview */}
+                  <ThemeMiniPreview 
+                    primary={preset.preview.primary} 
+                    accent={preset.preview.accent} 
+                    bg={preset.preview.bg} 
+                  />
+                  {/* Name and description */}
+                  <div className="mt-2">
+                    <p className="text-sm font-medium truncate">{preset.name}</p>
+                    {preset.description && (
+                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{preset.description}</p>
+                    )}
                   </div>
-                  <p className="text-xs font-medium truncate">{preset.name}</p>
                   {activePreset === preset.id && (
-                    <Check className="absolute top-2 right-2 h-4 w-4 text-primary" />
+                    <Check className="absolute top-2 right-2 h-4 w-4 text-primary bg-primary/10 rounded-full p-0.5" />
                   )}
                 </button>
               ))}
@@ -781,7 +839,7 @@ export function ThemeCustomizationPanel() {
           {savedCustomThemes.length > 0 && (
             <div className="border-t pt-4">
               <Label className="text-sm font-medium mb-3 block">Meus Temas</Label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {savedCustomThemes.map(theme => (
                   <div
                     key={theme.id}
@@ -795,15 +853,22 @@ export function ThemeCustomizationPanel() {
                       className="w-full text-left"
                       onClick={() => handleSelectPreset(theme)}
                     >
-                      <div className="flex gap-1.5 mb-2">
-                        <div className="w-6 h-6 rounded-full" style={{ backgroundColor: theme.preview.primary }} />
-                        <div className="w-6 h-6 rounded-full" style={{ backgroundColor: theme.preview.accent }} />
-                        <div className="w-6 h-6 rounded-full border" style={{ backgroundColor: theme.preview.bg }} />
+                      {/* Mini UI Preview */}
+                      <ThemeMiniPreview 
+                        primary={theme.preview.primary} 
+                        accent={theme.preview.accent} 
+                        bg={theme.preview.bg} 
+                      />
+                      {/* Name */}
+                      <div className="mt-2">
+                        <p className="text-sm font-medium truncate pr-10">{theme.name}</p>
+                        {theme.description && (
+                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{theme.description}</p>
+                        )}
                       </div>
-                      <p className="text-xs font-medium truncate pr-10">{theme.name}</p>
                     </button>
                     {activePreset === theme.id && (
-                      <Check className="absolute top-2 right-2 h-4 w-4 text-primary" />
+                      <Check className="absolute top-2 right-2 h-4 w-4 text-primary bg-primary/10 rounded-full p-0.5" />
                     )}
                     {/* Edit/Delete buttons */}
                     <div className="absolute bottom-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -961,16 +1026,16 @@ export function ThemeCustomizationPanel() {
               </div>
             </div>
 
-            {/* Live preview strip */}
-            <div className="flex gap-2 items-center p-3 rounded-lg bg-muted/50 border">
-              <span className="text-xs text-muted-foreground">Preview:</span>
-              <div className="flex gap-1.5">
-                <div className="w-8 h-8 rounded-full border" style={{ backgroundColor: hslToHex(customVarsDark['primary'] || '250 100% 65%') }} />
-                <div className="w-8 h-8 rounded-full border" style={{ backgroundColor: hslToHex(customVarsDark['accent'] || '260 60% 20%') }} />
-                <div className="w-8 h-8 rounded-full border" style={{ backgroundColor: hslToHex(customVarsDark['background'] || '240 20% 6%') }} />
-              </div>
-              <Button variant="ghost" size="sm" className="ml-auto text-xs" onClick={handlePreviewCustom}>
-                Pré-visualizar
+            {/* Live preview mockup */}
+            <div className="space-y-2">
+              <span className="text-xs text-muted-foreground font-medium">Preview da interface:</span>
+              <ThemeMiniPreview
+                primary={hslToHex(customVarsDark['primary'] || '250 100% 65%')}
+                accent={hslToHex(customVarsDark['accent'] || '260 60% 20%')}
+                bg={hslToHex(customVarsDark['background'] || '240 20% 6%')}
+              />
+              <Button variant="ghost" size="sm" className="w-full text-xs" onClick={handlePreviewCustom}>
+                Aplicar pré-visualização no sistema
               </Button>
             </div>
           </div>
