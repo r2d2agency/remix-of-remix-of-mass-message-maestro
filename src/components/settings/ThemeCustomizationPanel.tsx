@@ -421,6 +421,7 @@ const PRESETS: ThemePreset[] = [
   {
     id: 'midnight',
     name: 'Meia-Noite',
+    description: 'Azul profundo. Elegante para modo escuro.',
     preview: { primary: '#3b82f6', accent: '#1e3a5f', bg: '#080c14' },
     light: {
       primary: '217 91% 60%',
