@@ -451,6 +451,7 @@ const PRESETS: ThemePreset[] = [
   {
     id: 'wine',
     name: 'Vinho',
+    description: 'Bordô sofisticado. Clássico e refinado.',
     preview: { primary: '#9f1239', accent: '#881337', bg: '#1a0d10' },
     light: {
       primary: '343 88% 35%',
