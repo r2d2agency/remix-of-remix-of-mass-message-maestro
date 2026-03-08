@@ -213,7 +213,7 @@ router.post('/login', async (req, res) => {
 
     // Get role and organization info
     const orgResult = await query(
-      `SELECT om.role, o.id as organization_id, o.modules_enabled, o.logo_url as organization_logo
+      `SELECT om.role, o.id as organization_id, o.modules_enabled, o.logo_url as organization_logo, o.theme_config
        FROM organization_members om
        JOIN organizations o ON o.id = om.organization_id
        WHERE om.user_id = $1
