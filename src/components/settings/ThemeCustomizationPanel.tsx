@@ -503,6 +503,7 @@ const PRESETS: ThemePreset[] = [
   {
     id: 'oceanic',
     name: 'Oceano',
+    description: 'Azul oceano. Calmo e profissional.',
     preview: { primary: '#0284c7', accent: '#0369a1', bg: '#0c1520' },
     light: {
       primary: '199 89% 48%',
