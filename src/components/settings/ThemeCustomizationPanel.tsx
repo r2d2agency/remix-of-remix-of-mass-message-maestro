@@ -265,6 +265,7 @@ const PRESETS: ThemePreset[] = [
   {
     id: 'teal',
     name: 'Teal Profissional',
+    description: 'Verde-azulado elegante. Equilíbrio e serenidade.',
     preview: { primary: '#14b8a6', accent: '#0d9488', bg: '#0f1a19' },
     light: {
       primary: '173 80% 40%',
