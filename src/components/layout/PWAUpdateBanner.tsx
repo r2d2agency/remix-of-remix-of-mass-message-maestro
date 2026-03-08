@@ -28,33 +28,29 @@ export function PWAUpdateBanner() {
     },
   });
 
-  const handleUpdate = async () => {
+  const handleUpdate = () => {
     setUpdating(true);
     setProgress(10);
 
     const interval = setInterval(() => {
-      setProgress(prev => {
-        if (prev >= 90) {
-          return 90;
-        }
-        return prev + Math.random() * 15;
-      });
+      setProgress(prev => (prev >= 90 ? 90 : prev + Math.random() * 15));
     }, 300);
 
+    // Always force reload after 4s regardless of SW state
     const fallbackReload = setTimeout(() => {
+      clearInterval(interval);
+      setProgress(100);
       window.location.reload();
-    }, 8000);
+    }, 4000);
 
     try {
-      await updateServiceWorker(true);
-      setProgress(100);
+      updateServiceWorker(true);
     } catch (err) {
       console.error('Update failed:', err);
-      setUpdating(false);
-      setProgress(0);
-    } finally {
       clearInterval(interval);
       clearTimeout(fallbackReload);
+      setUpdating(false);
+      setProgress(0);
     }
   };
 
