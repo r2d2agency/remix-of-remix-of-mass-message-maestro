@@ -52,6 +52,96 @@ function ThemeMiniPreview({ primary, accent, bg }: { primary: string; accent: st
     </div>
   );
 }
+// Detailed live preview for the custom color editor
+function LiveCustomPreview({ vars, mode }: { vars: Record<string, string>; mode: 'light' | 'dark' }) {
+  const primary = hslToHex(vars['primary'] || (mode === 'dark' ? '250 100% 65%' : '250 90% 55%'));
+  const accent = hslToHex(vars['accent'] || (mode === 'dark' ? '260 60% 20%' : '250 70% 92%'));
+  const bg = hslToHex(vars['background'] || (mode === 'dark' ? '240 20% 6%' : '240 15% 97%'));
+  const card = hslToHex(vars['card'] || (mode === 'dark' ? '240 20% 10%' : '0 0% 100%'));
+  const sidebarBg = hslToHex(vars['sidebar-background'] || (mode === 'dark' ? '240 20% 8%' : '0 0% 100%'));
+  const textColor = mode === 'dark' ? '#e5e5f0' : '#1a1a2e';
+  const mutedText = mode === 'dark' ? '#888899' : '#6b6b80';
+
+  return (
+    <div className="rounded-lg overflow-hidden border border-border shadow-sm" style={{ backgroundColor: bg }}>
+      {/* Header bar */}
+      <div className="flex items-center gap-1.5 px-2 py-1.5 border-b" style={{ backgroundColor: sidebarBg, borderColor: accent + '40' }}>
+        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: primary }} />
+        <span style={{ color: textColor, fontSize: '9px', fontWeight: 600 }}>Sistema</span>
+        <div className="ml-auto flex gap-1">
+          <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: mutedText }} />
+          <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: mutedText }} />
+        </div>
+      </div>
+      <div className="flex" style={{ height: 140 }}>
+        {/* Sidebar */}
+        <div className="w-10 flex flex-col gap-1 p-1 border-r" style={{ backgroundColor: sidebarBg, borderColor: accent + '30' }}>
+          <div className="w-full h-5 rounded-sm flex items-center justify-center" style={{ backgroundColor: primary + '20' }}>
+            <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: primary }} />
+          </div>
+          {[1,2,3,4].map(i => (
+            <div key={i} className="w-full h-4 rounded-sm flex items-center justify-center opacity-50" style={{ backgroundColor: accent + '20' }}>
+              <div className="w-2.5 h-0.5 rounded-full" style={{ backgroundColor: mutedText }} />
+            </div>
+          ))}
+        </div>
+        {/* Main area = chat */}
+        <div className="flex-1 flex flex-col">
+          {/* Contact bar */}
+          <div className="flex items-center gap-1 px-2 py-1 border-b" style={{ borderColor: accent + '25' }}>
+            <div className="w-4 h-4 rounded-full" style={{ backgroundColor: accent }} />
+            <div>
+              <div className="h-1 w-10 rounded-full" style={{ backgroundColor: textColor, opacity: 0.7 }} />
+              <div className="h-0.5 w-6 rounded-full mt-0.5" style={{ backgroundColor: '#22c55e' }} />
+            </div>
+          </div>
+          {/* Messages */}
+          <div className="flex-1 flex flex-col justify-end p-1.5 gap-1.5" style={{ backgroundColor: bg }}>
+            {/* Received */}
+            <div className="self-start max-w-[70%] rounded-lg px-2 py-1" style={{ backgroundColor: card }}>
+              <div className="h-1 w-12 rounded-full" style={{ backgroundColor: textColor, opacity: 0.6 }} />
+              <div className="h-1 w-8 rounded-full mt-0.5" style={{ backgroundColor: textColor, opacity: 0.4 }} />
+              <div className="h-0.5 w-4 rounded-full mt-1 ml-auto" style={{ backgroundColor: mutedText, opacity: 0.5 }} />
+            </div>
+            {/* Sent */}
+            <div className="self-end max-w-[65%] rounded-lg px-2 py-1" style={{ backgroundColor: primary }}>
+              <div className="h-1 w-10 rounded-full bg-white/80" />
+              <div className="h-1 w-6 rounded-full bg-white/60 mt-0.5" />
+              <div className="h-0.5 w-3 rounded-full mt-1 ml-auto bg-white/40" />
+            </div>
+            {/* Received */}
+            <div className="self-start max-w-[60%] rounded-lg px-2 py-1" style={{ backgroundColor: card }}>
+              <div className="h-1 w-8 rounded-full" style={{ backgroundColor: textColor, opacity: 0.5 }} />
+              <div className="h-0.5 w-4 rounded-full mt-1 ml-auto" style={{ backgroundColor: mutedText, opacity: 0.5 }} />
+            </div>
+          </div>
+          {/* Input bar */}
+          <div className="flex items-center gap-1 px-1.5 py-1 border-t" style={{ borderColor: accent + '25' }}>
+            <div className="flex-1 h-4 rounded-full border" style={{ borderColor: accent + '40', backgroundColor: card }} />
+            <div className="w-4 h-4 rounded-full flex items-center justify-center" style={{ backgroundColor: primary }}>
+              <div className="w-1.5 h-1.5 rounded-sm bg-white/80" />
+            </div>
+          </div>
+        </div>
+      </div>
+      {/* Labels */}
+      <div className="flex items-center gap-2 px-2 py-1 border-t text-center" style={{ borderColor: accent + '20' }}>
+        <div className="flex items-center gap-1">
+          <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: primary }} />
+          <span style={{ fontSize: '7px', color: mutedText }}>Botões</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: card }} />
+          <span style={{ fontSize: '7px', color: mutedText }}>Cards</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: sidebarBg }} />
+          <span style={{ fontSize: '7px', color: mutedText }}>Sidebar</span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const PRESETS: ThemePreset[] = [
   {
@@ -530,11 +620,11 @@ const PRESETS: ThemePreset[] = [
 
 // CSS variable keys that can be customized
 const EDITABLE_VARS = [
-  { key: 'primary', label: 'Cor Principal' },
-  { key: 'accent', label: 'Cor de Destaque' },
-  { key: 'background', label: 'Fundo' },
-  { key: 'card', label: 'Cartão' },
-  { key: 'sidebar-background', label: 'Fundo Sidebar' },
+  { key: 'primary', label: 'Cor Principal', desc: 'Botões, links, mensagens enviadas, ícones ativos', highlight: 'sent' },
+  { key: 'accent', label: 'Cor de Destaque', desc: 'Badges, seleção, hover, itens destacados', highlight: 'accent' },
+  { key: 'background', label: 'Fundo', desc: 'Fundo geral da aplicação e área de chat', highlight: 'bg' },
+  { key: 'card', label: 'Cartão', desc: 'Cards, painéis, mensagens recebidas', highlight: 'received' },
+  { key: 'sidebar-background', label: 'Fundo Sidebar', desc: 'Menu lateral e navegação principal', highlight: 'sidebar' },
 ];
 
 function hslToHex(hsl: string): string {
@@ -626,19 +716,27 @@ export function ThemeCustomizationPanel() {
 
   const handleCustomColorChange = (key: string, hex: string) => {
     const hsl = hexToHsl(hex);
+    let newLight = { ...customVarsLight };
+    let newDark = { ...customVarsDark };
+    
     if (editingMode === 'light') {
-      setCustomVarsLight(prev => ({ ...prev, [key]: hsl }));
-    } else {
-      setCustomVarsDark(prev => ({ ...prev, [key]: hsl }));
-    }
-    if (key === 'primary') {
-      const updates = { [key]: hsl, 'sidebar-primary': hsl, ring: hsl };
-      if (editingMode === 'light') {
-        setCustomVarsLight(prev => ({ ...prev, ...updates }));
-      } else {
-        setCustomVarsDark(prev => ({ ...prev, ...updates }));
+      newLight = { ...newLight, [key]: hsl };
+      if (key === 'primary') {
+        newLight = { ...newLight, 'sidebar-primary': hsl, ring: hsl };
       }
+      setCustomVarsLight(newLight);
+    } else {
+      newDark = { ...newDark, [key]: hsl };
+      if (key === 'primary') {
+        newDark = { ...newDark, 'sidebar-primary': hsl, ring: hsl };
+      }
+      setCustomVarsDark(newDark);
     }
+    
+    // Apply live preview immediately
+    setCustomMode(true);
+    setActivePreset('custom');
+    previewTheme({ preset: 'custom', light: newLight, dark: newDark });
   };
 
   const previewTheme = (config: OrgThemeConfig) => {
@@ -917,33 +1015,39 @@ export function ThemeCustomizationPanel() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {EDITABLE_VARS.map(v => {
-                const hslValue = currentVars[v.key] || '';
-                const hexValue = hslValue ? hslToHex(hslValue) : '#6366f1';
-                return (
-                  <div key={v.key} className="flex items-center gap-3">
-                    <div className="relative">
-                      <input
-                        type="color"
-                        value={hexValue}
-                        onChange={(e) => handleCustomColorChange(v.key, e.target.value)}
-                        className="w-10 h-10 rounded-lg cursor-pointer border-2 border-border"
-                        style={{ padding: 0 }}
-                      />
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-6">
+              {/* Color pickers with descriptions */}
+              <div className="space-y-3">
+                {EDITABLE_VARS.map(v => {
+                  const hslValue = currentVars[v.key] || '';
+                  const hexValue = hslValue ? hslToHex(hslValue) : '#6366f1';
+                  return (
+                    <div key={v.key} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors group">
+                      <div className="relative">
+                        <input
+                          type="color"
+                          value={hexValue}
+                          onChange={(e) => handleCustomColorChange(v.key, e.target.value)}
+                          className="w-10 h-10 rounded-lg cursor-pointer border-2 border-border"
+                          style={{ padding: 0 }}
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium">{v.label}</p>
+                        <p className="text-xs text-muted-foreground">{v.desc}</p>
+                      </div>
+                      <span className="text-[10px] font-mono text-muted-foreground/60 hidden sm:block">{hslValue || 'padrão'}</span>
                     </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">{v.label}</p>
-                      <p className="text-xs text-muted-foreground font-mono">{hslValue || 'padrão'}</p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
 
-            <Button variant="outline" size="sm" className="mt-3" onClick={handlePreviewCustom}>
-              Pré-visualizar Personalizado
-            </Button>
+              {/* Live mini-preview that updates in real-time */}
+              <div className="lg:w-56 space-y-2">
+                <span className="text-xs text-muted-foreground font-medium block">Preview ao vivo:</span>
+                <LiveCustomPreview vars={currentVars} mode={editingMode} />
+              </div>
+            </div>
           </div>
 
           {/* Actions */}
