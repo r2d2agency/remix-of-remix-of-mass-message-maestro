@@ -14,10 +14,43 @@ import { useAuth, OrgThemeConfig } from '@/contexts/AuthContext';
 interface ThemePreset {
   id: string;
   name: string;
+  description?: string;
   light: Record<string, string>;
   dark: Record<string, string>;
   preview: { primary: string; accent: string; bg: string };
   isCustom?: boolean;
+}
+
+// Mini UI mockup component for theme preview
+function ThemeMiniPreview({ primary, accent, bg }: { primary: string; accent: string; bg: string }) {
+  // Derive lighter shade for received message
+  const receivedBg = accent + '40';
+  return (
+    <div className="w-full h-20 rounded-md overflow-hidden border border-border/50 flex" style={{ backgroundColor: bg }}>
+      {/* Mini sidebar */}
+      <div className="w-6 h-full flex flex-col items-center gap-1 pt-1.5" style={{ backgroundColor: accent }}>
+        <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: primary }} />
+        <div className="w-3 h-0.5 rounded-full opacity-40" style={{ backgroundColor: primary }} />
+        <div className="w-3 h-0.5 rounded-full opacity-25" style={{ backgroundColor: primary }} />
+        <div className="w-3 h-0.5 rounded-full opacity-25" style={{ backgroundColor: primary }} />
+      </div>
+      {/* Mini chat area */}
+      <div className="flex-1 flex flex-col justify-end p-1.5 gap-1">
+        {/* Received message */}
+        <div className="self-start rounded-md px-1.5 py-0.5 max-w-[60%]" style={{ backgroundColor: receivedBg }}>
+          <div className="h-1 w-8 rounded-full opacity-60" style={{ backgroundColor: primary }} />
+          <div className="h-1 w-5 rounded-full opacity-40 mt-0.5" style={{ backgroundColor: primary }} />
+        </div>
+        {/* Sent message */}
+        <div className="self-end rounded-md px-1.5 py-0.5 max-w-[55%]" style={{ backgroundColor: primary }}>
+          <div className="h-1 w-7 rounded-full bg-white/80" />
+          <div className="h-1 w-4 rounded-full bg-white/60 mt-0.5" />
+        </div>
+        {/* Input bar */}
+        <div className="w-full h-2.5 rounded-sm border opacity-40" style={{ borderColor: primary + '60', backgroundColor: bg }} />
+      </div>
+    </div>
+  );
 }
 
 const PRESETS: ThemePreset[] = [
