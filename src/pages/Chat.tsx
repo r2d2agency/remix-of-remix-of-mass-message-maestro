@@ -841,8 +841,14 @@ const Chat = () => {
             )}
           </div>
         ) : (
-          <ResizablePanelGroup direction="horizontal" className="flex-1 overflow-hidden min-w-0 w-full relative">
-            <ResizablePanel defaultSize={25} minSize={15} maxSize={45} className="overflow-hidden min-w-0">
+          <ResizablePanelGroup
+            direction="horizontal"
+            className="flex-1 overflow-hidden min-w-0 w-full relative"
+            onLayout={(sizes) => {
+              try { localStorage.setItem('chat-panel-sizes', JSON.stringify(sizes)); } catch {}
+            }}
+          >
+            <ResizablePanel defaultSize={(() => { try { const s = JSON.parse(localStorage.getItem('chat-panel-sizes') || ''); return s[0] ?? 25; } catch { return 25; } })()} minSize={15} maxSize={45} className="overflow-hidden min-w-0">
               <ConversationList
                 conversations={conversations}
                 selectedId={selectedConversation?.id || null}
@@ -878,7 +884,7 @@ const Chat = () => {
 
             <ResizableHandle withHandle />
 
-            <ResizablePanel defaultSize={crmPanelOpen && selectedConversation && modulesEnabled.crm ? 50 : 75} minSize={35} className="overflow-hidden min-w-0">
+            <ResizablePanel defaultSize={(() => { try { const s = JSON.parse(localStorage.getItem('chat-panel-sizes') || ''); return s[1] ?? (crmPanelOpen && selectedConversation && modulesEnabled.crm ? 50 : 75); } catch { return crmPanelOpen && selectedConversation && modulesEnabled.crm ? 50 : 75; } })()} minSize={35} className="overflow-hidden min-w-0">
               <ChatArea
                 conversation={selectedConversation} messages={messages} loading={loadingMessages} sending={sendingMessage}
                 tags={tags} team={team} syncingHistory={syncingHistory} isAdmin={isAdmin} userRole={userRole}
@@ -898,7 +904,7 @@ const Chat = () => {
             {selectedConversation && modulesEnabled.crm && crmPanelOpen && (
               <>
                 <ResizableHandle withHandle />
-                <ResizablePanel defaultSize={25} minSize={15} maxSize={40} className="overflow-hidden min-w-0">
+                <ResizablePanel defaultSize={(() => { try { const s = JSON.parse(localStorage.getItem('chat-panel-sizes') || ''); return s[2] ?? 25; } catch { return 25; } })()} minSize={15} maxSize={40} className="overflow-hidden min-w-0">
                   <CRMSidePanel conversationId={selectedConversation.id}
                     contactPhone={selectedConversation.remote_jid?.replace('@s.whatsapp.net', '').replace('@g.us', '') || null}
                     contactName={selectedConversation.contact_name || selectedConversation.group_name || null}
