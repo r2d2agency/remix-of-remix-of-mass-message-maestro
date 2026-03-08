@@ -904,7 +904,7 @@ const Chat = () => {
             {selectedConversation && modulesEnabled.crm && crmPanelOpen && (
               <>
                 <ResizableHandle withHandle />
-                <ResizablePanel defaultSize={25} minSize={15} maxSize={40} className="overflow-hidden min-w-0">
+                <ResizablePanel defaultSize={(() => { try { const s = JSON.parse(localStorage.getItem('chat-panel-sizes') || ''); return s[2] ?? 25; } catch { return 25; } })()} minSize={15} maxSize={40} className="overflow-hidden min-w-0">
                   <CRMSidePanel conversationId={selectedConversation.id}
                     contactPhone={selectedConversation.remote_jid?.replace('@s.whatsapp.net', '').replace('@g.us', '') || null}
                     contactName={selectedConversation.contact_name || selectedConversation.group_name || null}
