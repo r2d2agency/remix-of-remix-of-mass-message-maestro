@@ -343,6 +343,7 @@ const PRESETS: ThemePreset[] = [
   {
     id: 'sapphire',
     name: 'Safira',
+    description: 'Azul real. Confiança e autoridade.',
     preview: { primary: '#2563eb', accent: '#1d4ed8', bg: '#0f1320' },
     light: {
       primary: '221 83% 53%',
