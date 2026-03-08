@@ -109,6 +109,7 @@ const PRESETS: ThemePreset[] = [
   {
     id: 'rose',
     name: 'Rosa',
+    description: 'Rosa elegante. Perfeito para marcas modernas e ousadas.',
     preview: { primary: '#f43f5e', accent: '#e11d48', bg: '#1a0f12' },
     light: {
       primary: '350 89% 60%',
@@ -134,6 +135,7 @@ const PRESETS: ThemePreset[] = [
   {
     id: 'amber',
     name: 'Âmbar',
+    description: 'Laranja dourado. Energia e entusiasmo.',
     preview: { primary: '#f59e0b', accent: '#d97706', bg: '#1a170f' },
     light: {
       primary: '38 92% 50%',
