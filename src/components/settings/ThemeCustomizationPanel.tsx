@@ -317,6 +317,7 @@ const PRESETS: ThemePreset[] = [
   {
     id: 'forest',
     name: 'Floresta',
+    description: 'Verde natural. Sustentabilidade e harmonia.',
     preview: { primary: '#16a34a', accent: '#15803d', bg: '#0f1a12' },
     light: {
       primary: '142 72% 42%',
