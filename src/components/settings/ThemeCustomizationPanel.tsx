@@ -925,33 +925,39 @@ export function ThemeCustomizationPanel() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {EDITABLE_VARS.map(v => {
-                const hslValue = currentVars[v.key] || '';
-                const hexValue = hslValue ? hslToHex(hslValue) : '#6366f1';
-                return (
-                  <div key={v.key} className="flex items-center gap-3">
-                    <div className="relative">
-                      <input
-                        type="color"
-                        value={hexValue}
-                        onChange={(e) => handleCustomColorChange(v.key, e.target.value)}
-                        className="w-10 h-10 rounded-lg cursor-pointer border-2 border-border"
-                        style={{ padding: 0 }}
-                      />
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-6">
+              {/* Color pickers with descriptions */}
+              <div className="space-y-3">
+                {EDITABLE_VARS.map(v => {
+                  const hslValue = currentVars[v.key] || '';
+                  const hexValue = hslValue ? hslToHex(hslValue) : '#6366f1';
+                  return (
+                    <div key={v.key} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors group">
+                      <div className="relative">
+                        <input
+                          type="color"
+                          value={hexValue}
+                          onChange={(e) => handleCustomColorChange(v.key, e.target.value)}
+                          className="w-10 h-10 rounded-lg cursor-pointer border-2 border-border"
+                          style={{ padding: 0 }}
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium">{v.label}</p>
+                        <p className="text-xs text-muted-foreground">{v.desc}</p>
+                      </div>
+                      <span className="text-[10px] font-mono text-muted-foreground/60 hidden sm:block">{hslValue || 'padrão'}</span>
                     </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">{v.label}</p>
-                      <p className="text-xs text-muted-foreground font-mono">{hslValue || 'padrão'}</p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
 
-            <Button variant="outline" size="sm" className="mt-3" onClick={handlePreviewCustom}>
-              Pré-visualizar Personalizado
-            </Button>
+              {/* Live mini-preview that updates in real-time */}
+              <div className="lg:w-56 space-y-2">
+                <span className="text-xs text-muted-foreground font-medium block">Preview ao vivo:</span>
+                <LiveCustomPreview vars={currentVars} mode={editingMode} />
+              </div>
+            </div>
           </div>
 
           {/* Actions */}
