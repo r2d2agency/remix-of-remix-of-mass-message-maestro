@@ -266,6 +266,7 @@ router.post('/login', async (req, res) => {
         organization_id: organizationId,
         modules_enabled: modulesEnabled,
         organization_logo: orgResult.rows[0]?.organization_logo || null,
+        theme_config: orgResult.rows[0]?.theme_config || null,
       },
       token
     });
