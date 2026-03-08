@@ -52,9 +52,98 @@ function ThemeMiniPreview({ primary, accent, bg }: { primary: string; accent: st
     </div>
   );
 }
+// Detailed live preview for the custom color editor
+function LiveCustomPreview({ vars, mode }: { vars: Record<string, string>; mode: 'light' | 'dark' }) {
+  const primary = hslToHex(vars['primary'] || (mode === 'dark' ? '250 100% 65%' : '250 90% 55%'));
+  const accent = hslToHex(vars['accent'] || (mode === 'dark' ? '260 60% 20%' : '250 70% 92%'));
+  const bg = hslToHex(vars['background'] || (mode === 'dark' ? '240 20% 6%' : '240 15% 97%'));
+  const card = hslToHex(vars['card'] || (mode === 'dark' ? '240 20% 10%' : '0 0% 100%'));
+  const sidebarBg = hslToHex(vars['sidebar-background'] || (mode === 'dark' ? '240 20% 8%' : '0 0% 100%'));
+  const textColor = mode === 'dark' ? '#e5e5f0' : '#1a1a2e';
+  const mutedText = mode === 'dark' ? '#888899' : '#6b6b80';
 
-const PRESETS: ThemePreset[] = [
-  {
+  return (
+    <div className="rounded-lg overflow-hidden border border-border shadow-sm" style={{ backgroundColor: bg }}>
+      {/* Header bar */}
+      <div className="flex items-center gap-1.5 px-2 py-1.5 border-b" style={{ backgroundColor: sidebarBg, borderColor: accent + '40' }}>
+        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: primary }} />
+        <span style={{ color: textColor, fontSize: '9px', fontWeight: 600 }}>Sistema</span>
+        <div className="ml-auto flex gap-1">
+          <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: mutedText }} />
+          <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: mutedText }} />
+        </div>
+      </div>
+      <div className="flex" style={{ height: 140 }}>
+        {/* Sidebar */}
+        <div className="w-10 flex flex-col gap-1 p-1 border-r" style={{ backgroundColor: sidebarBg, borderColor: accent + '30' }}>
+          <div className="w-full h-5 rounded-sm flex items-center justify-center" style={{ backgroundColor: primary + '20' }}>
+            <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: primary }} />
+          </div>
+          {[1,2,3,4].map(i => (
+            <div key={i} className="w-full h-4 rounded-sm flex items-center justify-center opacity-50" style={{ backgroundColor: accent + '20' }}>
+              <div className="w-2.5 h-0.5 rounded-full" style={{ backgroundColor: mutedText }} />
+            </div>
+          ))}
+        </div>
+        {/* Main area = chat */}
+        <div className="flex-1 flex flex-col">
+          {/* Contact bar */}
+          <div className="flex items-center gap-1 px-2 py-1 border-b" style={{ borderColor: accent + '25' }}>
+            <div className="w-4 h-4 rounded-full" style={{ backgroundColor: accent }} />
+            <div>
+              <div className="h-1 w-10 rounded-full" style={{ backgroundColor: textColor, opacity: 0.7 }} />
+              <div className="h-0.5 w-6 rounded-full mt-0.5" style={{ backgroundColor: '#22c55e' }} />
+            </div>
+          </div>
+          {/* Messages */}
+          <div className="flex-1 flex flex-col justify-end p-1.5 gap-1.5" style={{ backgroundColor: bg }}>
+            {/* Received */}
+            <div className="self-start max-w-[70%] rounded-lg px-2 py-1" style={{ backgroundColor: card }}>
+              <div className="h-1 w-12 rounded-full" style={{ backgroundColor: textColor, opacity: 0.6 }} />
+              <div className="h-1 w-8 rounded-full mt-0.5" style={{ backgroundColor: textColor, opacity: 0.4 }} />
+              <div className="h-0.5 w-4 rounded-full mt-1 ml-auto" style={{ backgroundColor: mutedText, opacity: 0.5 }} />
+            </div>
+            {/* Sent */}
+            <div className="self-end max-w-[65%] rounded-lg px-2 py-1" style={{ backgroundColor: primary }}>
+              <div className="h-1 w-10 rounded-full bg-white/80" />
+              <div className="h-1 w-6 rounded-full bg-white/60 mt-0.5" />
+              <div className="h-0.5 w-3 rounded-full mt-1 ml-auto bg-white/40" />
+            </div>
+            {/* Received */}
+            <div className="self-start max-w-[60%] rounded-lg px-2 py-1" style={{ backgroundColor: card }}>
+              <div className="h-1 w-8 rounded-full" style={{ backgroundColor: textColor, opacity: 0.5 }} />
+              <div className="h-0.5 w-4 rounded-full mt-1 ml-auto" style={{ backgroundColor: mutedText, opacity: 0.5 }} />
+            </div>
+          </div>
+          {/* Input bar */}
+          <div className="flex items-center gap-1 px-1.5 py-1 border-t" style={{ borderColor: accent + '25' }}>
+            <div className="flex-1 h-4 rounded-full border" style={{ borderColor: accent + '40', backgroundColor: card }} />
+            <div className="w-4 h-4 rounded-full flex items-center justify-center" style={{ backgroundColor: primary }}>
+              <div className="w-1.5 h-1.5 rounded-sm bg-white/80" />
+            </div>
+          </div>
+        </div>
+      </div>
+      {/* Labels */}
+      <div className="flex items-center gap-2 px-2 py-1 border-t text-center" style={{ borderColor: accent + '20' }}>
+        <div className="flex items-center gap-1">
+          <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: primary }} />
+          <span style={{ fontSize: '7px', color: mutedText }}>Botões</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: card }} />
+          <span style={{ fontSize: '7px', color: mutedText }}>Cards</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: sidebarBg }} />
+          <span style={{ fontSize: '7px', color: mutedText }}>Sidebar</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
     id: 'default',
     name: 'Neon Azul (Padrão)',
     description: 'Azul vibrante com toques roxos. Ideal para empresas de tecnologia.',
