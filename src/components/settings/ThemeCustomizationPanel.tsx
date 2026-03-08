@@ -239,6 +239,7 @@ const PRESETS: ThemePreset[] = [
   {
     id: 'slate',
     name: 'Corporativo',
+    description: 'Cinza profissional. Sóbrio e confiável.',
     preview: { primary: '#475569', accent: '#334155', bg: '#0f1115' },
     light: {
       primary: '215 16% 37%',
