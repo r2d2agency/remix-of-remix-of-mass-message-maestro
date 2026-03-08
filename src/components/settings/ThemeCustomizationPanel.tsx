@@ -57,6 +57,7 @@ const PRESETS: ThemePreset[] = [
   {
     id: 'default',
     name: 'Neon Azul (Padrão)',
+    description: 'Azul vibrante com toques roxos. Ideal para empresas de tecnologia.',
     preview: { primary: '#6366f1', accent: '#8b5cf6', bg: '#0f0f17' },
     light: {
       primary: '250 90% 55%',
@@ -82,6 +83,7 @@ const PRESETS: ThemePreset[] = [
   {
     id: 'emerald',
     name: 'Esmeralda',
+    description: 'Verde sofisticado. Transmite confiança e crescimento.',
     preview: { primary: '#10b981', accent: '#059669', bg: '#0f1a17' },
     light: {
       primary: '160 84% 39%',
