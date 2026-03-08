@@ -57,6 +57,13 @@ export interface OrgThemeConfig {
   preset?: string;
   light?: Record<string, string>;
   dark?: Record<string, string>;
+  custom_themes?: Array<{
+    id: string;
+    name: string;
+    light: Record<string, string>;
+    dark: Record<string, string>;
+    preview: { primary: string; accent: string; bg: string };
+  }>;
 }
 
 interface User {
