@@ -266,35 +266,24 @@
   animation: neonPulse 2s ease-in-out infinite;
 }
 
-/* Chat wallpaper pattern - WhatsApp style */
+/* Chat wallpaper pattern - theme-aware */
 .chat-wallpaper {
-  background-color: hsl(var(--chat-bg));
-  background-image: 
-    url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%239C92AC' fill-opacity='0.08'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  background-color: hsl(var(--background));
+  background-image:
+    radial-gradient(circle at 1px 1px, hsl(var(--accent) / 0.22) 1px, transparent 0),
+    linear-gradient(180deg, hsl(var(--background)) 0%, hsl(var(--muted) / 0.45) 100%);
+  background-size: 28px 28px, 100% 100%;
 }
 
-.light .chat-wallpaper {
-  background-color: hsl(210 25% 94%);
-  background-image: 
-    url("data:image/svg+xml,%3Csvg width='80' height='80' viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%234a90d9' fill-opacity='0.08'%3E%3Cpath d='M50 50c0-5.523 4.477-10 10-10s10 4.477 10 10-4.477 10-10 10c0 5.523-4.477 10-10 10s-10-4.477-10-10 4.477-10 10-10zM10 10c0-5.523 4.477-10 10-10s10 4.477 10 10-4.477 10-10 10c0 5.523-4.477 10-10 10S0 25.523 0 20s4.477-10 10-10zm10 8c4.418 0 8-3.582 8-8s-3.582-8-8-8-8 3.582-8 8 3.582 8 8 8zm40 40c4.418 0 8-3.582 8-8s-3.582-8-8-8-8 3.582-8 8 3.582 8 8 8z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E"),
-    linear-gradient(180deg, hsl(210 25% 96%) 0%, hsl(210 20% 92%) 100%);
-}
-
-.dark .chat-wallpaper {
-  background-color: hsl(220 20% 10%);
-  background-image: 
-    url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%234a5568' fill-opacity='0.1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-}
-
-/* Message bubbles */
+/* Message bubbles - theme-aware */
 .message-sent {
-  background-color: hsl(var(--message-sent));
-  color: hsl(var(--message-sent-foreground));
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
 }
 
 .message-received {
-  background-color: hsl(var(--message-received));
-  color: hsl(var(--message-received-foreground));
+  background-color: hsl(var(--card));
+  color: hsl(var(--card-foreground));
 }
 
 .light .message-received {
