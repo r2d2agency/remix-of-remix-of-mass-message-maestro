@@ -626,19 +626,27 @@ export function ThemeCustomizationPanel() {
 
   const handleCustomColorChange = (key: string, hex: string) => {
     const hsl = hexToHsl(hex);
+    let newLight = { ...customVarsLight };
+    let newDark = { ...customVarsDark };
+    
     if (editingMode === 'light') {
-      setCustomVarsLight(prev => ({ ...prev, [key]: hsl }));
-    } else {
-      setCustomVarsDark(prev => ({ ...prev, [key]: hsl }));
-    }
-    if (key === 'primary') {
-      const updates = { [key]: hsl, 'sidebar-primary': hsl, ring: hsl };
-      if (editingMode === 'light') {
-        setCustomVarsLight(prev => ({ ...prev, ...updates }));
-      } else {
-        setCustomVarsDark(prev => ({ ...prev, ...updates }));
+      newLight = { ...newLight, [key]: hsl };
+      if (key === 'primary') {
+        newLight = { ...newLight, 'sidebar-primary': hsl, ring: hsl };
       }
+      setCustomVarsLight(newLight);
+    } else {
+      newDark = { ...newDark, [key]: hsl };
+      if (key === 'primary') {
+        newDark = { ...newDark, 'sidebar-primary': hsl, ring: hsl };
+      }
+      setCustomVarsDark(newDark);
     }
+    
+    // Apply live preview immediately
+    setCustomMode(true);
+    setActivePreset('custom');
+    previewTheme({ preset: 'custom', light: newLight, dark: newDark });
   };
 
   const previewTheme = (config: OrgThemeConfig) => {
