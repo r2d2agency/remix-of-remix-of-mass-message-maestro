@@ -122,6 +122,7 @@ const App = () => (
             <Route path="/lead-gleego" element={<ProtectedRoute><LeadGleego /></ProtectedRoute>} />
             <Route path="/f/:slug" element={<PublicFormPage />} />
             <Route path="/politica-privacidade" element={<PoliticaPrivacidade />} />
+            <Route path="/termos-servico" element={<TermosServico />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
