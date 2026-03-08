@@ -369,6 +369,7 @@ const PRESETS: ThemePreset[] = [
   {
     id: 'gold',
     name: 'Ouro Premium',
+    description: 'Dourado luxuoso. Exclusividade e prestígio.',
     preview: { primary: '#ca8a04', accent: '#a16207', bg: '#1a170d' },
     light: {
       primary: '45 93% 40%',
