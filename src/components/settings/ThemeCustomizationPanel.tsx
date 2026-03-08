@@ -1026,16 +1026,16 @@ export function ThemeCustomizationPanel() {
               </div>
             </div>
 
-            {/* Live preview strip */}
-            <div className="flex gap-2 items-center p-3 rounded-lg bg-muted/50 border">
-              <span className="text-xs text-muted-foreground">Preview:</span>
-              <div className="flex gap-1.5">
-                <div className="w-8 h-8 rounded-full border" style={{ backgroundColor: hslToHex(customVarsDark['primary'] || '250 100% 65%') }} />
-                <div className="w-8 h-8 rounded-full border" style={{ backgroundColor: hslToHex(customVarsDark['accent'] || '260 60% 20%') }} />
-                <div className="w-8 h-8 rounded-full border" style={{ backgroundColor: hslToHex(customVarsDark['background'] || '240 20% 6%') }} />
-              </div>
-              <Button variant="ghost" size="sm" className="ml-auto text-xs" onClick={handlePreviewCustom}>
-                Pré-visualizar
+            {/* Live preview mockup */}
+            <div className="space-y-2">
+              <span className="text-xs text-muted-foreground font-medium">Preview da interface:</span>
+              <ThemeMiniPreview
+                primary={hslToHex(customVarsDark['primary'] || '250 100% 65%')}
+                accent={hslToHex(customVarsDark['accent'] || '260 60% 20%')}
+                bg={hslToHex(customVarsDark['background'] || '240 20% 6%')}
+              />
+              <Button variant="ghost" size="sm" className="w-full text-xs" onClick={handlePreviewCustom}>
+                Aplicar pré-visualização no sistema
               </Button>
             </div>
           </div>
