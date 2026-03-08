@@ -803,7 +803,7 @@ export function ThemeCustomizationPanel() {
           {/* Presets Grid */}
           <div>
             <Label className="text-sm font-medium mb-3 block">Templates Prontos</Label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {PRESETS.map(preset => (
                 <button
                   key={preset.id}
@@ -814,14 +814,21 @@ export function ThemeCustomizationPanel() {
                   }`}
                   onClick={() => handleSelectPreset(preset)}
                 >
-                  <div className="flex gap-1.5 mb-2">
-                    <div className="w-6 h-6 rounded-full" style={{ backgroundColor: preset.preview.primary }} />
-                    <div className="w-6 h-6 rounded-full" style={{ backgroundColor: preset.preview.accent }} />
-                    <div className="w-6 h-6 rounded-full border" style={{ backgroundColor: preset.preview.bg }} />
+                  {/* Mini UI Preview */}
+                  <ThemeMiniPreview 
+                    primary={preset.preview.primary} 
+                    accent={preset.preview.accent} 
+                    bg={preset.preview.bg} 
+                  />
+                  {/* Name and description */}
+                  <div className="mt-2">
+                    <p className="text-sm font-medium truncate">{preset.name}</p>
+                    {preset.description && (
+                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{preset.description}</p>
+                    )}
                   </div>
-                  <p className="text-xs font-medium truncate">{preset.name}</p>
                   {activePreset === preset.id && (
-                    <Check className="absolute top-2 right-2 h-4 w-4 text-primary" />
+                    <Check className="absolute top-2 right-2 h-4 w-4 text-primary bg-primary/10 rounded-full p-0.5" />
                   )}
                 </button>
               ))}
