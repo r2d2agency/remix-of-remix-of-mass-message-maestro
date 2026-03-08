@@ -187,6 +187,7 @@ const PRESETS: ThemePreset[] = [
   {
     id: 'violet',
     name: 'Violeta',
+    description: 'Roxo suave. Sofisticação e criatividade.',
     preview: { primary: '#8b5cf6', accent: '#7c3aed', bg: '#150f1a' },
     light: {
       primary: '263 70% 66%',
