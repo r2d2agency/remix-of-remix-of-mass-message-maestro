@@ -884,7 +884,7 @@ const Chat = () => {
 
             <ResizableHandle withHandle />
 
-            <ResizablePanel defaultSize={crmPanelOpen && selectedConversation && modulesEnabled.crm ? 50 : 75} minSize={35} className="overflow-hidden min-w-0">
+            <ResizablePanel defaultSize={(() => { try { const s = JSON.parse(localStorage.getItem('chat-panel-sizes') || ''); return s[1] ?? (crmPanelOpen && selectedConversation && modulesEnabled.crm ? 50 : 75); } catch { return crmPanelOpen && selectedConversation && modulesEnabled.crm ? 50 : 75; } })()} minSize={35} className="overflow-hidden min-w-0">
               <ChatArea
                 conversation={selectedConversation} messages={messages} loading={loadingMessages} sending={sendingMessage}
                 tags={tags} team={team} syncingHistory={syncingHistory} isAdmin={isAdmin} userRole={userRole}
