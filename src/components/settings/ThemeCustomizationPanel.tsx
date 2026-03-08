@@ -477,6 +477,7 @@ const PRESETS: ThemePreset[] = [
   {
     id: 'lime',
     name: 'Lima',
+    description: 'Verde-limão vivo. Jovem e inovador.',
     preview: { primary: '#84cc16', accent: '#65a30d', bg: '#141a0f' },
     light: {
       primary: '84 81% 44%',
