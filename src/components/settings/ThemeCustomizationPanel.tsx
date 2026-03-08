@@ -395,6 +395,7 @@ const PRESETS: ThemePreset[] = [
   {
     id: 'magenta',
     name: 'Magenta',
+    description: 'Rosa intenso. Criativo e marcante.',
     preview: { primary: '#d946ef', accent: '#c026d3', bg: '#1a0f1a' },
     light: {
       primary: '292 84% 61%',
