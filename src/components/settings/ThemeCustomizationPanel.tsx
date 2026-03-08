@@ -213,6 +213,7 @@ const PRESETS: ThemePreset[] = [
   {
     id: 'orange',
     name: 'Laranja',
+    description: 'Laranja vivo. Dinâmico e energético.',
     preview: { primary: '#f97316', accent: '#ea580c', bg: '#1a130f' },
     light: {
       primary: '25 95% 53%',
