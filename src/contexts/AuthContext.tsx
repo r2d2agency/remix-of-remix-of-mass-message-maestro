@@ -195,13 +195,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // Apply org theme when user changes
+  const themeConfigJson = user?.theme_config ? JSON.stringify(user.theme_config) : null;
   useEffect(() => {
     if (user?.theme_config) {
       applyOrgTheme(user.theme_config);
     } else {
       clearOrgTheme();
     }
-  }, [user?.theme_config]);
+  }, [themeConfigJson]);
 
   const modulesEnabled = user?.modules_enabled || defaultModules;
   const featurePermissions = user?.feature_permissions || null;
