@@ -148,7 +148,7 @@ router.use(authenticate);
 router.get('/status', async (req, res) => {
   try {
     const result = await query(
-      `SELECT google_email, google_name, is_active, last_sync_at, last_error, expires_at
+      `SELECT google_email, google_name, is_active, last_sync_at, last_error, expires_at, default_calendar_id
        FROM google_oauth_tokens WHERE user_id = $1`,
       [req.userId]
     );
@@ -165,6 +165,7 @@ router.get('/status', async (req, res) => {
       lastSync: token.last_sync_at,
       lastError: token.last_error,
       tokenExpired: new Date(token.expires_at) < new Date(),
+      defaultCalendarId: token.default_calendar_id || null,
     });
   } catch (error) {
     logError('Error fetching Google status:', error);
