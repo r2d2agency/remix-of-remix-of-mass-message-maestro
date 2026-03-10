@@ -53,14 +53,19 @@ export const api = async <T>(endpoint: string, options: ApiOptions = {}): Promis
   if (!response.ok) {
     const baseMsg = data?.error || data?.message || `Erro na requisição (${response.status})`;
     const details = data?.details ? `: ${data.details}` : '';
-    // eslint-disable-next-line no-console
-    console.error('[api] request failed', {
-      url: `${API_URL}${endpoint}`,
-      status: response.status,
-      contentType,
-      body,
-      response: data,
-    });
+    const isExpectedAuthProbeFailure = response.status === 401 && endpoint === '/api/auth/me';
+
+    if (!isExpectedAuthProbeFailure) {
+      // eslint-disable-next-line no-console
+      console.error('[api] request failed', {
+        url: `${API_URL}${endpoint}`,
+        status: response.status,
+        contentType,
+        body,
+        response: data,
+      });
+    }
+
     throw new Error(`${baseMsg}${details}`);
   }
 
