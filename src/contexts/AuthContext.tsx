@@ -104,6 +104,35 @@ function getCachedUser(): User | null {
   }
 }
 
+function parseJwtPayload(token: string): { exp?: number } | null {
+  try {
+    const payloadPart = token.split('.')[1];
+    if (!payloadPart) return null;
+    const base64 = payloadPart.replace(/-/g, '+').replace(/_/g, '/');
+    return JSON.parse(atob(base64));
+  } catch {
+    return null;
+  }
+}
+
+function isJwtExpired(token: string): boolean {
+  const payload = parseJwtPayload(token);
+  if (!payload?.exp) return false;
+  return payload.exp * 1000 <= Date.now();
+}
+
+function shouldClearSession(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message.toLowerCase() : '';
+  return (
+    msg.includes('401') ||
+    msg.includes('token inválido') ||
+    msg.includes('token nao fornecido') ||
+    msg.includes('token não fornecido') ||
+    msg.includes('jwt expired') ||
+    msg.includes('unauthorized')
+  );
+}
+
 function setCachedUser(user: User | null) {
   if (user) {
     localStorage.setItem(USER_CACHE_KEY, JSON.stringify(user));
@@ -144,12 +173,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
+    if (isJwtExpired(token)) {
+      clearAuthToken();
+      setUser(null);
+      return;
+    }
+
     try {
       const { user } = await authApi.getMe();
       setUser(user);
-    } catch {
+    } catch (error) {
+      if (shouldClearSession(error)) {
+        clearAuthToken();
+      }
       setUser(null);
-      clearAuthToken();
     }
   };
 
@@ -163,12 +200,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
 
+      if (isJwtExpired(token)) {
+        clearAuthToken();
+        setUser(null);
+        setIsLoading(false);
+        return;
+      }
+
       try {
         const { user } = await authApi.getMe();
         setUser(user);
       } catch (error) {
-        const msg = error instanceof Error ? error.message : '';
-        if (msg.includes('401') || msg.includes('Token') || msg.includes('inválido')) {
+        if (shouldClearSession(error)) {
           clearAuthToken();
         }
         setUser(null);

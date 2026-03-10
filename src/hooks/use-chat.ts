@@ -133,7 +133,7 @@ export interface UserAlert {
 export const useChat = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const alertsPollingRef = useRef<NodeJS.Timeout | null>(null);
+  const alertsPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastAlertIdRef = useRef<string | null>(null);
 
   // Alerts polling - show toast when new scheduled messages are sent

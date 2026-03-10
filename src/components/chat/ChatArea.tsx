@@ -458,7 +458,7 @@ export function ChatArea({
     const container = scrollContainerRef.current;
     if (!container) return;
 
-    let scrollTimeout: NodeJS.Timeout;
+    let scrollTimeout: ReturnType<typeof setTimeout>;
 
     const handleScroll = () => {
       const { scrollTop, scrollHeight, clientHeight } = container;
