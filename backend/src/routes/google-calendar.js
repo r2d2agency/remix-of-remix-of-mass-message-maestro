@@ -510,6 +510,70 @@ router.post('/sync-task/:taskId', async (req, res) => {
   }
 });
 
+// Debug endpoint - check Google Calendar configuration
+router.get('/debug', async (req, res) => {
+  try {
+    const checks = {
+      clientIdSet: !!GOOGLE_CLIENT_ID,
+      clientSecretSet: !!GOOGLE_CLIENT_SECRET,
+      redirectUri: GOOGLE_REDIRECT_URI,
+    };
+
+    // Check if user has token in DB
+    try {
+      const tokenResult = await query(
+        `SELECT user_id, google_email, is_active, expires_at, last_error,
+                (refresh_token IS NOT NULL) as has_refresh_token
+         FROM google_oauth_tokens WHERE user_id = $1`,
+        [req.userId]
+      );
+      if (tokenResult.rows[0]) {
+        const t = tokenResult.rows[0];
+        checks.token = {
+          email: t.google_email,
+          isActive: t.is_active,
+          expiresAt: t.expires_at,
+          expired: new Date(t.expires_at) < new Date(),
+          hasRefreshToken: t.has_refresh_token,
+          lastError: t.last_error,
+        };
+      } else {
+        checks.token = null;
+      }
+    } catch (dbErr) {
+      checks.tokenError = dbErr.message;
+    }
+
+    // Try to get a valid access token
+    try {
+      const accessToken = await getValidAccessToken(req.userId);
+      checks.accessTokenValid = true;
+      checks.accessTokenLength = accessToken?.length || 0;
+
+      // Try to call Google Calendar API
+      const response = await fetch(`${GOOGLE_CALENDAR_API}/users/me/calendarList`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const data = await response.json();
+      checks.googleApiStatus = response.status;
+      checks.googleApiOk = response.ok;
+      if (!response.ok) {
+        checks.googleApiError = data.error;
+      } else {
+        checks.calendarsCount = (data.items || []).length;
+        checks.calendarNames = (data.items || []).map(c => c.summary);
+      }
+    } catch (tokenErr) {
+      checks.accessTokenValid = false;
+      checks.accessTokenError = tokenErr.message;
+    }
+
+    res.json(checks);
+  } catch (error) {
+    res.json({ error: error.message, stack: error.stack });
+  }
+});
+
 // List user's calendars
 router.get('/calendars', async (req, res) => {
   try {
@@ -517,31 +581,42 @@ router.get('/calendars', async (req, res) => {
     try {
       accessToken = await getValidAccessToken(req.userId);
     } catch (tokenErr) {
-      logInfo(`Google Calendar not connected for user ${req.userId}: ${tokenErr.message}`);
-      return res.json([]); // Not connected – return empty list
+      logInfo('google.calendars.no_token', { userId: req.userId, error: tokenErr.message });
+      return res.json([]);
     }
 
-    logInfo(`Fetching Google Calendar list for user ${req.userId}`);
+    logInfo('google.calendars.fetching', { userId: req.userId });
 
-    const response = await fetch(`${GOOGLE_CALENDAR_API}/users/me/calendarList`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+    let response;
+    try {
+      response = await fetch(`${GOOGLE_CALENDAR_API}/users/me/calendarList`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+    } catch (fetchErr) {
+      logError('google.calendars.fetch_failed', fetchErr);
+      return res.json([]);
+    }
 
-    const data = await response.json();
+    let data;
+    try {
+      data = await response.json();
+    } catch (parseErr) {
+      logError('google.calendars.parse_failed', parseErr);
+      return res.json([]);
+    }
 
     if (!response.ok) {
-      logError('Google calendarList API error:', { status: response.status, error: data.error });
-      // If token was revoked or invalid, mark as inactive
+      logError('google.calendars.api_error', null, { status: response.status, error: data.error });
       if (response.status === 401) {
         await query(
           `UPDATE google_oauth_tokens SET is_active = false, last_error = 'token_revoked' WHERE user_id = $1`,
           [req.userId]
-        );
+        ).catch(() => {});
       }
-      return res.json([]); // Return empty instead of crashing
+      return res.json([]);
     }
 
-    // Get user's selected calendars preference (defensive: column may not exist yet)
+    // Get user's selected calendars preference
     let selectedCalendars = null;
     try {
       const prefResult = await query(
@@ -549,8 +624,8 @@ router.get('/calendars', async (req, res) => {
         [req.userId]
       );
       selectedCalendars = prefResult.rows[0]?.selected_calendars || null;
-    } catch (prefErr) {
-      // Column may not exist yet – ignore
+    } catch (_e) {
+      // Column may not exist yet
     }
 
     const calendars = (data.items || []).map(cal => ({
@@ -564,11 +639,11 @@ router.get('/calendars', async (req, res) => {
       selected: selectedCalendars === null ? true : (Array.isArray(selectedCalendars) ? selectedCalendars.includes(cal.id) : true),
     }));
 
-    logInfo(`Found ${calendars.length} calendars for user ${req.userId}`);
+    logInfo('google.calendars.success', { userId: req.userId, count: calendars.length });
     res.json(calendars);
   } catch (error) {
-    logError('Error fetching Google calendars:', error);
-    res.json([]); // Never return 500 – return empty list as fallback
+    logError('google.calendars.unexpected', error);
+    res.json([]);
   }
 });
 
