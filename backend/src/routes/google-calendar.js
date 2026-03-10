@@ -513,7 +513,12 @@ router.post('/sync-task/:taskId', async (req, res) => {
 // List user's calendars
 router.get('/calendars', async (req, res) => {
   try {
-    const accessToken = await getValidAccessToken(req.userId);
+    let accessToken;
+    try {
+      accessToken = await getValidAccessToken(req.userId);
+    } catch {
+      return res.json([]); // Not connected – return empty list
+    }
 
     const response = await fetch(`${GOOGLE_CALENDAR_API}/users/me/calendarList`, {
       headers: { Authorization: `Bearer ${accessToken}` },
