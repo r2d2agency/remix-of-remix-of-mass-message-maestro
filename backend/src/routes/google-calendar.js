@@ -618,7 +618,7 @@ router.get('/events', async (req, res) => {
       cal.accessRole !== 'freeBusyReader'
     );
 
-    if (selectedCalendars && selectedCalendars.length > 0) {
+    if (Array.isArray(selectedCalendars) && selectedCalendars.length > 0) {
       calendars = calendars.filter(cal => selectedCalendars.includes(cal.id));
     }
 
