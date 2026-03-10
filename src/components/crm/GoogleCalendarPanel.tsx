@@ -24,6 +24,7 @@ export function GoogleCalendarPanel() {
   const disconnectMutation = useGoogleCalendarDisconnect();
   const { data: calendars, isLoading: calendarsLoading } = useGoogleCalendars();
   const saveSelectedMutation = useSaveSelectedCalendars();
+  const saveDefaultMutation = useSaveDefaultCalendar();
 
   // Handle OAuth callback messages
   useEffect(() => {
