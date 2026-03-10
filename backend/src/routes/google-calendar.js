@@ -516,9 +516,12 @@ router.get('/calendars', async (req, res) => {
     let accessToken;
     try {
       accessToken = await getValidAccessToken(req.userId);
-    } catch {
+    } catch (tokenErr) {
+      logInfo(`Google Calendar not connected for user ${req.userId}: ${tokenErr.message}`);
       return res.json([]); // Not connected – return empty list
     }
+
+    logInfo(`Fetching Google Calendar list for user ${req.userId}`);
 
     const response = await fetch(`${GOOGLE_CALENDAR_API}/users/me/calendarList`, {
       headers: { Authorization: `Bearer ${accessToken}` },
@@ -527,7 +530,15 @@ router.get('/calendars', async (req, res) => {
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.error?.message || 'Erro ao buscar calendários');
+      logError('Google calendarList API error:', { status: response.status, error: data.error });
+      // If token was revoked or invalid, mark as inactive
+      if (response.status === 401) {
+        await query(
+          `UPDATE google_oauth_tokens SET is_active = false, last_error = 'token_revoked' WHERE user_id = $1`,
+          [req.userId]
+        );
+      }
+      return res.json([]); // Return empty instead of crashing
     }
 
     // Get user's selected calendars preference (defensive: column may not exist yet)
@@ -539,7 +550,7 @@ router.get('/calendars', async (req, res) => {
       );
       selectedCalendars = prefResult.rows[0]?.selected_calendars || null;
     } catch (prefErr) {
-      logError('selected_calendars column may not exist yet:', prefErr);
+      // Column may not exist yet – ignore
     }
 
     const calendars = (data.items || []).map(cal => ({
@@ -553,10 +564,11 @@ router.get('/calendars', async (req, res) => {
       selected: selectedCalendars === null ? true : (Array.isArray(selectedCalendars) ? selectedCalendars.includes(cal.id) : true),
     }));
 
+    logInfo(`Found ${calendars.length} calendars for user ${req.userId}`);
     res.json(calendars);
   } catch (error) {
     logError('Error fetching Google calendars:', error);
-    res.status(500).json({ error: error.message });
+    res.json([]); // Never return 500 – return empty list as fallback
   }
 });
 
@@ -625,7 +637,8 @@ router.get('/events', async (req, res) => {
 
     const calListData = await calListResponse.json();
     if (!calListResponse.ok) {
-      throw new Error(calListData.error?.message || 'Erro ao buscar calendários');
+      logError('Google calendarList API error in /events:', { status: calListResponse.status, error: calListData.error });
+      return res.json([]);
     }
 
     // Filter calendars based on user preference
@@ -684,7 +697,7 @@ router.get('/events', async (req, res) => {
     res.json(allEvents);
   } catch (error) {
     logError('Error fetching Google Calendar events:', error);
-    res.status(500).json({ error: error.message });
+    res.json([]); // Never return 500 – return empty list as fallback
   }
 });
 
