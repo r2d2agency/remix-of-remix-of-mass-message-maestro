@@ -481,7 +481,7 @@ export function CRMSidePanel({
       "relative flex flex-col bg-card overflow-hidden",
       isMobile 
         ? "w-full h-full" 
-        : "w-80 h-full border-l"
+        : "w-full h-full border-l"
     )}>
       <ToggleButton />
       
