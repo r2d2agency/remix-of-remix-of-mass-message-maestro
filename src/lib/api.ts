@@ -14,7 +14,7 @@ export const api = async <T>(endpoint: string, options: ApiOptions = {}): Promis
   };
 
   if (auth) {
-    const token = localStorage.getItem('auth_token');
+    const token = getAuthToken();
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
