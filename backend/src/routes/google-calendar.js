@@ -558,6 +558,23 @@ router.put('/calendars/selected', async (req, res) => {
   }
 });
 
+// Save default calendar for creating events
+router.put('/calendars/default', async (req, res) => {
+  try {
+    const { calendarId } = req.body; // calendar ID or null for primary
+
+    await query(
+      `UPDATE google_oauth_tokens SET default_calendar_id = $1, updated_at = NOW() WHERE user_id = $2`,
+      [calendarId || null, req.userId]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    logError('Error saving default calendar:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // List user's calendar events (from selected calendars)
 router.get('/events', async (req, res) => {
   try {
