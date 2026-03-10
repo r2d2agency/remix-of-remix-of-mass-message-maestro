@@ -2,6 +2,17 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
+export interface GoogleCalendar {
+  id: string;
+  summary: string;
+  description?: string;
+  primary: boolean;
+  backgroundColor: string;
+  foregroundColor: string;
+  accessRole: string;
+  selected: boolean;
+}
+
 export interface GoogleCalendarStatus {
   connected: boolean;
   email?: string;
