@@ -709,7 +709,10 @@ MENSAGENS:
 ${messageLog}`;
 
     const aiResult = await callAI(aiConfig, systemPrompt, userPrompt);
-    if (!aiResult) return null;
+    if (!aiResult) {
+      logInfo('group_secretary', `Meeting minutes: AI returned no result`);
+      return { error: 'A IA não retornou resultado. Verifique a chave de API e tente novamente.' };
+    }
 
     // Save to database
     const periodStart = messages[0]?.created_at;
