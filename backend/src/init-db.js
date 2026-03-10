@@ -2061,6 +2061,14 @@ EXCEPTION
     WHEN duplicate_column THEN null;
 END $$;
 
+-- Add selected_calendars and default_calendar_id columns
+DO $$ BEGIN
+    ALTER TABLE google_oauth_tokens ADD COLUMN IF NOT EXISTS selected_calendars JSONB DEFAULT NULL;
+    ALTER TABLE google_oauth_tokens ADD COLUMN IF NOT EXISTS default_calendar_id VARCHAR(255) DEFAULT NULL;
+EXCEPTION
+    WHEN duplicate_column THEN null;
+END $$;
+
 -- Add unique constraint on google_event_id if not exists
 DO $$ BEGIN
     IF NOT EXISTS (

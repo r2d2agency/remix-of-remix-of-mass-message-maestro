@@ -480,13 +480,17 @@ router.post('/sync-task/:taskId', async (req, res) => {
     // Save/update mapping
     await query(
       `INSERT INTO google_calendar_events 
-       (user_id, crm_task_id, crm_deal_id, google_event_id, google_calendar_id, sync_status, last_synced_at)
-       VALUES ($1, $2, $3, $4, 'primary', 'synced', NOW())
+       (user_id, crm_task_id, crm_deal_id, google_event_id, google_calendar_id, event_summary, event_start, event_end, sync_status, last_synced_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'synced', NOW())
        ON CONFLICT (user_id, crm_task_id) DO UPDATE SET
          google_event_id = EXCLUDED.google_event_id,
+         google_calendar_id = EXCLUDED.google_calendar_id,
+         event_summary = EXCLUDED.event_summary,
+         event_start = EXCLUDED.event_start,
+         event_end = EXCLUDED.event_end,
          sync_status = 'synced',
          last_synced_at = NOW()`,
-      [req.userId, taskId, task.deal_id, eventData.id]
+      [req.userId, taskId, task.deal_id, eventData.id, defaultCalId, task.title, startDate.toISOString(), endDate.toISOString()]
     );
 
     await query(
