@@ -599,7 +599,12 @@ router.get('/events', async (req, res) => {
   try {
     const { timeMin, timeMax, maxResults = 50 } = req.query;
 
-    const accessToken = await getValidAccessToken(req.userId);
+    let accessToken;
+    try {
+      accessToken = await getValidAccessToken(req.userId);
+    } catch {
+      return res.json([]); // Not connected – return empty list
+    }
 
     // Get user's selected calendars preference (defensive)
     let selectedCalendars = null;
