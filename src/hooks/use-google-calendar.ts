@@ -165,7 +165,21 @@ export function useGoogleCalendars() {
   return useQuery({
     queryKey: ["google-calendars"],
     queryFn: async () => {
-      return api<GoogleCalendar[]>("/api/google-calendar/calendars");
+      try {
+        const result = await api<GoogleCalendar[]>("/api/google-calendar/calendars");
+        console.log("[GoogleCalendars] loaded:", result);
+        return result;
+      } catch (err) {
+        console.error("[GoogleCalendars] ERRO ao carregar agendas:", err);
+        // Auto-run debug endpoint
+        try {
+          const debugRes = await api<any>("/api/google-calendar/debug");
+          console.log("[GoogleCalendars] DEBUG info:", JSON.stringify(debugRes, null, 2));
+        } catch (debugErr) {
+          console.error("[GoogleCalendars] DEBUG also failed:", debugErr);
+        }
+        throw err;
+      }
     },
   });
 }
