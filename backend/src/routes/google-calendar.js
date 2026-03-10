@@ -451,7 +451,8 @@ router.post('/sync-task/:taskId', async (req, res) => {
 
     let response;
     let method = 'POST';
-    let url = `${GOOGLE_CALENDAR_API}/calendars/primary/events`;
+    const defaultCalId = await getDefaultCalendarId(req.userId);
+    let url = `${GOOGLE_CALENDAR_API}/calendars/${encodeURIComponent(defaultCalId)}/events`;
 
     if (existingSync.rows[0]) {
       // Update existing event
