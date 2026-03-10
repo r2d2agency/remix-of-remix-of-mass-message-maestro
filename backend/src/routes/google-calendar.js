@@ -312,7 +312,7 @@ router.post('/events', async (req, res) => {
            google_event_id = EXCLUDED.google_event_id,
            sync_status = 'synced',
            last_synced_at = NOW()`,
-        [req.userId, taskId, dealId || null, eventData.id]
+        [req.userId, taskId, dealId || null, eventData.id, calendarId]
       );
     }
 
