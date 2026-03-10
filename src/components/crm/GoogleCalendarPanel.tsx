@@ -1,18 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   useGoogleCalendarStatus, 
   useGoogleCalendarAuth, 
   useGoogleCalendarDisconnect,
   useGoogleCalendars,
   useSaveSelectedCalendars,
+  useSaveDefaultCalendar,
   GoogleCalendar
 } from "@/hooks/use-google-calendar";
-import { Calendar, CheckCircle, XCircle, Loader2, ExternalLink, AlertCircle } from "lucide-react";
+import { Calendar, CheckCircle, XCircle, Loader2, ExternalLink, AlertCircle, Star } from "lucide-react";
 import { toast } from "sonner";
 
 export function GoogleCalendarPanel() {
