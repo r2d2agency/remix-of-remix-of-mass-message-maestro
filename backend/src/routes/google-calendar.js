@@ -520,12 +520,17 @@ router.get('/calendars', async (req, res) => {
       throw new Error(data.error?.message || 'Erro ao buscar calendários');
     }
 
-    // Get user's selected calendars preference
-    const prefResult = await query(
-      `SELECT selected_calendars FROM google_oauth_tokens WHERE user_id = $1`,
-      [req.userId]
-    );
-    const selectedCalendars = prefResult.rows[0]?.selected_calendars || null;
+    // Get user's selected calendars preference (defensive: column may not exist yet)
+    let selectedCalendars = null;
+    try {
+      const prefResult = await query(
+        `SELECT selected_calendars FROM google_oauth_tokens WHERE user_id = $1`,
+        [req.userId]
+      );
+      selectedCalendars = prefResult.rows[0]?.selected_calendars || null;
+    } catch (prefErr) {
+      logError('selected_calendars column may not exist yet:', prefErr);
+    }
 
     const calendars = (data.items || []).map(cal => ({
       id: cal.id,
@@ -535,7 +540,7 @@ router.get('/calendars', async (req, res) => {
       backgroundColor: cal.backgroundColor,
       foregroundColor: cal.foregroundColor,
       accessRole: cal.accessRole,
-      selected: selectedCalendars === null ? true : selectedCalendars.includes(cal.id),
+      selected: selectedCalendars === null ? true : (Array.isArray(selectedCalendars) ? selectedCalendars.includes(cal.id) : true),
     }));
 
     res.json(calendars);
