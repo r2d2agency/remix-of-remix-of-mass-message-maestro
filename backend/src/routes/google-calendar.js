@@ -591,12 +591,17 @@ router.get('/events', async (req, res) => {
 
     const accessToken = await getValidAccessToken(req.userId);
 
-    // Get user's selected calendars preference
-    const prefResult = await query(
-      `SELECT selected_calendars FROM google_oauth_tokens WHERE user_id = $1`,
-      [req.userId]
-    );
-    const selectedCalendars = prefResult.rows[0]?.selected_calendars || null;
+    // Get user's selected calendars preference (defensive)
+    let selectedCalendars = null;
+    try {
+      const prefResult = await query(
+        `SELECT selected_calendars FROM google_oauth_tokens WHERE user_id = $1`,
+        [req.userId]
+      );
+      selectedCalendars = prefResult.rows[0]?.selected_calendars || null;
+    } catch (prefErr) {
+      logError('selected_calendars column may not exist yet:', prefErr);
+    }
 
     // Get user's calendar list
     const calListResponse = await fetch(`${GOOGLE_CALENDAR_API}/users/me/calendarList`, {
