@@ -620,23 +620,29 @@ export async function generateMeetingMinutes({ organizationId, conversationId, h
        WHERE c.id = $1 AND conn.organization_id = $2`,
       [conversationId, organizationId]
     );
-    if (convResult.rows.length === 0) return null;
+    if (convResult.rows.length === 0) {
+      logInfo('group_secretary', `Meeting minutes: conversation ${conversationId} not found for org ${organizationId}`);
+      return { error: 'Conversa não encontrada' };
+    }
     const conv = convResult.rows[0];
 
-    // Get recent messages
+    // Get recent messages - accept any media_type that has text content
     const messagesResult = await query(
       `SELECT m.content, m.sender_name, m.from_me, m.created_at, m.media_type
        FROM messages m
        WHERE m.conversation_id = $1 
          AND m.created_at >= NOW() - INTERVAL '1 hour' * $2
          AND m.content IS NOT NULL AND m.content != ''
-         AND m.media_type IN ('text', 'extendedTextMessage', 'conversation')
        ORDER BY m.created_at ASC
        LIMIT 500`,
       [conversationId, hours]
     );
 
-    if (messagesResult.rows.length < 3) return null;
+    logInfo('group_secretary', `Meeting minutes: found ${messagesResult.rows.length} messages in last ${hours}h for conversation ${conversationId}`);
+
+    if (messagesResult.rows.length < 3) {
+      return { error: `Apenas ${messagesResult.rows.length} mensagens encontradas no período de ${hours}h. São necessárias pelo menos 3.` };
+    }
 
     const messages = messagesResult.rows;
     const participants = [...new Set(messages.map(m => m.sender_name).filter(Boolean))];
