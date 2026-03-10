@@ -147,9 +147,9 @@ router.use(authenticate);
 // Get connection status
 router.get('/status', async (req, res) => {
   try {
+    // Use SELECT * to avoid errors if columns don't exist yet
     const result = await query(
-      `SELECT google_email, google_name, is_active, last_sync_at, last_error, expires_at, default_calendar_id
-       FROM google_oauth_tokens WHERE user_id = $1`,
+      `SELECT * FROM google_oauth_tokens WHERE user_id = $1`,
       [req.userId]
     );
 
@@ -247,11 +247,16 @@ async function getValidAccessToken(userId) {
 // HELPER: Get default calendar ID for creating events
 // ============================================
 async function getDefaultCalendarId(userId) {
-  const result = await query(
-    `SELECT default_calendar_id FROM google_oauth_tokens WHERE user_id = $1`,
-    [userId]
-  );
-  return result.rows[0]?.default_calendar_id || 'primary';
+  try {
+    const result = await query(
+      `SELECT default_calendar_id FROM google_oauth_tokens WHERE user_id = $1`,
+      [userId]
+    );
+    return result.rows[0]?.default_calendar_id || 'primary';
+  } catch (err) {
+    logError('default_calendar_id column may not exist yet:', err);
+    return 'primary';
+  }
 }
 
 // ============================================
