@@ -243,6 +243,17 @@ async function getValidAccessToken(userId) {
 }
 
 // ============================================
+// HELPER: Get default calendar ID for creating events
+// ============================================
+async function getDefaultCalendarId(userId) {
+  const result = await query(
+    `SELECT default_calendar_id FROM google_oauth_tokens WHERE user_id = $1`,
+    [userId]
+  );
+  return result.rows[0]?.default_calendar_id || 'primary';
+}
+
+// ============================================
 // CALENDAR OPERATIONS
 // ============================================
 
