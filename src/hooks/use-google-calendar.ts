@@ -20,6 +20,7 @@ export interface GoogleCalendarStatus {
   lastSync?: string;
   lastError?: string;
   tokenExpired?: boolean;
+  defaultCalendarId?: string | null;
 }
 
 export interface GoogleCalendarEvent {
