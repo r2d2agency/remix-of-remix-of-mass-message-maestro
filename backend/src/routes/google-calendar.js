@@ -737,7 +737,8 @@ router.post('/events-with-meet', async (req, res) => {
     }
 
     // Build URL with conferenceDataVersion if adding Meet
-    let url = `${GOOGLE_CALENDAR_API}/calendars/primary/events`;
+    const defaultCalId = await getDefaultCalendarId(req.userId);
+    let url = `${GOOGLE_CALENDAR_API}/calendars/${encodeURIComponent(defaultCalId)}/events`;
     if (addMeet) {
       url += '?conferenceDataVersion=1&sendUpdates=all';
     } else if (attendees.length > 0) {
