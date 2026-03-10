@@ -381,7 +381,8 @@ router.delete('/events/:eventId', async (req, res) => {
 
     const accessToken = await getValidAccessToken(req.userId);
 
-    const response = await fetch(`${GOOGLE_CALENDAR_API}/calendars/primary/events/${eventId}`, {
+    const defaultCalId = await getDefaultCalendarId(req.userId);
+    const response = await fetch(`${GOOGLE_CALENDAR_API}/calendars/${encodeURIComponent(defaultCalId)}/events/${eventId}`, {
       method: 'DELETE',
       headers: {
         Authorization: `Bearer ${accessToken}`,
