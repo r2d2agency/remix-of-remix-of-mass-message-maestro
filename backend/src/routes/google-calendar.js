@@ -351,7 +351,8 @@ router.put('/events/:eventId', async (req, res) => {
       },
     };
 
-    const response = await fetch(`${GOOGLE_CALENDAR_API}/calendars/primary/events/${eventId}`, {
+    const defaultCalId = await getDefaultCalendarId(req.userId);
+    const response = await fetch(`${GOOGLE_CALENDAR_API}/calendars/${encodeURIComponent(defaultCalId)}/events/${eventId}`, {
       method: 'PUT',
       headers: {
         Authorization: `Bearer ${accessToken}`,
