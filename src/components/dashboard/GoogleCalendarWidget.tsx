@@ -65,11 +65,17 @@ function EventItem({ event }: { event: GoogleCalendarEvent }) {
             </Badge>
           )}
         </div>
-        <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+        <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
           <span className="flex items-center gap-1">
             <Clock className="h-3 w-3" />
             {getEventTimeLabel(event)}
           </span>
+          {event.calendarName && (
+            <span className="flex items-center gap-1">
+              <Calendar className="h-3 w-3" />
+              <span className="truncate">{event.calendarName}</span>
+            </span>
+          )}
           {event.location && (
             <span className="flex items-center gap-1 truncate">
               <MapPin className="h-3 w-3" />
