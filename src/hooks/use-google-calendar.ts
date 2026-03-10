@@ -20,6 +20,7 @@ export interface GoogleCalendarStatus {
   lastSync?: string;
   lastError?: string;
   tokenExpired?: boolean;
+  defaultCalendarId?: string | null;
 }
 
 export interface GoogleCalendarEvent {
@@ -189,6 +190,32 @@ export function useSaveSelectedCalendars() {
     onError: (error: Error) => {
       toast({
         title: "Erro ao salvar preferências",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+}
+
+// Save default calendar for creating events
+export function useSaveDefaultCalendar() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (calendarId: string | null) => {
+      return api<{ success: boolean }>("/api/google-calendar/calendars/default", {
+        method: "PUT",
+        body: { calendarId },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["google-calendar-status"] });
+      toast({ title: "Agenda padrão atualizada" });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao salvar agenda padrão",
         description: error.message,
         variant: "destructive",
       });

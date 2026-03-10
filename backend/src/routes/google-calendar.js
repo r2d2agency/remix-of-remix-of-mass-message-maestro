@@ -148,7 +148,7 @@ router.use(authenticate);
 router.get('/status', async (req, res) => {
   try {
     const result = await query(
-      `SELECT google_email, google_name, is_active, last_sync_at, last_error, expires_at
+      `SELECT google_email, google_name, is_active, last_sync_at, last_error, expires_at, default_calendar_id
        FROM google_oauth_tokens WHERE user_id = $1`,
       [req.userId]
     );
@@ -165,6 +165,7 @@ router.get('/status', async (req, res) => {
       lastSync: token.last_sync_at,
       lastError: token.last_error,
       tokenExpired: new Date(token.expires_at) < new Date(),
+      defaultCalendarId: token.default_calendar_id || null,
     });
   } catch (error) {
     logError('Error fetching Google status:', error);
@@ -243,19 +244,31 @@ async function getValidAccessToken(userId) {
 }
 
 // ============================================
+// HELPER: Get default calendar ID for creating events
+// ============================================
+async function getDefaultCalendarId(userId) {
+  const result = await query(
+    `SELECT default_calendar_id FROM google_oauth_tokens WHERE user_id = $1`,
+    [userId]
+  );
+  return result.rows[0]?.default_calendar_id || 'primary';
+}
+
+// ============================================
 // CALENDAR OPERATIONS
 // ============================================
 
 // Create event in Google Calendar
 router.post('/events', async (req, res) => {
   try {
-    const { title, description, startDateTime, endDateTime, location, taskId, dealId } = req.body;
+    const { title, description, startDateTime, endDateTime, location, taskId, dealId, calendarId: requestCalendarId } = req.body;
 
     if (!title || !startDateTime || !endDateTime) {
       return res.status(400).json({ error: 'Título, data de início e fim são obrigatórios' });
     }
 
     const accessToken = await getValidAccessToken(req.userId);
+    const calendarId = requestCalendarId || await getDefaultCalendarId(req.userId);
 
     const event = {
       summary: title,
@@ -274,7 +287,7 @@ router.post('/events', async (req, res) => {
       },
     };
 
-    const response = await fetch(`${GOOGLE_CALENDAR_API}/calendars/primary/events`, {
+    const response = await fetch(`${GOOGLE_CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -295,12 +308,12 @@ router.post('/events', async (req, res) => {
       await query(
         `INSERT INTO google_calendar_events 
          (user_id, crm_task_id, crm_deal_id, google_event_id, google_calendar_id)
-         VALUES ($1, $2, $3, $4, 'primary')
+         VALUES ($1, $2, $3, $4, $5)
          ON CONFLICT (user_id, crm_task_id) DO UPDATE SET
            google_event_id = EXCLUDED.google_event_id,
            sync_status = 'synced',
            last_synced_at = NOW()`,
-        [req.userId, taskId, dealId || null, eventData.id]
+        [req.userId, taskId, dealId || null, eventData.id, calendarId]
       );
     }
 
@@ -339,7 +352,8 @@ router.put('/events/:eventId', async (req, res) => {
       },
     };
 
-    const response = await fetch(`${GOOGLE_CALENDAR_API}/calendars/primary/events/${eventId}`, {
+    const defaultCalId = await getDefaultCalendarId(req.userId);
+    const response = await fetch(`${GOOGLE_CALENDAR_API}/calendars/${encodeURIComponent(defaultCalId)}/events/${eventId}`, {
       method: 'PUT',
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -368,7 +382,8 @@ router.delete('/events/:eventId', async (req, res) => {
 
     const accessToken = await getValidAccessToken(req.userId);
 
-    const response = await fetch(`${GOOGLE_CALENDAR_API}/calendars/primary/events/${eventId}`, {
+    const defaultCalId = await getDefaultCalendarId(req.userId);
+    const response = await fetch(`${GOOGLE_CALENDAR_API}/calendars/${encodeURIComponent(defaultCalId)}/events/${eventId}`, {
       method: 'DELETE',
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -438,7 +453,8 @@ router.post('/sync-task/:taskId', async (req, res) => {
 
     let response;
     let method = 'POST';
-    let url = `${GOOGLE_CALENDAR_API}/calendars/primary/events`;
+    const defaultCalId = await getDefaultCalendarId(req.userId);
+    let url = `${GOOGLE_CALENDAR_API}/calendars/${encodeURIComponent(defaultCalId)}/events`;
 
     if (existingSync.rows[0]) {
       // Update existing event
@@ -538,6 +554,23 @@ router.put('/calendars/selected', async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     logError('Error saving calendar preferences:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Save default calendar for creating events
+router.put('/calendars/default', async (req, res) => {
+  try {
+    const { calendarId } = req.body; // calendar ID or null for primary
+
+    await query(
+      `UPDATE google_oauth_tokens SET default_calendar_id = $1, updated_at = NOW() WHERE user_id = $2`,
+      [calendarId || null, req.userId]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    logError('Error saving default calendar:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -723,7 +756,8 @@ router.post('/events-with-meet', async (req, res) => {
     }
 
     // Build URL with conferenceDataVersion if adding Meet
-    let url = `${GOOGLE_CALENDAR_API}/calendars/primary/events`;
+    const defaultCalId = await getDefaultCalendarId(req.userId);
+    let url = `${GOOGLE_CALENDAR_API}/calendars/${encodeURIComponent(defaultCalId)}/events`;
     if (addMeet) {
       url += '?conferenceDataVersion=1&sendUpdates=all';
     } else if (attendees.length > 0) {

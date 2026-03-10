@@ -1,18 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   useGoogleCalendarStatus, 
   useGoogleCalendarAuth, 
   useGoogleCalendarDisconnect,
   useGoogleCalendars,
   useSaveSelectedCalendars,
+  useSaveDefaultCalendar,
   GoogleCalendar
 } from "@/hooks/use-google-calendar";
-import { Calendar, CheckCircle, XCircle, Loader2, ExternalLink, AlertCircle } from "lucide-react";
+import { Calendar, CheckCircle, XCircle, Loader2, ExternalLink, AlertCircle, Star } from "lucide-react";
 import { toast } from "sonner";
 
 export function GoogleCalendarPanel() {
@@ -22,6 +24,7 @@ export function GoogleCalendarPanel() {
   const disconnectMutation = useGoogleCalendarDisconnect();
   const { data: calendars, isLoading: calendarsLoading } = useGoogleCalendars();
   const saveSelectedMutation = useSaveSelectedCalendars();
+  const saveDefaultMutation = useSaveDefaultCalendar();
 
   // Handle OAuth callback messages
   useEffect(() => {
@@ -152,6 +155,42 @@ export function GoogleCalendarPanel() {
                 <p className="text-sm text-muted-foreground">Nenhuma agenda encontrada</p>
               )}
             </div>
+
+            {/* Default calendar for creating events */}
+            {calendars && calendars.length > 1 && (
+              <div className="rounded-lg border p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Star className="h-4 w-4 text-primary" />
+                  <h4 className="font-medium text-sm">Agenda padrão para novos eventos</h4>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Quando criar um compromisso no CRM, ele será salvo nesta agenda.
+                </p>
+                <Select
+                  value={status?.defaultCalendarId || "primary"}
+                  onValueChange={(value) => saveDefaultMutation.mutate(value === "primary" ? null : value)}
+                  disabled={saveDefaultMutation.isPending}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a agenda padrão" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {calendars.map((cal) => (
+                      <SelectItem key={cal.id} value={cal.id}>
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-3 h-3 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: cal.backgroundColor }}
+                          />
+                          {cal.summary}
+                          {cal.primary && " (Principal)"}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {/* Last sync info */}
             {status.lastSync && (
