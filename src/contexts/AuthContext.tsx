@@ -173,12 +173,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
+    if (isJwtExpired(token)) {
+      clearAuthToken();
+      setUser(null);
+      return;
+    }
+
     try {
       const { user } = await authApi.getMe();
       setUser(user);
-    } catch {
+    } catch (error) {
+      if (shouldClearSession(error)) {
+        clearAuthToken();
+      }
       setUser(null);
-      clearAuthToken();
     }
   };
 
