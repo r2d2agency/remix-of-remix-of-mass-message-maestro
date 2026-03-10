@@ -307,7 +307,7 @@ router.post('/events', async (req, res) => {
       await query(
         `INSERT INTO google_calendar_events 
          (user_id, crm_task_id, crm_deal_id, google_event_id, google_calendar_id)
-         VALUES ($1, $2, $3, $4, 'primary')
+         VALUES ($1, $2, $3, $4, $5)
          ON CONFLICT (user_id, crm_task_id) DO UPDATE SET
            google_event_id = EXCLUDED.google_event_id,
            sync_status = 'synced',
