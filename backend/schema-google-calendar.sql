@@ -22,6 +22,8 @@ CREATE TABLE IF NOT EXISTS google_oauth_tokens (
     
     -- Selected calendars (JSON array of calendar IDs to show in CRM, null = all)
     selected_calendars JSONB DEFAULT NULL,
+    -- Default calendar ID for creating events (null = primary)
+    default_calendar_id VARCHAR(255) DEFAULT NULL,
     
     -- Status
     is_active BOOLEAN DEFAULT true,
