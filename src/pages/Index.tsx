@@ -14,6 +14,7 @@ import { useConnectionStatus } from "@/hooks/use-connection-status";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useChat } from "@/hooks/use-chat";
+import { GoogleCalendarWidget } from "@/components/dashboard/GoogleCalendarWidget";
 
 interface DashboardStats {
   totalContacts: number;
