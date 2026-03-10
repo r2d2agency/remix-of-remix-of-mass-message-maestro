@@ -500,6 +500,13 @@ router.get('/calendars', async (req, res) => {
       throw new Error(data.error?.message || 'Erro ao buscar calendários');
     }
 
+    // Get user's selected calendars preference
+    const prefResult = await query(
+      `SELECT selected_calendars FROM google_oauth_tokens WHERE user_id = $1`,
+      [req.userId]
+    );
+    const selectedCalendars = prefResult.rows[0]?.selected_calendars || null;
+
     const calendars = (data.items || []).map(cal => ({
       id: cal.id,
       summary: cal.summary,
@@ -508,7 +515,7 @@ router.get('/calendars', async (req, res) => {
       backgroundColor: cal.backgroundColor,
       foregroundColor: cal.foregroundColor,
       accessRole: cal.accessRole,
-      selected: cal.selected || false,
+      selected: selectedCalendars === null ? true : selectedCalendars.includes(cal.id),
     }));
 
     res.json(calendars);
@@ -518,14 +525,38 @@ router.get('/calendars', async (req, res) => {
   }
 });
 
-// List user's calendar events (from ALL calendars)
+// Save selected calendars preference
+router.put('/calendars/selected', async (req, res) => {
+  try {
+    const { calendarIds } = req.body; // array of calendar IDs or null for all
+
+    await query(
+      `UPDATE google_oauth_tokens SET selected_calendars = $1, updated_at = NOW() WHERE user_id = $2`,
+      [calendarIds ? JSON.stringify(calendarIds) : null, req.userId]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    logError('Error saving calendar preferences:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// List user's calendar events (from selected calendars)
 router.get('/events', async (req, res) => {
   try {
     const { timeMin, timeMax, maxResults = 50 } = req.query;
 
     const accessToken = await getValidAccessToken(req.userId);
 
-    // First, get user's calendar list
+    // Get user's selected calendars preference
+    const prefResult = await query(
+      `SELECT selected_calendars FROM google_oauth_tokens WHERE user_id = $1`,
+      [req.userId]
+    );
+    const selectedCalendars = prefResult.rows[0]?.selected_calendars || null;
+
+    // Get user's calendar list
     const calListResponse = await fetch(`${GOOGLE_CALENDAR_API}/users/me/calendarList`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
@@ -535,11 +566,16 @@ router.get('/events', async (req, res) => {
       throw new Error(calListData.error?.message || 'Erro ao buscar calendários');
     }
 
-    const calendars = (calListData.items || []).filter(cal => 
-      cal.selected !== false && cal.accessRole !== 'freeBusyReader'
+    // Filter calendars based on user preference
+    let calendars = (calListData.items || []).filter(cal => 
+      cal.accessRole !== 'freeBusyReader'
     );
 
-    // Fetch events from all calendars in parallel
+    if (selectedCalendars && selectedCalendars.length > 0) {
+      calendars = calendars.filter(cal => selectedCalendars.includes(cal.id));
+    }
+
+    // Fetch events from selected calendars in parallel
     const allEventsPromises = calendars.map(async (cal) => {
       const params = new URLSearchParams({
         maxResults: String(maxResults),
@@ -562,7 +598,6 @@ router.get('/events', async (req, res) => {
           return [];
         }
 
-        // Tag each event with the calendar info
         return (data.items || []).map(event => ({
           ...event,
           calendarId: cal.id,
@@ -578,7 +613,6 @@ router.get('/events', async (req, res) => {
     const allEventsArrays = await Promise.all(allEventsPromises);
     const allEvents = allEventsArrays.flat();
 
-    // Sort all events by start time
     allEvents.sort((a, b) => {
       const aTime = a.start?.dateTime || a.start?.date || '';
       const bTime = b.start?.dateTime || b.start?.date || '';

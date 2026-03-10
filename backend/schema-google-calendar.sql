@@ -20,6 +20,9 @@ CREATE TABLE IF NOT EXISTS google_oauth_tokens (
     google_email VARCHAR(255),
     google_name VARCHAR(255),
     
+    -- Selected calendars (JSON array of calendar IDs to show in CRM, null = all)
+    selected_calendars JSONB DEFAULT NULL,
+    
     -- Status
     is_active BOOLEAN DEFAULT true,
     last_sync_at TIMESTAMP WITH TIME ZONE,

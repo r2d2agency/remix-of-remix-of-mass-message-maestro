@@ -1,10 +1,18 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useGoogleCalendarStatus, useGoogleCalendarAuth, useGoogleCalendarDisconnect } from "@/hooks/use-google-calendar";
-import { Calendar, CheckCircle, XCircle, Loader2, ExternalLink, RefreshCw, AlertCircle } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { 
+  useGoogleCalendarStatus, 
+  useGoogleCalendarAuth, 
+  useGoogleCalendarDisconnect,
+  useGoogleCalendars,
+  useSaveSelectedCalendars,
+  GoogleCalendar
+} from "@/hooks/use-google-calendar";
+import { Calendar, CheckCircle, XCircle, Loader2, ExternalLink, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 
 export function GoogleCalendarPanel() {
@@ -12,6 +20,8 @@ export function GoogleCalendarPanel() {
   const { data: status, isLoading, refetch } = useGoogleCalendarStatus();
   const connectMutation = useGoogleCalendarAuth();
   const disconnectMutation = useGoogleCalendarDisconnect();
+  const { data: calendars, isLoading: calendarsLoading } = useGoogleCalendars();
+  const saveSelectedMutation = useSaveSelectedCalendars();
 
   // Handle OAuth callback messages
   useEffect(() => {
@@ -21,7 +31,6 @@ export function GoogleCalendarPanel() {
     if (success) {
       toast.success("Google Calendar conectado com sucesso!");
       refetch();
-      // Clean up URL
       searchParams.delete("google_success");
       setSearchParams(searchParams, { replace: true });
     }
@@ -39,18 +48,29 @@ export function GoogleCalendarPanel() {
           errorMessage = `Erro: ${error}`;
       }
       toast.error(errorMessage);
-      // Clean up URL
       searchParams.delete("google_error");
       setSearchParams(searchParams, { replace: true });
     }
   }, [searchParams, setSearchParams, refetch]);
 
-  const handleConnect = () => {
-    connectMutation.mutate();
-  };
+  const handleConnect = () => connectMutation.mutate();
+  const handleDisconnect = () => disconnectMutation.mutate();
 
-  const handleDisconnect = () => {
-    disconnectMutation.mutate();
+  const handleToggleCalendar = (calendarId: string, currentlySelected: boolean) => {
+    if (!calendars) return;
+    
+    let newSelected: string[];
+    if (currentlySelected) {
+      // Deselecting - get all currently selected and remove this one
+      newSelected = calendars.filter(c => c.selected && c.id !== calendarId).map(c => c.id);
+    } else {
+      // Selecting - add this one
+      newSelected = [...calendars.filter(c => c.selected).map(c => c.id), calendarId];
+    }
+
+    // If all are selected, save null (= show all)
+    const allSelected = newSelected.length === calendars.length;
+    saveSelectedMutation.mutate(allSelected ? null : newSelected);
   };
 
   return (
@@ -107,6 +127,32 @@ export function GoogleCalendarPanel() {
               </div>
             )}
 
+            {/* Calendar selector */}
+            <div className="rounded-lg border p-4 space-y-3">
+              <h4 className="font-medium text-sm">Agendas a exibir no CRM</h4>
+              <p className="text-xs text-muted-foreground">
+                Selecione quais agendas do Google Calendar devem aparecer no Dashboard e na Agenda do CRM.
+              </p>
+              {calendarsLoading ? (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                </div>
+              ) : calendars && calendars.length > 0 ? (
+                <div className="space-y-2 max-h-[250px] overflow-y-auto">
+                  {calendars.map((cal) => (
+                    <CalendarItem
+                      key={cal.id}
+                      calendar={cal}
+                      onToggle={() => handleToggleCalendar(cal.id, cal.selected)}
+                      disabled={saveSelectedMutation.isPending}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">Nenhuma agenda encontrada</p>
+              )}
+            </div>
+
             {/* Last sync info */}
             {status.lastSync && (
               <p className="text-xs text-muted-foreground">
@@ -128,7 +174,7 @@ export function GoogleCalendarPanel() {
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle className="h-3 w-3 text-green-500" />
-                  Eventos aparecem no seu Google Calendar pessoal
+                  Selecione acima quais agendas mostrar no CRM
                 </li>
               </ul>
             </div>
@@ -146,7 +192,7 @@ export function GoogleCalendarPanel() {
                 <li>• Veja compromissos do CRM no seu calendário pessoal</li>
                 <li>• Receba notificações do Google Calendar</li>
                 <li>• Sincronize com outros dispositivos automaticamente</li>
-                <li>• Cada usuário usa sua própria conta Google</li>
+                <li>• Escolha quais agendas mostrar no CRM</li>
               </ul>
             </div>
 
@@ -166,6 +212,28 @@ export function GoogleCalendarPanel() {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function CalendarItem({ calendar, onToggle, disabled }: { calendar: GoogleCalendar; onToggle: () => void; disabled: boolean }) {
+  return (
+    <label className="flex items-center gap-3 p-2 rounded-md hover:bg-muted/50 cursor-pointer transition-colors">
+      <Checkbox
+        checked={calendar.selected}
+        onCheckedChange={onToggle}
+        disabled={disabled}
+      />
+      <div
+        className="w-3 h-3 rounded-full flex-shrink-0"
+        style={{ backgroundColor: calendar.backgroundColor }}
+      />
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium truncate">{calendar.summary}</p>
+        {calendar.primary && (
+          <span className="text-[10px] text-muted-foreground">Principal</span>
+        )}
+      </div>
+    </label>
   );
 }
 

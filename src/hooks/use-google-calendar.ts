@@ -2,6 +2,17 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
+export interface GoogleCalendar {
+  id: string;
+  summary: string;
+  description?: string;
+  primary: boolean;
+  backgroundColor: string;
+  foregroundColor: string;
+  accessRole: string;
+  selected: boolean;
+}
+
 export interface GoogleCalendarStatus {
   connected: boolean;
   email?: string;
@@ -148,6 +159,43 @@ export function useCreateGoogleEvent() {
   });
 }
 
+// List user's Google Calendars
+export function useGoogleCalendars() {
+  return useQuery({
+    queryKey: ["google-calendars"],
+    queryFn: async () => {
+      return api<GoogleCalendar[]>("/api/google-calendar/calendars");
+    },
+  });
+}
+
+// Save selected calendars
+export function useSaveSelectedCalendars() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (calendarIds: string[] | null) => {
+      return api<{ success: boolean }>("/api/google-calendar/calendars/selected", {
+        method: "PUT",
+        body: { calendarIds },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["google-calendars"] });
+      queryClient.invalidateQueries({ queryKey: ["google-calendar-events"] });
+      toast({ title: "Agendas atualizadas" });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao salvar preferências",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+}
+
 // List events
 export function useGoogleCalendarEvents(timeMin?: string, timeMax?: string) {
   return useQuery({
@@ -161,7 +209,7 @@ export function useGoogleCalendarEvents(timeMin?: string, timeMax?: string) {
       );
     },
     enabled: !!timeMin && !!timeMax,
-    refetchInterval: 5 * 60 * 1000, // Refresh every 5 minutes
-    staleTime: 2 * 60 * 1000, // Consider data stale after 2 minutes
+    refetchInterval: 5 * 60 * 1000,
+    staleTime: 2 * 60 * 1000,
   });
 }
