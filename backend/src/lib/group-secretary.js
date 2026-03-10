@@ -654,7 +654,10 @@ export async function generateMeetingMinutes({ organizationId, conversationId, h
     );
     const config = configResult.rows[0] || {};
     const aiConfig = await getAIConfig(organizationId, config);
-    if (!aiConfig || !aiConfig.apiKey) return null;
+    if (!aiConfig || !aiConfig.apiKey) {
+      logInfo('group_secretary', `Meeting minutes: no AI config for org ${organizationId}`);
+      return { error: 'IA não configurada. Configure a chave de API nas configurações da Secretária IA ou da Organização.' };
+    }
 
     // Get team members for context
     const membersResult = await query(
