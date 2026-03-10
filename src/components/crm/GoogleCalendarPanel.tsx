@@ -156,6 +156,42 @@ export function GoogleCalendarPanel() {
               )}
             </div>
 
+            {/* Default calendar for creating events */}
+            {calendars && calendars.length > 1 && (
+              <div className="rounded-lg border p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Star className="h-4 w-4 text-primary" />
+                  <h4 className="font-medium text-sm">Agenda padrão para novos eventos</h4>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Quando criar um compromisso no CRM, ele será salvo nesta agenda.
+                </p>
+                <Select
+                  value={status?.defaultCalendarId || "primary"}
+                  onValueChange={(value) => saveDefaultMutation.mutate(value === "primary" ? null : value)}
+                  disabled={saveDefaultMutation.isPending}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a agenda padrão" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {calendars.map((cal) => (
+                      <SelectItem key={cal.id} value={cal.id}>
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-3 h-3 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: cal.backgroundColor }}
+                          />
+                          {cal.summary}
+                          {cal.primary && " (Principal)"}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             {/* Last sync info */}
             {status.lastSync && (
               <p className="text-xs text-muted-foreground">
