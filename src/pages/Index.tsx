@@ -306,6 +306,9 @@ const Index = () => {
               </CardContent>
             </Card>
 
+            {/* Google Calendar Widget */}
+            <GoogleCalendarWidget />
+
             {/* Quick Actions */}
             <Card className="rounded-xl bg-card p-6 shadow-card border border-border animate-fade-in">
               <CardHeader className="p-0 pb-6">
