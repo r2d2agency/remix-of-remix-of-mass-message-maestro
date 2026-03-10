@@ -485,35 +485,107 @@ router.post('/sync-task/:taskId', async (req, res) => {
   }
 });
 
-// List user's calendar events
+// List user's calendars
+router.get('/calendars', async (req, res) => {
+  try {
+    const accessToken = await getValidAccessToken(req.userId);
+
+    const response = await fetch(`${GOOGLE_CALENDAR_API}/users/me/calendarList`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error?.message || 'Erro ao buscar calendários');
+    }
+
+    const calendars = (data.items || []).map(cal => ({
+      id: cal.id,
+      summary: cal.summary,
+      description: cal.description,
+      primary: cal.primary || false,
+      backgroundColor: cal.backgroundColor,
+      foregroundColor: cal.foregroundColor,
+      accessRole: cal.accessRole,
+      selected: cal.selected || false,
+    }));
+
+    res.json(calendars);
+  } catch (error) {
+    logError('Error fetching Google calendars:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// List user's calendar events (from ALL calendars)
 router.get('/events', async (req, res) => {
   try {
     const { timeMin, timeMax, maxResults = 50 } = req.query;
 
     const accessToken = await getValidAccessToken(req.userId);
 
-    const params = new URLSearchParams({
-      maxResults: String(maxResults),
-      singleEvents: 'true',
-      orderBy: 'startTime',
+    // First, get user's calendar list
+    const calListResponse = await fetch(`${GOOGLE_CALENDAR_API}/users/me/calendarList`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
     });
 
-    if (timeMin) params.append('timeMin', timeMin);
-    if (timeMax) params.append('timeMax', timeMax);
-
-    const response = await fetch(`${GOOGLE_CALENDAR_API}/calendars/primary/events?${params.toString()}`, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error?.message || 'Erro ao buscar eventos');
+    const calListData = await calListResponse.json();
+    if (!calListResponse.ok) {
+      throw new Error(calListData.error?.message || 'Erro ao buscar calendários');
     }
 
-    res.json(data.items || []);
+    const calendars = (calListData.items || []).filter(cal => 
+      cal.selected !== false && cal.accessRole !== 'freeBusyReader'
+    );
+
+    // Fetch events from all calendars in parallel
+    const allEventsPromises = calendars.map(async (cal) => {
+      const params = new URLSearchParams({
+        maxResults: String(maxResults),
+        singleEvents: 'true',
+        orderBy: 'startTime',
+      });
+
+      if (timeMin) params.append('timeMin', timeMin);
+      if (timeMax) params.append('timeMax', timeMax);
+
+      try {
+        const response = await fetch(
+          `${GOOGLE_CALENDAR_API}/calendars/${encodeURIComponent(cal.id)}/events?${params.toString()}`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+
+        const data = await response.json();
+        if (!response.ok) {
+          logError(`Error fetching events from calendar ${cal.id}:`, data);
+          return [];
+        }
+
+        // Tag each event with the calendar info
+        return (data.items || []).map(event => ({
+          ...event,
+          calendarId: cal.id,
+          calendarName: cal.summary,
+          calendarColor: cal.backgroundColor,
+        }));
+      } catch (err) {
+        logError(`Failed to fetch calendar ${cal.id}:`, err);
+        return [];
+      }
+    });
+
+    const allEventsArrays = await Promise.all(allEventsPromises);
+    const allEvents = allEventsArrays.flat();
+
+    // Sort all events by start time
+    allEvents.sort((a, b) => {
+      const aTime = a.start?.dateTime || a.start?.date || '';
+      const bTime = b.start?.dateTime || b.start?.date || '';
+      return aTime.localeCompare(bTime);
+    });
+
+    res.json(allEvents);
   } catch (error) {
     logError('Error fetching Google Calendar events:', error);
     res.status(500).json({ error: error.message });

@@ -49,10 +49,13 @@ function EventItem({ event }: { event: GoogleCalendarEvent }) {
       )}
       onClick={() => event.htmlLink && window.open(event.htmlLink, "_blank")}
     >
-      <div className={cn(
-        "w-1 self-stretch rounded-full flex-shrink-0",
-        isNow ? "bg-primary" : "bg-muted-foreground/30"
-      )} />
+      <div 
+        className={cn(
+          "w-1 self-stretch rounded-full flex-shrink-0",
+          isNow ? "bg-primary" : "bg-muted-foreground/30"
+        )} 
+        style={event.calendarColor && !isNow ? { backgroundColor: event.calendarColor } : undefined}
+      />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <p className="font-medium text-sm truncate">{event.summary || "Sem título"}</p>
@@ -62,11 +65,17 @@ function EventItem({ event }: { event: GoogleCalendarEvent }) {
             </Badge>
           )}
         </div>
-        <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+        <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
           <span className="flex items-center gap-1">
             <Clock className="h-3 w-3" />
             {getEventTimeLabel(event)}
           </span>
+          {event.calendarName && (
+            <span className="flex items-center gap-1">
+              <Calendar className="h-3 w-3" />
+              <span className="truncate">{event.calendarName}</span>
+            </span>
+          )}
           {event.location && (
             <span className="flex items-center gap-1 truncate">
               <MapPin className="h-3 w-3" />

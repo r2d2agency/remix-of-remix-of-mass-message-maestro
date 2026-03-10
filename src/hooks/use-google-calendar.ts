@@ -19,6 +19,9 @@ export interface GoogleCalendarEvent {
   start: { dateTime: string; timeZone: string };
   end: { dateTime: string; timeZone: string };
   htmlLink?: string;
+  calendarId?: string;
+  calendarName?: string;
+  calendarColor?: string;
 }
 
 // Get connection status
