@@ -637,7 +637,8 @@ router.get('/events', async (req, res) => {
 
     const calListData = await calListResponse.json();
     if (!calListResponse.ok) {
-      throw new Error(calListData.error?.message || 'Erro ao buscar calendários');
+      logError('Google calendarList API error in /events:', { status: calListResponse.status, error: calListData.error });
+      return res.json([]);
     }
 
     // Filter calendars based on user preference
