@@ -23,7 +23,7 @@ export function useConnectionStatus(options: UseConnectionStatusOptions = {}) {
   const [connections, setConnections] = useState<ConnectionStatus[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isMounted = useRef(true);
   const isCheckingRef = useRef(false);
 
