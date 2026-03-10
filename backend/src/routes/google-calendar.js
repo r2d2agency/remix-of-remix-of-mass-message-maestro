@@ -697,7 +697,7 @@ router.get('/events', async (req, res) => {
     res.json(allEvents);
   } catch (error) {
     logError('Error fetching Google Calendar events:', error);
-    res.status(500).json({ error: error.message });
+    res.json([]); // Never return 500 – return empty list as fallback
   }
 });
 
