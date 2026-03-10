@@ -115,5 +115,7 @@ export const clearAuthToken = () => {
 };
 
 export const getAuthToken = () => {
-  return localStorage.getItem('auth_token');
+  const token = localStorage.getItem('auth_token');
+  if (!token || token === 'undefined' || token === 'null') return null;
+  return token;
 };

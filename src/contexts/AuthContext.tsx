@@ -200,12 +200,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
 
+      if (isJwtExpired(token)) {
+        clearAuthToken();
+        setUser(null);
+        setIsLoading(false);
+        return;
+      }
+
       try {
         const { user } = await authApi.getMe();
         setUser(user);
       } catch (error) {
-        const msg = error instanceof Error ? error.message : '';
-        if (msg.includes('401') || msg.includes('Token') || msg.includes('inválido')) {
+        if (shouldClearSession(error)) {
           clearAuthToken();
         }
         setUser(null);
