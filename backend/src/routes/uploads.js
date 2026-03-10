@@ -23,7 +23,8 @@ const storage = multer.diskStorage({
     // If original filename has no extension (common on mobile), infer from mimetype
     // so providers like W-API can fetch a URL that ends with a visible extension.
     const originalExt = path.extname(file.originalname || '');
-    const mime = String(file.mimetype || '').toLowerCase();
+    // Strip codec parameters (e.g. "audio/webm;codecs=opus" → "audio/webm")
+    const mime = (file.mimetype || '').split(';')[0].trim().toLowerCase();
 
     const mimeToExt = {
       'application/pdf': '.pdf',
@@ -117,7 +118,10 @@ const fileFilter = (req, file, cb) => {
     '.zip', '.rar', '.7z',
   ];
 
-  if (allowedMimes.includes(file.mimetype)) {
+  // Normalize mimetype by stripping codec parameters (e.g. "audio/webm;codecs=opus" → "audio/webm")
+  const baseMime = (file.mimetype || '').split(';')[0].trim().toLowerCase();
+
+  if (allowedMimes.includes(baseMime)) {
     cb(null, true);
   } else {
     const ext = path.extname(file.originalname || '').toLowerCase();
