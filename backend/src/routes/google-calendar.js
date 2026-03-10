@@ -260,13 +260,14 @@ async function getDefaultCalendarId(userId) {
 // Create event in Google Calendar
 router.post('/events', async (req, res) => {
   try {
-    const { title, description, startDateTime, endDateTime, location, taskId, dealId } = req.body;
+    const { title, description, startDateTime, endDateTime, location, taskId, dealId, calendarId: requestCalendarId } = req.body;
 
     if (!title || !startDateTime || !endDateTime) {
       return res.status(400).json({ error: 'Título, data de início e fim são obrigatórios' });
     }
 
     const accessToken = await getValidAccessToken(req.userId);
+    const calendarId = requestCalendarId || await getDefaultCalendarId(req.userId);
 
     const event = {
       summary: title,
@@ -285,7 +286,7 @@ router.post('/events', async (req, res) => {
       },
     };
 
-    const response = await fetch(`${GOOGLE_CALENDAR_API}/calendars/primary/events`, {
+    const response = await fetch(`${GOOGLE_CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${accessToken}`,
