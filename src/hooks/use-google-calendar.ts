@@ -157,5 +157,8 @@ export function useGoogleCalendarEvents(timeMin?: string, timeMax?: string) {
         `/api/google-calendar/events?${params.toString()}`
       );
     },
+    enabled: !!timeMin && !!timeMax,
+    refetchInterval: 5 * 60 * 1000, // Refresh every 5 minutes
+    staleTime: 2 * 60 * 1000, // Consider data stale after 2 minutes
   });
 }
