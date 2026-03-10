@@ -424,8 +424,8 @@ router.post('/meeting-minutes/generate', async (req, res) => {
       generatedBy: req.userId,
     });
 
-    if (!result) {
-      return res.status(400).json({ error: 'Não foi possível gerar a ata. Verifique se há mensagens no período e se a IA está configurada.' });
+    if (!result || result.error) {
+      return res.status(400).json({ error: result?.error || 'Não foi possível gerar a ata. Verifique se há mensagens no período e se a IA está configurada.' });
     }
 
     res.json(result);

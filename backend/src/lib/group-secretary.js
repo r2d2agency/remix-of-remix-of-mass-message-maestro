@@ -620,23 +620,29 @@ export async function generateMeetingMinutes({ organizationId, conversationId, h
        WHERE c.id = $1 AND conn.organization_id = $2`,
       [conversationId, organizationId]
     );
-    if (convResult.rows.length === 0) return null;
+    if (convResult.rows.length === 0) {
+      logInfo('group_secretary', `Meeting minutes: conversation ${conversationId} not found for org ${organizationId}`);
+      return { error: 'Conversa não encontrada' };
+    }
     const conv = convResult.rows[0];
 
-    // Get recent messages
+    // Get recent messages - accept any media_type that has text content
     const messagesResult = await query(
       `SELECT m.content, m.sender_name, m.from_me, m.created_at, m.media_type
        FROM messages m
        WHERE m.conversation_id = $1 
          AND m.created_at >= NOW() - INTERVAL '1 hour' * $2
          AND m.content IS NOT NULL AND m.content != ''
-         AND m.media_type IN ('text', 'extendedTextMessage', 'conversation')
        ORDER BY m.created_at ASC
        LIMIT 500`,
       [conversationId, hours]
     );
 
-    if (messagesResult.rows.length < 3) return null;
+    logInfo('group_secretary', `Meeting minutes: found ${messagesResult.rows.length} messages in last ${hours}h for conversation ${conversationId}`);
+
+    if (messagesResult.rows.length < 3) {
+      return { error: `Apenas ${messagesResult.rows.length} mensagens encontradas no período de ${hours}h. São necessárias pelo menos 3.` };
+    }
 
     const messages = messagesResult.rows;
     const participants = [...new Set(messages.map(m => m.sender_name).filter(Boolean))];
@@ -648,7 +654,10 @@ export async function generateMeetingMinutes({ organizationId, conversationId, h
     );
     const config = configResult.rows[0] || {};
     const aiConfig = await getAIConfig(organizationId, config);
-    if (!aiConfig || !aiConfig.apiKey) return null;
+    if (!aiConfig || !aiConfig.apiKey) {
+      logInfo('group_secretary', `Meeting minutes: no AI config for org ${organizationId}`);
+      return { error: 'IA não configurada. Configure a chave de API nas configurações da Secretária IA ou da Organização.' };
+    }
 
     // Get team members for context
     const membersResult = await query(
@@ -700,7 +709,10 @@ MENSAGENS:
 ${messageLog}`;
 
     const aiResult = await callAI(aiConfig, systemPrompt, userPrompt);
-    if (!aiResult) return null;
+    if (!aiResult) {
+      logInfo('group_secretary', `Meeting minutes: AI returned no result`);
+      return { error: 'A IA não retornou resultado. Verifique a chave de API e tente novamente.' };
+    }
 
     // Save to database
     const periodStart = messages[0]?.created_at;
