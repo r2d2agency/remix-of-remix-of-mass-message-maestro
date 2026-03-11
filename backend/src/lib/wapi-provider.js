@@ -557,6 +557,25 @@ export async function sendAudio(instanceId, token, phone, audioUrl) {
   const cleanPhone = isGroup ? phone : phone.replace(/\D/g, '');
   
   try {
+    // W-API only accepts .mp3 or .ogg URLs.
+    // If the URL points to our own uploads with a different extension (e.g. .webm),
+    // rewrite it through the /public/:stored/:downloadName endpoint with .ogg extension.
+    let finalAudioUrl = audioUrl;
+    const apiBase = process.env.API_BASE_URL || '';
+    if (apiBase && audioUrl.startsWith(apiBase)) {
+      const urlPath = audioUrl.replace(apiBase, '');
+      // matches /uploads/<filename>
+      const uploadMatch = urlPath.match(/^\/uploads\/([^/]+)$/);
+      if (uploadMatch) {
+        const storedName = uploadMatch[1];
+        const ext = (storedName.match(/\.[^.]+$/) || [''])[0].toLowerCase();
+        if (ext !== '.mp3' && ext !== '.ogg') {
+          // Serve through public endpoint with .ogg alias
+          finalAudioUrl = `${apiBase}/api/uploads/public/${storedName}/audio.ogg`;
+        }
+      }
+    }
+
     const response = await fetch(
       `${W_API_BASE_URL}/message/send-audio?instanceId=${instanceId}`,
       {
@@ -564,7 +583,7 @@ export async function sendAudio(instanceId, token, phone, audioUrl) {
         headers: getHeaders(token),
         body: JSON.stringify({
           phone: cleanPhone,
-          audio: audioUrl,
+          audio: finalAudioUrl,
         }),
       }
     );
