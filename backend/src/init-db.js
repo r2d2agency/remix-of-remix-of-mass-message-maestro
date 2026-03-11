@@ -3218,6 +3218,7 @@ const migrationSteps = [
   { name: 'Company Extra Fields', sql: step38CompanyExtraFields, critical: false },
   { name: 'Task Boards', sql: step39TaskBoards, critical: false },
   { name: 'Flow Categories & Access', sql: step40FlowCategoriesAccess, critical: false },
+  { name: 'Permission Templates', sql: step41PermissionTemplates, critical: false },
 ];
 
 export async function initDatabase() {
