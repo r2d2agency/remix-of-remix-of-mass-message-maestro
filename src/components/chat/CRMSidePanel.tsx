@@ -478,7 +478,7 @@ export function CRMSidePanel({
 
   return (
     <div className={cn(
-      "relative flex flex-col bg-card overflow-hidden",
+      "relative flex flex-col bg-card overflow-hidden min-w-0",
       isMobile 
         ? "w-full h-full" 
         : "w-full h-full border-l"
@@ -486,7 +486,7 @@ export function CRMSidePanel({
       <ToggleButton />
       
       {/* Header */}
-      <div className="flex items-center justify-between p-3 border-b bg-muted/30">
+      <div className="flex items-center justify-between p-3 border-b bg-muted/30 min-w-0">
         <div className="flex items-center gap-2">
           <Briefcase className="h-4 w-4 text-primary" />
           <span className="font-medium text-sm">CRM</span>
@@ -656,7 +656,7 @@ export function CRMSidePanel({
       )}
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-4 gap-1 p-2 border-b bg-muted/10">
+      <div className="grid grid-cols-4 gap-1 p-2 border-b bg-muted/10 min-w-0 overflow-hidden">
         <Button
           variant="outline"
           size="sm"
@@ -696,13 +696,13 @@ export function CRMSidePanel({
         </Button>
       </div>
 
-      <ScrollArea className="flex-1 min-h-0">
+      <ScrollArea className="flex-1 min-h-0 min-w-0 w-full [&>[data-radix-scroll-area-viewport]]:!overflow-x-hidden">
         {loadingDeals ? (
           <div className="flex items-center justify-center p-8">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <div className="p-2">
+          <div className="p-2 min-w-0 w-full max-w-full overflow-hidden">
             {deals.length === 0 ? (
               <div className="flex flex-col items-center justify-center p-6 text-center text-muted-foreground mb-2">
                 <Briefcase className="h-10 w-10 mb-3 opacity-40" />
@@ -755,7 +755,7 @@ export function CRMSidePanel({
               </div>
             )}
 
-            <Accordion type="multiple" defaultValue={["deal", "stage", "company", "notes", "ai-agents"]} className="space-y-1">
+            <Accordion type="multiple" defaultValue={["deal", "stage", "company", "notes", "ai-agents"]} className="space-y-1 min-w-0">
               {/* Deal Info - Editable */}
               <AccordionItem value="deal" className="border rounded-lg px-3">
                 <AccordionTrigger className="py-2 hover:no-underline">
@@ -1089,7 +1089,7 @@ export function CRMSidePanel({
             )}
 
             {/* Always visible sections */}
-            <Accordion type="multiple" defaultValue={["contact", "notes", "ai-agents"]} className="space-y-1 mt-1">
+            <Accordion type="multiple" defaultValue={["contact", "notes", "ai-agents"]} className="space-y-1 mt-1 min-w-0">
               {/* Contact */}
               <AccordionItem value="contact" className="border rounded-lg px-3">
                 <AccordionTrigger className="py-2 hover:no-underline">
