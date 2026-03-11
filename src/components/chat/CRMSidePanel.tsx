@@ -486,7 +486,7 @@ export function CRMSidePanel({
       <ToggleButton />
       
       {/* Header */}
-      <div className="flex items-center justify-between p-3 border-b bg-muted/30">
+      <div className="flex items-center justify-between p-3 border-b bg-muted/30 min-w-0">
         <div className="flex items-center gap-2">
           <Briefcase className="h-4 w-4 text-primary" />
           <span className="font-medium text-sm">CRM</span>
