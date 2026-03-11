@@ -87,8 +87,14 @@ export function NewConversationDialog({
   const [agendaContacts, setAgendaContacts] = useState<ChatContact[]>([]);
   const [loadingAgenda, setLoadingAgenda] = useState(false);
   const [agendaConnectionFilter, setAgendaConnectionFilter] = useState("all");
+
+  // Connection picker for agenda contacts
+  const [pendingContact, setPendingContact] = useState<ChatContact | null>(null);
+  const [selectedConnectionForContact, setSelectedConnectionForContact] = useState("");
   
   const { toast } = useToast();
+
+  const activeConnections = connections.filter(c => c.status === 'connected');
 
   // Reset form when dialog opens
   useEffect(() => {
@@ -97,6 +103,7 @@ export function NewConversationDialog({
       setContactName("");
       setAgendaSearch("");
       setActiveTab("agenda");
+      setPendingContact(null);
       // Pre-select first connected connection
       const connectedConnection = connections.find(c => c.status === 'connected');
       setConnectionId(connectedConnection?.id || connections[0]?.id || "");
@@ -133,6 +140,25 @@ export function NewConversationDialog({
   }, [agendaSearch, agendaConnectionFilter, open, loadAgendaContacts]);
 
   const handleSelectFromAgenda = async (contact: ChatContact) => {
+    // If multiple active connections, show connection picker
+    if (activeConnections.length > 1) {
+      setPendingContact(contact);
+      // Pre-select the contact's own connection if it's active
+      const contactConnActive = activeConnections.find(c => c.id === contact.connection_id);
+      setSelectedConnectionForContact(contactConnActive?.id || activeConnections[0]?.id || "");
+      return;
+    }
+    // Single connection – use it directly
+    await createConversationFromAgenda(contact, activeConnections[0]?.id || contact.connection_id);
+  };
+
+  const handleConfirmAgendaConnection = async () => {
+    if (!pendingContact || !selectedConnectionForContact) return;
+    await createConversationFromAgenda(pendingContact, selectedConnectionForContact);
+    setPendingContact(null);
+  };
+
+  const createConversationFromAgenda = async (contact: ChatContact, connId: string) => {
     setCreating(true);
     try {
       const conversation = await api<Conversation & { existed?: boolean }>('/api/chat/conversations', {
@@ -140,7 +166,7 @@ export function NewConversationDialog({
         body: {
           contact_phone: contact.phone,
           contact_name: contact.name,
-          connection_id: contact.connection_id,
+          connection_id: connId,
         },
       });
 
@@ -220,7 +246,6 @@ export function NewConversationDialog({
     }
   };
 
-  const activeConnections = connections.filter(c => c.status === 'connected');
 
   const getInitials = (name: string | null | undefined, phone: string | null | undefined): string => {
     if (name && typeof name === 'string' && name.trim()) {
@@ -331,6 +356,45 @@ export function NewConversationDialog({
                 </div>
               )}
             </ScrollArea>
+
+            {/* Connection picker when multiple connections */}
+            {pendingContact && (
+              <div className="border rounded-lg p-4 space-y-3 bg-muted/30">
+                <p className="text-sm font-medium">
+                  Enviar para <span className="text-primary">{pendingContact.name || pendingContact.phone}</span> usando:
+                </p>
+                <Select value={selectedConnectionForContact} onValueChange={setSelectedConnectionForContact}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a conexão" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {activeConnections.map((conn) => (
+                      <SelectItem key={conn.id} value={conn.id}>
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-primary" />
+                          {conn.name}
+                          {conn.phone_number && (
+                            <span className="text-muted-foreground text-xs">({conn.phone_number})</span>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="flex gap-2 justify-end">
+                  <Button variant="outline" size="sm" onClick={() => setPendingContact(null)} disabled={creating}>
+                    Cancelar
+                  </Button>
+                  <Button size="sm" onClick={handleConfirmAgendaConnection} disabled={creating || !selectedConnectionForContact}>
+                    {creating ? (
+                      <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Criando...</>
+                    ) : (
+                      <><MessageSquarePlus className="h-4 w-4 mr-1" /> Iniciar</>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
           </TabsContent>
 
           {/* Manual Entry Tab */}
@@ -351,7 +415,7 @@ export function NewConversationDialog({
                     activeConnections.map((conn) => (
                       <SelectItem key={conn.id} value={conn.id}>
                         <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-green-500" />
+                          <div className="w-2 h-2 rounded-full bg-primary" />
                           {conn.name}
                           {conn.phone_number && (
                             <span className="text-muted-foreground text-xs">
