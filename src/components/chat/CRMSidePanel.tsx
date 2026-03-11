@@ -478,7 +478,7 @@ export function CRMSidePanel({
 
   return (
     <div className={cn(
-      "relative flex flex-col bg-card overflow-hidden",
+      "relative flex flex-col bg-card overflow-hidden min-w-0",
       isMobile 
         ? "w-full h-full" 
         : "w-full h-full border-l"
