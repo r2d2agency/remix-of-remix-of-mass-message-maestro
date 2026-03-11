@@ -270,7 +270,13 @@ function downloadToUploads(url, messageType, hintedMime, redirectCount = 0, orig
             fileStream.close(() => {
               const sniffed = sniffExt();
               const ext = extFromMime(mime) || sniffed || defaultExtByType(messageType);
-              const finalName = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}.${ext}`;
+              let finalName;
+              if (originalFileName && messageType === 'document') {
+                const safeName = String(originalFileName).replace(/[^a-zA-Z0-9._-]/g, '_');
+                finalName = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}-${safeName}`;
+              } else {
+                finalName = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}.${ext}`;
+              }
               const finalPath = path.join(UPLOADS_DIR, finalName);
 
               try {
