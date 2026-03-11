@@ -99,14 +99,20 @@ const fileFilter = (req, file, cb) => {
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'application/vnd.ms-powerpoint',
     'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'application/vnd.openxmlformats-officedocument.presentationml.slideshow',
+    'application/vnd.ms-powerpoint.slideshow.macroenabled.12',
+    'application/vnd.ms-pps',
     'application/vnd.ms-excel',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/rtf',
     'text/plain',
     'text/csv',
     'application/csv',
     'application/zip',
     'application/x-rar-compressed',
     'application/x-zip-compressed',
+    'application/x-7z-compressed',
+    'application/octet-stream',
   ];
 
   // Fallback extension allowlist (some browsers/mobile send generic mimetypes)
