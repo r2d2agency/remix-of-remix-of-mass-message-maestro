@@ -356,6 +356,45 @@ export function NewConversationDialog({
                 </div>
               )}
             </ScrollArea>
+
+            {/* Connection picker when multiple connections */}
+            {pendingContact && (
+              <div className="border rounded-lg p-4 space-y-3 bg-muted/30">
+                <p className="text-sm font-medium">
+                  Enviar para <span className="text-primary">{pendingContact.name || pendingContact.phone}</span> usando:
+                </p>
+                <Select value={selectedConnectionForContact} onValueChange={setSelectedConnectionForContact}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a conexão" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {activeConnections.map((conn) => (
+                      <SelectItem key={conn.id} value={conn.id}>
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-primary" />
+                          {conn.name}
+                          {conn.phone_number && (
+                            <span className="text-muted-foreground text-xs">({conn.phone_number})</span>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="flex gap-2 justify-end">
+                  <Button variant="outline" size="sm" onClick={() => setPendingContact(null)} disabled={creating}>
+                    Cancelar
+                  </Button>
+                  <Button size="sm" onClick={handleConfirmAgendaConnection} disabled={creating || !selectedConnectionForContact}>
+                    {creating ? (
+                      <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Criando...</>
+                    ) : (
+                      <><MessageSquarePlus className="h-4 w-4 mr-1" /> Iniciar</>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
           </TabsContent>
 
           {/* Manual Entry Tab */}
