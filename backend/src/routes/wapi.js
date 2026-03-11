@@ -109,12 +109,17 @@ function extFromMime(mime) {
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
     'application/vnd.ms-powerpoint': 'ppt',
     'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+    'application/vnd.openxmlformats-officedocument.presentationml.slideshow': 'ppsx',
+    'application/vnd.ms-powerpoint.slideshow.macroenabled.12': 'ppsm',
+    'application/vnd.ms-pps': 'pps',
+    'application/rtf': 'rtf',
     'text/plain': 'txt',
     'text/csv': 'csv',
     'application/csv': 'csv',
     'application/zip': 'zip',
     'application/x-zip-compressed': 'zip',
     'application/x-rar-compressed': 'rar',
+    'application/x-7z-compressed': '7z',
   };
   return map[m] || null;
 }
