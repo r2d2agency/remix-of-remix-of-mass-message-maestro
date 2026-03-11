@@ -377,6 +377,31 @@ router.get('/me', async (req, res) => {
   }
 });
 
+// Refresh token – issues a new JWT with fresh expiration
+router.post('/refresh', async (req, res) => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader?.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Token não fornecido' });
+  }
+
+  try {
+    const oldToken = authHeader.replace('Bearer ', '');
+    const decoded = jwt.verify(oldToken, process.env.JWT_SECRET);
+
+    // Issue a fresh token with same payload
+    const newToken = jwt.sign(
+      { userId: decoded.userId, email: decoded.email, organizationId: decoded.organizationId || null },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({ token: newToken });
+  } catch (error) {
+    res.status(401).json({ error: 'Token inválido' });
+  }
+});
+
 // Update current user profile (name)
 router.put('/profile', async (req, res) => {
   const authHeader = req.headers.authorization;

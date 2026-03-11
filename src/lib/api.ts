@@ -119,3 +119,30 @@ export const getAuthToken = () => {
   if (!token || token === 'undefined' || token === 'null') return null;
   return token;
 };
+
+// Refresh the JWT token, returning the new token or null on failure
+export const refreshAuthToken = async (): Promise<string | null> => {
+  const currentToken = getAuthToken();
+  if (!currentToken) return null;
+
+  try {
+    const res = await fetch(`${API_URL}/api/auth/refresh`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${currentToken}`,
+      },
+    });
+
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    if (data.token) {
+      setAuthToken(data.token);
+      return data.token;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+};
