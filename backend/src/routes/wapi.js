@@ -168,7 +168,7 @@ async function writeDataUrlToUploads(dataUrl, messageType, hintedMime, originalF
   return { publicUrl: buildUploadsPublicUrl(filename), mime };
 }
 
-function downloadToUploads(url, messageType, hintedMime, redirectCount = 0) {
+function downloadToUploads(url, messageType, hintedMime, redirectCount = 0, originalFileName = null) {
   return new Promise((resolve, reject) => {
     const client = url.startsWith('https://') ? https : http;
 
@@ -194,7 +194,7 @@ function downloadToUploads(url, messageType, hintedMime, redirectCount = 0) {
         ) {
           const nextUrl = new URL(res.headers.location, url).toString();
           res.resume();
-          return resolve(downloadToUploads(nextUrl, messageType, hintedMime, redirectCount + 1));
+          return resolve(downloadToUploads(nextUrl, messageType, hintedMime, redirectCount + 1, originalFileName));
         }
 
         if (status < 200 || status >= 300) {
