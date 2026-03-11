@@ -273,10 +273,10 @@ const pricingPlans = [
   {
     name: "Escritório",
     description: "Para escritórios com equipe e múltiplas áreas",
-    price: "R$ 750",
-    period: "/mês",
+    price: "Sob consulta",
+    period: "",
     popular: true,
-    cta: "Testar 7 Dias Grátis",
+    cta: "Falar com Consultor",
     features: [
       { text: "3 conexões WhatsApp", included: true },
       { text: "8 usuários", included: true },
@@ -295,10 +295,10 @@ const pricingPlans = [
   {
     name: "Premium",
     description: "Para escritórios que querem IA e automação total",
-    price: "R$ 1.500",
-    period: "/mês",
+    price: "Sob consulta",
+    period: "",
     popular: false,
-    cta: "Testar 7 Dias Grátis",
+    cta: "Falar com Consultor",
     features: [
       { text: "6 conexões WhatsApp", included: true },
       { text: "20 usuários", included: true },
