@@ -246,7 +246,6 @@ export function NewConversationDialog({
     }
   };
 
-  const activeConnections = connections.filter(c => c.status === 'connected');
 
   const getInitials = (name: string | null | undefined, phone: string | null | undefined): string => {
     if (name && typeof name === 'string' && name.trim()) {
