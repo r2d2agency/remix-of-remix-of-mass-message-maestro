@@ -741,7 +741,7 @@ export function ChatArea({
     if (!s) return false;
     if (s.length > 160) return false;
     // common extensions (pdf, office, images, audio/video, archives)
-    return /\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|zip|rar|7z|jpg|jpeg|png|gif|webp|mp3|ogg|wav|m4a|mp4|webm|mov)$/i.test(s);
+    return /\.(pdf|doc|docx|xls|xlsx|ppt|pptx|ppsx|pps|ppsm|rtf|txt|csv|zip|rar|7z|jpg|jpeg|png|gif|webp|mp3|ogg|wav|m4a|mp4|webm|mov)$/i.test(s);
   };
 
   const getDocumentDisplayName = (msg: ChatMessage, resolvedUrl?: string | null) => {
