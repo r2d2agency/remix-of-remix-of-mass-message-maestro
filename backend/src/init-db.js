@@ -3175,6 +3175,31 @@ END $$;
 CREATE INDEX IF NOT EXISTS idx_flows_category ON flows(category_id);
 `;
 
+// Step 41: Permission Templates
+const step41PermissionTemplates = `
+-- Permission templates for granular access control
+CREATE TABLE IF NOT EXISTS permission_templates (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    permissions JSONB NOT NULL DEFAULT '{}',
+    is_default BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Add permission_template_id to organization_members
+DO $$ BEGIN
+    ALTER TABLE organization_members ADD COLUMN permission_template_id UUID REFERENCES permission_templates(id) ON DELETE SET NULL;
+EXCEPTION
+    WHEN duplicate_column THEN null;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_perm_templates_org ON permission_templates(organization_id);
+CREATE INDEX IF NOT EXISTS idx_org_members_perm_template ON organization_members(permission_template_id);
+`;
+
 // Migration steps in order of execution
 const migrationSteps = [
   { name: 'Enums', sql: step1Enums, critical: true },
