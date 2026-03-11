@@ -846,7 +846,7 @@ export default function LandingPage() {
           <div className="mt-8 pt-8 border-t flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
             <div className="flex items-center gap-2">
               <Building2 className="h-4 w-4" />
-              <span>CNPJ: 04.609.030/0001-29</span>
+              <span>CNPJ: 54.609.030/0001-29</span>
             </div>
             <span>© {new Date().getFullYear()} {branding.company_name || "Legal Tech App"}. Todos os direitos reservados.</span>
           </div>
