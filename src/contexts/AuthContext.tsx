@@ -223,6 +223,50 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     checkAuth();
   }, []);
 
+  // Auto-refresh token before it expires
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const scheduleTokenRefresh = useCallback(() => {
+    if (refreshTimerRef.current) {
+      clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = null;
+    }
+
+    const token = getAuthToken();
+    if (!token) return;
+
+    const payload = parseJwtPayload(token);
+    if (!payload?.exp) return;
+
+    // Refresh 5 minutes before expiry (or immediately if less than 1 min left)
+    const msUntilExpiry = payload.exp * 1000 - Date.now();
+    const refreshIn = Math.max(msUntilExpiry - 5 * 60 * 1000, 30_000); // at least 30s
+
+    refreshTimerRef.current = setTimeout(async () => {
+      const newToken = await refreshAuthToken();
+      if (newToken) {
+        console.log('[Auth] Token refreshed automatically');
+        scheduleTokenRefresh(); // schedule next refresh
+      } else {
+        // Refresh failed – force logout
+        clearAuthToken();
+        setUser(null);
+      }
+    }, refreshIn);
+  }, []);
+
+  // Start refresh timer when user is authenticated
+  useEffect(() => {
+    if (user) {
+      scheduleTokenRefresh();
+    }
+    return () => {
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+      }
+    };
+  }, [user, scheduleTokenRefresh]);
+
   const login = async (email: string, password: string) => {
     const { user, token } = await authApi.login(email, password);
     setAuthToken(token);
