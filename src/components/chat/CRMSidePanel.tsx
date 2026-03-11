@@ -656,7 +656,7 @@ export function CRMSidePanel({
       )}
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-4 gap-1 p-2 border-b bg-muted/10">
+      <div className="grid grid-cols-4 gap-1 p-2 border-b bg-muted/10 min-w-0 overflow-hidden">
         <Button
           variant="outline"
           size="sm"
