@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { authApi, setAuthToken, clearAuthToken, getAuthToken } from '@/lib/api';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from 'react';
+import { authApi, setAuthToken, clearAuthToken, getAuthToken, refreshAuthToken } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 
 // Apply organization theme CSS variables
