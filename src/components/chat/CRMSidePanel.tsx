@@ -755,7 +755,7 @@ export function CRMSidePanel({
               </div>
             )}
 
-            <Accordion type="multiple" defaultValue={["deal", "stage", "company", "notes", "ai-agents"]} className="space-y-1">
+            <Accordion type="multiple" defaultValue={["deal", "stage", "company", "notes", "ai-agents"]} className="space-y-1 min-w-0">
               {/* Deal Info - Editable */}
               <AccordionItem value="deal" className="border rounded-lg px-3">
                 <AccordionTrigger className="py-2 hover:no-underline">
