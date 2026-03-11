@@ -1971,9 +1971,10 @@ export function ChatArea({
                     href={mediaUrl}
                     target="_blank"
                     rel="noopener noreferrer"
+                    download={getDocumentDisplayName(msg, mediaUrl)}
                     className="flex items-center gap-2 text-sm underline mb-2 min-w-0"
                   >
-                    <FileText className="h-4 w-4" />
+                    <FileText className="h-4 w-4 flex-shrink-0" />
                     <span className="truncate">
                       {getDocumentDisplayName(msg, mediaUrl)}
                     </span>
