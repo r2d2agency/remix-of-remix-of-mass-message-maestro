@@ -124,7 +124,7 @@ const fileFilter = (req, file, cb) => {
     // video
     '.mp4', '.webm', '.ogg', '.mov', '.qt',
     // documents
-    '.pdf', '.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx', '.txt', '.csv',
+    '.pdf', '.doc', '.docx', '.ppt', '.pptx', '.ppsx', '.pps', '.ppsm', '.xls', '.xlsx', '.txt', '.csv', '.rtf',
     // archives
     '.zip', '.rar', '.7z',
   ];
