@@ -147,11 +147,13 @@ async function downloadAndSaveMedia(connection, messageObj, messageType) {
     else if (mimetype.includes('application/pdf')) ext = '.pdf';
     else if (mimetype.includes('spreadsheetml') || mimetype.includes('excel') || mimetype.includes('ms-excel')) ext = '.xlsx';
     else if (mimetype.includes('wordprocessingml') || mimetype.includes('msword')) ext = '.docx';
+    else if (mimetype.includes('presentationml.slideshow') || mimetype.includes('ms-pps')) ext = '.ppsx';
     else if (mimetype.includes('presentationml') || mimetype.includes('powerpoint') || mimetype.includes('ms-powerpoint')) ext = '.pptx';
     else if (mimetype.includes('text/plain')) ext = '.txt';
     else if (mimetype.includes('text/csv') || mimetype.includes('application/csv')) ext = '.csv';
     else if (mimetype.includes('application/zip') || mimetype.includes('x-zip')) ext = '.zip';
     else if (mimetype.includes('application/rar') || mimetype.includes('x-rar')) ext = '.rar';
+    else if (mimetype.includes('application/rtf')) ext = '.rtf';
 
     // If mimetype is generic (octet-stream), try to infer extension from original filename
     if (ext === '.bin' && originalFileName) {

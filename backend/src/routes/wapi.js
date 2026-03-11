@@ -109,12 +109,17 @@ function extFromMime(mime) {
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
     'application/vnd.ms-powerpoint': 'ppt',
     'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+    'application/vnd.openxmlformats-officedocument.presentationml.slideshow': 'ppsx',
+    'application/vnd.ms-powerpoint.slideshow.macroenabled.12': 'ppsm',
+    'application/vnd.ms-pps': 'pps',
+    'application/rtf': 'rtf',
     'text/plain': 'txt',
     'text/csv': 'csv',
     'application/csv': 'csv',
     'application/zip': 'zip',
     'application/x-zip-compressed': 'zip',
     'application/x-rar-compressed': 'rar',
+    'application/x-7z-compressed': '7z',
   };
   return map[m] || null;
 }
@@ -142,7 +147,7 @@ function buildUploadsPublicUrl(filename) {
   return `${API_BASE_URL}/uploads/${filename}`;
 }
 
-async function writeDataUrlToUploads(dataUrl, messageType, hintedMime) {
+async function writeDataUrlToUploads(dataUrl, messageType, hintedMime, originalFileName) {
   const m = String(dataUrl).match(/^data:([^;,]+)?;base64,(.*)$/i);
   if (!m) throw new Error('Invalid data URL');
   const mime = (m[1] || hintedMime || '').trim() || null;
@@ -150,14 +155,20 @@ async function writeDataUrlToUploads(dataUrl, messageType, hintedMime) {
   const buf = Buffer.from(base64, 'base64');
 
   const ext = extFromMime(mime) || defaultExtByType(messageType);
-  const filename = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}.${ext}`;
+  let filename;
+  if (originalFileName && messageType === 'document') {
+    const safeName = String(originalFileName).replace(/[^a-zA-Z0-9._-]/g, '_');
+    filename = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}-${safeName}`;
+  } else {
+    filename = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}.${ext}`;
+  }
   const filePath = path.join(UPLOADS_DIR, filename);
   await fs.promises.writeFile(filePath, buf);
 
   return { publicUrl: buildUploadsPublicUrl(filename), mime };
 }
 
-function downloadToUploads(url, messageType, hintedMime, redirectCount = 0) {
+function downloadToUploads(url, messageType, hintedMime, redirectCount = 0, originalFileName = null) {
   return new Promise((resolve, reject) => {
     const client = url.startsWith('https://') ? https : http;
 
@@ -183,7 +194,7 @@ function downloadToUploads(url, messageType, hintedMime, redirectCount = 0) {
         ) {
           const nextUrl = new URL(res.headers.location, url).toString();
           res.resume();
-          return resolve(downloadToUploads(nextUrl, messageType, hintedMime, redirectCount + 1));
+          return resolve(downloadToUploads(nextUrl, messageType, hintedMime, redirectCount + 1, originalFileName));
         }
 
         if (status < 200 || status >= 300) {
@@ -259,7 +270,13 @@ function downloadToUploads(url, messageType, hintedMime, redirectCount = 0) {
             fileStream.close(() => {
               const sniffed = sniffExt();
               const ext = extFromMime(mime) || sniffed || defaultExtByType(messageType);
-              const finalName = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}.${ext}`;
+              let finalName;
+              if (originalFileName && messageType === 'document') {
+                const safeName = String(originalFileName).replace(/[^a-zA-Z0-9._-]/g, '_');
+                finalName = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}-${safeName}`;
+              } else {
+                finalName = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}.${ext}`;
+              }
               const finalPath = path.join(UPLOADS_DIR, finalName);
 
               try {

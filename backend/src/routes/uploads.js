@@ -32,14 +32,19 @@ const storage = multer.diskStorage({
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
       'application/vnd.ms-powerpoint': '.ppt',
       'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx',
+      'application/vnd.openxmlformats-officedocument.presentationml.slideshow': '.ppsx',
+      'application/vnd.ms-powerpoint.slideshow.macroenabled.12': '.ppsm',
+      'application/vnd.ms-pps': '.pps',
       'application/vnd.ms-excel': '.xls',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+      'application/rtf': '.rtf',
       'text/plain': '.txt',
       'text/csv': '.csv',
       'application/csv': '.csv',
       'application/zip': '.zip',
       'application/x-zip-compressed': '.zip',
       'application/x-rar-compressed': '.rar',
+      'application/x-7z-compressed': '.7z',
       'image/jpeg': '.jpg',
       'image/png': '.png',
       'image/gif': '.gif',
@@ -94,14 +99,20 @@ const fileFilter = (req, file, cb) => {
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'application/vnd.ms-powerpoint',
     'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'application/vnd.openxmlformats-officedocument.presentationml.slideshow',
+    'application/vnd.ms-powerpoint.slideshow.macroenabled.12',
+    'application/vnd.ms-pps',
     'application/vnd.ms-excel',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/rtf',
     'text/plain',
     'text/csv',
     'application/csv',
     'application/zip',
     'application/x-rar-compressed',
     'application/x-zip-compressed',
+    'application/x-7z-compressed',
+    'application/octet-stream',
   ];
 
   // Fallback extension allowlist (some browsers/mobile send generic mimetypes)
@@ -113,7 +124,7 @@ const fileFilter = (req, file, cb) => {
     // video
     '.mp4', '.webm', '.ogg', '.mov', '.qt',
     // documents
-    '.pdf', '.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx', '.txt', '.csv',
+    '.pdf', '.doc', '.docx', '.ppt', '.pptx', '.ppsx', '.pps', '.ppsm', '.xls', '.xlsx', '.txt', '.csv', '.rtf',
     // archives
     '.zip', '.rar', '.7z',
   ];
