@@ -147,7 +147,7 @@ function buildUploadsPublicUrl(filename) {
   return `${API_BASE_URL}/uploads/${filename}`;
 }
 
-async function writeDataUrlToUploads(dataUrl, messageType, hintedMime) {
+async function writeDataUrlToUploads(dataUrl, messageType, hintedMime, originalFileName) {
   const m = String(dataUrl).match(/^data:([^;,]+)?;base64,(.*)$/i);
   if (!m) throw new Error('Invalid data URL');
   const mime = (m[1] || hintedMime || '').trim() || null;
@@ -155,7 +155,13 @@ async function writeDataUrlToUploads(dataUrl, messageType, hintedMime) {
   const buf = Buffer.from(base64, 'base64');
 
   const ext = extFromMime(mime) || defaultExtByType(messageType);
-  const filename = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}.${ext}`;
+  let filename;
+  if (originalFileName && messageType === 'document') {
+    const safeName = String(originalFileName).replace(/[^a-zA-Z0-9._-]/g, '_');
+    filename = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}-${safeName}`;
+  } else {
+    filename = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}.${ext}`;
+  }
   const filePath = path.join(UPLOADS_DIR, filename);
   await fs.promises.writeFile(filePath, buf);
 
