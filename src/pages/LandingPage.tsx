@@ -295,10 +295,10 @@ const pricingPlans = [
   {
     name: "Premium",
     description: "Para escritórios que querem IA e automação total",
-    price: "R$ 1.500",
-    period: "/mês",
+    price: "Sob consulta",
+    period: "",
     popular: false,
-    cta: "Testar 7 Dias Grátis",
+    cta: "Falar com Consultor",
     features: [
       { text: "6 conexões WhatsApp", included: true },
       { text: "20 usuários", included: true },
