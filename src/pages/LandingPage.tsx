@@ -273,10 +273,10 @@ const pricingPlans = [
   {
     name: "Escritório",
     description: "Para escritórios com equipe e múltiplas áreas",
-    price: "R$ 750",
-    period: "/mês",
+    price: "Sob consulta",
+    period: "",
     popular: true,
-    cta: "Testar 7 Dias Grátis",
+    cta: "Falar com Consultor",
     features: [
       { text: "3 conexões WhatsApp", included: true },
       { text: "8 usuários", included: true },
