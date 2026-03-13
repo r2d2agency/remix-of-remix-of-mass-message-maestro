@@ -117,7 +117,7 @@ const navSections: NavSection[] = [
     icon: User,
     items: [
       { name: "Ajustes", href: "/configuracoes", icon: Settings, featureKey: 'settings' },
-      { name: "Conexões", href: "/conexao", icon: Plug, featureKey: 'connections' },
+      { name: "Conexões", href: "/conexao", icon: Plug },
       { name: "Intimações", href: "/intimacoes", icon: Scale, moduleKey: 'aasp', featureKey: 'aasp' },
       { name: "Lead Gleego", href: "/lead-gleego", icon: Search, moduleKey: 'lead_gleego', featureKey: 'lead_gleego' },
     ],
