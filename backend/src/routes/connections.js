@@ -20,29 +20,10 @@ async function getUserOrganization(userId) {
   return result.rows[0] || null;
 }
 
-// List connections (respects connection_members restrictions)
+// List connections (ALL users only see assigned connections via connection_members)
 router.get('/', async (req, res) => {
   try {
     const org = await getUserOrganization(req.userId);
-    const isOwner = org && org.role === 'owner';
-
-    // Owner always sees ALL org connections
-    if (isOwner) {
-      const result = await query(
-        `SELECT c.*, u.name as created_by_name,
-         CASE 
-           WHEN c.provider IS NOT NULL THEN c.provider 
-           WHEN c.instance_id IS NOT NULL AND c.wapi_token IS NOT NULL THEN 'wapi'
-           ELSE 'evolution'
-         END as provider
-         FROM connections c
-         LEFT JOIN users u ON c.user_id = u.id
-         WHERE c.organization_id = $1
-         ORDER BY c.created_at DESC`,
-        [org.organization_id]
-      );
-      return res.json(result.rows);
-    }
 
     // All other roles: only see connections explicitly assigned via connection_members
     const specificResult = await query(
