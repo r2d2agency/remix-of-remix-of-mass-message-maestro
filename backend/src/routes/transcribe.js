@@ -17,8 +17,9 @@ async function getOrgAIConfig(userId) {
   const result = await pool.query(
     `SELECT o.ai_provider, o.ai_model, o.ai_api_key
      FROM organizations o
-     JOIN users u ON u.organization_id = o.id
-     WHERE u.id = $1`,
+     JOIN organization_members om ON om.organization_id = o.id
+     WHERE om.user_id = $1
+     LIMIT 1`,
     [userId]
   );
   const row = result.rows[0];
