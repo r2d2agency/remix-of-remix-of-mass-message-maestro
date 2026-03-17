@@ -87,6 +87,7 @@ import {
   Sparkles,
   SmilePlus,
   Forward,
+  Download,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -1966,19 +1967,39 @@ export function ChatArea({
                     }}
                   />
                 )}
-                {msg.message_type === 'document' && mediaUrl && (
-                  <a
-                    href={mediaUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    download={getDocumentDisplayName(msg, mediaUrl)}
-                    className="flex items-center gap-2 text-sm underline mb-2 min-w-0"
-                  >
-                    <FileText className="h-4 w-4 flex-shrink-0" />
-                    <span className="truncate">
-                      {getDocumentDisplayName(msg, mediaUrl)}
-                    </span>
-                  </a>
+                {(msg.message_type === 'document' || (msg.media_mimetype && /^application\/(pdf|msword|vnd\.|rtf|zip|x-rar|x-7z|octet-stream)/i.test(msg.media_mimetype) && !['image','video','audio','sticker','text'].includes(msg.message_type))) && (
+                  mediaUrl ? (
+                    <a
+                      href={mediaUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      download={getDocumentDisplayName(msg, mediaUrl)}
+                      className="flex items-center gap-3 p-3 rounded-lg bg-background/50 border border-border/50 hover:bg-accent/30 transition-colors mb-2 min-w-0"
+                    >
+                      <div className="flex-shrink-0">
+                        {getFileIcon(msg.media_mimetype || 'application/octet-stream')}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">
+                          {getDocumentDisplayName(msg, mediaUrl)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {msg.media_mimetype?.split('/').pop()?.split('.').pop()?.toUpperCase() || 'DOC'}
+                        </p>
+                      </div>
+                      <Download className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    </a>
+                  ) : (
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-background/50 border border-border/50 mb-2">
+                      <FileText className="h-6 w-6 text-muted-foreground flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">
+                          {msg.content || 'Documento'}
+                        </p>
+                        <p className="text-xs text-muted-foreground">Arquivo não disponível</p>
+                      </div>
+                    </div>
+                  )
                 )}
 
                 {/* Call Log - special display */}
@@ -2241,7 +2262,7 @@ export function ChatArea({
           ref={fileInputRef}
           type="file"
           className="hidden"
-          accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar"
+          accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.ppsx,.pps,.ppsm,.rtf,.txt,.csv,.zip,.rar,.7z"
           onChange={handleFileSelect}
         />
 

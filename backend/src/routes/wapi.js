@@ -1356,7 +1356,7 @@ async function handleIncomingMessage(connection, payload) {
     let effectiveMediaUrl = normalizedMediaUrl;
     let effectiveMediaMimetype = mediaMimetype || null;
 
-    if (messageType === 'image' && normalizedMediaUrl && isWhatsAppCdnUrl(normalizedMediaUrl)) {
+    if (['image', 'document', 'video', 'audio'].includes(messageType) && normalizedMediaUrl && isWhatsAppCdnUrl(normalizedMediaUrl)) {
       const eager = await withTimeout(
         cacheMedia({
           messageId,
@@ -1853,15 +1853,16 @@ function extractMessageContent(payload) {
     return { messageType, content, mediaUrl, mediaMimetype, waMediaKey };
   }
 
-  // Document message
-  if (msgContent.documentMessage) {
+  // Document message (including documentWithCaptionMessage wrapper)
+  const docMsg = msgContent.documentMessage || msgContent.documentWithCaptionMessage?.message?.documentMessage;
+  if (docMsg) {
     messageType = 'document';
-    mediaMimetype = pickMime(msgContent.documentMessage) || payload.mediaMimetype || payload.mimetype || null;
+    mediaMimetype = pickMime(docMsg) || payload.mediaMimetype || payload.mimetype || null;
     mediaUrl =
-      pickFirstString(msgContent.documentMessage, ['url', 'fileUrl', 'mediaUrl', 'link', 'downloadUrl', 'base64', 'data']) ||
+      pickFirstString(docMsg, ['url', 'fileUrl', 'mediaUrl', 'link', 'downloadUrl', 'base64', 'data']) ||
       pickFirstString(payload, ['mediaUrl', 'url', 'fileUrl', 'downloadUrl', 'base64', 'data']);
-    content = msgContent.documentMessage.fileName || '[Documento]';
-    waMediaKey = extractMediaKey(msgContent.documentMessage) || extractMediaKey(payload);
+    content = docMsg.fileName || msgContent.documentWithCaptionMessage?.message?.documentMessage?.caption || '[Documento]';
+    waMediaKey = extractMediaKey(docMsg) || extractMediaKey(payload);
     return { messageType, content, mediaUrl, mediaMimetype, waMediaKey };
   }
 

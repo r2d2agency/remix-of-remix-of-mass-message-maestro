@@ -1805,11 +1805,12 @@ async function handleMessageUpsert(connection, data) {
       messageType = 'audio';
       mediaUrl = msgContent.audioMessage.url || data.media?.url;
       mediaMimetype = msgContent.audioMessage.mimetype;
-    } else if (msgContent.documentMessage) {
+    } else if (msgContent.documentMessage || msgContent.documentWithCaptionMessage) {
+      const docMsg = msgContent.documentMessage || msgContent.documentWithCaptionMessage?.message?.documentMessage;
       messageType = 'document';
-      content = msgContent.documentMessage.fileName || '';
-      mediaUrl = msgContent.documentMessage.url || data.media?.url;
-      mediaMimetype = msgContent.documentMessage.mimetype;
+      content = docMsg?.fileName || '';
+      mediaUrl = docMsg?.url || data.media?.url;
+      mediaMimetype = docMsg?.mimetype;
     } else if (msgContent.stickerMessage) {
       messageType = 'sticker';
       mediaUrl = msgContent.stickerMessage.url || data.media?.url;
@@ -2560,11 +2561,12 @@ router.post('/:connectionId/sync-chat', authenticate, async (req, res) => {
           content = '[Áudio]';
           mediaMimetype = msgContent.audioMessage.mimetype || null;
           mediaUrl = msgContent.audioMessage.url;
-        } else if (msgContent.documentMessage) {
+        } else if (msgContent.documentMessage || msgContent.documentWithCaptionMessage) {
+          const docMsg = msgContent.documentMessage || msgContent.documentWithCaptionMessage?.message?.documentMessage;
           messageType = 'document';
-          content = msgContent.documentMessage.fileName || '[Documento]';
-          mediaMimetype = msgContent.documentMessage.mimetype || null;
-          mediaUrl = msgContent.documentMessage.url;
+          content = docMsg?.fileName || '[Documento]';
+          mediaMimetype = docMsg?.mimetype || null;
+          mediaUrl = docMsg?.url;
         } else if (msgContent.stickerMessage) {
           messageType = 'sticker';
           content = '[Figurinha]';
@@ -2750,7 +2752,7 @@ router.post('/:connectionId/sync-all', authenticate, async (req, res) => {
             if (msgContent.imageMessage) messageType = 'image';
             else if (msgContent.videoMessage) messageType = 'video';
             else if (msgContent.audioMessage) messageType = 'audio';
-            else if (msgContent.documentMessage) messageType = 'document';
+            else if (msgContent.documentMessage || msgContent.documentWithCaptionMessage) messageType = 'document';
 
             const timestamp = msg.messageTimestamp 
               ? new Date(parseInt(msg.messageTimestamp) * 1000) 
