@@ -2561,11 +2561,12 @@ router.post('/:connectionId/sync-chat', authenticate, async (req, res) => {
           content = '[Áudio]';
           mediaMimetype = msgContent.audioMessage.mimetype || null;
           mediaUrl = msgContent.audioMessage.url;
-        } else if (msgContent.documentMessage) {
+        } else if (msgContent.documentMessage || msgContent.documentWithCaptionMessage) {
+          const docMsg = msgContent.documentMessage || msgContent.documentWithCaptionMessage?.message?.documentMessage;
           messageType = 'document';
-          content = msgContent.documentMessage.fileName || '[Documento]';
-          mediaMimetype = msgContent.documentMessage.mimetype || null;
-          mediaUrl = msgContent.documentMessage.url;
+          content = docMsg?.fileName || '[Documento]';
+          mediaMimetype = docMsg?.mimetype || null;
+          mediaUrl = docMsg?.url;
         } else if (msgContent.stickerMessage) {
           messageType = 'sticker';
           content = '[Figurinha]';
