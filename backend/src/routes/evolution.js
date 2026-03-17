@@ -1805,11 +1805,12 @@ async function handleMessageUpsert(connection, data) {
       messageType = 'audio';
       mediaUrl = msgContent.audioMessage.url || data.media?.url;
       mediaMimetype = msgContent.audioMessage.mimetype;
-    } else if (msgContent.documentMessage) {
+    } else if (msgContent.documentMessage || msgContent.documentWithCaptionMessage) {
+      const docMsg = msgContent.documentMessage || msgContent.documentWithCaptionMessage?.message?.documentMessage;
       messageType = 'document';
-      content = msgContent.documentMessage.fileName || '';
-      mediaUrl = msgContent.documentMessage.url || data.media?.url;
-      mediaMimetype = msgContent.documentMessage.mimetype;
+      content = docMsg?.fileName || '';
+      mediaUrl = docMsg?.url || data.media?.url;
+      mediaMimetype = docMsg?.mimetype;
     } else if (msgContent.stickerMessage) {
       messageType = 'sticker';
       mediaUrl = msgContent.stickerMessage.url || data.media?.url;
