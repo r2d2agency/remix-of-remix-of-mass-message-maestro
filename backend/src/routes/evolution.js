@@ -2752,7 +2752,7 @@ router.post('/:connectionId/sync-all', authenticate, async (req, res) => {
             if (msgContent.imageMessage) messageType = 'image';
             else if (msgContent.videoMessage) messageType = 'video';
             else if (msgContent.audioMessage) messageType = 'audio';
-            else if (msgContent.documentMessage) messageType = 'document';
+            else if (msgContent.documentMessage || msgContent.documentWithCaptionMessage) messageType = 'document';
 
             const timestamp = msg.messageTimestamp 
               ? new Date(parseInt(msg.messageTimestamp) * 1000) 
