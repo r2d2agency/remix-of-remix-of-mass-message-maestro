@@ -1356,7 +1356,7 @@ async function handleIncomingMessage(connection, payload) {
     let effectiveMediaUrl = normalizedMediaUrl;
     let effectiveMediaMimetype = mediaMimetype || null;
 
-    if (messageType === 'image' && normalizedMediaUrl && isWhatsAppCdnUrl(normalizedMediaUrl)) {
+    if (['image', 'document', 'video', 'audio'].includes(messageType) && normalizedMediaUrl && isWhatsAppCdnUrl(normalizedMediaUrl)) {
       const eager = await withTimeout(
         cacheMedia({
           messageId,
