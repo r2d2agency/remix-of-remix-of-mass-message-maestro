@@ -1451,8 +1451,8 @@ async function handleMessageUpsert(connection, data) {
 
     const isGroup = typeof rawRemoteJid === 'string' && rawRemoteJid.includes('@g.us');
 
-    // Check if connection allows group messages
-    if (isGroup && !connection.show_groups) {
+    // Check if connection allows group messages (default to true if column doesn't exist)
+    if (isGroup && connection.show_groups === false) {
       console.log('Webhook: Skipping group message (show_groups disabled):', rawRemoteJid);
       return;
     }
