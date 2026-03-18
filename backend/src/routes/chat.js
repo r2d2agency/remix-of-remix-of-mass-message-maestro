@@ -24,12 +24,40 @@ function isViewOnlyRole(role) {
 }
 
 // Get user's connections based on their access rights:
-// ALL users (including owner) only see connections explicitly assigned via connection_members.
-// If no connections assigned, returns empty array (no conversations visible).
+// - Owner/admin: see ALL connections in their organization (including disconnected ones)
+// - Other roles: only see connections explicitly assigned via connection_members
+// - If no connections assigned, returns empty array (no conversations visible)
 async function getUserConnections(userId) {
   const org = await getUserOrganization(userId);
   
-  // All roles (including owner): only assigned connections
+  // Owner/admin: return ALL org connections so they can see all conversations
+  if (org && ['owner', 'admin'].includes(org.role)) {
+    const allOrgResult = await query(
+      `SELECT DISTINCT c.id
+       FROM connections c
+       WHERE c.organization_id = $1`,
+      [org.organization_id]
+    );
+    
+    if (allOrgResult.rows.length > 0) {
+      return allOrgResult.rows.map(r => r.id);
+    }
+    
+    // Fallback: also check connections owned directly by org members
+    const orgMemberConns = await query(
+      `SELECT DISTINCT c.id
+       FROM connections c
+       JOIN organization_members om ON om.user_id = c.user_id
+       WHERE om.organization_id = $1`,
+      [org.organization_id]
+    );
+    
+    if (orgMemberConns.rows.length > 0) {
+      return orgMemberConns.rows.map(r => r.id);
+    }
+  }
+  
+  // Non-admin roles: only assigned connections
   const specificResult = await query(
     `SELECT DISTINCT cm.connection_id as id
      FROM connection_members cm
