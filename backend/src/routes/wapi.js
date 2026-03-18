@@ -1158,8 +1158,8 @@ async function handleIncomingMessage(connection, payload) {
     // Check if this is a group message
       const isGroup = String(chatId).includes('@g.us') || (String(chatId).includes('-') && !String(chatId).match(/^\d+$/));
     
-    // Check if connection allows group messages
-    if (isGroup && !connection.show_groups) {
+    // Check if connection allows group messages (default to true if column doesn't exist)
+    if (isGroup && connection.show_groups === false) {
       console.log('[W-API] Skipping group message (show_groups disabled):', chatId);
       return;
     }
