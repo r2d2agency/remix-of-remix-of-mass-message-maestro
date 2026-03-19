@@ -1392,7 +1392,7 @@ export function CRMSidePanel({
                           <div className="flex-1 min-w-0">
                             <p className="text-xs font-medium truncate">{agent.name}</p>
                             {agent.description && (
-                              <p className="text-[10px] text-muted-foreground truncate">{agent.description}</p>
+                              <p className="text-[10px] text-muted-foreground break-words whitespace-normal">{agent.description}</p>
                             )}
                             <div className="flex flex-wrap gap-1 mt-1">
                               {agent.capabilities.slice(0, 3).map((cap) => (
