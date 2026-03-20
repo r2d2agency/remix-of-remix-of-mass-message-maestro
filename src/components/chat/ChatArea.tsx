@@ -88,6 +88,7 @@ import {
   SmilePlus,
   Forward,
   Download,
+  UserCheck,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -147,6 +148,7 @@ interface ChatAreaProps {
   onReleaseConversation?: () => Promise<void>;
   onFinishConversation?: () => Promise<void>;
   onReopenConversation?: () => Promise<void>;
+  onAcceptConversation?: () => Promise<void>;
   onDepartmentChange?: (departmentId: string | null) => void;
   isMobile?: boolean;
   onMobileBack?: () => void;
@@ -194,6 +196,7 @@ export function ChatArea({
   onReleaseConversation,
   onFinishConversation,
   onReopenConversation,
+  onAcceptConversation,
   onDepartmentChange,
   isMobile = false,
   onMobileBack,
@@ -1143,6 +1146,20 @@ export function ChatArea({
           {/* Mobile: show only essential buttons, others go in menu */}
           {!isMobile && (
             <>
+              {/* Accept button - visible when waiting */}
+              {!isViewOnly && onAcceptConversation && conversation.attendance_status === 'waiting' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-emerald-600 border-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950 h-8"
+                  onClick={onAcceptConversation}
+                  title="Aceitar conversa e atribuir a você"
+                >
+                  <UserCheck className="h-3.5 w-3.5 mr-1" />
+                  Aceitar
+                </Button>
+              )}
+
               {/* Release button - visible when attending */}
               {!isViewOnly && onReleaseConversation && conversation.attendance_status === 'attending' && (
                 <Button
@@ -1378,6 +1395,12 @@ export function ChatArea({
               {/* Mobile-only: Attendance actions */}
               {isMobile && (
                 <>
+                  {!isViewOnly && onAcceptConversation && conversation.attendance_status === 'waiting' && (
+                    <DropdownMenuItem onClick={onAcceptConversation} className="text-emerald-600">
+                      <UserCheck className="h-4 w-4 mr-2" />
+                      Aceitar conversa
+                    </DropdownMenuItem>
+                  )}
                   {!isViewOnly && onReleaseConversation && conversation.attendance_status === 'attending' && (
                     <DropdownMenuItem onClick={onReleaseConversation} className="text-amber-600">
                       <Undo2 className="h-4 w-4 mr-2" />
