@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useChat } from "@/hooks/use-chat";
+import { useNotificationSound } from "@/hooks/use-notification-sound";
 import { toast } from "sonner";
 import { Bell, X, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -21,10 +22,24 @@ interface SecretaryAlert {
 export function GroupSecretaryPopup() {
   const { isAuthenticated } = useAuth();
   const { getAlerts, markAlertsRead } = useChat();
+  const { showPushNotification, settings, requestPushPermission, isPushSupported } = useNotificationSound();
   const navigate = useNavigate();
   const [alerts, setAlerts] = useState<SecretaryAlert[]>([]);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const lastCheckRef = useRef<string | null>(null);
+  const pushRequestedRef = useRef(false);
+
+  // Auto-request push permission once
+  useEffect(() => {
+    if (!isAuthenticated || pushRequestedRef.current || !isPushSupported) return;
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      pushRequestedRef.current = true;
+      // Delay to avoid blocking on page load
+      setTimeout(() => {
+        requestPushPermission();
+      }, 5000);
+    }
+  }, [isAuthenticated, isPushSupported, requestPushPermission]);
 
   const checkForAlerts = useCallback(async () => {
     if (!isAuthenticated) return;
@@ -55,13 +70,33 @@ export function GroupSecretaryPopup() {
           audio.volume = 0.5;
           audio.play().catch(() => {});
         } catch {}
+
+        // Send browser push notification for each new alert (works in background)
+        if (document.hidden || !document.hasFocus()) {
+          newAlerts.forEach((alert) => {
+            showPushNotification(`🤖 ${alert.title}`, {
+              body: alert.message || 'Nova notificação da Secretária IA',
+              tag: `secretary-${alert.id}`,
+              data: { conversationId: alert.metadata?.conversation_id },
+              requireInteraction: true,
+            });
+          });
+        } else {
+          // Even when focused, show push for awareness
+          newAlerts.forEach((alert) => {
+            showPushNotification(`🤖 ${alert.title}`, {
+              body: alert.message || 'Nova notificação da Secretária IA',
+              tag: `secretary-${alert.id}`,
+            });
+          });
+        }
       }
 
       lastCheckRef.current = new Date().toISOString();
     } catch {
       // Silent
     }
-  }, [isAuthenticated, getAlerts, dismissed]);
+  }, [isAuthenticated, getAlerts, dismissed, showPushNotification]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
