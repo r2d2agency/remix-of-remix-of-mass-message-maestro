@@ -71,9 +71,10 @@ export default function SecretariaGrupos() {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [cfg, mems, lgs, users, groups, sts, minutes] = await Promise.all([
+      const [cfg, mems, lgs, users, groups, sts, minutes, cols] = await Promise.all([
         getConfig(), getMembers(), getLogs(), getAvailableUsers(), getGroups(), getStats().catch(() => null),
         getMeetingMinutes().catch(() => []),
+        getBoardColumns().catch(() => []),
       ]);
       setConfig(cfg);
       setMembers(mems);
