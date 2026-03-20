@@ -859,7 +859,6 @@ export function ConversationList({
                         )}
                       </DropdownMenuContent>
                     </DropdownMenu>
-                  )}
                 </div>
               );
 
