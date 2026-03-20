@@ -79,6 +79,13 @@ export interface ChatMessage {
   transcript?: string | null;
   is_forwarded?: boolean;
   forwarded_from_name?: string | null;
+  reactions?: Array<{
+    emoji: string;
+    from_me: boolean;
+    sender_name: string;
+    sender_phone: string | null;
+    timestamp: string;
+  }>;
 }
 
 export interface TeamMember {
