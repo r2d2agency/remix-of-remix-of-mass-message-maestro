@@ -2872,6 +2872,7 @@ DO $$ BEGIN
     ALTER TABLE group_secretary_config ADD COLUMN IF NOT EXISTS auto_reply_enabled BOOLEAN DEFAULT false;
     ALTER TABLE group_secretary_config ADD COLUMN IF NOT EXISTS auto_reply_message TEXT;
     ALTER TABLE group_secretary_config ADD COLUMN IF NOT EXISTS excluded_senders TEXT[] DEFAULT '{}';
+    ALTER TABLE group_secretary_config ADD COLUMN IF NOT EXISTS task_board_column_id UUID DEFAULT NULL;
 EXCEPTION WHEN duplicate_column THEN null; END $$;
 
 -- Add new columns to logs for priority, sentiment, deadline
