@@ -76,6 +76,7 @@ router.put('/config', async (req, res) => {
       daily_digest_enabled, daily_digest_hour,
       auto_reply_enabled, auto_reply_message,
       excluded_senders,
+      task_board_column_id,
     } = req.body;
 
     // Handle masked API key
@@ -90,8 +91,8 @@ router.put('/config', async (req, res) => {
 
     const result = await query(
       `INSERT INTO group_secretary_config 
-       (organization_id, is_active, connection_ids, group_jids, create_crm_task, show_popup_alert, min_confidence, ai_provider, ai_model, ai_api_key, notify_external_enabled, notify_external_phone, notify_members_whatsapp, default_connection_id, followup_enabled, followup_hours, daily_digest_enabled, daily_digest_hour, auto_reply_enabled, auto_reply_message, excluded_senders)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+       (organization_id, is_active, connection_ids, group_jids, create_crm_task, show_popup_alert, min_confidence, ai_provider, ai_model, ai_api_key, notify_external_enabled, notify_external_phone, notify_members_whatsapp, default_connection_id, followup_enabled, followup_hours, daily_digest_enabled, daily_digest_hour, auto_reply_enabled, auto_reply_message, excluded_senders, task_board_column_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
        ON CONFLICT (organization_id) DO UPDATE SET
          is_active = EXCLUDED.is_active,
          connection_ids = EXCLUDED.connection_ids,
@@ -113,6 +114,7 @@ router.put('/config', async (req, res) => {
          auto_reply_enabled = EXCLUDED.auto_reply_enabled,
          auto_reply_message = EXCLUDED.auto_reply_message,
          excluded_senders = EXCLUDED.excluded_senders,
+         task_board_column_id = EXCLUDED.task_board_column_id,
          updated_at = NOW()
        RETURNING *`,
       [
@@ -127,6 +129,7 @@ router.put('/config', async (req, res) => {
         daily_digest_enabled ?? false, daily_digest_hour ?? 8,
         auto_reply_enabled ?? false, auto_reply_message || null,
         excluded_senders || '{}',
+        task_board_column_id || null,
       ]
     );
 
