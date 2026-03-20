@@ -27,6 +27,15 @@ interface UnreadConversation {
   created_at?: string | null;
 }
 
+function formatMessagePreviewStatic(conv: UnreadConversation): string {
+  if (!conv.last_message && !conv.last_message_type) return "Nova mensagem";
+  if (conv.last_message_type === "audio") return "🎤 Áudio";
+  if (conv.last_message_type === "image") return "📷 Imagem";
+  if (conv.last_message_type === "video") return "🎥 Vídeo";
+  if (conv.last_message_type === "document") return "📄 Documento";
+  return conv.last_message?.slice(0, 50) || "Nova mensagem";
+}
+
 export function MessageNotifications() {
   const [unreadConversations, setUnreadConversations] = useState<UnreadConversation[]>([]);
   const [totalUnread, setTotalUnread] = useState(0);
