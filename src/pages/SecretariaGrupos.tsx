@@ -83,6 +83,7 @@ export default function SecretariaGrupos() {
       setAllGroups(groups);
       setStats(sts);
       setMeetingMinutes(minutes);
+      setBoardColumns(cols);
     } catch (err: any) {
       toast.error(err.message || "Erro ao carregar dados");
     } finally {
