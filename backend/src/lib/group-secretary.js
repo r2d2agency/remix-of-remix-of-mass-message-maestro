@@ -301,6 +301,7 @@ Mensagem: "${processedMessage}"`;
           description: taskDescription,
           priority: crmPriority,
           dueDate,
+          configuredColumnId: config.task_board_column_id || null,
         });
       }
 
