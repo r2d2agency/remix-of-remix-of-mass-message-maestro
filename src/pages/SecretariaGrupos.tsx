@@ -26,7 +26,7 @@ import { ptBR } from "date-fns/locale";
 export default function SecretariaGrupos() {
   const {
     getConfig, saveConfig, getMembers, addMember, removeMember, getLogs, getAvailableUsers, getGroups, getStats, updateMemberPhone,
-    generateMeetingMinutes, getMeetingMinutes, deleteMeetingMinutes,
+    generateMeetingMinutes, getMeetingMinutes, deleteMeetingMinutes, getBoardColumns,
   } = useGroupSecretary();
 
   const [config, setConfig] = useState<SecretaryConfig>({
