@@ -246,17 +246,10 @@ router.post('/:id/configure-webhooks', async (req, res) => {
     const { id } = req.params;
     const org = await getUserOrganization(req.userId);
 
-    // Get connection
-    let whereClause = 'id = $1 AND user_id = $2';
-    let params = [id, req.userId];
-
-    if (org) {
-      whereClause = 'id = $1 AND organization_id = $2';
-      params = [id, org.organization_id];
-    }
+    const { where, params } = buildConnectionAccessClause(id, req.userId, org);
 
     const connResult = await query(
-      `SELECT * FROM connections WHERE ${whereClause}`,
+      `SELECT * FROM connections WHERE ${where}`,
       params
     );
 
