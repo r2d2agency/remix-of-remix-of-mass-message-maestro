@@ -820,6 +820,7 @@ const Chat = () => {
                 onArchive={handleArchive} onTransfer={handleTransfer} onCreateTag={handleCreateTag}
                 onDeleteConversation={async () => { if (!selectedConversation) return; try { await api(`/api/chat/conversations/${selectedConversation.id}`, { method: 'DELETE' }); toast.success('Conversa excluída'); setSelectedConversation(null); setMessages([]); loadConversations(); } catch (error: any) { toast.error(error.message || 'Erro ao excluir conversa'); } }}
                 onReleaseConversation={handleReleaseConversation}
+                onAcceptConversation={async () => { if (!selectedConversation) return; await handleAcceptConversation(selectedConversation.id); const updated = await getConversation(selectedConversation.id); setSelectedConversation(updated); }}
                 onFinishConversation={() => handleFinishConversation()}
                 onReopenConversation={() => handleReopenConversation()}
                 onDepartmentChange={() => loadConversations()}
