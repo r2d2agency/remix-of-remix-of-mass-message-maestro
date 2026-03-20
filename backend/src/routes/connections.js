@@ -20,6 +20,20 @@ async function getUserOrganization(userId) {
   return result.rows[0] || null;
 }
 
+// Helper to build a WHERE clause that includes connection_members access
+function buildConnectionAccessClause(id, userId, org) {
+  if (org) {
+    return {
+      where: `id = $1 AND (organization_id = $2 OR id IN (SELECT connection_id FROM connection_members WHERE user_id = $3))`,
+      params: [id, org.organization_id, userId]
+    };
+  }
+  return {
+    where: `id = $1 AND (user_id = $2 OR id IN (SELECT connection_id FROM connection_members WHERE user_id = $2))`,
+    params: [id, userId]
+  };
+}
+
 // List connections (ALL users only see assigned connections via connection_members)
 router.get('/', async (req, res) => {
   try {
@@ -157,13 +171,13 @@ router.patch('/:id', async (req, res) => {
 
     const org = await getUserOrganization(req.userId);
 
-    // Allow update if user owns the connection OR belongs to same organization
-    let whereClause = 'id = $10 AND user_id = $11';
+    // Allow update if user owns the connection, belongs to same organization, OR is assigned via connection_members
+    let whereClause = 'id = $10 AND (user_id = $11 OR id IN (SELECT connection_id FROM connection_members WHERE user_id = $11))';
     let params = [provider, api_url, api_key, instance_name, instance_id, wapi_token, name, status, show_groups, id, req.userId];
 
     if (org) {
-      whereClause = 'id = $10 AND organization_id = $11';
-      params = [provider, api_url, api_key, instance_name, instance_id, wapi_token, name, status, show_groups, id, org.organization_id];
+      whereClause = 'id = $10 AND (organization_id = $11 OR id IN (SELECT connection_id FROM connection_members WHERE user_id = $12))';
+      params = [provider, api_url, api_key, instance_name, instance_id, wapi_token, name, status, show_groups, id, org.organization_id, req.userId];
     }
 
     const result = await query(
@@ -232,17 +246,10 @@ router.post('/:id/configure-webhooks', async (req, res) => {
     const { id } = req.params;
     const org = await getUserOrganization(req.userId);
 
-    // Get connection
-    let whereClause = 'id = $1 AND user_id = $2';
-    let params = [id, req.userId];
-
-    if (org) {
-      whereClause = 'id = $1 AND organization_id = $2';
-      params = [id, org.organization_id];
-    }
+    const { where, params } = buildConnectionAccessClause(id, req.userId, org);
 
     const connResult = await query(
-      `SELECT * FROM connections WHERE ${whereClause}`,
+      `SELECT * FROM connections WHERE ${where}`,
       params
     );
 
@@ -299,16 +306,10 @@ router.post('/:id/pairing-code', async (req, res) => {
 
     const org = await getUserOrganization(req.userId);
 
-    let whereClause = 'id = $1 AND user_id = $2';
-    let params = [id, req.userId];
-
-    if (org) {
-      whereClause = 'id = $1 AND organization_id = $2';
-      params = [id, org.organization_id];
-    }
+    const { where, params } = buildConnectionAccessClause(id, req.userId, org);
 
     const connResult = await query(
-      `SELECT * FROM connections WHERE ${whereClause}`,
+      `SELECT * FROM connections WHERE ${where}`,
       params
     );
 
