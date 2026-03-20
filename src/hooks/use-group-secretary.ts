@@ -231,6 +231,7 @@ export const useGroupSecretary = () => {
     getAvailableUsers,
     getGroups,
     getStats,
+    getBoardColumns,
     updateMemberPhone,
     generateMeetingMinutes,
     getMeetingMinutes,
