@@ -122,7 +122,7 @@ export function MessageNotifications() {
     } catch (error) {
       console.error("Error fetching unread conversations:", error);
     }
-  }, [soundEnabled, settings.soundEnabled, playSound, playNewConversationSound]);
+  }, [soundEnabled, settings.soundEnabled, playSound, playNewConversationSound, showPushNotification]);
 
   // Poll for unread messages - faster polling (every 3 seconds)
   useEffect(() => {
