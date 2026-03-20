@@ -23,6 +23,15 @@ export interface SecretaryConfig {
   auto_reply_enabled?: boolean;
   auto_reply_message?: string;
   excluded_senders?: string[];
+  task_board_column_id?: string | null;
+}
+
+export interface BoardColumn {
+  id: string;
+  name: string;
+  position: number;
+  board_id: string;
+  board_name: string;
 }
 
 export interface SecretaryMember {
