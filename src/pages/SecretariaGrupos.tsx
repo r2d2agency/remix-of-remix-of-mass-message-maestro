@@ -63,6 +63,7 @@ export default function SecretariaGrupos() {
   const [generatingMinutes, setGeneratingMinutes] = useState(false);
   const [expandedMinutes, setExpandedMinutes] = useState<string | null>(null);
   const [newExcludedNumber, setNewExcludedNumber] = useState("");
+  const [boardColumns, setBoardColumns] = useState<BoardColumn[]>([]);
   useEffect(() => {
     loadAll();
   }, []);
