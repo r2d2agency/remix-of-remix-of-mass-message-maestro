@@ -1209,7 +1209,7 @@ async function handleIncomingMessage(connection, payload) {
     console.log('[W-API] Looking for conversation with remote_jid:', remoteJid, 'connection_id:', connection.id);
     
     let conversationResult = await query(
-      `SELECT id, remote_jid, contact_phone FROM conversations WHERE connection_id = $1 AND remote_jid = $2`,
+      `SELECT id, remote_jid, contact_phone, group_name FROM conversations WHERE connection_id = $1 AND remote_jid = $2`,
       [connection.id, remoteJid]
     );
 
