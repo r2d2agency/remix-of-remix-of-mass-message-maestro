@@ -147,6 +147,7 @@ interface ChatAreaProps {
   onReleaseConversation?: () => Promise<void>;
   onFinishConversation?: () => Promise<void>;
   onReopenConversation?: () => Promise<void>;
+  onAcceptConversation?: () => Promise<void>;
   onDepartmentChange?: (departmentId: string | null) => void;
   isMobile?: boolean;
   onMobileBack?: () => void;
