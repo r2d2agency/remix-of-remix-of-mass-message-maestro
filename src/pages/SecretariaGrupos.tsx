@@ -39,6 +39,7 @@ export default function SecretariaGrupos() {
     daily_digest_enabled: false, daily_digest_hour: 8,
     auto_reply_enabled: false, auto_reply_message: '',
     excluded_senders: [],
+    task_board_column_id: null,
   });
   const [members, setMembers] = useState<SecretaryMember[]>([]);
   const [logs, setLogs] = useState<SecretaryLog[]>([]);
