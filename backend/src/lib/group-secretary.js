@@ -301,6 +301,7 @@ Mensagem: "${processedMessage}"`;
           description: taskDescription,
           priority: crmPriority,
           dueDate,
+          configuredColumnId: config.task_board_column_id || null,
         });
       }
 
@@ -509,41 +510,53 @@ async function createCRMTask({ organizationId, assignedTo, title, description, p
 /**
  * Create a task card in the global task board for the matched member
  */
-async function createTaskBoardCard({ organizationId, assignedTo, title, description, priority, dueDate }) {
+async function createTaskBoardCard({ organizationId, assignedTo, title, description, priority, dueDate, configuredColumnId }) {
   try {
-    // Find default global board
-    let boardResult = await query(
-      `SELECT id FROM task_boards WHERE organization_id = $1 AND is_default = true AND type = 'global' LIMIT 1`,
-      [organizationId]
-    );
+    let columnId = null;
+    let boardId = null;
 
-    if (boardResult.rows.length === 0) {
-      // No default global board, try any global board
-      boardResult = await query(
-        `SELECT id FROM task_boards WHERE organization_id = $1 AND type = 'global' ORDER BY created_at ASC LIMIT 1`,
+    // If a specific column is configured, use it
+    if (configuredColumnId) {
+      const colCheck = await query(
+        `SELECT tc.id, tc.board_id FROM task_columns tc
+         JOIN task_boards tb ON tb.id = tc.board_id
+         WHERE tc.id = $1 AND tb.organization_id = $2`,
+        [configuredColumnId, organizationId]
+      );
+      if (colCheck.rows.length > 0) {
+        columnId = colCheck.rows[0].id;
+        boardId = colCheck.rows[0].board_id;
+      }
+    }
+
+    // Fallback: find default global board's first column
+    if (!columnId) {
+      let boardResult = await query(
+        `SELECT id FROM task_boards WHERE organization_id = $1 AND is_default = true AND type = 'global' LIMIT 1`,
         [organizationId]
       );
+      if (boardResult.rows.length === 0) {
+        boardResult = await query(
+          `SELECT id FROM task_boards WHERE organization_id = $1 AND type = 'global' ORDER BY created_at ASC LIMIT 1`,
+          [organizationId]
+        );
+      }
+      if (boardResult.rows.length === 0) {
+        logInfo('group_secretary', 'No global task board found, skipping card creation');
+        return null;
+      }
+      boardId = boardResult.rows[0].id;
+
+      const colResult = await query(
+        `SELECT id FROM task_columns WHERE board_id = $1 ORDER BY position ASC LIMIT 1`,
+        [boardId]
+      );
+      if (colResult.rows.length === 0) {
+        logInfo('group_secretary', 'No columns in global board, skipping card creation');
+        return null;
+      }
+      columnId = colResult.rows[0].id;
     }
-
-    if (boardResult.rows.length === 0) {
-      logInfo('group_secretary', 'No global task board found, skipping card creation');
-      return null;
-    }
-
-    const boardId = boardResult.rows[0].id;
-
-    // Get first column of this board
-    const colResult = await query(
-      `SELECT id FROM task_columns WHERE board_id = $1 ORDER BY position ASC LIMIT 1`,
-      [boardId]
-    );
-
-    if (colResult.rows.length === 0) {
-      logInfo('group_secretary', 'No columns in global board, skipping card creation');
-      return null;
-    }
-
-    const columnId = colResult.rows[0].id;
 
     // Get max position in column
     const posResult = await query(
@@ -552,7 +565,7 @@ async function createTaskBoardCard({ organizationId, assignedTo, title, descript
     );
     const position = posResult.rows[0].next_pos;
 
-    // Create the card
+    // Create the card assigned to the identified user
     const cardResult = await query(
       `INSERT INTO task_cards (board_id, column_id, title, description, priority, due_date, assigned_to, position, created_by)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $7)
@@ -560,7 +573,7 @@ async function createTaskBoardCard({ organizationId, assignedTo, title, descript
       [boardId, columnId, title.slice(0, 255), description, priority || 'medium', dueDate || null, assignedTo, position]
     );
 
-    logInfo('group_secretary', `Task board card created: ${cardResult.rows[0]?.id} for user ${assignedTo}`);
+    logInfo('group_secretary', `Task board card created: ${cardResult.rows[0]?.id} in column ${columnId} for user ${assignedTo}`);
     return cardResult.rows[0]?.id || null;
   } catch (error) {
     logError('group_secretary.create_board_card_error', error);

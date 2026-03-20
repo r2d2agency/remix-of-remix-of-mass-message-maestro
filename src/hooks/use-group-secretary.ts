@@ -23,6 +23,15 @@ export interface SecretaryConfig {
   auto_reply_enabled?: boolean;
   auto_reply_message?: string;
   excluded_senders?: string[];
+  task_board_column_id?: string | null;
+}
+
+export interface BoardColumn {
+  id: string;
+  name: string;
+  position: number;
+  board_id: string;
+  board_name: string;
 }
 
 export interface SecretaryMember {
@@ -181,6 +190,11 @@ export const useGroupSecretary = () => {
     return data;
   }, []);
 
+  const getBoardColumns = useCallback(async (): Promise<BoardColumn[]> => {
+    const data = await api<BoardColumn[]>('/api/group-secretary/board-columns');
+    return data;
+  }, []);
+
   const updateMemberPhone = useCallback(async (userId: string, whatsappPhone: string): Promise<void> => {
     await api(`/api/group-secretary/members/${userId}/phone`, {
       method: 'PUT',
@@ -217,6 +231,7 @@ export const useGroupSecretary = () => {
     getAvailableUsers,
     getGroups,
     getStats,
+    getBoardColumns,
     updateMemberPhone,
     generateMeetingMinutes,
     getMeetingMinutes,

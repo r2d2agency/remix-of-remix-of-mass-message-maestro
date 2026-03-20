@@ -19,14 +19,14 @@ import {
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { MainLayout } from "@/components/layout/MainLayout";
-import { useGroupSecretary, type SecretaryConfig, type SecretaryMember, type SecretaryLog, type SecretaryStats, type AvailableUser, type MonitoredGroup, type MeetingMinutes } from "@/hooks/use-group-secretary";
+import { useGroupSecretary, type SecretaryConfig, type SecretaryMember, type SecretaryLog, type SecretaryStats, type AvailableUser, type MonitoredGroup, type MeetingMinutes, type BoardColumn } from "@/hooks/use-group-secretary";
 import { format, formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 export default function SecretariaGrupos() {
   const {
     getConfig, saveConfig, getMembers, addMember, removeMember, getLogs, getAvailableUsers, getGroups, getStats, updateMemberPhone,
-    generateMeetingMinutes, getMeetingMinutes, deleteMeetingMinutes,
+    generateMeetingMinutes, getMeetingMinutes, deleteMeetingMinutes, getBoardColumns,
   } = useGroupSecretary();
 
   const [config, setConfig] = useState<SecretaryConfig>({
@@ -39,6 +39,7 @@ export default function SecretariaGrupos() {
     daily_digest_enabled: false, daily_digest_hour: 8,
     auto_reply_enabled: false, auto_reply_message: '',
     excluded_senders: [],
+    task_board_column_id: null,
   });
   const [members, setMembers] = useState<SecretaryMember[]>([]);
   const [logs, setLogs] = useState<SecretaryLog[]>([]);
@@ -62,6 +63,7 @@ export default function SecretariaGrupos() {
   const [generatingMinutes, setGeneratingMinutes] = useState(false);
   const [expandedMinutes, setExpandedMinutes] = useState<string | null>(null);
   const [newExcludedNumber, setNewExcludedNumber] = useState("");
+  const [boardColumns, setBoardColumns] = useState<BoardColumn[]>([]);
   useEffect(() => {
     loadAll();
   }, []);
@@ -69,9 +71,10 @@ export default function SecretariaGrupos() {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [cfg, mems, lgs, users, groups, sts, minutes] = await Promise.all([
+      const [cfg, mems, lgs, users, groups, sts, minutes, cols] = await Promise.all([
         getConfig(), getMembers(), getLogs(), getAvailableUsers(), getGroups(), getStats().catch(() => null),
         getMeetingMinutes().catch(() => []),
+        getBoardColumns().catch(() => []),
       ]);
       setConfig(cfg);
       setMembers(mems);
@@ -80,6 +83,7 @@ export default function SecretariaGrupos() {
       setAllGroups(groups);
       setStats(sts);
       setMeetingMinutes(minutes);
+      setBoardColumns(cols);
     } catch (err: any) {
       toast.error(err.message || "Erro ao carregar dados");
     } finally {
@@ -481,6 +485,30 @@ export default function SecretariaGrupos() {
                     onCheckedChange={(v) => setConfig((c) => ({ ...c, create_crm_task: v }))}
                   />
                 </div>
+                {config.create_crm_task && (
+                  <div className="ml-4 space-y-2">
+                    <Label>Etapa do quadro de tarefas</Label>
+                    <Select
+                      value={config.task_board_column_id || "auto"}
+                      onValueChange={(v) => setConfig((c) => ({ ...c, task_board_column_id: v === "auto" ? null : v }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Primeira etapa (automático)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="auto">Primeira etapa (automático)</SelectItem>
+                        {boardColumns.map((col) => (
+                          <SelectItem key={col.id} value={col.id}>
+                            {col.board_name} → {col.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Selecione em qual etapa do quadro global o card será criado
+                    </p>
+                  </div>
+                )}
                 <div className="flex items-center justify-between">
                   <div>
                     <Label>Exibir popup na tela</Label>

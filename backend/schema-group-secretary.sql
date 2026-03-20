@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS group_secretary_config (
     create_crm_task BOOLEAN DEFAULT true,
     show_popup_alert BOOLEAN DEFAULT true,
     min_confidence DECIMAL(3,2) DEFAULT 0.6,
+    -- Task board config: which column to create cards in
+    task_board_column_id UUID DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE(organization_id)
