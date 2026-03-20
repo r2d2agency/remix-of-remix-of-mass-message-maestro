@@ -280,16 +280,28 @@ Mensagem: "${processedMessage}"`;
       let taskId = null;
       if (config.create_crm_task) {
         const priorityEmoji = { urgent: '🔴', high: '🟠', normal: '🟡', low: '🟢' };
+        const taskTitle = `${priorityEmoji[priority] || '🟡'} [Grupo] ${aiResult.detected_request || 'Nova solicitação'}`.slice(0, 255);
+        const taskDescription = `📱 Grupo: ${groupName || 'Desconhecido'}\n👤 Solicitante: ${senderName || 'Desconhecido'}\n💬 Mensagem: ${messageContent}\n🎯 Prioridade: ${priority}\n${aiResult.deadline_text ? `📅 Prazo mencionado: ${aiResult.deadline_text}\n` : ''}${sentiment !== 'neutral' ? `💭 Sentimento: ${sentiment}\n` : ''}\n🤖 Análise: ${aiResult.reason || ''}`;
         taskId = await createCRMTask({
           organizationId,
           assignedTo: matchedMember.user_id,
-          title: `${priorityEmoji[priority] || '🟡'} [Grupo] ${aiResult.detected_request || 'Nova solicitação'}`.slice(0, 255),
-          description: `📱 Grupo: ${groupName || 'Desconhecido'}\n👤 Solicitante: ${senderName || 'Desconhecido'}\n💬 Mensagem: ${messageContent}\n🎯 Prioridade: ${priority}\n${aiResult.deadline_text ? `📅 Prazo mencionado: ${aiResult.deadline_text}\n` : ''}${sentiment !== 'neutral' ? `💭 Sentimento: ${sentiment}\n` : ''}\n🤖 Análise: ${aiResult.reason || ''}`,
+          title: taskTitle,
+          description: taskDescription,
           priority: crmPriority,
           dueDate,
           source: 'group_secretary',
         });
         if (taskId) taskIds.push(taskId);
+
+        // 9b. Also create a card in the global task board
+        await createTaskBoardCard({
+          organizationId,
+          assignedTo: matchedMember.user_id,
+          title: taskTitle,
+          description: taskDescription,
+          priority: crmPriority,
+          dueDate,
+        });
       }
 
       // 10. Create popup alert if enabled
