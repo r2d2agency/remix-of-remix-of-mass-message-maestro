@@ -485,6 +485,30 @@ export default function SecretariaGrupos() {
                     onCheckedChange={(v) => setConfig((c) => ({ ...c, create_crm_task: v }))}
                   />
                 </div>
+                {config.create_crm_task && (
+                  <div className="ml-4 space-y-2">
+                    <Label>Etapa do quadro de tarefas</Label>
+                    <Select
+                      value={config.task_board_column_id || "auto"}
+                      onValueChange={(v) => setConfig((c) => ({ ...c, task_board_column_id: v === "auto" ? null : v }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Primeira etapa (automático)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="auto">Primeira etapa (automático)</SelectItem>
+                        {boardColumns.map((col) => (
+                          <SelectItem key={col.id} value={col.id}>
+                            {col.board_name} → {col.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Selecione em qual etapa do quadro global o card será criado
+                    </p>
+                  </div>
+                )}
                 <div className="flex items-center justify-between">
                   <div>
                     <Label>Exibir popup na tela</Label>
