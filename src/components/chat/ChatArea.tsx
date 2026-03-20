@@ -1145,6 +1145,20 @@ export function ChatArea({
           {/* Mobile: show only essential buttons, others go in menu */}
           {!isMobile && (
             <>
+              {/* Accept button - visible when waiting */}
+              {!isViewOnly && onAcceptConversation && conversation.attendance_status === 'waiting' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-emerald-600 border-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950 h-8"
+                  onClick={onAcceptConversation}
+                  title="Aceitar conversa e atribuir a você"
+                >
+                  <UserCheck className="h-3.5 w-3.5 mr-1" />
+                  Aceitar
+                </Button>
+              )}
+
               {/* Release button - visible when attending */}
               {!isViewOnly && onReleaseConversation && conversation.attendance_status === 'attending' && (
                 <Button
