@@ -1464,9 +1464,54 @@ async function handleMessageUpsert(connection, data) {
     // === EARLY CHECK: Skip messages that have no real content BEFORE creating conversation ===
     const msgContent = message.message || message;
     
-    // Check for message types we should ignore
+    // Handle reaction messages - store them on the target message
     if (msgContent.reactionMessage) {
-      console.log('Webhook: Ignoring reaction message (early check)');
+      const reactionData = msgContent.reactionMessage;
+      const targetMsgId = reactionData.key?.id;
+      const reactionEmoji = reactionData.reaction || reactionData.text;
+      
+      if (targetMsgId && reactionEmoji) {
+        try {
+          const senderPhone = isGroup ? (groupParticipantPhone || remotePhone) : (fromMe ? null : remotePhone);
+          const senderName = isGroup ? (message.pushName || groupParticipantPhone || 'Desconhecido') : (fromMe ? 'Você' : (message.pushName || remotePhone));
+          
+          // Find the message in DB by WhatsApp message_id
+          const targetMsg = await query(
+            `SELECT id, reactions FROM chat_messages WHERE message_id = $1 LIMIT 1`,
+            [targetMsgId]
+          );
+          
+          if (targetMsg.rows.length > 0) {
+            const existingReactions = targetMsg.rows[0].reactions || [];
+            
+            // Remove existing reaction from same sender (replace)
+            const filteredReactions = existingReactions.filter(r => 
+              !(r.sender_phone === senderPhone && r.from_me === fromMe)
+            );
+            
+            // Empty reaction means remove
+            if (reactionEmoji.trim() !== '') {
+              filteredReactions.push({
+                emoji: reactionEmoji,
+                from_me: fromMe,
+                sender_name: senderName,
+                sender_phone: senderPhone,
+                timestamp: new Date().toISOString(),
+              });
+            }
+            
+            await query(
+              `UPDATE chat_messages SET reactions = $1 WHERE id = $2`,
+              [JSON.stringify(filteredReactions), targetMsg.rows[0].id]
+            );
+            console.log(`Webhook: Stored reaction ${reactionEmoji} on message ${targetMsgId}`);
+          } else {
+            console.log(`Webhook: Reaction target message ${targetMsgId} not found in DB`);
+          }
+        } catch (err) {
+          console.error('Webhook: Error storing reaction:', err);
+        }
+      }
       return;
     }
     if (msgContent.senderKeyDistributionMessage) {
