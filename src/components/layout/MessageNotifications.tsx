@@ -67,9 +67,38 @@ export function MessageNotifications() {
           // New conversation entering the queue - play special double sound
           console.log('[Notifications] New conversation detected:', newConversationIds);
           playNewConversationSound();
+
+          // Push notification for new conversations
+          const newConvs = data.filter(c => newConversationIds.includes(c.id));
+          newConvs.forEach(conv => {
+            const name = conv.contact_name || conv.contact_phone || 'Novo contato';
+            showPushNotification(`💬 Nova conversa: ${name}`, {
+              body: formatMessagePreviewStatic(conv) || 'Nova mensagem recebida',
+              tag: `new-conv-${conv.id}`,
+            });
+          });
         } else if (hasNewMessagesInExisting && previousUnreadRef.current > 0) {
           // New message in existing conversation - play regular sound
           playSound();
+
+          // Push notification for new messages (only when app not focused)
+          if (document.hidden || !document.hasFocus()) {
+            const updatedConvs = data.filter(c => {
+              const prev = [...previousConversationIdsRef.current];
+              return prev.includes(c.id);
+            });
+            // Show push for the conversation with latest message
+            if (updatedConvs.length > 0) {
+              const latest = updatedConvs.sort((a, b) => 
+                new Date(b.last_message_at || 0).getTime() - new Date(a.last_message_at || 0).getTime()
+              )[0];
+              const name = latest.contact_name || latest.contact_phone || 'Contato';
+              showPushNotification(`📩 ${name}`, {
+                body: formatMessagePreviewStatic(latest) || 'Nova mensagem',
+                tag: `msg-${latest.id}`,
+              });
+            }
+          }
         }
       }
       
