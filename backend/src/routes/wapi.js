@@ -1343,6 +1343,7 @@ async function handleIncomingMessage(connection, payload) {
            SET last_message_at = NOW(), 
                unread_count = unread_count + 1,
                group_name = COALESCE($2, group_name),
+               contact_name = CASE WHEN contact_name = 'Grupo' AND $2 IS NOT NULL THEN $2 ELSE contact_name END,
                is_group = true,
                attendance_status = CASE WHEN attendance_status = 'finished' THEN 'waiting' ELSE attendance_status END,
                accepted_at = CASE WHEN attendance_status = 'finished' THEN NULL ELSE accepted_at END,
@@ -1350,6 +1351,25 @@ async function handleIncomingMessage(connection, payload) {
            WHERE id = $1`,
           [conversationId, groupName]
         );
+        
+        // Auto-fetch group name if still "Grupo"
+        const currentConv = conversationResult.rows[0];
+        if (!groupName && (currentConv.group_name === 'Grupo' || currentConv.group_name === null || !currentConv.group_name)) {
+          (async () => {
+            try {
+              const groupInfo = await wapiGetGroupInfo(connection.instance_id, connection.wapi_token, remoteJid);
+              if (groupInfo.success && groupInfo.name) {
+                await query(
+                  `UPDATE conversations SET group_name = $1, contact_name = CASE WHEN contact_name = 'Grupo' THEN $1 ELSE contact_name END WHERE id = $2`,
+                  [groupInfo.name, conversationId]
+                );
+                console.log('[W-API] Auto-synced existing group name:', remoteJid, '->', groupInfo.name);
+              }
+            } catch (e) {
+              console.log('[W-API] Auto-sync group name failed:', e.message);
+            }
+          })();
+        }
       } else {
         // For individual chats, update contact_name with sender's pushName
         await query(
