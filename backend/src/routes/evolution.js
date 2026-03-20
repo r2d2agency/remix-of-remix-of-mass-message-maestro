@@ -1867,8 +1867,8 @@ async function handleMessageUpsert(connection, data) {
       messageType = 'location';
       content = `${msgContent.locationMessage.degreesLatitude},${msgContent.locationMessage.degreesLongitude}`;
     } else if (msgContent.reactionMessage) {
-      // Reactions are not displayed as messages
-      console.log('Webhook: Ignoring reaction message');
+      // Already handled in early check above
+      console.log('Webhook: Reaction already handled');
       return;
     } else if (msgContent.senderKeyDistributionMessage) {
       console.log('Webhook: Ignoring senderKeyDistribution message');
