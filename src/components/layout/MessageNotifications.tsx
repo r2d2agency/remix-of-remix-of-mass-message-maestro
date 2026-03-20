@@ -38,7 +38,7 @@ export function MessageNotifications() {
   const previousUnreadRef = useRef<number>(0);
   const previousConversationIdsRef = useRef<Set<string>>(new Set());
   
-  const { playSound, playNewConversationSound, settings } = useNotificationSound();
+  const { playSound, playNewConversationSound, showPushNotification, settings } = useNotificationSound();
 
   // Save sound preference
   useEffect(() => {
