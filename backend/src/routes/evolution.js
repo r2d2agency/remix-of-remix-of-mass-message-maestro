@@ -47,11 +47,11 @@ async function getAccessibleConnection(connectionId, userId) {
   );
   const userOrgId = orgResult.rows[0]?.organization_id || null;
 
-  // Get connection - allow access if user owns it OR it belongs to their organization
+  // Get connection - allow access if user owns it, belongs to their organization, OR is assigned via connection_members
   const connResult = await query(
     `SELECT * FROM connections 
      WHERE id = $1 
-     AND (user_id = $2 OR organization_id = $3)`,
+     AND (user_id = $2 OR organization_id = $3 OR id IN (SELECT connection_id FROM connection_members WHERE user_id = $2))`,
     [connectionId, userId, userOrgId]
   );
 
