@@ -1911,6 +1911,7 @@ router.post('/conversations/:id/messages/:messageId/reaction', authenticate, asy
         return res.status(500).json({ error: `Erro Evolution API: ${errorText}` });
       }
 
+      await storeReactionLocally();
       return res.json({ success: true });
     } catch (evoError) {
       return res.status(500).json({ error: evoError.message });
