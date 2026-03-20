@@ -1850,6 +1850,27 @@ router.post('/conversations/:id/messages/:messageId/reaction', authenticate, asy
       }
     }
 
+    // Helper to store reaction locally
+    const storeReactionLocally = async () => {
+      try {
+        const currentMsg = await query(`SELECT reactions FROM chat_messages WHERE id = $1`, [dbMessageId]);
+        const existingReactions = currentMsg.rows[0]?.reactions || [];
+        const filtered = existingReactions.filter(r => r.from_me !== true);
+        if (reaction.trim() !== '') {
+          filtered.push({
+            emoji: reaction,
+            from_me: true,
+            sender_name: 'Você',
+            sender_phone: null,
+            timestamp: new Date().toISOString(),
+          });
+        }
+        await query(`UPDATE chat_messages SET reactions = $1 WHERE id = $2`, [JSON.stringify(filtered), dbMessageId]);
+      } catch (e) {
+        console.error('Error storing reaction locally:', e);
+      }
+    };
+
     if (provider === 'wapi') {
       const { sendReaction } = await import('../lib/wapi-provider.js');
       const result = await sendReaction(conversation.instance_id, conversation.wapi_token, phone, waMessageId, reaction);
@@ -1858,6 +1879,7 @@ router.post('/conversations/:id/messages/:messageId/reaction', authenticate, asy
         return res.status(500).json({ error: result.error || 'Erro ao enviar reação' });
       }
       
+      await storeReactionLocally();
       return res.json({ success: true });
     }
 
