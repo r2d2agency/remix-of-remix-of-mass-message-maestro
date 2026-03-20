@@ -20,6 +20,20 @@ async function getUserOrganization(userId) {
   return result.rows[0] || null;
 }
 
+// Helper to build a WHERE clause that includes connection_members access
+function buildConnectionAccessClause(id, userId, org) {
+  if (org) {
+    return {
+      where: `id = $1 AND (organization_id = $2 OR id IN (SELECT connection_id FROM connection_members WHERE user_id = $3))`,
+      params: [id, org.organization_id, userId]
+    };
+  }
+  return {
+    where: `id = $1 AND (user_id = $2 OR id IN (SELECT connection_id FROM connection_members WHERE user_id = $2))`,
+    params: [id, userId]
+  };
+}
+
 // List connections (ALL users only see assigned connections via connection_members)
 router.get('/', async (req, res) => {
   try {
