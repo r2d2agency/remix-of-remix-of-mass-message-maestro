@@ -140,6 +140,28 @@ router.put('/config', async (req, res) => {
   }
 });
 
+// Get global board columns for config selector
+router.get('/board-columns', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org) return res.status(403).json({ error: 'Sem organização' });
+
+    const result = await query(
+      `SELECT tc.id, tc.name, tc.position, tb.id as board_id, tb.name as board_name
+       FROM task_columns tc
+       JOIN task_boards tb ON tb.id = tc.board_id
+       WHERE tb.organization_id = $1 AND tb.type = 'global'
+       ORDER BY tb.created_at ASC, tc.position ASC`,
+      [org.organization_id]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get board columns error:', error);
+    res.status(500).json({ error: 'Erro ao buscar colunas' });
+  }
+});
+
 // ==========================================
 // MEMBERS (aliases/roles mapping)
 // ==========================================

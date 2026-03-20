@@ -190,6 +190,11 @@ export const useGroupSecretary = () => {
     return data;
   }, []);
 
+  const getBoardColumns = useCallback(async (): Promise<BoardColumn[]> => {
+    const data = await api<BoardColumn[]>('/api/group-secretary/board-columns');
+    return data;
+  }, []);
+
   const updateMemberPhone = useCallback(async (userId: string, whatsappPhone: string): Promise<void> => {
     await api(`/api/group-secretary/members/${userId}/phone`, {
       method: 'PUT',
