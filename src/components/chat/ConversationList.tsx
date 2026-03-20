@@ -804,13 +804,15 @@ export function ConversationList({
                   </div>
 
                   {/* Actions dropdown - visible for all users */}
-                  {!isMobile && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 opacity-0 group-hover:opacity-100 flex-shrink-0"
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={cn(
+                          "h-8 w-8 flex-shrink-0",
+                          isMobile ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                        )}
                           onClick={(e) => e.stopPropagation()}
                         >
                           <MoreVertical className="h-4 w-4" />
@@ -857,7 +859,6 @@ export function ConversationList({
                         )}
                       </DropdownMenuContent>
                     </DropdownMenu>
-                  )}
                 </div>
               );
 

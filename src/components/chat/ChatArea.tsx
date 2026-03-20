@@ -2089,7 +2089,35 @@ export function ChatArea({
                 )}
               </div>
 
-              {/* Action buttons - right side for sent messages */}
+              {/* Reactions display */}
+              {msg.reactions && msg.reactions.length > 0 && (
+                <div className={cn(
+                  "flex flex-wrap gap-1 -mt-1",
+                  msg.from_me ? "justify-end" : "justify-start"
+                )}>
+                  {(() => {
+                    // Group reactions by emoji
+                    const grouped = msg.reactions.reduce((acc, r) => {
+                      if (!acc[r.emoji]) acc[r.emoji] = [];
+                      acc[r.emoji].push(r);
+                      return acc;
+                    }, {} as Record<string, typeof msg.reactions>);
+                    
+                    return Object.entries(grouped).map(([emoji, reactors]) => (
+                      <span
+                        key={emoji}
+                        className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-accent border border-border text-xs cursor-default"
+                        title={reactors!.map(r => r.sender_name || 'Desconhecido').join(', ')}
+                      >
+                        <span>{emoji}</span>
+                        {reactors!.length > 1 && (
+                          <span className="text-[10px] text-muted-foreground">{reactors!.length}</span>
+                        )}
+                      </span>
+                    ));
+                  })()}
+                </div>
+              )}
               {msg.from_me && msg.message_type !== 'system' && (
                 <div className="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity self-center ml-1">
                   <Button
