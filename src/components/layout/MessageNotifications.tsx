@@ -154,16 +154,7 @@ export function MessageNotifications() {
     window.location.href = `/chat?conversation=${conversationId}`;
   };
 
-  const formatMessagePreview = (conv: UnreadConversation) => {
-    if (!conv.last_message && !conv.last_message_type) return "Nova mensagem";
-    
-    if (conv.last_message_type === "audio") return "🎤 Áudio";
-    if (conv.last_message_type === "image") return "📷 Imagem";
-    if (conv.last_message_type === "video") return "🎥 Vídeo";
-    if (conv.last_message_type === "document") return "📄 Documento";
-    
-    return conv.last_message?.slice(0, 50) || "Nova mensagem";
-  };
+  const formatMessagePreview = (conv: UnreadConversation) => formatMessagePreviewStatic(conv);
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
