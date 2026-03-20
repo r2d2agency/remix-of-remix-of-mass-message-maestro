@@ -1029,13 +1029,13 @@ router.post('/conversations/:id/accept', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'Conversa não encontrada' });
     }
 
-    // Update to attending status
+    // Update to attending status and always assign to the accepting user
     const result = await query(
       `UPDATE conversations 
        SET attendance_status = 'attending', 
            accepted_at = NOW(), 
            accepted_by = $1,
-           assigned_to = COALESCE(assigned_to, $1),
+           assigned_to = $1,
            updated_at = NOW() 
        WHERE id = $2 
        RETURNING *`,

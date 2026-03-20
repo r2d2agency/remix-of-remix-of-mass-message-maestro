@@ -195,6 +195,7 @@ export function ChatArea({
   onReleaseConversation,
   onFinishConversation,
   onReopenConversation,
+  onAcceptConversation,
   onDepartmentChange,
   isMobile = false,
   onMobileBack,
