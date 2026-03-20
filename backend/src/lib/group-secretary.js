@@ -507,7 +507,68 @@ async function createCRMTask({ organizationId, assignedTo, title, description, p
 }
 
 /**
- * Create a popup alert for the identified member
+ * Create a task card in the global task board for the matched member
+ */
+async function createTaskBoardCard({ organizationId, assignedTo, title, description, priority, dueDate }) {
+  try {
+    // Find default global board
+    let boardResult = await query(
+      `SELECT id FROM task_boards WHERE organization_id = $1 AND is_default = true AND type = 'global' LIMIT 1`,
+      [organizationId]
+    );
+
+    if (boardResult.rows.length === 0) {
+      // No default global board, try any global board
+      boardResult = await query(
+        `SELECT id FROM task_boards WHERE organization_id = $1 AND type = 'global' ORDER BY created_at ASC LIMIT 1`,
+        [organizationId]
+      );
+    }
+
+    if (boardResult.rows.length === 0) {
+      logInfo('group_secretary', 'No global task board found, skipping card creation');
+      return null;
+    }
+
+    const boardId = boardResult.rows[0].id;
+
+    // Get first column of this board
+    const colResult = await query(
+      `SELECT id FROM task_columns WHERE board_id = $1 ORDER BY position ASC LIMIT 1`,
+      [boardId]
+    );
+
+    if (colResult.rows.length === 0) {
+      logInfo('group_secretary', 'No columns in global board, skipping card creation');
+      return null;
+    }
+
+    const columnId = colResult.rows[0].id;
+
+    // Get max position in column
+    const posResult = await query(
+      `SELECT COALESCE(MAX(position), -1) + 1 as next_pos FROM task_cards WHERE column_id = $1`,
+      [columnId]
+    );
+    const position = posResult.rows[0].next_pos;
+
+    // Create the card
+    const cardResult = await query(
+      `INSERT INTO task_cards (board_id, column_id, title, description, priority, due_date, assigned_to, position, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $7)
+       RETURNING id`,
+      [boardId, columnId, title.slice(0, 255), description, priority || 'medium', dueDate || null, assignedTo, position]
+    );
+
+    logInfo('group_secretary', `Task board card created: ${cardResult.rows[0]?.id} for user ${assignedTo}`);
+    return cardResult.rows[0]?.id || null;
+  } catch (error) {
+    logError('group_secretary.create_board_card_error', error);
+    return null;
+  }
+}
+
+
  */
 async function createPopupAlert({ userId, senderName, groupName, request, conversationId }) {
   try {
