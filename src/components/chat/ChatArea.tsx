@@ -1395,6 +1395,12 @@ export function ChatArea({
               {/* Mobile-only: Attendance actions */}
               {isMobile && (
                 <>
+                  {!isViewOnly && onAcceptConversation && conversation.attendance_status === 'waiting' && (
+                    <DropdownMenuItem onClick={onAcceptConversation} className="text-emerald-600">
+                      <UserCheck className="h-4 w-4 mr-2" />
+                      Aceitar conversa
+                    </DropdownMenuItem>
+                  )}
                   {!isViewOnly && onReleaseConversation && conversation.attendance_status === 'attending' && (
                     <DropdownMenuItem onClick={onReleaseConversation} className="text-amber-600">
                       <Undo2 className="h-4 w-4 mr-2" />
