@@ -80,7 +80,7 @@ export function GroupSecretaryPopup() {
 
   const goToConversation = (alert: SecretaryAlert) => {
     if (alert.metadata?.conversation_id) {
-      navigate(`/chat`);
+      navigate(`/chat?conversation=${alert.metadata.conversation_id}`);
     }
     dismissAlert(alert.id);
   };
