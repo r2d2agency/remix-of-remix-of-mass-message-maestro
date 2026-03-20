@@ -1301,6 +1301,24 @@ async function handleIncomingMessage(connection, payload) {
         );
         conversationId = newConv.rows[0].id;
         console.log('[W-API] Created new', isGroup ? 'group' : 'conversation:', conversationId, isGroup ? `name: ${groupName}` : '', 'phone:', cleanPhone);
+        
+        // Auto-fetch group name from W-API if not available
+        if (isGroup && (!groupName || groupName === 'Grupo')) {
+          (async () => {
+            try {
+              const groupInfo = await wapiGetGroupInfo(connection.instance_id, connection.wapi_token, remoteJid);
+              if (groupInfo.success && groupInfo.name) {
+                await query(
+                  `UPDATE conversations SET group_name = $1, contact_name = $1 WHERE id = $2`,
+                  [groupInfo.name, newConv.rows[0].id]
+                );
+                console.log('[W-API] Auto-synced group name:', remoteJid, '->', groupInfo.name);
+              }
+            } catch (e) {
+              console.log('[W-API] Auto-sync group name failed:', e.message);
+            }
+          })();
+        }
       } catch (insertError) {
         console.error('[W-API] ERROR creating conversation:', insertError.message);
         console.error('[W-API] Insert params:', { connectionId: connection.id, remoteJid, contactName, cleanPhone, isGroup, groupName });
