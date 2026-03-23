@@ -42,6 +42,7 @@ import aaspRoutes from './routes/aasp.js';
 import cnpjRoutes from './routes/cnpj.js';
 import leadGleegoRoutes from './routes/lead-gleego.js';
 import taskBoardsRoutes from './routes/task-boards.js';
+import salesReportRoutes from './routes/sales-report.js';
 import { initDatabase } from './init-db.js';
 import { executeNotifications } from './scheduler.js';
 import { executeCampaignMessages } from './campaign-scheduler.js';
@@ -201,6 +202,7 @@ app.use('/api/aasp', aaspRoutes);
 app.use('/api/cnpj', cnpjRoutes);
 app.use('/api/lead-gleego', leadGleegoRoutes);
 app.use('/api/task-boards', taskBoardsRoutes);
+app.use('/api/sales-report', salesReportRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
