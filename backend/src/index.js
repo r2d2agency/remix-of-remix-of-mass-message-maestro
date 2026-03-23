@@ -42,6 +42,7 @@ import aaspRoutes from './routes/aasp.js';
 import cnpjRoutes from './routes/cnpj.js';
 import leadGleegoRoutes from './routes/lead-gleego.js';
 import taskBoardsRoutes from './routes/task-boards.js';
+import salesReportRoutes from './routes/sales-report.js';
 import { initDatabase } from './init-db.js';
 import { executeNotifications } from './scheduler.js';
 import { executeCampaignMessages } from './campaign-scheduler.js';
