@@ -48,6 +48,7 @@ import SecretariaGrupos from "./pages/SecretariaGrupos";
 import ModuloFantasma from "./pages/ModuloFantasma";
 import Intimacoes from "./pages/Intimacoes";
 import LeadGleego from "./pages/LeadGleego";
+import RelatorioComercial from "./pages/RelatorioComercial";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
