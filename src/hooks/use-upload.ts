@@ -16,76 +16,49 @@ export function useUpload() {
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);
 
-  const uploadFile = useCallback(async (file: File): Promise<string | null> => {
-    setIsUploading(true);
-    setProgress(0);
-
-    console.log('[useUpload] Starting upload:', { 
-      name: file.name, 
-      type: file.type, 
-      size: file.size,
-      apiUrl: API_URL 
-    });
-
+  const doUpload = useCallback((file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const formData = new FormData();
       formData.append('file', file);
 
       const token = getAuthToken();
-      console.log('[useUpload] Auth token present:', !!token);
-      
       const xhr = new XMLHttpRequest();
 
       xhr.upload.addEventListener('progress', (event) => {
         if (event.lengthComputable) {
           const percentComplete = Math.round((event.loaded / event.total) * 100);
           setProgress(percentComplete);
-          console.log('[useUpload] Progress:', percentComplete + '%');
         }
       });
 
       xhr.addEventListener('load', () => {
-        setIsUploading(false);
-        console.log('[useUpload] Response status:', xhr.status, 'body:', xhr.responseText.substring(0, 500));
-        
         if (xhr.status >= 200 && xhr.status < 300) {
           try {
             const result: UploadResult = JSON.parse(xhr.responseText);
             setProgress(100);
-            console.log('[useUpload] Success, URL:', result.file.url);
             resolve(result.file.url);
           } catch (e) {
-            console.error('[useUpload] Parse error:', e);
             reject(new Error('Erro ao processar resposta'));
           }
         } else {
           try {
             const error = JSON.parse(xhr.responseText);
-            console.error('[useUpload] Server error:', error);
             reject(new Error(error.error || 'Erro ao fazer upload'));
           } catch {
-            console.error('[useUpload] Non-JSON error response');
             reject(new Error(`Erro ao fazer upload (${xhr.status})`));
           }
         }
       });
 
-      xhr.addEventListener('error', (e) => {
-        setIsUploading(false);
-        setProgress(0);
-        console.error('[useUpload] Network error:', e);
+      xhr.addEventListener('error', () => {
         reject(new Error('Erro de conexão'));
       });
 
       xhr.addEventListener('abort', () => {
-        setIsUploading(false);
-        setProgress(0);
-        console.log('[useUpload] Upload aborted');
         reject(new Error('Upload cancelado'));
       });
 
       const uploadUrl = `${API_URL}/api/uploads`;
-      console.log('[useUpload] POST to:', uploadUrl);
       xhr.open('POST', uploadUrl);
       if (token) {
         xhr.setRequestHeader('Authorization', `Bearer ${token}`);
@@ -93,6 +66,38 @@ export function useUpload() {
       xhr.send(formData);
     });
   }, []);
+
+  const uploadFile = useCallback(async (file: File, maxRetries = 2): Promise<string | null> => {
+    setIsUploading(true);
+    setProgress(0);
+
+    console.log('[useUpload] Starting upload:', { name: file.name, type: file.type, size: file.size });
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        if (attempt > 0) {
+          console.log(`[useUpload] Retry attempt ${attempt}/${maxRetries}`);
+          setProgress(0);
+          await new Promise(r => setTimeout(r, 500 * attempt));
+        }
+        const url = await doUpload(file);
+        console.log('[useUpload] Success, URL:', url);
+        setIsUploading(false);
+        return url;
+      } catch (err) {
+        console.error(`[useUpload] Attempt ${attempt} failed:`, err);
+        if (attempt === maxRetries) {
+          setIsUploading(false);
+          setProgress(0);
+          throw err;
+        }
+      }
+    }
+
+    setIsUploading(false);
+    setProgress(0);
+    return null;
+  }, [doUpload]);
 
   const resetProgress = useCallback(() => {
     setProgress(0);
