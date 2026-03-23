@@ -713,7 +713,7 @@ export function ChatArea({
   }, [inferMessageTypeFromFile]);
 
   // Paste handler for clipboard images (Ctrl+V screenshots)
-  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+  const handlePaste = useCallback(async (e: React.ClipboardEvent) => {
     const items = e.clipboardData?.items;
     if (!items) return;
 
@@ -724,17 +724,19 @@ export function ChatArea({
         const file = item.getAsFile();
         if (!file) continue;
 
-        const inferredType = inferMessageTypeFromFile(file);
+        // Read the file data immediately to avoid clipboard invalidation
+        const arrayBuffer = await file.arrayBuffer();
+        const blob = new Blob([arrayBuffer], { type: file.type });
+        const ext = file.type.split('/')[1] || 'png';
+        const stableFile = new File([blob], `screenshot-${Date.now()}.${ext}`, { type: file.type });
+
+        const inferredType = inferMessageTypeFromFile(stableFile);
         let preview: string | undefined;
         if (inferredType === 'image') {
-          preview = URL.createObjectURL(file);
+          preview = URL.createObjectURL(stableFile);
         }
 
-        // Rename clipboard files to something meaningful
-        const ext = file.type.split('/')[1] || 'png';
-        const renamedFile = new File([file], `screenshot-${Date.now()}.${ext}`, { type: file.type });
-
-        setPendingFile({ file: renamedFile, preview });
+        setPendingFile({ file: stableFile, preview });
         return;
       }
     }
