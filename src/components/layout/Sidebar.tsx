@@ -93,6 +93,7 @@ const navSections: NavSection[] = [
       { name: "Agenda", href: "/crm/agenda", icon: CalendarDays, featureKey: 'crm_calendar' },
       { name: "Tarefas", href: "/crm/tarefas", icon: ClipboardList, featureKey: 'crm_tasks' },
       { name: "Relatórios", href: "/crm/relatorios", icon: BarChart3, featureKey: 'crm_reports' },
+      { name: "Rel. Comercial", href: "/relatorio-comercial", icon: TrendingUp, adminOnly: true, featureKey: 'crm_reports' },
       { name: "Revenue Intel", href: "/revenue-intelligence", icon: Brain, adminOnly: true, featureKey: 'revenue_intelligence' },
       { name: "Fantasma", href: "/modulo-fantasma", icon: Ghost, ownerOnly: true, moduleKey: 'ghost', featureKey: 'ghost' },
       { name: "Configurações", href: "/crm/configuracoes", icon: Settings, adminOnly: true, featureKey: 'crm_config' },
