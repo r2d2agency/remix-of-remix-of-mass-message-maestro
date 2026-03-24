@@ -45,7 +45,7 @@ export function ShareContactDialog({
 
     const loadContacts = async () => {
       try {
-        const allContacts = await getContactDirectory();
+        const allContacts = await getContactDirectory(true);
         if (!cancelled) {
           setContacts(allContacts);
         }

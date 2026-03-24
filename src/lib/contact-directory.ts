@@ -38,8 +38,10 @@ export async function getContactDirectory(forceRefresh = false): Promise<Contact
       .map(normalizeContact)
       .filter((contact) => contact.phone);
 
-    cachedContacts = normalized;
-    cachedAt = Date.now();
+    if (normalized.length > 0 || forceRefresh) {
+      cachedContacts = normalized;
+      cachedAt = Date.now();
+    }
     return normalized;
   }).finally(() => {
     pendingRequest = null;
