@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -11,18 +11,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Search, Send, Loader2, Forward } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ChatMessage } from "@/hooks/use-chat";
-import { api } from "@/lib/api";
+import { getContactDirectory, type ContactDirectoryItem } from "@/lib/contact-directory";
 
-interface ForwardContact {
-  id: string;
-  name: string;
-  phone: string;
-  list_name?: string;
-}
+type ForwardContact = ContactDirectoryItem;
 
 interface ForwardMessageDialogProps {
   open: boolean;
@@ -49,60 +43,36 @@ export function ForwardMessageDialog({
   // Load contacts from all lists + active conversations when dialog opens
   useEffect(() => {
     if (!open) return;
+
     setSearch("");
     setSelectedPhone(null);
     setSelectedName("");
     setLoadingContacts(true);
 
+    let cancelled = false;
+
     const loadContacts = async () => {
-      const allContacts: ForwardContact[] = [];
-      const seenPhones = new Set<string>();
-
-      // 1) Try loading from saved contact lists
       try {
-        const lists = await api<any[]>('/api/contacts/lists', { auth: true });
-        for (const list of lists) {
-          try {
-            const listContacts = await api<any[]>(`/api/contacts/lists/${list.id}/contacts`, { auth: true });
-            for (const c of listContacts) {
-              const phone = (c.phone || '').replace(/\D/g, '');
-              if (phone && !seenPhones.has(phone)) {
-                seenPhones.add(phone);
-                allContacts.push({
-                  id: c.id,
-                  name: c.name || phone,
-                  phone,
-                  list_name: list.name,
-                });
-              }
-            }
-          } catch {}
+        const allContacts = await getContactDirectory();
+        if (!cancelled) {
+          setContacts(allContacts);
         }
-      } catch {}
-
-      // 2) Also load from active conversations as fallback
-      try {
-        const conversations = await api<any[]>('/api/chat/conversations', { auth: true });
-        for (const conv of conversations) {
-          const phone = (conv.phone || '').replace(/\D/g, '');
-          if (phone && !seenPhones.has(phone)) {
-            seenPhones.add(phone);
-            allContacts.push({
-              id: `conv-${conv.id}`,
-              name: conv.contact_name || conv.name || phone,
-              phone,
-              list_name: 'Conversa ativa',
-            });
-          }
+      } catch {
+        if (!cancelled) {
+          setContacts([]);
         }
-      } catch {}
-
-      allContacts.sort((a, b) => a.name.localeCompare(b.name));
-      setContacts(allContacts);
-      setLoadingContacts(false);
+      } finally {
+        if (!cancelled) {
+          setLoadingContacts(false);
+        }
+      }
     };
 
     loadContacts();
+
+    return () => {
+      cancelled = true;
+    };
   }, [open]);
 
   const filtered = useMemo(() => {
