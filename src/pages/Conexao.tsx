@@ -99,6 +99,10 @@ const Conexao = () => {
   const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [loadingPairingCode, setLoadingPairingCode] = useState(false);
 
+  // Error logs state
+  const [errorLogsOpen, setErrorLogsOpen] = useState(false);
+  const [errorLogs, setErrorLogs] = useState<any[]>([]);
+  const [errorLogsLoading, setErrorLogsLoading] = useState(false);
   // W-API Integrator token state (read-only, managed by superadmin)
   const [hasIntegratorToken, setHasIntegratorToken] = useState(false);
 
