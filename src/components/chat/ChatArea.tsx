@@ -113,7 +113,7 @@ import { AudioWaveform } from "./AudioWaveform";
 import { AudioPlayer } from "./AudioPlayer";
 import { TypingIndicator } from "./TypingIndicator";
 import { EmojiPicker } from "./EmojiPicker";
-import { MentionSuggestions, useMentions } from "./MentionSuggestions";
+import { MentionSuggestions, useMentions, GroupParticipant } from "./MentionSuggestions";
 import { ScheduleMessageDialog } from "./ScheduleMessageDialog";
 import { ScheduledMessage } from "@/hooks/use-chat";
 import { StartFlowDialog } from "./StartFlowDialog";
