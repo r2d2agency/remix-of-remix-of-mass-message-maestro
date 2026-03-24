@@ -1198,9 +1198,17 @@ async function handleIncomingMessage(connection, payload) {
     });
 
     // Skip if message has no content - don't create empty conversations
-    if (!content && !rawMediaUrl) {
-      console.log('[W-API] Empty message content, skipping before conversation creation. Full msgContent:', JSON.stringify(payload.msgContent || {}).slice(0, 500));
-      return;
+    // For media types (image, audio, video, document, sticker), never skip — we can download by messageId later
+    const isMediaType = ['image', 'audio', 'video', 'document', 'sticker'].includes(messageType);
+    if (!content && !rawMediaUrl && !isMediaType) {
+      // Double-check: inspect payload for any media indicators we might have missed
+      const payloadStr = JSON.stringify(payload.msgContent || payload || {});
+      const hasMediaHint = /image|audio|video|document|sticker|media|file/i.test(payloadStr) && payloadStr.length > 50;
+      if (!hasMediaHint) {
+        console.log('[W-API] Empty message content, skipping before conversation creation. Full msgContent:', payloadStr.slice(0, 500));
+        return;
+      }
+      console.log('[W-API] Empty content but payload has media hints, proceeding. msgContent:', payloadStr.slice(0, 500));
     }
 
     // Get or create conversation
@@ -1419,9 +1427,33 @@ async function handleIncomingMessage(connection, payload) {
     }
 
     // Content was already validated before conversation creation, but check effectiveMediaUrl
-    if (!content && !effectiveMediaUrl) {
+    if (!content && !effectiveMediaUrl && !isMediaType) {
       console.log('[W-API] Empty message after media processing, skipping. Full msgContent:', JSON.stringify(payload.msgContent || {}).slice(0, 500));
       return;
+    }
+
+    // For media messages without a URL, try downloading by messageId before inserting
+    if (isMediaType && !effectiveMediaUrl) {
+      console.log('[W-API] Media message without URL, attempting download by messageId:', messageId);
+      const downloadResult = await withTimeout(
+        cacheMediaFromWapiDownload({
+          messageId,
+          messageType,
+          mediaMimetype: effectiveMediaMimetype,
+          connection,
+        }),
+        8000,
+        'incoming_media_download_timeout'
+      ).catch((err) => {
+        console.error('[W-API] Incoming media download failed:', err?.message || err);
+        return null;
+      });
+
+      if (downloadResult?.publicUrl) {
+        effectiveMediaUrl = downloadResult.publicUrl;
+        effectiveMediaMimetype = downloadResult.mime || effectiveMediaMimetype;
+        console.log('[W-API] Downloaded media by messageId ->', effectiveMediaUrl);
+      }
     }
 
     // Check for duplicate message in chat_messages table
@@ -1449,11 +1481,29 @@ async function handleIncomingMessage(connection, payload) {
     // Insert message into chat_messages table
     await query(
       `INSERT INTO chat_messages (conversation_id, message_id, content, message_type, media_url, media_mimetype, wa_media_key, from_me, sender_name, sender_phone, status, timestamp)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, false, $8, $9, 'received', NOW())`,
-      [conversationId, messageId, content, messageType, effectiveMediaUrl, effectiveMediaMimetype, waMediaKey, senderName, senderPhone]
+       VALUES ($1, $2, $3, $4, $5, $6, $7, false, $8, $9, 'received', NOW())
+       ON CONFLICT (message_id) WHERE message_id IS NOT NULL AND message_id NOT LIKE 'temp_%' DO NOTHING`,
+      [conversationId, messageId, content || (isMediaType ? `[${messageType === 'image' ? 'Imagem' : messageType === 'audio' ? 'Áudio' : messageType === 'video' ? 'Vídeo' : messageType === 'document' ? 'Documento' : 'Mídia'}]` : null), messageType, effectiveMediaUrl, effectiveMediaMimetype, waMediaKey, senderName, senderPhone]
     );
 
     console.log('[W-API] Message saved. Type:', messageType, 'MediaURL:', effectiveMediaUrl?.slice?.(0, 100));
+
+    // If media was saved without URL, schedule background download
+    if (isMediaType && !effectiveMediaUrl) {
+      console.log('[W-API] Media saved without URL, scheduling background download for:', messageId);
+      cacheMediaFromWapiDownload({ messageId, messageType, mediaMimetype: effectiveMediaMimetype, connection })
+        .then((cached) => {
+          if (!cached?.publicUrl) return;
+          return query(
+            `UPDATE chat_messages
+             SET media_url = $1,
+                 media_mimetype = COALESCE($2, media_mimetype)
+             WHERE message_id = $3`,
+            [cached.publicUrl, cached.mime || effectiveMediaMimetype, messageId]
+          );
+        })
+        .catch((err) => console.error('[W-API] Background incoming media download failed:', err?.message || err));
+    }
 
     // Pause nurturing sequences on incoming message (fromMe is always false here)
     if (cleanPhone && connection.organization_id) {
