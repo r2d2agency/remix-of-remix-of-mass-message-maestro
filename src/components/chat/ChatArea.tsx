@@ -2716,7 +2716,7 @@ export function ChatArea({
           </div>
         )}
       </div>
-      )}
+      ) : null}
 
       {/* Schedule Message Dialog */}
       <ScheduleMessageDialog
