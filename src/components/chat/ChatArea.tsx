@@ -257,8 +257,10 @@ export function ChatArea({
   const [showCallDialog, setShowCallDialog] = useState(false);
   const [savingCall, setSavingCall] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
-  const [forwardingMessage, setForwardingMessage] = useState<ChatMessage | null>(null);
-  const [forwardConversations, setForwardConversations] = useState<Conversation[]>([]);
+  const [selectedMessages, setSelectedMessages] = useState<ChatMessage[]>([]);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [showForwardDialog, setShowForwardDialog] = useState(false);
+  const [showShareContactDialog, setShowShareContactDialog] = useState(false);
   const [groupParticipants, setGroupParticipants] = useState<GroupParticipant[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
