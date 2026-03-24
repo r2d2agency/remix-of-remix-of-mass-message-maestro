@@ -13,19 +13,21 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Search, Send, Loader2, UserCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getContactDirectory, type ContactDirectoryItem } from "@/lib/contact-directory";
+import { getConnectionContactDirectory, type ContactDirectoryItem } from "@/lib/contact-directory";
 
 type SavedContact = ContactDirectoryItem;
 
 interface ShareContactDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  connectionId?: string;
   onShare: (contactName: string, contactPhone: string) => Promise<void>;
 }
 
 export function ShareContactDialog({
   open,
   onOpenChange,
+  connectionId,
   onShare,
 }: ShareContactDialogProps) {
   const [search, setSearch] = useState("");
@@ -45,7 +47,7 @@ export function ShareContactDialog({
 
     const loadContacts = async () => {
       try {
-        const allContacts = await getContactDirectory(true);
+        const allContacts = await getConnectionContactDirectory(connectionId || "", true);
         if (!cancelled) {
           setContacts(allContacts);
         }
@@ -65,7 +67,7 @@ export function ShareContactDialog({
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, connectionId]);
 
   const filtered = useMemo(() => {
     if (!search) return contacts;
