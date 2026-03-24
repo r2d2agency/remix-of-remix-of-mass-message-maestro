@@ -178,7 +178,7 @@ const renderMessageWithLinks = (text: string) => {
   );
 };
 
-
+const messageStatusIcon = (status: string) => {
   switch (status) {
     case 'sent':
       return <Check className="h-3 w-3 text-muted-foreground" />;
