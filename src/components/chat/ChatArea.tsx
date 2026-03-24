@@ -2605,6 +2605,8 @@ export function ChatArea({
                   <MentionSuggestions
                     query={mentionQuery}
                     team={team}
+                    groupParticipants={groupParticipants}
+                    isGroup={conversation?.is_group || conversation?.remote_jid?.includes('@g.us') || false}
                     onSelect={handleSelectMember}
                     onClose={closeSuggestions}
                     position={suggestionPosition}
