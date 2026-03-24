@@ -2579,6 +2579,17 @@ export function ChatArea({
                 <Zap className="h-4 w-4 text-primary" />
               </Button>
 
+              {/* Share Contact button */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 flex-shrink-0"
+                onClick={() => setShowShareContactDialog(true)}
+                title="Compartilhar contato"
+              >
+                <UserCheck className="h-4 w-4" />
+              </Button>
+
               {/* Quick Replies button */}
               <Button
                 variant="ghost"
