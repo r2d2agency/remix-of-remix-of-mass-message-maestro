@@ -1832,8 +1832,23 @@ export function ChatArea({
                 });
               } : undefined}
             >
+              {/* Selection checkbox */}
+              {selectionMode && msg.message_type !== 'system' && (
+                <div className="flex items-center mr-2 flex-shrink-0">
+                  <Checkbox
+                    checked={selectedMessages.some(m => m.id === msg.id)}
+                    onCheckedChange={() => {
+                      setSelectedMessages(prev => {
+                        const exists = prev.find(m => m.id === msg.id);
+                        if (exists) return prev.filter(m => m.id !== msg.id);
+                        return [...prev, msg];
+                      });
+                    }}
+                  />
+                </div>
+              )}
               {/* Action buttons - left side for received messages */}
-              {!msg.from_me && msg.message_type !== 'system' && (
+              {!selectionMode && !msg.from_me && msg.message_type !== 'system' && (
                 <div className="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity self-center mr-1">
                   <Button
                     variant="ghost"
