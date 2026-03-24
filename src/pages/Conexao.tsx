@@ -133,6 +133,21 @@ const Conexao = () => {
     }
   };
 
+  const loadErrorLogs = async (connectionId?: string) => {
+    setErrorLogsLoading(true);
+    try {
+      const url = connectionId 
+        ? `/api/connections/error-logs?connection_id=${connectionId}&limit=50`
+        : '/api/connections/error-logs?limit=50';
+      const data = await api<any[]>(url);
+      setErrorLogs(data);
+    } catch (error) {
+      console.error('Error loading error logs:', error);
+      setErrorLogs([]);
+    } finally {
+      setErrorLogsLoading(false);
+    }
+  };
 
   const loadPlanLimits = async () => {
     try {
