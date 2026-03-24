@@ -1827,7 +1827,7 @@ router.post('/conversations/:id/forward', authenticate, async (req, res) => {
         accepted_at = CASE WHEN attendance_status = 'waiting' THEN NOW() ELSE accepted_at END,
         accepted_by = CASE WHEN attendance_status = 'waiting' THEN $2 ELSE accepted_by END
       WHERE id = $1`,
-      [target_conversation_id, req.userId]
+      [targetConv.id, req.userId]
     );
 
     res.status(201).json(savedMessage);
