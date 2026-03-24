@@ -705,6 +705,14 @@ const handleGetQRCode = async (connection: Connection) => {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => { setErrorLogsOpen(true); loadErrorLogs(); }}
+          >
+            <FileWarning className="h-4 w-4 mr-2" />
+            Log de Falhas
+          </Button>
           </div>
         </div>
 
