@@ -348,9 +348,15 @@ export function ChatArea({
   useEffect(() => {
     setGroupParticipants([]);
     if (conversation?.id && (conversation.is_group || conversation.remote_jid?.includes('@g.us'))) {
-      api<GroupParticipant[]>(`/api/chat/conversations/${conversation.id}/group-participants`)
-        .then(data => setGroupParticipants(data || []))
-        .catch(() => setGroupParticipants([]));
+      api<GroupParticipant[]>(`/api/chat/conversations/${conversation.id}/group-participants`, { auth: true })
+        .then(data => {
+          console.log('[Mentions] Group participants loaded:', data?.length || 0);
+          setGroupParticipants(data || []);
+        })
+        .catch((err) => {
+          console.error('[Mentions] Failed to load group participants:', err);
+          setGroupParticipants([]);
+        });
     }
   }, [conversation?.id, conversation?.is_group]);
 
