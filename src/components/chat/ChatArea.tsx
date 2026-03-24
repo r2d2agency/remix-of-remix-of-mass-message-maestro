@@ -344,6 +344,16 @@ export function ChatArea({
     }
   }, [conversation?.id, showNotes]);
 
+  // Load group participants for mentions when conversation is a group
+  useEffect(() => {
+    setGroupParticipants([]);
+    if (conversation?.id && (conversation.is_group || conversation.remote_jid?.includes('@g.us'))) {
+      api<GroupParticipant[]>(`/api/chat/conversations/${conversation.id}/group-participants`)
+        .then(data => setGroupParticipants(data || []))
+        .catch(() => setGroupParticipants([]));
+    }
+  }, [conversation?.id, conversation?.is_group]);
+
   // Load departments when dialog opens
   useEffect(() => {
     if (showDepartmentDialog) {
