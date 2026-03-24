@@ -123,6 +123,7 @@ import { useCRMDealsByPhone, CRMDeal } from "@/hooks/use-crm";
 import { DealDetailDialog } from "@/components/crm/DealDetailDialog";
 import { AIAgentBanner } from "./AIAgentBanner";
 import { ForwardMessageDialog } from "./ForwardMessageDialog";
+import { ShareContactDialog } from "./ShareContactDialog";
 
 interface ChatAreaProps {
   conversation: Conversation | null;
