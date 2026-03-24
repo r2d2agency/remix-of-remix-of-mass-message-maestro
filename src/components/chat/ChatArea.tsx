@@ -155,6 +155,27 @@ interface ChatAreaProps {
   onMobileBack?: () => void;
   onOpenCRM?: () => void;
 }
+const renderMessageWithLinks = (text: string) => {
+  const urlRegex = /(https?:\/\/[^\s<]+)/g;
+  const parts = text.split(urlRegex);
+  if (parts.length === 1) return text;
+  return parts.map((part, i) =>
+    /^https?:\/\//.test(part) ? (
+      <a
+        key={i}
+        href={part}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-primary underline hover:opacity-80 break-all"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {part}
+      </a>
+    ) : (
+      <span key={i}>{part}</span>
+    )
+  );
+};
 
 const messageStatusIcon = (status: string) => {
   switch (status) {
@@ -2098,7 +2119,7 @@ export function ChatArea({
                   </p>
                 ) : msg.content && msg.message_type !== 'call_log' && !(msg.message_type === 'document' && looksLikeFilename(msg.content)) ? (
                   <p className="text-sm whitespace-pre-wrap" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
-                    {searchQuery ? highlightText(msg.content, searchQuery) : msg.content}
+                    {searchQuery ? highlightText(msg.content, searchQuery) : renderMessageWithLinks(msg.content)}
                   </p>
                 ) : null}
 
