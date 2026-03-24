@@ -1641,6 +1641,23 @@ router.post('/conversations/:id/messages', authenticate, async (req, res) => {
           `UPDATE chat_messages SET status = 'failed', error_message = $2 WHERE id = $1`,
           [savedMessage.id, bgError.message || 'Erro desconhecido']
         ).catch(() => {});
+        // Log connection error for diagnostics
+        await query(
+          `INSERT INTO connection_error_logs (connection_id, organization_id, event_type, error_message, details, created_at)
+           VALUES ($1, $2, 'send_message_failed', $3, $4, NOW())`,
+          [
+            conversation.connection_id,
+            conversation.organization_id || null,
+            bgError.message || 'Erro desconhecido',
+            JSON.stringify({
+              conversation_id: id,
+              message_id: savedMessage.id,
+              message_type: message_type,
+              provider: provider,
+              phone_preview: (typeof to === 'string' ? to.substring(0, 15) : null),
+            })
+          ]
+        ).catch(() => {});
       }
     })();
   } catch (error) {
