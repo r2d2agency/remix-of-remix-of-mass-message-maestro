@@ -109,6 +109,73 @@ router.get('/lists', async (req, res) => {
   }
 });
 
+// Global contact directory for pickers/search dialogs
+router.get('/directory', async (req, res) => {
+  try {
+    const org = await getUserOrganization(req.userId);
+    const search = typeof req.query.search === 'string' ? req.query.search.trim().toLowerCase() : '';
+    const phoneSearch = search.replace(/\D/g, '');
+    const limitValue = Number(req.query.limit);
+    const limit = Number.isFinite(limitValue) && limitValue > 0 ? Math.min(limitValue, 5000) : 5000;
+
+    let whereClause = 'cl.user_id = $1';
+    const params = [req.userId];
+
+    if (org) {
+      whereClause = `(cl.user_id = $1 OR cl.connection_id IN (
+        SELECT id FROM connections WHERE organization_id = $2
+      ))`;
+      params.push(org.organization_id);
+    }
+
+    let searchClause = '';
+    if (search) {
+      const searchParam = params.push(`%${search}%`);
+      if (phoneSearch) {
+        const phoneParam = params.push(`%${phoneSearch}%`);
+        searchClause = `
+          AND (
+            LOWER(COALESCE(c.name, '')) LIKE $${searchParam}
+            OR regexp_replace(COALESCE(c.phone, ''), '\\D', '', 'g') LIKE $${phoneParam}
+          )`;
+      } else {
+        searchClause = `
+          AND LOWER(COALESCE(c.name, '')) LIKE $${searchParam}`;
+      }
+    }
+
+    const limitParam = params.push(limit);
+
+    const result = await query(
+      `SELECT *
+       FROM (
+         SELECT DISTINCT ON (regexp_replace(COALESCE(c.phone, ''), '\\D', '', 'g'))
+                c.id,
+                c.list_id,
+                COALESCE(NULLIF(TRIM(c.name), ''), regexp_replace(COALESCE(c.phone, ''), '\\D', '', 'g')) as name,
+                regexp_replace(COALESCE(c.phone, ''), '\\D', '', 'g') as phone,
+                c.is_whatsapp,
+                c.created_at,
+                cl.name as list_name
+         FROM contacts c
+         JOIN contact_lists cl ON cl.id = c.list_id
+         WHERE ${whereClause}
+           AND COALESCE(c.phone, '') <> ''
+           ${searchClause}
+         ORDER BY regexp_replace(COALESCE(c.phone, ''), '\\D', '', 'g'), NULLIF(TRIM(c.name), '') ASC NULLS LAST, c.created_at DESC
+       ) directory
+       ORDER BY name ASC
+       LIMIT $${limitParam}`,
+      params
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('List contact directory error:', error);
+    res.status(500).json({ error: 'Erro ao listar diretório de contatos' });
+  }
+});
+
 // Create contact list
 router.post('/lists', async (req, res) => {
   try {
