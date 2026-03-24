@@ -2098,7 +2098,7 @@ export function ChatArea({
                   </p>
                 ) : msg.content && msg.message_type !== 'call_log' && !(msg.message_type === 'document' && looksLikeFilename(msg.content)) ? (
                   <p className="text-sm whitespace-pre-wrap" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
-                    {searchQuery ? highlightText(msg.content, searchQuery) : msg.content}
+                    {searchQuery ? highlightText(msg.content, searchQuery) : renderMessageWithLinks(msg.content)}
                   </p>
                 ) : null}
 
