@@ -14,13 +14,14 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Search, Send, Loader2, Forward } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ChatMessage } from "@/hooks/use-chat";
-import { getContactDirectory, type ContactDirectoryItem } from "@/lib/contact-directory";
+import { getConnectionContactDirectory, type ContactDirectoryItem } from "@/lib/contact-directory";
 
 type ForwardContact = ContactDirectoryItem;
 
 interface ForwardMessageDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  connectionId?: string;
   messages: ChatMessage[];
   onForward: (targetPhone: string, targetName: string) => Promise<void>;
   loading?: boolean;
@@ -29,6 +30,7 @@ interface ForwardMessageDialogProps {
 export function ForwardMessageDialog({
   open,
   onOpenChange,
+  connectionId,
   messages,
   onForward,
   loading = false,
@@ -53,7 +55,7 @@ export function ForwardMessageDialog({
 
     const loadContacts = async () => {
       try {
-        const allContacts = await getContactDirectory(true);
+        const allContacts = await getConnectionContactDirectory(connectionId || "", true);
         if (!cancelled) {
           setContacts(allContacts);
         }
@@ -73,7 +75,7 @@ export function ForwardMessageDialog({
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, connectionId]);
 
   const filtered = useMemo(() => {
     if (!search) return contacts;

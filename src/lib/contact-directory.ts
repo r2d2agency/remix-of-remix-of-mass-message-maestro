@@ -15,6 +15,8 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 let cachedContacts: ContactDirectoryItem[] | null = null;
 let cachedAt = 0;
 let pendingRequest: Promise<ContactDirectoryItem[]> | null = null;
+const connectionCache = new Map<string, { contacts: ContactDirectoryItem[]; cachedAt: number }>();
+const connectionPendingRequests = new Map<string, Promise<ContactDirectoryItem[]>>();
 
 const normalizeContact = (contact: ContactDirectoryItem): ContactDirectoryItem => ({
   ...contact,
@@ -50,7 +52,47 @@ export async function getContactDirectory(forceRefresh = false): Promise<Contact
   return pendingRequest;
 }
 
+export async function getConnectionContactDirectory(connectionId: string, forceRefresh = false): Promise<ContactDirectoryItem[]> {
+  if (!connectionId) {
+    return getContactDirectory(forceRefresh);
+  }
+
+  const cached = connectionCache.get(connectionId);
+  const isCacheValid = !forceRefresh && cached && Date.now() - cached.cachedAt < CACHE_TTL_MS;
+
+  if (isCacheValid) {
+    return cached.contacts;
+  }
+
+  const pending = connectionPendingRequests.get(connectionId);
+  if (pending) {
+    return pending;
+  }
+
+  const request = api<ContactDirectoryItem[]>(`/api/chat/contacts?connection=${encodeURIComponent(connectionId)}`)
+    .then((contacts) => {
+      const normalized = contacts
+        .map(normalizeContact)
+        .filter((contact) => contact.phone);
+
+      connectionCache.set(connectionId, {
+        contacts: normalized,
+        cachedAt: Date.now(),
+      });
+
+      return normalized;
+    })
+    .finally(() => {
+      connectionPendingRequests.delete(connectionId);
+    });
+
+  connectionPendingRequests.set(connectionId, request);
+  return request;
+}
+
 export function clearContactDirectoryCache() {
   cachedContacts = null;
   cachedAt = 0;
+  connectionCache.clear();
+  connectionPendingRequests.clear();
 }

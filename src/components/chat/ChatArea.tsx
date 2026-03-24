@@ -3158,6 +3158,7 @@ export function ChatArea({
             setSelectedMessages([]);
           }
         }}
+        connectionId={conversation?.connection_id}
         messages={selectedMessages}
         onForward={async (targetPhone, targetName) => {
           if (selectedMessages.length === 0 || !conversation) return;
@@ -3181,6 +3182,7 @@ export function ChatArea({
       <ShareContactDialog
         open={showShareContactDialog}
         onOpenChange={setShowShareContactDialog}
+        connectionId={conversation?.connection_id}
         onShare={async (contactName, contactPhone) => {
           if (!conversation) return;
           const vcard = `*${contactName}*\n📱 ${contactPhone}`;
