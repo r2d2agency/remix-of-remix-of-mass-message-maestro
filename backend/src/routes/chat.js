@@ -1815,7 +1815,7 @@ router.post('/conversations/:id/forward', authenticate, async (req, res) => {
         (conversation_id, message_id, from_me, sender_id, content, message_type, media_url, media_mimetype, status, timestamp, is_forwarded, forwarded_from_name)
        VALUES ($1, $2, true, $3, $4, $5, $6, $7, 'pending', NOW(), $8, $9)
        RETURNING *`,
-      [target_conversation_id, tempMessageId, req.userId, forwardContent, forwardType, forwardMediaUrl, forwardMimetype, isForwarded, forwardedFromName]
+      [targetConv.id, tempMessageId, req.userId, forwardContent, forwardType, forwardMediaUrl, forwardMimetype, isForwarded, forwardedFromName]
     );
 
     const savedMessage = newMsgResult.rows[0];
