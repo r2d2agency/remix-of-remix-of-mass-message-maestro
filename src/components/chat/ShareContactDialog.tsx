@@ -45,11 +45,12 @@ export function ShareContactDialog({
     setSelectedContact(null);
     setLoadingContacts(true);
 
-    api<any[]>('/api/contacts/lists', { auth: true })
-      .then(async (lists) => {
-        const allContacts: SavedContact[] = [];
-        const seenPhones = new Set<string>();
-        
+    const loadContacts = async () => {
+      const allContacts: SavedContact[] = [];
+      const seenPhones = new Set<string>();
+
+      try {
+        const lists = await api<any[]>('/api/contacts/lists', { auth: true });
         for (const list of lists) {
           try {
             const listContacts = await api<any[]>(`/api/contacts/lists/${list.id}/contacts`, { auth: true });
@@ -67,12 +68,30 @@ export function ShareContactDialog({
             }
           } catch {}
         }
-        
-        allContacts.sort((a, b) => a.name.localeCompare(b.name));
-        setContacts(allContacts);
-      })
-      .catch(() => setContacts([]))
-      .finally(() => setLoadingContacts(false));
+      } catch {}
+
+      try {
+        const conversations = await api<any[]>('/api/chat/conversations', { auth: true });
+        for (const conv of conversations) {
+          const phone = (conv.phone || '').replace(/\D/g, '');
+          if (phone && !seenPhones.has(phone)) {
+            seenPhones.add(phone);
+            allContacts.push({
+              id: `conv-${conv.id}`,
+              name: conv.contact_name || conv.name || phone,
+              phone,
+              list_name: 'Conversa ativa',
+            });
+          }
+        }
+      } catch {}
+
+      allContacts.sort((a, b) => a.name.localeCompare(b.name));
+      setContacts(allContacts);
+      setLoadingContacts(false);
+    };
+
+    loadContacts();
   }, [open]);
 
   const filtered = useMemo(() => {

@@ -155,7 +155,7 @@ interface ChatAreaProps {
   onMobileBack?: () => void;
   onOpenCRM?: () => void;
 }
-const renderMessageWithLinks = (text: string) => {
+const renderMessageWithLinks = (text: string, fromMe?: boolean) => {
   const urlRegex = /(https?:\/\/[^\s<]+)/g;
   const parts = text.split(urlRegex);
   if (parts.length === 1) return text;
@@ -166,7 +166,10 @@ const renderMessageWithLinks = (text: string) => {
         href={part}
         target="_blank"
         rel="noopener noreferrer"
-        className="text-primary underline hover:opacity-80 break-all"
+        className={cn(
+          "underline hover:opacity-80 break-all",
+          fromMe ? "text-white/90" : "text-primary"
+        )}
         onClick={(e) => e.stopPropagation()}
       >
         {part}
@@ -2119,7 +2122,7 @@ export function ChatArea({
                   </p>
                 ) : msg.content && msg.message_type !== 'call_log' && !(msg.message_type === 'document' && looksLikeFilename(msg.content)) ? (
                   <p className="text-sm whitespace-pre-wrap" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
-                    {searchQuery ? highlightText(msg.content, searchQuery) : renderMessageWithLinks(msg.content)}
+                    {searchQuery ? highlightText(msg.content, searchQuery) : renderMessageWithLinks(msg.content, msg.from_me)}
                   </p>
                 ) : null}
 
@@ -2610,7 +2613,7 @@ export function ChatArea({
                 onClick={() => setShowShareContactDialog(true)}
                 title="Compartilhar contato"
               >
-                <UserCheck className="h-4 w-4" />
+                <UserCheck className="h-4 w-4 text-green-600" />
               </Button>
 
               {/* Quick Replies button */}
