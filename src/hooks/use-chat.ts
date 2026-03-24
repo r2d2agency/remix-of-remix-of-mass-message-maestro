@@ -565,15 +565,15 @@ export const useChat = () => {
       return null;
     }
   }, []);
-  // Forward message to another conversation
+  // Forward message to another conversation (by conversation ID or phone number)
   const forwardMessage = useCallback(async (
     sourceConversationId: string,
     messageId: string,
-    targetConversationId: string
+    targetConversationIdOrPhone: string
   ): Promise<ChatMessage> => {
     const data = await api<ChatMessage>(`/api/chat/conversations/${sourceConversationId}/forward`, {
       method: 'POST',
-      body: { message_id: messageId, target_conversation_id: targetConversationId },
+      body: { message_id: messageId, target_conversation_id: targetConversationIdOrPhone, target_phone: targetConversationIdOrPhone },
     });
     return data;
   }, []);

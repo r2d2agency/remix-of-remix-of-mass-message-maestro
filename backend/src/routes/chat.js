@@ -1679,11 +1679,11 @@ router.post('/conversations/:id/forward', authenticate, async (req, res) => {
     }
 
     const { id: sourceConversationId } = req.params;
-    const { message_id, target_conversation_id } = req.body;
+    const { message_id, target_conversation_id, target_phone } = req.body;
     const connectionIds = await getUserConnections(req.userId);
 
-    if (!message_id || !target_conversation_id) {
-      return res.status(400).json({ error: 'message_id e target_conversation_id são obrigatórios' });
+    if (!message_id || (!target_conversation_id && !target_phone)) {
+      return res.status(400).json({ error: 'message_id e target_conversation_id ou target_phone são obrigatórios' });
     }
 
     // Get source message
@@ -1696,25 +1696,97 @@ router.post('/conversations/:id/forward', authenticate, async (req, res) => {
     }
     const sourceMsg = msgResult.rows[0];
 
-    // Get target conversation with connection details
-    const targetConvResult = await query(
-      `SELECT 
-        conv.*,
-        conn.api_url,
-        conn.api_key,
-        conn.instance_name,
-        conn.provider,
-        conn.instance_id,
-        conn.wapi_token,
-        conn.status as connection_status
-      FROM conversations conv
-      JOIN connections conn ON conn.id = conv.connection_id
-      WHERE conv.id = $1 AND conv.connection_id = ANY($2)`,
-      [target_conversation_id, connectionIds]
-    );
+    // Resolve target conversation - by ID or by phone number
+    let targetConvResult;
+    const phone = (target_phone || '').replace(/\D/g, '');
+    
+    // First try by conversation ID (UUID format)
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(target_conversation_id || '');
+    
+    if (isUUID) {
+      targetConvResult = await query(
+        `SELECT 
+          conv.*,
+          conn.api_url,
+          conn.api_key,
+          conn.instance_name,
+          conn.provider,
+          conn.instance_id,
+          conn.wapi_token,
+          conn.status as connection_status
+        FROM conversations conv
+        JOIN connections conn ON conn.id = conv.connection_id
+        WHERE conv.id = $1 AND conv.connection_id = ANY($2)`,
+        [target_conversation_id, connectionIds]
+      );
+    }
+    
+    // If not found by ID, try by phone number
+    if (!targetConvResult || targetConvResult.rows.length === 0) {
+      if (phone) {
+        targetConvResult = await query(
+          `SELECT 
+            conv.*,
+            conn.api_url,
+            conn.api_key,
+            conn.instance_name,
+            conn.provider,
+            conn.instance_id,
+            conn.wapi_token,
+            conn.status as connection_status
+          FROM conversations conv
+          JOIN connections conn ON conn.id = conv.connection_id
+          WHERE conv.connection_id = ANY($2) 
+            AND (conv.contact_phone LIKE $1 OR conv.remote_jid LIKE $1 || '%')
+          ORDER BY conv.last_message_at DESC NULLS LAST
+          LIMIT 1`,
+          ['%' + phone.slice(-10), connectionIds]
+        );
+      }
+    }
 
-    if (targetConvResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Conversa de destino não encontrada' });
+    if (!targetConvResult || targetConvResult.rows.length === 0) {
+      // No existing conversation - get first active connection and create conversation
+      if (phone) {
+        const connResult = await query(
+          `SELECT * FROM connections WHERE id = ANY($1) AND status = 'connected' ORDER BY created_at LIMIT 1`,
+          [connectionIds]
+        );
+        if (connResult.rows.length === 0) {
+          return res.status(400).json({ error: 'Nenhuma conexão ativa encontrada' });
+        }
+        const conn = connResult.rows[0];
+        const remoteJid = phone + '@s.whatsapp.net';
+        
+        // Create a new conversation
+        const newConvResult = await query(
+          `INSERT INTO conversations (connection_id, remote_jid, contact_phone, contact_name, is_group, last_message_at, attendance_status)
+           VALUES ($1, $2, $3, $4, false, NOW(), 'attending')
+           RETURNING *`,
+          [conn.id, remoteJid, phone, target_phone || phone]
+        );
+        
+        // Re-query with connection details
+        targetConvResult = await query(
+          `SELECT 
+            conv.*,
+            conn.api_url,
+            conn.api_key,
+            conn.instance_name,
+            conn.provider,
+            conn.instance_id,
+            conn.wapi_token,
+            conn.status as connection_status
+          FROM conversations conv
+          JOIN connections conn ON conn.id = conv.connection_id
+          WHERE conv.id = $1`,
+          [newConvResult.rows[0].id]
+        );
+      }
+      
+      if (!targetConvResult || targetConvResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Conversa de destino não encontrada' });
+      }
     }
 
     const targetConv = targetConvResult.rows[0];
@@ -1743,7 +1815,7 @@ router.post('/conversations/:id/forward', authenticate, async (req, res) => {
         (conversation_id, message_id, from_me, sender_id, content, message_type, media_url, media_mimetype, status, timestamp, is_forwarded, forwarded_from_name)
        VALUES ($1, $2, true, $3, $4, $5, $6, $7, 'pending', NOW(), $8, $9)
        RETURNING *`,
-      [target_conversation_id, tempMessageId, req.userId, forwardContent, forwardType, forwardMediaUrl, forwardMimetype, isForwarded, forwardedFromName]
+      [targetConv.id, tempMessageId, req.userId, forwardContent, forwardType, forwardMediaUrl, forwardMimetype, isForwarded, forwardedFromName]
     );
 
     const savedMessage = newMsgResult.rows[0];
@@ -1755,7 +1827,7 @@ router.post('/conversations/:id/forward', authenticate, async (req, res) => {
         accepted_at = CASE WHEN attendance_status = 'waiting' THEN NOW() ELSE accepted_at END,
         accepted_by = CASE WHEN attendance_status = 'waiting' THEN $2 ELSE accepted_by END
       WHERE id = $1`,
-      [target_conversation_id, req.userId]
+      [targetConv.id, req.userId]
     );
 
     res.status(201).json(savedMessage);

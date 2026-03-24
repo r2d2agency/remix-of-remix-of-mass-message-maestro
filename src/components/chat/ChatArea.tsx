@@ -123,6 +123,7 @@ import { useCRMDealsByPhone, CRMDeal } from "@/hooks/use-crm";
 import { DealDetailDialog } from "@/components/crm/DealDetailDialog";
 import { AIAgentBanner } from "./AIAgentBanner";
 import { ForwardMessageDialog } from "./ForwardMessageDialog";
+import { ShareContactDialog } from "./ShareContactDialog";
 
 interface ChatAreaProps {
   conversation: Conversation | null;
@@ -256,8 +257,10 @@ export function ChatArea({
   const [showCallDialog, setShowCallDialog] = useState(false);
   const [savingCall, setSavingCall] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
-  const [forwardingMessage, setForwardingMessage] = useState<ChatMessage | null>(null);
-  const [forwardConversations, setForwardConversations] = useState<Conversation[]>([]);
+  const [selectedMessages, setSelectedMessages] = useState<ChatMessage[]>([]);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [showForwardDialog, setShowForwardDialog] = useState(false);
+  const [showShareContactDialog, setShowShareContactDialog] = useState(false);
   const [groupParticipants, setGroupParticipants] = useState<GroupParticipant[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -447,6 +450,8 @@ export function ChatArea({
     isInitialLoadRef.current = true;
     isUserScrollingRef.current = false;
     setShowScrollButton(false);
+    setSelectionMode(false);
+    setSelectedMessages([]);
   }, [conversation?.id]);
 
   // Scroll to bottom immediately when opening a conversation (initial load)
@@ -1817,12 +1822,35 @@ export function ChatArea({
                 if (el) messageRefs.current.set(msg.id, el);
               }}
               className={cn(
-                "flex w-full min-w-0 group",
-                msg.from_me ? "justify-end" : "justify-start"
+                "flex w-full min-w-0 group items-center",
+                msg.from_me ? "justify-end" : "justify-start",
+                selectionMode && "cursor-pointer"
               )}
+              onClick={selectionMode && msg.message_type !== 'system' ? () => {
+                setSelectedMessages(prev => {
+                  const exists = prev.find(m => m.id === msg.id);
+                  if (exists) return prev.filter(m => m.id !== msg.id);
+                  return [...prev, msg];
+                });
+              } : undefined}
             >
+              {/* Selection checkbox */}
+              {selectionMode && msg.message_type !== 'system' && (
+                <div className="flex items-center mr-2 flex-shrink-0">
+                  <Checkbox
+                    checked={selectedMessages.some(m => m.id === msg.id)}
+                    onCheckedChange={() => {
+                      setSelectedMessages(prev => {
+                        const exists = prev.find(m => m.id === msg.id);
+                        if (exists) return prev.filter(m => m.id !== msg.id);
+                        return [...prev, msg];
+                      });
+                    }}
+                  />
+                </div>
+              )}
               {/* Action buttons - left side for received messages */}
-              {!msg.from_me && msg.message_type !== 'system' && (
+              {!selectionMode && !msg.from_me && msg.message_type !== 'system' && (
                 <div className="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity self-center mr-1">
                   <Button
                     variant="ghost"
@@ -1863,12 +1891,9 @@ export function ChatArea({
                     variant="ghost"
                     size="icon"
                     className="h-6 w-6"
-                    onClick={async () => {
-                      setForwardingMessage(msg);
-                      try {
-                        const convs = await getConversations({ archived: false });
-                        setForwardConversations(convs);
-                      } catch {}
+                    onClick={() => {
+                      setSelectedMessages([msg]);
+                      setSelectionMode(true);
                     }}
                     title="Encaminhar"
                   >
@@ -2167,7 +2192,7 @@ export function ChatArea({
                   })()}
                 </div>
               )}
-              {msg.from_me && msg.message_type !== 'system' && (
+              {!selectionMode && msg.from_me && msg.message_type !== 'system' && (
                 <div className="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity self-center ml-1">
                   <Button
                     variant="ghost"
@@ -2208,12 +2233,9 @@ export function ChatArea({
                     variant="ghost"
                     size="icon"
                     className="h-6 w-6"
-                    onClick={async () => {
-                      setForwardingMessage(msg);
-                      try {
-                        const convs = await getConversations({ archived: false });
-                        setForwardConversations(convs);
-                      } catch {}
+                    onClick={() => {
+                      setSelectedMessages([msg]);
+                      setSelectionMode(true);
                     }}
                     title="Encaminhar"
                   >
@@ -2250,15 +2272,39 @@ export function ChatArea({
         )}
       </ScrollArea>
 
+      {/* Selection mode floating bar */}
+      {selectionMode && (
+        <div className="border-t bg-card p-3 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary">{selectedMessages.length} selecionada(s)</Badge>
+            <Button variant="ghost" size="sm" onClick={() => {
+              setSelectionMode(false);
+              setSelectedMessages([]);
+            }}>
+              <X className="h-4 w-4 mr-1" />
+              Cancelar
+            </Button>
+          </div>
+          <Button
+            size="sm"
+            disabled={selectedMessages.length === 0}
+            onClick={() => setShowForwardDialog(true)}
+          >
+            <Forward className="h-4 w-4 mr-1" />
+            Encaminhar
+          </Button>
+        </div>
+      )}
+
       {/* Input - Show readonly message for supervisors */}
-      {isViewOnly ? (
+      {!selectionMode && isViewOnly ? (
         <div className="p-4 border-t bg-muted/50">
           <div className="flex items-center justify-center gap-2 text-muted-foreground py-3">
             <Users className="h-5 w-5" />
             <span className="text-sm font-medium">Modo Supervisor - Apenas visualização</span>
           </div>
         </div>
-      ) : (
+      ) : !selectionMode ? (
       <div className={cn("border-t bg-card", isMobile ? "p-3" : "p-4")}>
         {/* Reply preview */}
         {replyingTo && (
@@ -2535,6 +2581,17 @@ export function ChatArea({
                 <Zap className="h-4 w-4 text-primary" />
               </Button>
 
+              {/* Share Contact button */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 flex-shrink-0"
+                onClick={() => setShowShareContactDialog(true)}
+                title="Compartilhar contato"
+              >
+                <UserCheck className="h-4 w-4" />
+              </Button>
+
               {/* Quick Replies button */}
               <Button
                 variant="ghost"
@@ -2672,7 +2729,7 @@ export function ChatArea({
           </div>
         )}
       </div>
-      )}
+      ) : null}
 
       {/* Schedule Message Dialog */}
       <ScheduleMessageDialog
@@ -3069,22 +3126,42 @@ export function ChatArea({
 
       {/* Forward Message Dialog */}
       <ForwardMessageDialog
-        open={!!forwardingMessage}
+        open={showForwardDialog}
         onOpenChange={(open) => {
-          if (!open) setForwardingMessage(null);
+          if (!open) {
+            setShowForwardDialog(false);
+            setSelectionMode(false);
+            setSelectedMessages([]);
+          }
         }}
-        message={forwardingMessage}
-        conversations={forwardConversations}
-        currentConversationId={conversation?.id}
-        onForward={async (targetId) => {
-          if (!forwardingMessage || !conversation) return;
+        messages={selectedMessages}
+        onForward={async (targetPhone, targetName) => {
+          if (selectedMessages.length === 0 || !conversation) return;
           try {
-            await forwardMessage(conversation.id, forwardingMessage.id, targetId);
-            toast.success("Mensagem encaminhada com sucesso!");
-            setForwardingMessage(null);
+            for (const msg of selectedMessages) {
+              await forwardMessage(conversation.id, msg.id, targetPhone);
+            }
+            toast.success(selectedMessages.length > 1 
+              ? `${selectedMessages.length} mensagens encaminhadas!` 
+              : "Mensagem encaminhada!");
+            setShowForwardDialog(false);
+            setSelectionMode(false);
+            setSelectedMessages([]);
           } catch (err: any) {
             toast.error(err.message || "Erro ao encaminhar mensagem");
           }
+        }}
+      />
+
+      {/* Share Contact Dialog */}
+      <ShareContactDialog
+        open={showShareContactDialog}
+        onOpenChange={setShowShareContactDialog}
+        onShare={async (contactName, contactPhone) => {
+          if (!conversation) return;
+          const vcard = `*${contactName}*\n📱 ${contactPhone}`;
+          await onSendMessage(vcard, 'text');
+          toast.success("Contato compartilhado!");
         }}
       />
     </div>

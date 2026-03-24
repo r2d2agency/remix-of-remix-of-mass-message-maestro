@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -11,52 +11,43 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { Search, Send, Loader2, Forward } from "lucide-react";
+import { Search, Send, Loader2, UserCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ChatMessage } from "@/hooks/use-chat";
 import { api } from "@/lib/api";
 
-interface ForwardContact {
+interface SavedContact {
   id: string;
   name: string;
   phone: string;
   list_name?: string;
 }
 
-interface ForwardMessageDialogProps {
+interface ShareContactDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  messages: ChatMessage[];
-  onForward: (targetPhone: string, targetName: string) => Promise<void>;
-  loading?: boolean;
+  onShare: (contactName: string, contactPhone: string) => Promise<void>;
 }
 
-export function ForwardMessageDialog({
+export function ShareContactDialog({
   open,
   onOpenChange,
-  messages,
-  onForward,
-  loading = false,
-}: ForwardMessageDialogProps) {
+  onShare,
+}: ShareContactDialogProps) {
   const [search, setSearch] = useState("");
-  const [selectedPhone, setSelectedPhone] = useState<string | null>(null);
-  const [selectedName, setSelectedName] = useState<string>("");
-  const [forwarding, setForwarding] = useState(false);
-  const [contacts, setContacts] = useState<ForwardContact[]>([]);
+  const [selectedContact, setSelectedContact] = useState<SavedContact | null>(null);
+  const [sharing, setSharing] = useState(false);
+  const [contacts, setContacts] = useState<SavedContact[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
 
-  // Load contacts from all lists when dialog opens
   useEffect(() => {
     if (!open) return;
     setSearch("");
-    setSelectedPhone(null);
-    setSelectedName("");
+    setSelectedContact(null);
     setLoadingContacts(true);
 
     api<any[]>('/api/contacts/lists', { auth: true })
       .then(async (lists) => {
-        const allContacts: ForwardContact[] = [];
+        const allContacts: SavedContact[] = [];
         const seenPhones = new Set<string>();
         
         for (const list of lists) {
@@ -87,28 +78,20 @@ export function ForwardMessageDialog({
   const filtered = useMemo(() => {
     if (!search) return contacts;
     const term = search.toLowerCase();
-    return contacts.filter((c) => 
+    return contacts.filter((c) =>
       c.name.toLowerCase().includes(term) || c.phone.includes(term)
     );
   }, [contacts, search]);
 
-  const handleForward = async () => {
-    if (!selectedPhone) return;
-    setForwarding(true);
+  const handleShare = async () => {
+    if (!selectedContact) return;
+    setSharing(true);
     try {
-      await onForward(selectedPhone, selectedName);
+      await onShare(selectedContact.name, selectedContact.phone);
       onOpenChange(false);
     } finally {
-      setForwarding(false);
+      setSharing(false);
     }
-  };
-
-  const getMessagePreview = (msg: ChatMessage) => {
-    if (msg.message_type === "image") return "📷 Imagem";
-    if (msg.message_type === "video") return "🎥 Vídeo";
-    if (msg.message_type === "audio") return "🎤 Áudio";
-    if (msg.message_type === "document") return `📄 ${msg.content || "Documento"}`;
-    return msg.content || "";
   };
 
   return (
@@ -116,37 +99,24 @@ export function ForwardMessageDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Forward className="h-5 w-5" />
-            Encaminhar {messages.length > 1 ? `${messages.length} mensagens` : 'mensagem'}
+            <UserCheck className="h-5 w-5" />
+            Compartilhar contato
           </DialogTitle>
           <DialogDescription>
-            Selecione um contato da lista para encaminhar
+            Selecione um contato salvo para enviar
           </DialogDescription>
         </DialogHeader>
 
-        {/* Messages preview */}
-        {messages.length > 0 && (
-          <div className="p-3 rounded-lg bg-muted border text-sm space-y-1 max-h-[80px] overflow-y-auto">
-            {messages.map((msg, i) => (
-              <p key={msg.id} className="line-clamp-1 text-muted-foreground text-xs">
-                {i + 1}. {getMessagePreview(msg)}
-              </p>
-            ))}
-          </div>
-        )}
-
-        {/* Search */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar contato por nome ou telefone..."
+            placeholder="Buscar contato..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9"
           />
         </div>
 
-        {/* Contact list */}
         <ScrollArea className="h-[300px] -mx-2">
           <div className="space-y-0.5 px-2">
             {loadingContacts && (
@@ -161,7 +131,7 @@ export function ForwardMessageDialog({
             )}
             {filtered.map((contact) => {
               const initials = contact.name.slice(0, 2).toUpperCase();
-              const isSelected = selectedPhone === contact.phone;
+              const isSelected = selectedContact?.id === contact.id;
 
               return (
                 <button
@@ -172,18 +142,13 @@ export function ForwardMessageDialog({
                       ? "bg-primary/10 border border-primary/30"
                       : "hover:bg-muted"
                   )}
-                  onClick={() => {
-                    setSelectedPhone(contact.phone);
-                    setSelectedName(contact.name);
-                  }}
+                  onClick={() => setSelectedContact(contact)}
                 >
                   <Avatar className="h-9 w-9 flex-shrink-0">
                     <AvatarFallback className="text-xs">{initials}</AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium truncate">{contact.name}</span>
-                    </div>
+                    <span className="text-sm font-medium truncate block">{contact.name}</span>
                     <p className="text-xs text-muted-foreground truncate">
                       {contact.phone}
                       {contact.list_name && ` · ${contact.list_name}`}
@@ -200,15 +165,15 @@ export function ForwardMessageDialog({
             Cancelar
           </Button>
           <Button
-            onClick={handleForward}
-            disabled={!selectedPhone || forwarding}
+            onClick={handleShare}
+            disabled={!selectedContact || sharing}
           >
-            {forwarding ? (
+            {sharing ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
             ) : (
               <Send className="h-4 w-4 mr-2" />
             )}
-            Encaminhar
+            Enviar contato
           </Button>
         </DialogFooter>
       </DialogContent>
