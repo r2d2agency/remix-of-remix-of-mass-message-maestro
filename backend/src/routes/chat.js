@@ -3692,4 +3692,72 @@ router.post('/contacts/cleanup-inactive', authenticate, async (req, res) => {
   }
 });
 
+// Get group participants for mentions
+router.get('/conversations/:id/group-participants', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const connectionIds = await getUserConnections(req.userId);
+
+    const convResult = await query(
+      `SELECT conv.*, conn.instance_id, conn.wapi_token, conn.provider, conn.api_url, conn.api_key, conn.instance_name
+       FROM conversations conv
+       JOIN connections conn ON conn.id = conv.connection_id
+       WHERE conv.id = $1 AND conv.connection_id = ANY($2)`,
+      [id, connectionIds]
+    );
+
+    if (convResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Conversa não encontrada' });
+    }
+
+    const conversation = convResult.rows[0];
+
+    if (!conversation.is_group && !String(conversation.remote_jid || '').includes('@g.us')) {
+      return res.json([]);
+    }
+
+    const provider = conversation.provider || (conversation.instance_id && conversation.wapi_token ? 'wapi' : 'evolution');
+
+    if (provider === 'wapi') {
+      const { getGroupInfo } = await import('../lib/wapi-provider.js');
+      const info = await getGroupInfo(conversation.instance_id, conversation.wapi_token, conversation.remote_jid);
+      
+      if (info.success && info.participants) {
+        const participants = info.participants.map(p => ({
+          id: p.id || p.jid || p.phone || '',
+          name: p.pushName || p.name || p.notify || p.verifiedName || (p.id || p.jid || '').replace('@s.whatsapp.net', '').replace('@c.us', ''),
+          phone: (p.id || p.jid || p.phone || '').replace('@s.whatsapp.net', '').replace('@c.us', ''),
+          isAdmin: p.admin === 'admin' || p.admin === 'superadmin' || p.isAdmin === true || p.isSuperAdmin === true,
+        }));
+        return res.json(participants);
+      }
+    } else {
+      // Evolution API
+      try {
+        const response = await fetch(
+          `${conversation.api_url}/group/participants/${conversation.instance_name}?groupJid=${encodeURIComponent(conversation.remote_jid)}`,
+          { headers: { apikey: conversation.api_key } }
+        );
+        if (response.ok) {
+          const data = await response.json();
+          const participants = (data?.participants || data || []).map(p => ({
+            id: p.id || p.jid || '',
+            name: p.pushName || p.name || p.notify || (p.id || '').replace('@s.whatsapp.net', ''),
+            phone: (p.id || p.jid || '').replace('@s.whatsapp.net', '').replace('@c.us', ''),
+            isAdmin: p.admin === 'admin' || p.admin === 'superadmin',
+          }));
+          return res.json(participants);
+        }
+      } catch (e) {
+        console.error('Evolution group participants error:', e);
+      }
+    }
+
+    res.json([]);
+  } catch (error) {
+    console.error('Get group participants error:', error);
+    res.status(500).json({ error: 'Erro ao buscar participantes' });
+  }
+});
+
 export default router;
