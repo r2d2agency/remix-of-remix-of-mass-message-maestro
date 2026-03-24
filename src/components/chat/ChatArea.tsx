@@ -155,8 +155,30 @@ interface ChatAreaProps {
   onMobileBack?: () => void;
   onOpenCRM?: () => void;
 }
+const URL_REGEX = /(https?:\/\/[^\s<]+)/g;
 
-const messageStatusIcon = (status: string) => {
+const renderMessageWithLinks = (text: string) => {
+  const parts = text.split(URL_REGEX);
+  if (parts.length === 1) return text;
+  return parts.map((part, i) =>
+    URL_REGEX.test(part) ? (
+      <a
+        key={i}
+        href={part}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-primary underline hover:opacity-80 break-all"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {part}
+      </a>
+    ) : (
+      <span key={i}>{part}</span>
+    )
+  );
+};
+
+
   switch (status) {
     case 'sent':
       return <Check className="h-3 w-3 text-muted-foreground" />;
