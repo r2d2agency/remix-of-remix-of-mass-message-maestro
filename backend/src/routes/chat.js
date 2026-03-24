@@ -1736,11 +1736,15 @@ router.post('/conversations/:id/forward', authenticate, async (req, res) => {
             conn.status as connection_status
           FROM conversations conv
           JOIN connections conn ON conn.id = conv.connection_id
-          WHERE conv.connection_id = ANY($2) 
-            AND (conv.contact_phone LIKE $1 OR conv.remote_jid LIKE $1 || '%')
+          WHERE conv.connection_id = ANY($2)
+            AND COALESCE(conv.is_group, false) = false
+            AND (
+              regexp_replace(COALESCE(conv.contact_phone, ''), '\\D', '', 'g') = $1
+              OR regexp_replace(split_part(COALESCE(conv.remote_jid, ''), '@', 1), '\\D', '', 'g') = $1
+            )
           ORDER BY conv.last_message_at DESC NULLS LAST
           LIMIT 1`,
-          ['%' + phone.slice(-10), connectionIds]
+          [phone, connectionIds]
         );
       }
     }

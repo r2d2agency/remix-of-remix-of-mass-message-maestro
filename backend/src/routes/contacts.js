@@ -124,6 +124,8 @@ router.get('/directory', async (req, res) => {
     if (org) {
       whereClause = `(cl.user_id = $1 OR cl.connection_id IN (
         SELECT id FROM connections WHERE organization_id = $2
+      ) OR cl.user_id IN (
+        SELECT om.user_id FROM organization_members om WHERE om.organization_id = $2
       ))`;
       params.push(org.organization_id);
     }
