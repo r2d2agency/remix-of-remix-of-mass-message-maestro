@@ -3262,7 +3262,7 @@ const migrationSteps = [
   { name: 'Task Boards', sql: step39TaskBoards, critical: false },
   { name: 'Flow Categories & Access', sql: step40FlowCategoriesAccess, critical: false },
   { name: 'Permission Templates', sql: step41PermissionTemplates, critical: false },
-  { name: 'Sales Report', sql: step42SalesReport, critical: false },
+  { name: 'Connection Error Logs', sql: step42ConnectionErrorLogs, critical: false },
 ];
 
 export async function initDatabase() {
