@@ -1820,9 +1820,17 @@ export function ChatArea({
                 if (el) messageRefs.current.set(msg.id, el);
               }}
               className={cn(
-                "flex w-full min-w-0 group",
-                msg.from_me ? "justify-end" : "justify-start"
+                "flex w-full min-w-0 group items-center",
+                msg.from_me ? "justify-end" : "justify-start",
+                selectionMode && "cursor-pointer"
               )}
+              onClick={selectionMode && msg.message_type !== 'system' ? () => {
+                setSelectedMessages(prev => {
+                  const exists = prev.find(m => m.id === msg.id);
+                  if (exists) return prev.filter(m => m.id !== msg.id);
+                  return [...prev, msg];
+                });
+              } : undefined}
             >
               {/* Action buttons - left side for received messages */}
               {!msg.from_me && msg.message_type !== 'system' && (
