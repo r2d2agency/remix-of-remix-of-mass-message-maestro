@@ -155,7 +155,7 @@ interface ChatAreaProps {
   onMobileBack?: () => void;
   onOpenCRM?: () => void;
 }
-const renderMessageWithLinks = (text: string) => {
+const renderMessageWithLinks = (text: string, fromMe?: boolean) => {
   const urlRegex = /(https?:\/\/[^\s<]+)/g;
   const parts = text.split(urlRegex);
   if (parts.length === 1) return text;
@@ -166,7 +166,10 @@ const renderMessageWithLinks = (text: string) => {
         href={part}
         target="_blank"
         rel="noopener noreferrer"
-        className="text-primary underline hover:opacity-80 break-all"
+        className={cn(
+          "underline hover:opacity-80 break-all",
+          fromMe ? "text-white/90" : "text-primary"
+        )}
         onClick={(e) => e.stopPropagation()}
       >
         {part}
