@@ -2270,8 +2270,32 @@ export function ChatArea({
         )}
       </ScrollArea>
 
+      {/* Selection mode floating bar */}
+      {selectionMode && (
+        <div className="border-t bg-card p-3 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary">{selectedMessages.length} selecionada(s)</Badge>
+            <Button variant="ghost" size="sm" onClick={() => {
+              setSelectionMode(false);
+              setSelectedMessages([]);
+            }}>
+              <X className="h-4 w-4 mr-1" />
+              Cancelar
+            </Button>
+          </div>
+          <Button
+            size="sm"
+            disabled={selectedMessages.length === 0}
+            onClick={() => setShowForwardDialog(true)}
+          >
+            <Forward className="h-4 w-4 mr-1" />
+            Encaminhar
+          </Button>
+        </div>
+      )}
+
       {/* Input - Show readonly message for supervisors */}
-      {isViewOnly ? (
+      {!selectionMode && isViewOnly ? (
         <div className="p-4 border-t bg-muted/50">
           <div className="flex items-center justify-center gap-2 text-muted-foreground py-3">
             <Users className="h-5 w-5" />
