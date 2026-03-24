@@ -46,7 +46,7 @@ export function ForwardMessageDialog({
   const [contacts, setContacts] = useState<ForwardContact[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
 
-  // Load contacts from all lists when dialog opens
+  // Load contacts from all lists + active conversations when dialog opens
   useEffect(() => {
     if (!open) return;
     setSearch("");
@@ -54,11 +54,13 @@ export function ForwardMessageDialog({
     setSelectedName("");
     setLoadingContacts(true);
 
-    api<any[]>('/api/contacts/lists', { auth: true })
-      .then(async (lists) => {
-        const allContacts: ForwardContact[] = [];
-        const seenPhones = new Set<string>();
-        
+    const loadContacts = async () => {
+      const allContacts: ForwardContact[] = [];
+      const seenPhones = new Set<string>();
+
+      // 1) Try loading from saved contact lists
+      try {
+        const lists = await api<any[]>('/api/contacts/lists', { auth: true });
         for (const list of lists) {
           try {
             const listContacts = await api<any[]>(`/api/contacts/lists/${list.id}/contacts`, { auth: true });
@@ -76,12 +78,31 @@ export function ForwardMessageDialog({
             }
           } catch {}
         }
-        
-        allContacts.sort((a, b) => a.name.localeCompare(b.name));
-        setContacts(allContacts);
-      })
-      .catch(() => setContacts([]))
-      .finally(() => setLoadingContacts(false));
+      } catch {}
+
+      // 2) Also load from active conversations as fallback
+      try {
+        const conversations = await api<any[]>('/api/chat/conversations', { auth: true });
+        for (const conv of conversations) {
+          const phone = (conv.phone || '').replace(/\D/g, '');
+          if (phone && !seenPhones.has(phone)) {
+            seenPhones.add(phone);
+            allContacts.push({
+              id: `conv-${conv.id}`,
+              name: conv.contact_name || conv.name || phone,
+              phone,
+              list_name: 'Conversa ativa',
+            });
+          }
+        }
+      } catch {}
+
+      allContacts.sort((a, b) => a.name.localeCompare(b.name));
+      setContacts(allContacts);
+      setLoadingContacts(false);
+    };
+
+    loadContacts();
   }, [open]);
 
   const filtered = useMemo(() => {

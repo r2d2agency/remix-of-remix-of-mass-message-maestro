@@ -2613,7 +2613,7 @@ export function ChatArea({
                 onClick={() => setShowShareContactDialog(true)}
                 title="Compartilhar contato"
               >
-                <UserCheck className="h-4 w-4" />
+                <UserCheck className="h-4 w-4 text-green-600" />
               </Button>
 
               {/* Quick Replies button */}
