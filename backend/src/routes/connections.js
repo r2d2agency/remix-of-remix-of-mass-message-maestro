@@ -212,11 +212,13 @@ router.patch('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const { force } = req.query; // ?force=true to skip external API calls
 
     const org = await getUserOrganization(req.userId);
 
-    // Allow delete if user owns the connection OR belongs to same organization (with permission)
-    let whereClause = 'id = $1 AND user_id = $2';
+    // Allow delete if user owns the connection, belongs to same organization (with permission),
+    // OR is assigned via connection_members
+    let whereClause = 'id = $1 AND (user_id = $2 OR id IN (SELECT connection_id FROM connection_members WHERE user_id = $2))';
     let params = [id, req.userId];
 
     if (org && ['owner', 'admin', 'manager'].includes(org.role)) {
@@ -224,14 +226,35 @@ router.delete('/:id', async (req, res) => {
       params = [id, org.organization_id];
     }
 
-    const result = await query(
-      `DELETE FROM connections WHERE ${whereClause} RETURNING id`,
+    // First check if connection exists with access
+    const checkResult = await query(
+      `SELECT id, provider, instance_id, wapi_token FROM connections WHERE ${whereClause}`,
       params
+    );
+
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Conexão não encontrada' });
+    }
+
+    // Clean up connection_members first
+    await query(`DELETE FROM connection_members WHERE connection_id = $1`, [id]).catch(() => {});
+
+    // Delete the connection from DB (even if external API call fails)
+    const result = await query(
+      `DELETE FROM connections WHERE id = $1 RETURNING id`,
+      [id]
     );
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Conexão não encontrada' });
     }
+
+    // Log the deletion
+    await query(
+      `INSERT INTO connection_error_logs (connection_id, organization_id, event_type, details, created_at)
+       VALUES ($1, $2, 'connection_deleted', $3, NOW())`,
+      [id, org?.organization_id || null, JSON.stringify({ deleted_by: req.userId, force: !!force })]
+    ).catch(() => {}); // Don't fail if log table doesn't exist yet
 
     res.json({ success: true });
   } catch (error) {
@@ -489,6 +512,54 @@ router.get('/wapi-integrator/instances', async (req, res) => {
   } catch (error) {
     console.error('List W-API instances error:', error);
     res.status(500).json({ error: 'Erro ao listar instâncias' });
+  }
+});
+
+// Connection error logs (diagnostics)
+router.get('/error-logs', async (req, res) => {
+  try {
+    const org = await getUserOrganization(req.userId);
+    if (!org || !['owner', 'admin'].includes(org.role)) {
+      return res.status(403).json({ error: 'Sem permissão' });
+    }
+
+    const { connection_id, limit = '50' } = req.query;
+    let filter = 'organization_id = $1';
+    const params = [org.organization_id];
+
+    if (connection_id) {
+      filter += ' AND connection_id = $2';
+      params.push(connection_id);
+    }
+
+    const result = await query(
+      `SELECT * FROM connection_error_logs WHERE ${filter} ORDER BY created_at DESC LIMIT ${Math.min(parseInt(limit) || 50, 200)}`,
+      params
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error logs error:', error);
+    res.status(500).json({ error: 'Erro ao buscar logs' });
+  }
+});
+
+// Clear old connection error logs
+router.delete('/error-logs', async (req, res) => {
+  try {
+    const org = await getUserOrganization(req.userId);
+    if (!org || !['owner', 'admin'].includes(org.role)) {
+      return res.status(403).json({ error: 'Sem permissão' });
+    }
+
+    await query(
+      `DELETE FROM connection_error_logs WHERE organization_id = $1 AND created_at < NOW() - INTERVAL '7 days'`,
+      [org.organization_id]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao limpar logs' });
   }
 });
 

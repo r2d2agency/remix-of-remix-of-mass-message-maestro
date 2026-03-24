@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Plus, QrCode, RefreshCw, Plug, Unplug, Trash2, Phone, Loader2, Wifi, WifiOff, Send, Settings2, AlertTriangle, CheckCircle, Eye, Activity, Radio, Users, Download, Pencil, UserCheck, Smartphone, Key } from "lucide-react";
+import { Plus, QrCode, RefreshCw, Plug, Unplug, Trash2, Phone, Loader2, Wifi, WifiOff, Send, Settings2, AlertTriangle, CheckCircle, Eye, Activity, Radio, Users, Download, Pencil, UserCheck, Smartphone, Key, FileWarning } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
@@ -99,6 +99,10 @@ const Conexao = () => {
   const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [loadingPairingCode, setLoadingPairingCode] = useState(false);
 
+  // Error logs state
+  const [errorLogsOpen, setErrorLogsOpen] = useState(false);
+  const [errorLogs, setErrorLogs] = useState<any[]>([]);
+  const [errorLogsLoading, setErrorLogsLoading] = useState(false);
   // W-API Integrator token state (read-only, managed by superadmin)
   const [hasIntegratorToken, setHasIntegratorToken] = useState(false);
 
@@ -129,6 +133,21 @@ const Conexao = () => {
     }
   };
 
+  const loadErrorLogs = async (connectionId?: string) => {
+    setErrorLogsLoading(true);
+    try {
+      const url = connectionId 
+        ? `/api/connections/error-logs?connection_id=${connectionId}&limit=50`
+        : '/api/connections/error-logs?limit=50';
+      const data = await api<any[]>(url);
+      setErrorLogs(data);
+    } catch (error) {
+      console.error('Error loading error logs:', error);
+      setErrorLogs([]);
+    } finally {
+      setErrorLogsLoading(false);
+    }
+  };
 
   const loadPlanLimits = async () => {
     try {
@@ -686,6 +705,14 @@ const handleGetQRCode = async (connection: Connection) => {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => { setErrorLogsOpen(true); loadErrorLogs(); }}
+          >
+            <FileWarning className="h-4 w-4 mr-2" />
+            Log de Falhas
+          </Button>
           </div>
         </div>
 
@@ -1410,6 +1437,63 @@ const handleGetQRCode = async (connection: Connection) => {
           onOpenChange={setLeadDistributionDialogOpen}
           connection={leadDistributionConnection}
         />
+
+        {/* Error Logs Dialog */}
+        <Dialog open={errorLogsOpen} onOpenChange={setErrorLogsOpen}>
+          <DialogContent className="max-w-2xl max-h-[80vh]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <FileWarning className="h-5 w-5 text-destructive" />
+                Log de Falhas de Conexão
+              </DialogTitle>
+              <DialogDescription>
+                Últimas falhas de envio e eventos de erro das conexões
+              </DialogDescription>
+            </DialogHeader>
+            <ScrollArea className="max-h-[55vh]">
+              {errorLogsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : errorLogs.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                  <CheckCircle className="h-10 w-10 mb-2" />
+                  <p className="text-sm">Nenhuma falha registrada</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {errorLogs.map((log: any) => (
+                    <div key={log.id} className="border rounded-lg p-3 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <Badge variant={log.event_type === 'send_message_failed' ? 'destructive' : 'secondary'} className="text-xs">
+                          {log.event_type === 'send_message_failed' ? 'Falha no Envio' :
+                           log.event_type === 'connection_deleted' ? 'Conexão Excluída' :
+                           log.event_type}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(log.created_at).toLocaleString('pt-BR')}
+                        </span>
+                      </div>
+                      {log.error_message && (
+                        <p className="text-sm text-destructive">{log.error_message}</p>
+                      )}
+                      {log.details && (
+                        <details className="text-xs">
+                          <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                            Detalhes técnicos
+                          </summary>
+                          <pre className="mt-1 p-2 rounded bg-muted text-[10px] overflow-x-auto whitespace-pre-wrap">
+                            {JSON.stringify(log.details, null, 2)}
+                          </pre>
+                        </details>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </ScrollArea>
+          </DialogContent>
+        </Dialog>
 
       </div>
     </MainLayout>

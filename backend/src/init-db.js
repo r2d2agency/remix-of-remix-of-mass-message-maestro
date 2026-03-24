@@ -3202,48 +3202,20 @@ CREATE INDEX IF NOT EXISTS idx_perm_templates_org ON permission_templates(organi
 CREATE INDEX IF NOT EXISTS idx_org_members_perm_template ON organization_members(permission_template_id);
 `;
 
-// Step 42: Sales Report (imported data + goals)
-const step42SalesReport = `
-CREATE TABLE IF NOT EXISTS sales_records (
+// Step 42: Connection Error Logs (diagnostics for send failures and connection issues)
+const step42ConnectionErrorLogs = `
+CREATE TABLE IF NOT EXISTS connection_error_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-    record_type VARCHAR(20) NOT NULL CHECK (record_type IN ('orcamento', 'pedido', 'faturamento')),
-    record_number VARCHAR(50),
-    status VARCHAR(50),
-    client_name VARCHAR(500),
-    value NUMERIC(15,2) DEFAULT 0,
-    seller_name VARCHAR(255),
-    channel VARCHAR(100),
-    client_group VARCHAR(255),
-    municipality VARCHAR(255),
-    uf VARCHAR(5),
-    margin_percent NUMERIC(8,2),
-    record_date DATE NOT NULL,
-    invoice_date DATE,
-    raw_data JSONB,
-    import_batch_id UUID,
+    connection_id UUID,
+    organization_id UUID,
+    event_type VARCHAR(50) NOT NULL,
+    error_message TEXT,
+    details JSONB,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS idx_sales_records_org ON sales_records(organization_id);
-CREATE INDEX IF NOT EXISTS idx_sales_records_type ON sales_records(organization_id, record_type);
-CREATE INDEX IF NOT EXISTS idx_sales_records_date ON sales_records(organization_id, record_date);
-
-CREATE TABLE IF NOT EXISTS sales_goals (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-    goal_type VARCHAR(20) NOT NULL CHECK (goal_type IN ('orcamento', 'pedido', 'faturamento')),
-    period_year INT NOT NULL,
-    period_month INT NOT NULL CHECK (period_month BETWEEN 1 AND 12),
-    target_type VARCHAR(20) NOT NULL CHECK (target_type IN ('channel', 'individual')),
-    target_name VARCHAR(255) NOT NULL,
-    goal_value NUMERIC(15,2) NOT NULL DEFAULT 0,
-    goal_count INT,
-    created_by UUID REFERENCES users(id),
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(organization_id, goal_type, period_year, period_month, target_type, target_name)
-);
-CREATE INDEX IF NOT EXISTS idx_sales_goals_org ON sales_goals(organization_id);
+CREATE INDEX IF NOT EXISTS idx_conn_error_logs_conn ON connection_error_logs(connection_id);
+CREATE INDEX IF NOT EXISTS idx_conn_error_logs_org ON connection_error_logs(organization_id);
+CREATE INDEX IF NOT EXISTS idx_conn_error_logs_created ON connection_error_logs(created_at);
 `;
 
 // Migration steps in order of execution
@@ -3290,7 +3262,7 @@ const migrationSteps = [
   { name: 'Task Boards', sql: step39TaskBoards, critical: false },
   { name: 'Flow Categories & Access', sql: step40FlowCategoriesAccess, critical: false },
   { name: 'Permission Templates', sql: step41PermissionTemplates, critical: false },
-  { name: 'Sales Report', sql: step42SalesReport, critical: false },
+  { name: 'Connection Error Logs', sql: step42ConnectionErrorLogs, critical: false },
 ];
 
 export async function initDatabase() {
