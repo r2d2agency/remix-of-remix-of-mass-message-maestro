@@ -344,19 +344,26 @@ export function ChatArea({
     }
   }, [conversation?.id, showNotes]);
 
+  // Cache for group participants to avoid repeated API calls
+  const groupParticipantsCache = useRef<Record<string, { data: GroupParticipant[]; ts: number }>>({});
+  const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
   // Load group participants for mentions when conversation is a group
   useEffect(() => {
     setGroupParticipants([]);
     if (conversation?.id && (conversation.is_group || conversation.remote_jid?.includes('@g.us'))) {
+      const cached = groupParticipantsCache.current[conversation.id];
+      if (cached && Date.now() - cached.ts < CACHE_TTL) {
+        setGroupParticipants(cached.data);
+        return;
+      }
       api<GroupParticipant[]>(`/api/chat/conversations/${conversation.id}/group-participants`, { auth: true })
         .then(data => {
-          console.log('[Mentions] Group participants loaded:', data?.length || 0);
-          setGroupParticipants(data || []);
+          const participants = data || [];
+          groupParticipantsCache.current[conversation.id] = { data: participants, ts: Date.now() };
+          setGroupParticipants(participants);
         })
-        .catch((err) => {
-          console.error('[Mentions] Failed to load group participants:', err);
-          setGroupParticipants([]);
-        });
+        .catch(() => setGroupParticipants([]));
     }
   }, [conversation?.id, conversation?.is_group]);
 
