@@ -155,13 +155,12 @@ interface ChatAreaProps {
   onMobileBack?: () => void;
   onOpenCRM?: () => void;
 }
-const URL_REGEX = /(https?:\/\/[^\s<]+)/g;
-
 const renderMessageWithLinks = (text: string) => {
-  const parts = text.split(URL_REGEX);
+  const urlRegex = /(https?:\/\/[^\s<]+)/g;
+  const parts = text.split(urlRegex);
   if (parts.length === 1) return text;
   return parts.map((part, i) =>
-    URL_REGEX.test(part) ? (
+    /^https?:\/\//.test(part) ? (
       <a
         key={i}
         href={part}
