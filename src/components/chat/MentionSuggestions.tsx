@@ -2,9 +2,26 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { TeamMember } from "@/hooks/use-chat";
 import { cn } from "@/lib/utils";
 
+export interface GroupParticipant {
+  id: string;
+  name: string;
+  phone: string;
+  isAdmin?: boolean;
+}
+
+type MentionTarget = {
+  id: string;
+  name: string;
+  subtitle: string;
+  type: 'team' | 'group';
+  phone?: string;
+};
+
 interface MentionSuggestionsProps {
   query: string;
   team: TeamMember[];
+  groupParticipants?: GroupParticipant[];
+  isGroup?: boolean;
   onSelect: (member: TeamMember) => void;
   onClose: () => void;
   position: { top: number; left: number } | null;
@@ -13,6 +30,8 @@ interface MentionSuggestionsProps {
 export function MentionSuggestions({
   query,
   team,
+  groupParticipants = [],
+  isGroup = false,
   onSelect,
   onClose,
   position,
@@ -20,11 +39,45 @@ export function MentionSuggestions({
   const [selectedIndex, setSelectedIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const filteredMembers = team.filter(
-    (member) =>
-      member.name.toLowerCase().includes(query.toLowerCase()) ||
-      member.email.toLowerCase().includes(query.toLowerCase())
-  );
+  // Build unified list: group participants first (if group), then team
+  const allTargets: MentionTarget[] = [];
+
+  if (isGroup && groupParticipants.length > 0) {
+    for (const p of groupParticipants) {
+      if (
+        p.name.toLowerCase().includes(query.toLowerCase()) ||
+        p.phone.includes(query)
+      ) {
+        allTargets.push({
+          id: p.id || p.phone,
+          name: p.name,
+          subtitle: p.isAdmin ? 'Admin do grupo' : p.phone,
+          type: 'group',
+          phone: p.phone,
+        });
+      }
+    }
+  }
+
+  for (const m of team) {
+    if (
+      m.name.toLowerCase().includes(query.toLowerCase()) ||
+      m.email.toLowerCase().includes(query.toLowerCase())
+    ) {
+      // Skip if already in group participants by name
+      const alreadyAdded = allTargets.some(
+        t => t.name.toLowerCase() === m.name.toLowerCase()
+      );
+      if (!alreadyAdded) {
+        allTargets.push({
+          id: m.id,
+          name: m.name,
+          subtitle: m.role || 'Equipe',
+          type: 'team',
+        });
+      }
+    }
+  }
 
   useEffect(() => {
     setSelectedIndex(0);
@@ -32,26 +85,33 @@ export function MentionSuggestions({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (filteredMembers.length === 0) return;
+      if (allTargets.length === 0) return;
 
       switch (e.key) {
         case "ArrowDown":
           e.preventDefault();
           setSelectedIndex((prev) =>
-            prev < filteredMembers.length - 1 ? prev + 1 : 0
+            prev < allTargets.length - 1 ? prev + 1 : 0
           );
           break;
         case "ArrowUp":
           e.preventDefault();
           setSelectedIndex((prev) =>
-            prev > 0 ? prev - 1 : filteredMembers.length - 1
+            prev > 0 ? prev - 1 : allTargets.length - 1
           );
           break;
         case "Enter":
         case "Tab":
           e.preventDefault();
-          if (filteredMembers[selectedIndex]) {
-            onSelect(filteredMembers[selectedIndex]);
+          if (allTargets[selectedIndex]) {
+            const target = allTargets[selectedIndex];
+            // Convert to TeamMember format for the callback
+            onSelect({
+              id: target.id,
+              name: target.name,
+              email: '',
+              role: target.subtitle,
+            } as TeamMember);
           }
           break;
         case "Escape":
@@ -63,48 +123,99 @@ export function MentionSuggestions({
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [filteredMembers, selectedIndex, onSelect, onClose]);
+  }, [allTargets, selectedIndex, onSelect, onClose]);
 
-  if (filteredMembers.length === 0 || !position) return null;
+  if (allTargets.length === 0 || !position) return null;
+
+  const hasGroupItems = allTargets.some(t => t.type === 'group');
+  const hasTeamItems = allTargets.some(t => t.type === 'team');
 
   return (
     <div
       ref={containerRef}
-      className="absolute z-50 bg-popover border border-border rounded-lg shadow-lg py-1 min-w-[200px] max-h-[200px] overflow-y-auto"
+      className="absolute z-50 bg-popover border border-border rounded-lg shadow-lg py-1 min-w-[220px] max-h-[250px] overflow-y-auto"
       style={{
         bottom: position.top,
         left: position.left,
       }}
     >
-      <div className="px-2 py-1 text-xs text-muted-foreground border-b mb-1">
-        Membros da equipe
-      </div>
-      {filteredMembers.map((member, index) => (
-        <button
-          key={member.id}
-          className={cn(
-            "w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-muted transition-colors",
-            index === selectedIndex && "bg-muted"
-          )}
-          onClick={() => onSelect(member)}
-          onMouseEnter={() => setSelectedIndex(index)}
-        >
-          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-sm font-medium">
-            {member.name
-              .split(" ")
-              .slice(0, 2)
-              .map((n) => n[0])
-              .join("")
-              .toUpperCase()}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium truncate">{member.name}</div>
-            <div className="text-xs text-muted-foreground truncate">
-              {member.role}
+      {hasGroupItems && (
+        <div className="px-2 py-1 text-xs text-muted-foreground border-b mb-1">
+          Participantes do grupo
+        </div>
+      )}
+      {allTargets.filter(t => t.type === 'group').map((target, i) => {
+        const globalIdx = allTargets.indexOf(target);
+        return (
+          <button
+            key={`g-${target.id}`}
+            className={cn(
+              "w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-muted transition-colors",
+              globalIdx === selectedIndex && "bg-muted"
+            )}
+            onClick={() =>
+              onSelect({ id: target.id, name: target.name, email: '', role: target.subtitle } as TeamMember)
+            }
+            onMouseEnter={() => setSelectedIndex(globalIdx)}
+          >
+            <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center text-accent-foreground text-sm font-medium">
+              {target.name
+                .split(" ")
+                .slice(0, 2)
+                .map((n) => n[0])
+                .join("")
+                .toUpperCase()}
             </div>
-          </div>
-        </button>
-      ))}
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium truncate">{target.name}</div>
+              <div className="text-xs text-muted-foreground truncate">
+                {target.subtitle}
+              </div>
+            </div>
+          </button>
+        );
+      })}
+      {hasGroupItems && hasTeamItems && (
+        <div className="px-2 py-1 text-xs text-muted-foreground border-b border-t mt-1 mb-1">
+          Equipe interna
+        </div>
+      )}
+      {!hasGroupItems && hasTeamItems && (
+        <div className="px-2 py-1 text-xs text-muted-foreground border-b mb-1">
+          Membros da equipe
+        </div>
+      )}
+      {allTargets.filter(t => t.type === 'team').map((target) => {
+        const globalIdx = allTargets.indexOf(target);
+        return (
+          <button
+            key={`t-${target.id}`}
+            className={cn(
+              "w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-muted transition-colors",
+              globalIdx === selectedIndex && "bg-muted"
+            )}
+            onClick={() =>
+              onSelect({ id: target.id, name: target.name, email: '', role: target.subtitle } as TeamMember)
+            }
+            onMouseEnter={() => setSelectedIndex(globalIdx)}
+          >
+            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-sm font-medium">
+              {target.name
+                .split(" ")
+                .slice(0, 2)
+                .map((n) => n[0])
+                .join("")
+                .toUpperCase()}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium truncate">{target.name}</div>
+              <div className="text-xs text-muted-foreground truncate">
+                {target.subtitle}
+              </div>
+            </div>
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -132,7 +243,6 @@ export function useMentions({ text, setText, team, textareaRef }: UseMentionsPro
     const cursorPosition = textarea.selectionStart;
     const textBeforeCursor = text.slice(0, cursorPosition);
     
-    // Find the last @ before cursor that's either at start or after a space
     const lastAtIndex = textBeforeCursor.lastIndexOf("@");
     
     if (lastAtIndex === -1) {
@@ -140,14 +250,12 @@ export function useMentions({ text, setText, team, textareaRef }: UseMentionsPro
       return;
     }
 
-    // Check if @ is at start or preceded by whitespace
     const charBeforeAt = lastAtIndex > 0 ? textBeforeCursor[lastAtIndex - 1] : " ";
     if (charBeforeAt !== " " && charBeforeAt !== "\n" && lastAtIndex !== 0) {
       setShowSuggestions(false);
       return;
     }
 
-    // Check if there's a space after the @ (mention completed)
     const textAfterAt = textBeforeCursor.slice(lastAtIndex + 1);
     if (textAfterAt.includes(" ")) {
       setShowSuggestions(false);
@@ -159,9 +267,8 @@ export function useMentions({ text, setText, team, textareaRef }: UseMentionsPro
     setMentionStartIndex(lastAtIndex);
     setShowSuggestions(true);
 
-    // Calculate position for suggestions popup
     setSuggestionPosition({
-      top: 50, // Above the textarea
+      top: 50,
       left: 0,
     });
   }, [text, textareaRef]);
@@ -180,7 +287,6 @@ export function useMentions({ text, setText, team, textareaRef }: UseMentionsPro
       const beforeMention = text.slice(0, mentionStartIndex);
       const afterMention = text.slice(cursorPosition);
       
-      // Insert the mention with a space after
       const newText = `${beforeMention}@${member.name} ${afterMention}`;
       setText(newText);
       
@@ -188,10 +294,9 @@ export function useMentions({ text, setText, team, textareaRef }: UseMentionsPro
       setMentionQuery("");
       setMentionStartIndex(-1);
 
-      // Focus textarea and set cursor position after mention
       setTimeout(() => {
         if (textarea) {
-          const newCursorPosition = mentionStartIndex + member.name.length + 2; // +2 for @ and space
+          const newCursorPosition = mentionStartIndex + member.name.length + 2;
           textarea.focus();
           textarea.setSelectionRange(newCursorPosition, newCursorPosition);
         }
