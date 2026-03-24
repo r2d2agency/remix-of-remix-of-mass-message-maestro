@@ -515,5 +515,53 @@ router.get('/wapi-integrator/instances', async (req, res) => {
   }
 });
 
+// Connection error logs (diagnostics)
+router.get('/error-logs', async (req, res) => {
+  try {
+    const org = await getUserOrganization(req.userId);
+    if (!org || !['owner', 'admin'].includes(org.role)) {
+      return res.status(403).json({ error: 'Sem permissão' });
+    }
+
+    const { connection_id, limit = '50' } = req.query;
+    let filter = 'organization_id = $1';
+    const params = [org.organization_id];
+
+    if (connection_id) {
+      filter += ' AND connection_id = $2';
+      params.push(connection_id);
+    }
+
+    const result = await query(
+      `SELECT * FROM connection_error_logs WHERE ${filter} ORDER BY created_at DESC LIMIT ${Math.min(parseInt(limit) || 50, 200)}`,
+      params
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error logs error:', error);
+    res.status(500).json({ error: 'Erro ao buscar logs' });
+  }
+});
+
+// Clear old connection error logs
+router.delete('/error-logs', async (req, res) => {
+  try {
+    const org = await getUserOrganization(req.userId);
+    if (!org || !['owner', 'admin'].includes(org.role)) {
+      return res.status(403).json({ error: 'Sem permissão' });
+    }
+
+    await query(
+      `DELETE FROM connection_error_logs WHERE organization_id = $1 AND created_at < NOW() - INTERVAL '7 days'`,
+      [org.organization_id]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao limpar logs' });
+  }
+});
+
 export default router;
 
