@@ -2190,7 +2190,7 @@ export function ChatArea({
                   })()}
                 </div>
               )}
-              {msg.from_me && msg.message_type !== 'system' && (
+              {!selectionMode && msg.from_me && msg.message_type !== 'system' && (
                 <div className="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity self-center ml-1">
                   <Button
                     variant="ghost"
