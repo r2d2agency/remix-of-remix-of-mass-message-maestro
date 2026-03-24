@@ -258,6 +258,7 @@ export function ChatArea({
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [forwardingMessage, setForwardingMessage] = useState<ChatMessage | null>(null);
   const [forwardConversations, setForwardConversations] = useState<Conversation[]>([]);
+  const [groupParticipants, setGroupParticipants] = useState<GroupParticipant[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
