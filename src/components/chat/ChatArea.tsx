@@ -1866,12 +1866,9 @@ export function ChatArea({
                     variant="ghost"
                     size="icon"
                     className="h-6 w-6"
-                    onClick={async () => {
-                      setForwardingMessage(msg);
-                      try {
-                        const convs = await getConversations({ archived: false });
-                        setForwardConversations(convs);
-                      } catch {}
+                    onClick={() => {
+                      setSelectedMessages([msg]);
+                      setSelectionMode(true);
                     }}
                     title="Encaminhar"
                   >
