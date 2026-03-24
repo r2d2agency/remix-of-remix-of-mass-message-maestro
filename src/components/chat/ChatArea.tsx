@@ -113,7 +113,7 @@ import { AudioWaveform } from "./AudioWaveform";
 import { AudioPlayer } from "./AudioPlayer";
 import { TypingIndicator } from "./TypingIndicator";
 import { EmojiPicker } from "./EmojiPicker";
-import { MentionSuggestions, useMentions } from "./MentionSuggestions";
+import { MentionSuggestions, useMentions, GroupParticipant } from "./MentionSuggestions";
 import { ScheduleMessageDialog } from "./ScheduleMessageDialog";
 import { ScheduledMessage } from "@/hooks/use-chat";
 import { StartFlowDialog } from "./StartFlowDialog";
@@ -258,6 +258,7 @@ export function ChatArea({
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [forwardingMessage, setForwardingMessage] = useState<ChatMessage | null>(null);
   const [forwardConversations, setForwardConversations] = useState<Conversation[]>([]);
+  const [groupParticipants, setGroupParticipants] = useState<GroupParticipant[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -342,6 +343,16 @@ export function ChatArea({
       setNotesCount(0);
     }
   }, [conversation?.id, showNotes]);
+
+  // Load group participants for mentions when conversation is a group
+  useEffect(() => {
+    setGroupParticipants([]);
+    if (conversation?.id && (conversation.is_group || conversation.remote_jid?.includes('@g.us'))) {
+      api<GroupParticipant[]>(`/api/chat/conversations/${conversation.id}/group-participants`)
+        .then(data => setGroupParticipants(data || []))
+        .catch(() => setGroupParticipants([]));
+    }
+  }, [conversation?.id, conversation?.is_group]);
 
   // Load departments when dialog opens
   useEffect(() => {
@@ -2594,6 +2605,8 @@ export function ChatArea({
                   <MentionSuggestions
                     query={mentionQuery}
                     team={team}
+                    groupParticipants={groupParticipants}
+                    isGroup={conversation?.is_group || conversation?.remote_jid?.includes('@g.us') || false}
                     onSelect={handleSelectMember}
                     onClose={closeSuggestions}
                     position={suggestionPosition}
