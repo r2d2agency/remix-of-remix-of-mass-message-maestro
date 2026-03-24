@@ -2302,7 +2302,7 @@ export function ChatArea({
             <span className="text-sm font-medium">Modo Supervisor - Apenas visualização</span>
           </div>
         </div>
-      ) : (
+      ) : !selectionMode ? (
       <div className={cn("border-t bg-card", isMobile ? "p-3" : "p-4")}>
         {/* Reply preview */}
         {replyingTo && (
