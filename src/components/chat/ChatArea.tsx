@@ -450,6 +450,8 @@ export function ChatArea({
     isInitialLoadRef.current = true;
     isUserScrollingRef.current = false;
     setShowScrollButton(false);
+    setSelectionMode(false);
+    setSelectedMessages([]);
   }, [conversation?.id]);
 
   // Scroll to bottom immediately when opening a conversation (initial load)
