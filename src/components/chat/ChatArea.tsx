@@ -3066,22 +3066,42 @@ export function ChatArea({
 
       {/* Forward Message Dialog */}
       <ForwardMessageDialog
-        open={!!forwardingMessage}
+        open={showForwardDialog}
         onOpenChange={(open) => {
-          if (!open) setForwardingMessage(null);
+          if (!open) {
+            setShowForwardDialog(false);
+            setSelectionMode(false);
+            setSelectedMessages([]);
+          }
         }}
-        message={forwardingMessage}
-        conversations={forwardConversations}
-        currentConversationId={conversation?.id}
-        onForward={async (targetId) => {
-          if (!forwardingMessage || !conversation) return;
+        messages={selectedMessages}
+        onForward={async (targetPhone, targetName) => {
+          if (selectedMessages.length === 0 || !conversation) return;
           try {
-            await forwardMessage(conversation.id, forwardingMessage.id, targetId);
-            toast.success("Mensagem encaminhada com sucesso!");
-            setForwardingMessage(null);
+            for (const msg of selectedMessages) {
+              await forwardMessage(conversation.id, msg.id, targetPhone);
+            }
+            toast.success(selectedMessages.length > 1 
+              ? `${selectedMessages.length} mensagens encaminhadas!` 
+              : "Mensagem encaminhada!");
+            setShowForwardDialog(false);
+            setSelectionMode(false);
+            setSelectedMessages([]);
           } catch (err: any) {
             toast.error(err.message || "Erro ao encaminhar mensagem");
           }
+        }}
+      />
+
+      {/* Share Contact Dialog */}
+      <ShareContactDialog
+        open={showShareContactDialog}
+        onOpenChange={setShowShareContactDialog}
+        onShare={async (contactName, contactPhone) => {
+          if (!conversation) return;
+          const vcard = `*${contactName}*\n📱 ${contactPhone}`;
+          await onSendMessage(vcard, 'text');
+          toast.success("Contato compartilhado!");
         }}
       />
     </div>
