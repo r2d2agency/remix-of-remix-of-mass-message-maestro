@@ -862,10 +862,8 @@ export function ChatArea({
   };
 
   const handleCancelFileUpload = () => {
-    if (pendingFile?.preview) {
-      URL.revokeObjectURL(pendingFile.preview);
-    }
-    setPendingFile(null);
+    pendingFiles.forEach(f => { if (f.preview) URL.revokeObjectURL(f.preview); });
+    setPendingFiles([]);
     resetProgress();
   };
 
