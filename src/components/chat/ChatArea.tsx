@@ -828,37 +828,37 @@ export function ChatArea({
   };
 
   const handleConfirmFileUpload = async () => {
-    if (!pendingFile) return;
+    if (pendingFiles.length === 0) return;
 
-    const { file, preview } = pendingFile;
+    const filesToSend = [...pendingFiles];
+    setPendingFiles([]);
     
-    try {
-      console.log('[Upload] Starting upload for:', file.name, 'type:', file.type, 'size:', file.size);
-      const url = await uploadFile(file);
-      console.log('[Upload] Result URL:', url);
-      
-      if (url) {
-        const type = inferMessageTypeFromFile(file);
-
-        // For documents, send filename in content so W-API can set the correct filename
-        // (it uses "content" as filename) and UI can display it.
-        const content = type === 'document' ? file.name : '';
-        console.log('[Upload] Sending message with type:', type, 'content:', content);
-        await onSendMessage(content, type, url, undefined, file.type);
-        toast.success("Arquivo enviado!");
-      } else {
-        console.error('[Upload] Upload returned null/empty URL');
-        toast.error("Falha no upload - tente novamente");
+    for (const { file, preview } of filesToSend) {
+      try {
+        console.log('[Upload] Starting upload for:', file.name, 'type:', file.type, 'size:', file.size);
+        const url = await uploadFile(file);
+        console.log('[Upload] Result URL:', url);
+        
+        if (url) {
+          const type = inferMessageTypeFromFile(file);
+          const content = type === 'document' ? file.name : '';
+          console.log('[Upload] Sending message with type:', type, 'content:', content);
+          await onSendMessage(content, type, url, undefined, file.type);
+        } else {
+          console.error('[Upload] Upload returned null/empty URL');
+          toast.error(`Falha no upload de ${file.name}`);
+        }
+      } catch (error) {
+        console.error('[Upload] Error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+        toast.error(`Erro ao enviar ${file.name}: ${errorMessage}`);
+      } finally {
+        if (preview) URL.revokeObjectURL(preview);
       }
-    } catch (error) {
-      console.error('[Upload] Error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-      toast.error(`Erro ao enviar: ${errorMessage}`);
-    } finally {
-      if (preview) URL.revokeObjectURL(preview);
-      setPendingFile(null);
-      resetProgress();
     }
+
+    toast.success(filesToSend.length > 1 ? `${filesToSend.length} arquivos enviados!` : "Arquivo enviado!");
+    resetProgress();
   };
 
   const handleCancelFileUpload = () => {
