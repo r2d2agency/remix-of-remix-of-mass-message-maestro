@@ -795,7 +795,7 @@ export function ChatArea({
           preview = URL.createObjectURL(stableFile);
         }
 
-        setPendingFile({ file: stableFile, preview });
+        setPendingFiles(prev => [...prev, { file: stableFile, preview }]);
         return;
       }
     }
