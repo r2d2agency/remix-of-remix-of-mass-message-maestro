@@ -2412,6 +2412,7 @@ export function ChatArea({
         <input
           ref={fileInputRef}
           type="file"
+          multiple
           className="hidden"
           accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.ppsx,.pps,.ppsm,.rtf,.txt,.csv,.zip,.rar,.7z"
           onChange={handleFileSelect}
