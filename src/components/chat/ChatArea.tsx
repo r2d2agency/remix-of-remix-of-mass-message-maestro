@@ -2419,68 +2419,75 @@ export function ChatArea({
         />
 
         {/* File Preview UI */}
-        {pendingFile && (
-          <div className="mb-3 p-3 rounded-lg border bg-muted/50 animate-in fade-in slide-in-from-bottom-2">
-            <div className="flex items-start gap-3">
-              {/* File preview/icon */}
-              <div className="flex-shrink-0">
-                {pendingFile.preview ? (
-                  <div className="w-16 h-16 rounded-lg overflow-hidden bg-muted">
-                    <img 
-                      src={pendingFile.preview} 
-                      alt="Preview" 
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                ) : (
-                  <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center">
-                    {getFileIcon(pendingFile.file.type)}
-                  </div>
-                )}
-              </div>
-
-              {/* File info */}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{pendingFile.file.name}</p>
-                <p className="text-xs text-muted-foreground">
-                  {formatFileSize(pendingFile.file.size)}
-                </p>
-                
-                {/* Progress bar during upload */}
-                {isUploading && (
-                  <div className="mt-2 space-y-1">
-                    <Progress value={uploadProgress} className="h-2" />
-                    <p className="text-xs text-muted-foreground text-right">{uploadProgress}%</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Action buttons */}
-              <div className="flex items-center gap-1 flex-shrink-0">
+        {pendingFiles.length > 0 && (
+          <div className="mb-3 p-3 rounded-lg border bg-muted/50 animate-in fade-in slide-in-from-bottom-2 space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground font-medium">
+                {pendingFiles.length} arquivo{pendingFiles.length > 1 ? 's' : ''} selecionado{pendingFiles.length > 1 ? 's' : ''}
+              </p>
+              <div className="flex items-center gap-1">
                 <Button
                   variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                  size="sm"
+                  className="h-7 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
                   onClick={handleCancelFileUpload}
                   disabled={isUploading}
-                  title="Cancelar"
                 >
-                  <X className="h-4 w-4" />
+                  <X className="h-3 w-3 mr-1" />
+                  Limpar
                 </Button>
                 <Button
-                  size="icon"
-                  className="h-8 w-8"
+                  size="sm"
+                  className="h-7 text-xs"
                   onClick={handleConfirmFileUpload}
                   disabled={isUploading || sending}
-                  title="Enviar"
                 >
                   {isUploading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <Loader2 className="h-3 w-3 animate-spin mr-1" />
                   ) : (
-                    <Send className="h-4 w-4" />
+                    <Send className="h-3 w-3 mr-1" />
                   )}
+                  Enviar {pendingFiles.length > 1 ? `(${pendingFiles.length})` : ''}
                 </Button>
               </div>
+            </div>
+
+            {/* Progress bar during upload */}
+            {isUploading && (
+              <div className="space-y-1">
+                <Progress value={uploadProgress} className="h-2" />
+                <p className="text-xs text-muted-foreground text-right">{uploadProgress}%</p>
+              </div>
+            )}
+
+            <div className="flex flex-wrap gap-2 max-h-[120px] overflow-y-auto">
+              {pendingFiles.map((pf, idx) => (
+                <div key={idx} className="relative group/file">
+                  {pf.preview ? (
+                    <div className="w-14 h-14 rounded-lg overflow-hidden bg-muted border">
+                      <img src={pf.preview} alt="Preview" className="w-full h-full object-cover" />
+                    </div>
+                  ) : (
+                    <div className="w-14 h-14 rounded-lg bg-muted flex flex-col items-center justify-center border gap-0.5">
+                      {getFileIcon(pf.file.type)}
+                      <span className="text-[8px] text-muted-foreground truncate max-w-[48px]">
+                        {pf.file.name.split('.').pop()?.toUpperCase()}
+                      </span>
+                    </div>
+                  )}
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    className="absolute -top-1.5 -right-1.5 h-5 w-5 opacity-0 group-hover/file:opacity-100 transition-opacity"
+                    onClick={() => {
+                      if (pf.preview) URL.revokeObjectURL(pf.preview);
+                      setPendingFiles(prev => prev.filter((_, i) => i !== idx));
+                    }}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              ))}
             </div>
           </div>
         )}
