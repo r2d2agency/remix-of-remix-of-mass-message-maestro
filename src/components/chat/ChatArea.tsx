@@ -754,18 +754,21 @@ export function ChatArea({
     dragCounterRef.current = 0;
     setIsDragOver(false);
 
-    const file = e.dataTransfer.files?.[0];
-    if (!file) return;
+    const files = e.dataTransfer.files;
+    if (!files || files.length === 0) return;
 
-    const inferredType = inferMessageTypeFromFile(file);
-
-    // Create preview for images
-    let preview: string | undefined;
-    if (inferredType === 'image') {
-      preview = URL.createObjectURL(file);
+    const newItems: { file: File; preview?: string }[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const inferredType = inferMessageTypeFromFile(file);
+      let preview: string | undefined;
+      if (inferredType === 'image') {
+        preview = URL.createObjectURL(file);
+      }
+      newItems.push({ file, preview });
     }
 
-    setPendingFile({ file, preview });
+    setPendingFiles(prev => [...prev, ...newItems]);
   }, [inferMessageTypeFromFile]);
 
   // Paste handler for clipboard images (Ctrl+V screenshots)
