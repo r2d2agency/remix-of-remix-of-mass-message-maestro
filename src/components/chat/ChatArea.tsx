@@ -297,7 +297,7 @@ export function ChatArea({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const { uploadFile, isUploading, progress: uploadProgress, resetProgress } = useUpload();
-  const [pendingFile, setPendingFile] = useState<{ file: File; preview?: string } | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<{ file: File; preview?: string }[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
   const dragCounterRef = useRef(0);
   const { user, modulesEnabled } = useAuth();
