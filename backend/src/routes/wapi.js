@@ -1954,6 +1954,26 @@ function extractMessageContent(payload) {
     return { messageType, content, mediaUrl, mediaMimetype, waMediaKey };
   }
 
+  // Contact message (vCard)
+  if (msgContent.contactMessage || msgContent.contactsArrayMessage) {
+    messageType = 'contact';
+    const contactItems = Array.isArray(msgContent.contactsArrayMessage?.contacts)
+      ? msgContent.contactsArrayMessage.contacts
+      : msgContent.contactMessage
+        ? [msgContent.contactMessage]
+        : [];
+    const firstContact = contactItems[0];
+    const displayName = firstContact?.displayName || firstContact?.name || firstContact?.formattedName || 'Contato';
+    content = contactItems.length > 1
+      ? `📇 ${displayName} e mais ${contactItems.length - 1} contato(s)`
+      : `📇 ${displayName}`;
+    // Store raw vCard data as mediaUrl for potential future use
+    try {
+      mediaUrl = JSON.stringify(contactItems);
+    } catch {}
+    return { messageType, content, mediaUrl, mediaMimetype: 'text/vcard', waMediaKey };
+  }
+
   // Sticker message
   if (msgContent.stickerMessage) {
     messageType = 'sticker';
