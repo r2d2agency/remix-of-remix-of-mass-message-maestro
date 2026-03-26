@@ -276,12 +276,13 @@ Mensagem: "${processedMessage}"`;
     for (const matchedMember of membersToProcess) {
       if (!matchedMember) continue;
 
+      const priorityEmoji = { urgent: '🔴', high: '🟠', normal: '🟡', low: '🟢' };
+      const taskTitle = `${priorityEmoji[priority] || '🟡'} [Grupo] ${aiResult.detected_request || 'Nova solicitação'}`.slice(0, 255);
+      const taskDescription = `📱 Grupo: ${groupName || 'Desconhecido'}\n👤 Solicitante: ${senderName || 'Desconhecido'}\n💬 Mensagem: ${messageContent}\n🎯 Prioridade: ${priority}\n${aiResult.deadline_text ? `📅 Prazo mencionado: ${aiResult.deadline_text}\n` : ''}${sentiment !== 'neutral' ? `💭 Sentimento: ${sentiment}\n` : ''}\n🤖 Análise: ${aiResult.reason || ''}`;
+
       // 9. Create CRM task if enabled
       let taskId = null;
       if (config.create_crm_task) {
-        const priorityEmoji = { urgent: '🔴', high: '🟠', normal: '🟡', low: '🟢' };
-        const taskTitle = `${priorityEmoji[priority] || '🟡'} [Grupo] ${aiResult.detected_request || 'Nova solicitação'}`.slice(0, 255);
-        const taskDescription = `📱 Grupo: ${groupName || 'Desconhecido'}\n👤 Solicitante: ${senderName || 'Desconhecido'}\n💬 Mensagem: ${messageContent}\n🎯 Prioridade: ${priority}\n${aiResult.deadline_text ? `📅 Prazo mencionado: ${aiResult.deadline_text}\n` : ''}${sentiment !== 'neutral' ? `💭 Sentimento: ${sentiment}\n` : ''}\n🤖 Análise: ${aiResult.reason || ''}`;
         taskId = await createCRMTask({
           organizationId,
           assignedTo: matchedMember.user_id,
@@ -292,32 +293,31 @@ Mensagem: "${processedMessage}"`;
           source: 'group_secretary',
         });
         if (taskId) taskIds.push(taskId);
-
-        // 9b. Also create a card in the global task board
-        await createTaskBoardCard({
-          organizationId,
-          assignedTo: matchedMember.user_id,
-          title: taskTitle,
-          description: taskDescription,
-          priority: crmPriority,
-          dueDate,
-          configuredColumnId: config.task_board_column_id || null,
-        });
       }
 
-      // 10. Create popup alert if enabled
+      // 9b. ALWAYS create a card in the global task board for the responsible member
+      await createTaskBoardCard({
+        organizationId,
+        assignedTo: matchedMember.user_id,
+        title: taskTitle,
+        description: taskDescription,
+        priority: crmPriority,
+        dueDate,
+        configuredColumnId: config.task_board_column_id || null,
+      });
+
+      // 10. Create popup alert (ALWAYS for each matched member)
+      // 10. ALWAYS create popup alert and notification for each matched member
       let alertId = null;
-      if (config.show_popup_alert) {
-        const urgencyLabel = priority === 'urgent' ? '🔴 URGENTE: ' : priority === 'high' ? '🟠 ' : '';
-        alertId = await createPopupAlert({
-          userId: matchedMember.user_id,
-          senderName: senderName || 'Alguém',
-          groupName: groupName || 'Grupo',
-          request: `${urgencyLabel}${aiResult.detected_request || messageContent}`,
-          conversationId,
-        });
-        if (alertId) alertIds.push(alertId);
-      }
+      const urgencyLabel = priority === 'urgent' ? '🔴 URGENTE: ' : priority === 'high' ? '🟠 ' : '';
+      alertId = await createPopupAlert({
+        userId: matchedMember.user_id,
+        senderName: senderName || 'Alguém',
+        groupName: groupName || 'Grupo',
+        request: `${urgencyLabel}${aiResult.detected_request || messageContent}`,
+        conversationId,
+      });
+      if (alertId) alertIds.push(alertId);
 
       // 10b. Notify matched member via WhatsApp if enabled
       if (config.notify_members_whatsapp) {
