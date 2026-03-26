@@ -1437,7 +1437,38 @@ router.post('/tasks', async (req, res) => {
     const org = await getUserOrg(req.userId);
     if (!org) return res.status(403).json({ error: 'No organization' });
 
-    const { deal_id, company_id, assigned_to, title, description, type, priority, due_date, reminder_at, reminder_minutes, reminder_whatsapp, reminder_popup } = req.body;
+    const { deal_id, company_id, assigned_to, title, description, type, priority, due_date, reminder_at, reminder_minutes, reminder_whatsapp, reminder_popup, contact_phone, contact_name } = req.body;
+    
+    // Resolve contact_id from contact_phone if provided
+    let resolvedContactId = null;
+    if (contact_phone) {
+      const normalizedPhone = contact_phone.replace(/\D/g, '');
+      // Try chat_contacts first (WhatsApp agenda)
+      const chatContact = await query(
+        `SELECT cc.id FROM chat_contacts cc
+         JOIN connections conn ON conn.id = cc.connection_id
+         WHERE conn.organization_id = $1 
+           AND regexp_replace(cc.phone, '\\D', '', 'g') LIKE '%' || $2 || '%'
+         LIMIT 1`,
+        [org.organization_id, normalizedPhone.slice(-10)]
+      );
+      if (chatContact.rows.length > 0) {
+        resolvedContactId = chatContact.rows[0].id;
+      } else {
+        // Try contacts table
+        const contact = await query(
+          `SELECT c.id FROM contacts c
+           JOIN contact_lists cl ON cl.id = c.list_id
+           JOIN organization_members om ON om.user_id = cl.user_id AND om.organization_id = $1
+           WHERE regexp_replace(c.phone, '\\D', '', 'g') LIKE '%' || $2 || '%'
+           LIMIT 1`,
+          [org.organization_id, normalizedPhone.slice(-10)]
+        );
+        if (contact.rows.length > 0) {
+          resolvedContactId = contact.rows[0].id;
+        }
+      }
+    }
     
     // Calculate reminder_at from due_date and reminder_minutes if provided
     let calculatedReminderAt = reminder_at;
@@ -1514,11 +1545,11 @@ router.post('/tasks', async (req, res) => {
         }
         
         await query(
-          `INSERT INTO task_cards (board_id, column_id, title, description, priority, due_date, assigned_to, created_by, deal_id, company_id, tags, position)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+          `INSERT INTO task_cards (board_id, column_id, title, description, priority, due_date, assigned_to, created_by, deal_id, company_id, contact_id, tags, position)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
           [boardId, columnId, title, description, priority || 'medium', due_date, 
-           assigned_to || req.userId, req.userId, deal_id || null, taskCompanyId, 
-           JSON.stringify([]), posResult.rows[0].next_pos]
+           assigned_to || req.userId, req.userId, deal_id || null, taskCompanyId,
+           resolvedContactId, JSON.stringify([]), posResult.rows[0].next_pos]
         );
       }
     } catch (syncError) {

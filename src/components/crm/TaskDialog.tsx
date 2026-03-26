@@ -20,6 +20,8 @@ interface TaskDialogProps {
   task: CRMTask | null;
   dealId?: string;
   companyId?: string;
+  contactPhone?: string | null;
+  contactName?: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   defaultDate?: Date | null;
@@ -72,7 +74,7 @@ function useCreateMeetingWithMeet() {
   });
 }
 
-export function TaskDialog({ task, dealId, companyId, open, onOpenChange, defaultDate }: TaskDialogProps) {
+export function TaskDialog({ task, dealId, companyId, contactPhone, contactName, open, onOpenChange, defaultDate }: TaskDialogProps) {
   const { user } = useAuth();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -236,6 +238,8 @@ export function TaskDialog({ task, dealId, companyId, open, onOpenChange, defaul
       assigned_to: assignedTo || undefined,
       deal_id: dealId,
       company_id: companyId,
+      contact_phone: contactPhone || undefined,
+      contact_name: contactName || undefined,
       reminder_minutes: reminderMins,
       reminder_whatsapp: reminderWhatsapp,
       reminder_popup: reminderPopup,
@@ -275,6 +279,15 @@ export function TaskDialog({ task, dealId, companyId, open, onOpenChange, defaul
         </DialogHeader>
 
         <div className="space-y-4 overflow-y-auto flex-1 pr-1">
+          {/* Show linked contact info */}
+          {contactPhone && !task && (
+            <div className="flex items-center gap-2 p-2 rounded-md bg-muted text-sm">
+              <Users className="h-4 w-4 text-primary" />
+              <span className="font-medium">{contactName || contactPhone}</span>
+              {contactName && <span className="text-muted-foreground">({contactPhone})</span>}
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label>Título *</Label>
             <Input
