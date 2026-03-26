@@ -1426,6 +1426,8 @@ export function CRMSidePanel({
       <TaskDialog
         task={null}
         dealId={selectedDeal?.id}
+        contactPhone={contactPhone}
+        contactName={contactName}
         open={showTaskDialog}
         onOpenChange={setShowTaskDialog}
       />
