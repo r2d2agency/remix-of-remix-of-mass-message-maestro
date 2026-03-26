@@ -1460,6 +1460,72 @@ router.post('/tasks', async (req, res) => {
       await query(`UPDATE crm_deals SET last_activity_at = NOW() WHERE id = $1`, [deal_id]);
     }
 
+    // Also create a task_card in the default global board so it appears in the task manager
+    try {
+      // Find or create default global board for this org
+      let defaultBoard = await query(
+        `SELECT id FROM task_boards WHERE organization_id = $1 AND is_default = true AND type = 'global' LIMIT 1`,
+        [org.organization_id]
+      );
+      
+      if (defaultBoard.rows.length === 0) {
+        // Create default board
+        const boardRes = await query(
+          `INSERT INTO task_boards (organization_id, name, type, created_by, is_default, color)
+           VALUES ($1, 'Tarefas Gerais', 'global', $2, true, '#6366f1') RETURNING id`,
+          [org.organization_id, req.userId]
+        );
+        defaultBoard = boardRes;
+        // Create default columns
+        const defaultCols = [
+          { name: 'A Fazer', color: '#94a3b8', position: 0 },
+          { name: 'Em Andamento', color: '#3b82f6', position: 1 },
+          { name: 'Em Revisão', color: '#f59e0b', position: 2 },
+          { name: 'Concluído', color: '#22c55e', position: 3, is_final: true },
+        ];
+        for (const col of defaultCols) {
+          await query(
+            `INSERT INTO task_board_columns (board_id, name, color, position, is_final) VALUES ($1, $2, $3, $4, $5)`,
+            [defaultBoard.rows[0].id, col.name, col.color, col.position, col.is_final || false]
+          );
+        }
+      }
+      
+      const boardId = defaultBoard.rows[0].id;
+      
+      // Get first column of the board
+      const firstCol = await query(
+        `SELECT id FROM task_board_columns WHERE board_id = $1 ORDER BY position ASC LIMIT 1`,
+        [boardId]
+      );
+      
+      if (firstCol.rows.length > 0) {
+        const columnId = firstCol.rows[0].id;
+        const posResult = await query(
+          `SELECT COALESCE(MAX(position), -1) + 1 as next_pos FROM task_cards WHERE column_id = $1`,
+          [columnId]
+        );
+        
+        // Get company_id from deal if available
+        let taskCompanyId = company_id || null;
+        if (!taskCompanyId && deal_id) {
+          const dealRes = await query(`SELECT company_id FROM crm_deals WHERE id = $1`, [deal_id]);
+          if (dealRes.rows.length > 0) taskCompanyId = dealRes.rows[0].company_id;
+        }
+        
+        await query(
+          `INSERT INTO task_cards (board_id, column_id, title, description, priority, due_date, assigned_to, created_by, deal_id, company_id, tags, position)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+          [boardId, columnId, title, description, priority || 'medium', due_date, 
+           assigned_to || req.userId, req.userId, deal_id || null, taskCompanyId, 
+           JSON.stringify([]), posResult.rows[0].next_pos]
+        );
+      }
+    } catch (syncError) {
+      console.error('Error syncing CRM task to task board:', syncError);
+      // Don't fail the main operation
+    }
+
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error creating task:', error);
