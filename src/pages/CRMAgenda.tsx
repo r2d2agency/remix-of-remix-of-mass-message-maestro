@@ -116,12 +116,12 @@ export default function CRMAgenda() {
     googleStatus?.connected ? googleDateRange.timeMax : undefined
   );
 
-  // Group tasks by date
+  // Group tasks by date (using merged CRM tasks + task cards)
   const tasksByDate = useMemo(() => {
-    if (!allTasks) return new Map<string, CRMTask[]>();
+    if (!mergedTasks) return new Map<string, CRMTask[]>();
     
     const map = new Map<string, CRMTask[]>();
-    allTasks.forEach((task) => {
+    mergedTasks.forEach((task) => {
       if (task.due_date) {
         const dateKey = format(parseISO(task.due_date), "yyyy-MM-dd");
         const existing = map.get(dateKey) || [];
@@ -129,7 +129,7 @@ export default function CRMAgenda() {
       }
     });
     return map;
-  }, [allTasks]);
+  }, [mergedTasks]);
 
   // Group Google Calendar events by date
   const googleEventsByDate = useMemo(() => {
