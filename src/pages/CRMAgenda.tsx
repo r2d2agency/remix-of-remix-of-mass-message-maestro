@@ -8,6 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Calendar } from "@/components/ui/calendar";
 import { TaskDialog } from "@/components/crm/TaskDialog";
 import { useCRMTasks, useCRMTaskMutations, CRMTask } from "@/hooks/use-crm";
+import { useAllTaskCards, TaskCard } from "@/hooks/use-task-boards";
 import { useGoogleCalendarStatus, useGoogleCalendarEvents, GoogleCalendarEvent } from "@/hooks/use-google-calendar";
 import { 
   Plus, 
