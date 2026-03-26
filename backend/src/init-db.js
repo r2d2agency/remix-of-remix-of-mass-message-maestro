@@ -723,6 +723,10 @@ DO $$ BEGIN
     ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS is_forwarded BOOLEAN DEFAULT false;
     ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS forwarded_from_name VARCHAR(255);
     ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS reactions JSONB DEFAULT '[]'::jsonb;
+    ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS quoted_content TEXT;
+    ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS quoted_sender_name VARCHAR(255);
+    ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS quoted_message_type VARCHAR(50);
+    ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS quoted_from_me BOOLEAN;
 EXCEPTION
     WHEN duplicate_column THEN null;
 END $$;

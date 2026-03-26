@@ -1492,12 +1492,54 @@ async function handleIncomingMessage(connection, payload) {
       null;
     const quotedMessageId = contextInfo?.stanzaId || contextInfo?.quotedStanzaId || null;
 
+    // Extract quoted message content from contextInfo
+    let quotedContent = null;
+    let quotedSenderName = null;
+    let quotedMessageType = null;
+    let quotedFromMe = null;
+    if (contextInfo?.quotedMessage || contextInfo?.quotedMsg) {
+      const qMsg = contextInfo.quotedMessage || contextInfo.quotedMsg;
+      quotedFromMe = contextInfo.fromMe || false;
+      quotedSenderName = contextInfo.participant 
+        ? String(contextInfo.participant).replace(/@.*$/, '').replace(/\D/g, '')
+        : null;
+      if (qMsg.conversation) {
+        quotedContent = qMsg.conversation;
+        quotedMessageType = 'text';
+      } else if (qMsg.extendedTextMessage?.text) {
+        quotedContent = qMsg.extendedTextMessage.text;
+        quotedMessageType = 'text';
+      } else if (qMsg.imageMessage) {
+        quotedContent = qMsg.imageMessage.caption || '[Imagem]';
+        quotedMessageType = 'image';
+      } else if (qMsg.videoMessage) {
+        quotedContent = qMsg.videoMessage.caption || '[Vídeo]';
+        quotedMessageType = 'video';
+      } else if (qMsg.audioMessage) {
+        quotedContent = '[Áudio]';
+        quotedMessageType = 'audio';
+      } else if (qMsg.documentMessage || qMsg.documentWithCaptionMessage) {
+        const dMsg = qMsg.documentMessage || qMsg.documentWithCaptionMessage?.message?.documentMessage;
+        quotedContent = dMsg?.fileName || '[Documento]';
+        quotedMessageType = 'document';
+      } else if (qMsg.stickerMessage) {
+        quotedContent = '[Figurinha]';
+        quotedMessageType = 'sticker';
+      } else if (qMsg.contactMessage) {
+        quotedContent = qMsg.contactMessage.displayName || '[Contato]';
+        quotedMessageType = 'contact';
+      } else {
+        quotedContent = '[Mensagem]';
+        quotedMessageType = 'text';
+      }
+    }
+
     // Insert message into chat_messages table
     await query(
-      `INSERT INTO chat_messages (conversation_id, message_id, content, message_type, media_url, media_mimetype, wa_media_key, from_me, sender_name, sender_phone, quoted_message_id, status, timestamp)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, false, $8, $9, $10, 'received', NOW())
+      `INSERT INTO chat_messages (conversation_id, message_id, content, message_type, media_url, media_mimetype, wa_media_key, from_me, sender_name, sender_phone, quoted_message_id, quoted_content, quoted_sender_name, quoted_message_type, quoted_from_me, status, timestamp)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, false, $8, $9, $10, $11, $12, $13, $14, 'received', NOW())
        ON CONFLICT (message_id) WHERE message_id IS NOT NULL AND message_id NOT LIKE 'temp_%' DO NOTHING`,
-      [conversationId, messageId, content || (isMediaType ? `[${messageType === 'image' ? 'Imagem' : messageType === 'audio' ? 'Áudio' : messageType === 'video' ? 'Vídeo' : messageType === 'document' ? 'Documento' : 'Mídia'}]` : null), messageType, effectiveMediaUrl, effectiveMediaMimetype, waMediaKey, senderName, senderPhone, quotedMessageId]
+      [conversationId, messageId, content || (isMediaType ? `[${messageType === 'image' ? 'Imagem' : messageType === 'audio' ? 'Áudio' : messageType === 'video' ? 'Vídeo' : messageType === 'document' ? 'Documento' : 'Mídia'}]` : null), messageType, effectiveMediaUrl, effectiveMediaMimetype, waMediaKey, senderName, senderPhone, quotedMessageId, quotedContent, quotedSenderName, quotedMessageType, quotedFromMe]
     );
 
     console.log('[W-API] Message saved. Type:', messageType, 'MediaURL:', effectiveMediaUrl?.slice?.(0, 100));

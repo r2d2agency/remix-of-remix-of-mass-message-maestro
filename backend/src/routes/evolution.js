@@ -1824,6 +1824,46 @@ async function handleMessageUpsert(connection, data) {
     let mediaUrl = null;
     let mediaMimetype = null;
     let quotedMessageId = null;
+    let quotedContent = null;
+    let quotedSenderName = null;
+    let quotedMessageType = null;
+    let quotedFromMe = null;
+
+    // Helper to extract quoted content from any contextInfo
+    const extractQuotedInfo = (ctxInfo) => {
+      if (!ctxInfo?.quotedMessage) return;
+      quotedMessageId = ctxInfo.stanzaId || null;
+      quotedFromMe = ctxInfo.fromMe || false;
+      quotedSenderName = ctxInfo.participant 
+        ? String(ctxInfo.participant).replace(/@.*$/, '').replace(/\D/g, '')
+        : null;
+      const qMsg = ctxInfo.quotedMessage;
+      if (qMsg.conversation) {
+        quotedContent = qMsg.conversation;
+        quotedMessageType = 'text';
+      } else if (qMsg.extendedTextMessage?.text) {
+        quotedContent = qMsg.extendedTextMessage.text;
+        quotedMessageType = 'text';
+      } else if (qMsg.imageMessage) {
+        quotedContent = qMsg.imageMessage.caption || '[Imagem]';
+        quotedMessageType = 'image';
+      } else if (qMsg.videoMessage) {
+        quotedContent = qMsg.videoMessage.caption || '[Vídeo]';
+        quotedMessageType = 'video';
+      } else if (qMsg.audioMessage) {
+        quotedContent = '[Áudio]';
+        quotedMessageType = 'audio';
+      } else if (qMsg.documentMessage) {
+        quotedContent = qMsg.documentMessage.fileName || '[Documento]';
+        quotedMessageType = 'document';
+      } else if (qMsg.stickerMessage) {
+        quotedContent = '[Figurinha]';
+        quotedMessageType = 'sticker';
+      } else {
+        quotedContent = '[Mensagem]';
+        quotedMessageType = 'text';
+      }
+    };
 
     // msgContent already declared above (line 870)
 
@@ -1833,33 +1873,38 @@ async function handleMessageUpsert(connection, data) {
     } else if (msgContent.extendedTextMessage) {
       content = msgContent.extendedTextMessage.text;
       messageType = 'text';
-      if (msgContent.extendedTextMessage.contextInfo?.quotedMessage) {
-        quotedMessageId = msgContent.extendedTextMessage.contextInfo.stanzaId;
+      if (msgContent.extendedTextMessage.contextInfo) {
+        extractQuotedInfo(msgContent.extendedTextMessage.contextInfo);
       }
     } else if (msgContent.imageMessage) {
       messageType = 'image';
       content = msgContent.imageMessage.caption || '';
       mediaUrl = msgContent.imageMessage.url || data.media?.url;
       mediaMimetype = msgContent.imageMessage.mimetype;
+      if (msgContent.imageMessage.contextInfo) extractQuotedInfo(msgContent.imageMessage.contextInfo);
     } else if (msgContent.videoMessage) {
       messageType = 'video';
       content = msgContent.videoMessage.caption || '';
       mediaUrl = msgContent.videoMessage.url || data.media?.url;
       mediaMimetype = msgContent.videoMessage.mimetype;
+      if (msgContent.videoMessage.contextInfo) extractQuotedInfo(msgContent.videoMessage.contextInfo);
     } else if (msgContent.audioMessage) {
       messageType = 'audio';
       mediaUrl = msgContent.audioMessage.url || data.media?.url;
       mediaMimetype = msgContent.audioMessage.mimetype;
+      if (msgContent.audioMessage.contextInfo) extractQuotedInfo(msgContent.audioMessage.contextInfo);
     } else if (msgContent.documentMessage || msgContent.documentWithCaptionMessage) {
       const docMsg = msgContent.documentMessage || msgContent.documentWithCaptionMessage?.message?.documentMessage;
       messageType = 'document';
       content = docMsg?.fileName || '';
       mediaUrl = docMsg?.url || data.media?.url;
       mediaMimetype = docMsg?.mimetype;
+      if (docMsg?.contextInfo) extractQuotedInfo(docMsg.contextInfo);
     } else if (msgContent.stickerMessage) {
       messageType = 'sticker';
       mediaUrl = msgContent.stickerMessage.url || data.media?.url;
       mediaMimetype = msgContent.stickerMessage.mimetype;
+      if (msgContent.stickerMessage.contextInfo) extractQuotedInfo(msgContent.stickerMessage.contextInfo);
     } else if (msgContent.contactMessage) {
       messageType = 'contact';
       content = msgContent.contactMessage.displayName || 'Contato';
@@ -1989,8 +2034,8 @@ async function handleMessageUpsert(connection, data) {
     try {
       const insertResult = await query(
         `INSERT INTO chat_messages 
-          (conversation_id, message_id, from_me, content, message_type, media_url, media_mimetype, quoted_message_id, sender_name, sender_phone, status, timestamp)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          (conversation_id, message_id, from_me, content, message_type, media_url, media_mimetype, quoted_message_id, quoted_content, quoted_sender_name, quoted_message_type, quoted_from_me, sender_name, sender_phone, status, timestamp)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
          ON CONFLICT (message_id) WHERE message_id IS NOT NULL AND message_id NOT LIKE 'temp_%'
          DO UPDATE SET 
            media_url = COALESCE(EXCLUDED.media_url, chat_messages.media_url),
@@ -2006,6 +2051,10 @@ async function handleMessageUpsert(connection, data) {
           mediaUrl,
           mediaMimetype,
           quotedMessageId,
+          quotedContent,
+          quotedSenderName,
+          quotedMessageType,
+          quotedFromMe,
           senderName,
           senderPhone,
           fromMe ? 'sent' : 'received',
