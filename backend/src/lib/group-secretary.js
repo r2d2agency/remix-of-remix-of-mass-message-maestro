@@ -307,18 +307,17 @@ Mensagem: "${processedMessage}"`;
       });
 
       // 10. Create popup alert (ALWAYS for each matched member)
+      // 10. ALWAYS create popup alert and notification for each matched member
       let alertId = null;
-      if (config.show_popup_alert) {
-        const urgencyLabel = priority === 'urgent' ? '🔴 URGENTE: ' : priority === 'high' ? '🟠 ' : '';
-        alertId = await createPopupAlert({
-          userId: matchedMember.user_id,
-          senderName: senderName || 'Alguém',
-          groupName: groupName || 'Grupo',
-          request: `${urgencyLabel}${aiResult.detected_request || messageContent}`,
-          conversationId,
-        });
-        if (alertId) alertIds.push(alertId);
-      }
+      const urgencyLabel = priority === 'urgent' ? '🔴 URGENTE: ' : priority === 'high' ? '🟠 ' : '';
+      alertId = await createPopupAlert({
+        userId: matchedMember.user_id,
+        senderName: senderName || 'Alguém',
+        groupName: groupName || 'Grupo',
+        request: `${urgencyLabel}${aiResult.detected_request || messageContent}`,
+        conversationId,
+      });
+      if (alertId) alertIds.push(alertId);
 
       // 10b. Notify matched member via WhatsApp if enabled
       if (config.notify_members_whatsapp) {
