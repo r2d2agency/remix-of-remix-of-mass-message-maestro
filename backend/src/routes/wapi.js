@@ -1479,15 +1479,15 @@ async function handleIncomingMessage(connection, payload) {
       : null;
 
     // Extract quoted message info from contextInfo
-    const msgContentObj = payload?.message || payload?.msgContent || {};
+    const _msgObj = payload?.message || payload?.msgContent || {};
     const contextInfo = 
-      msgContentObj?.extendedTextMessage?.contextInfo ||
-      msgContentObj?.imageMessage?.contextInfo ||
-      msgContentObj?.videoMessage?.contextInfo ||
-      msgContentObj?.audioMessage?.contextInfo ||
-      msgContentObj?.documentMessage?.contextInfo ||
-      msgContentObj?.documentWithCaptionMessage?.message?.documentMessage?.contextInfo ||
-      msgContentObj?.contextInfo ||
+      _msgObj?.extendedTextMessage?.contextInfo ||
+      _msgObj?.imageMessage?.contextInfo ||
+      _msgObj?.videoMessage?.contextInfo ||
+      _msgObj?.audioMessage?.contextInfo ||
+      _msgObj?.documentMessage?.contextInfo ||
+      _msgObj?.documentWithCaptionMessage?.message?.documentMessage?.contextInfo ||
+      _msgObj?.contextInfo ||
       payload?.contextInfo ||
       null;
     const quotedMessageId = contextInfo?.stanzaId || contextInfo?.quotedStanzaId || null;
