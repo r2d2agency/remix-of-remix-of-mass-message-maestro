@@ -2071,12 +2071,27 @@ export function ChatArea({
                 )}
                 {(msg.message_type === 'document' || (msg.media_mimetype && /^application\/(pdf|msword|vnd\.|rtf|zip|x-rar|x-7z|octet-stream)/i.test(msg.media_mimetype) && !['image','video','audio','sticker','text'].includes(msg.message_type))) && (
                   mediaUrl ? (
-                    <a
-                      href={mediaUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      download={getDocumentDisplayName(msg, mediaUrl)}
-                      className="flex items-center gap-3 p-3 rounded-lg bg-background/50 border border-border/50 hover:bg-accent/30 transition-colors mb-2 min-w-0"
+                    <button
+                      type="button"
+                      onClick={async (e) => {
+                        e.preventDefault();
+                        const fileName = getDocumentDisplayName(msg, mediaUrl);
+                        try {
+                          const response = await fetch(mediaUrl);
+                          const blob = await response.blob();
+                          const blobUrl = URL.createObjectURL(blob);
+                          const link = document.createElement('a');
+                          link.href = blobUrl;
+                          link.download = fileName;
+                          document.body.appendChild(link);
+                          link.click();
+                          document.body.removeChild(link);
+                          URL.revokeObjectURL(blobUrl);
+                        } catch {
+                          window.open(mediaUrl, '_blank');
+                        }
+                      }}
+                      className="flex items-center gap-3 p-3 rounded-lg bg-background/50 border border-border/50 hover:bg-accent/30 transition-colors mb-2 min-w-0 w-full text-left cursor-pointer"
                     >
                       <div className="flex-shrink-0">
                         {getFileIcon(msg.media_mimetype || 'application/octet-stream')}
@@ -2090,7 +2105,7 @@ export function ChatArea({
                         </p>
                       </div>
                       <Download className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                    </a>
+                    </button>
                   ) : (
                     <div className="flex items-center gap-3 p-3 rounded-lg bg-background/50 border border-border/50 mb-2">
                       <FileText className="h-6 w-6 text-muted-foreground flex-shrink-0" />
