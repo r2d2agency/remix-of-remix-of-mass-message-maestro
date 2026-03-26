@@ -2029,8 +2029,8 @@ async function handleMessageUpsert(connection, data) {
     try {
       const insertResult = await query(
         `INSERT INTO chat_messages 
-          (conversation_id, message_id, from_me, content, message_type, media_url, media_mimetype, quoted_message_id, sender_name, sender_phone, status, timestamp)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          (conversation_id, message_id, from_me, content, message_type, media_url, media_mimetype, quoted_message_id, quoted_content, quoted_sender_name, quoted_message_type, quoted_from_me, sender_name, sender_phone, status, timestamp)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
          ON CONFLICT (message_id) WHERE message_id IS NOT NULL AND message_id NOT LIKE 'temp_%'
          DO UPDATE SET 
            media_url = COALESCE(EXCLUDED.media_url, chat_messages.media_url),
@@ -2046,6 +2046,10 @@ async function handleMessageUpsert(connection, data) {
           mediaUrl,
           mediaMimetype,
           quotedMessageId,
+          quotedContent,
+          quotedSenderName,
+          quotedMessageType,
+          quotedFromMe,
           senderName,
           senderPhone,
           fromMe ? 'sent' : 'received',
