@@ -279,6 +279,15 @@ export function TaskDialog({ task, dealId, companyId, contactPhone, contactName,
         </DialogHeader>
 
         <div className="space-y-4 overflow-y-auto flex-1 pr-1">
+          {/* Show linked contact info */}
+          {contactPhone && !task && (
+            <div className="flex items-center gap-2 p-2 rounded-md bg-muted text-sm">
+              <Users className="h-4 w-4 text-primary" />
+              <span className="font-medium">{contactName || contactPhone}</span>
+              {contactName && <span className="text-muted-foreground">({contactPhone})</span>}
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label>Título *</Label>
             <Input
