@@ -1478,12 +1478,26 @@ async function handleIncomingMessage(connection, payload) {
       ? String(senderPhoneRaw).replace(/@.*$/, '').replace(/\D/g, '')
       : null;
 
+    // Extract quoted message info from contextInfo
+    const _msgObj = payload?.message || payload?.msgContent || {};
+    const contextInfo = 
+      _msgObj?.extendedTextMessage?.contextInfo ||
+      _msgObj?.imageMessage?.contextInfo ||
+      _msgObj?.videoMessage?.contextInfo ||
+      _msgObj?.audioMessage?.contextInfo ||
+      _msgObj?.documentMessage?.contextInfo ||
+      _msgObj?.documentWithCaptionMessage?.message?.documentMessage?.contextInfo ||
+      _msgObj?.contextInfo ||
+      payload?.contextInfo ||
+      null;
+    const quotedMessageId = contextInfo?.stanzaId || contextInfo?.quotedStanzaId || null;
+
     // Insert message into chat_messages table
     await query(
-      `INSERT INTO chat_messages (conversation_id, message_id, content, message_type, media_url, media_mimetype, wa_media_key, from_me, sender_name, sender_phone, status, timestamp)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, false, $8, $9, 'received', NOW())
+      `INSERT INTO chat_messages (conversation_id, message_id, content, message_type, media_url, media_mimetype, wa_media_key, from_me, sender_name, sender_phone, quoted_message_id, status, timestamp)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, false, $8, $9, $10, 'received', NOW())
        ON CONFLICT (message_id) WHERE message_id IS NOT NULL AND message_id NOT LIKE 'temp_%' DO NOTHING`,
-      [conversationId, messageId, content || (isMediaType ? `[${messageType === 'image' ? 'Imagem' : messageType === 'audio' ? 'Áudio' : messageType === 'video' ? 'Vídeo' : messageType === 'document' ? 'Documento' : 'Mídia'}]` : null), messageType, effectiveMediaUrl, effectiveMediaMimetype, waMediaKey, senderName, senderPhone]
+      [conversationId, messageId, content || (isMediaType ? `[${messageType === 'image' ? 'Imagem' : messageType === 'audio' ? 'Áudio' : messageType === 'video' ? 'Vídeo' : messageType === 'document' ? 'Documento' : 'Mídia'}]` : null), messageType, effectiveMediaUrl, effectiveMediaMimetype, waMediaKey, senderName, senderPhone, quotedMessageId]
     );
 
     console.log('[W-API] Message saved. Type:', messageType, 'MediaURL:', effectiveMediaUrl?.slice?.(0, 100));
