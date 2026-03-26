@@ -1824,6 +1824,46 @@ async function handleMessageUpsert(connection, data) {
     let mediaUrl = null;
     let mediaMimetype = null;
     let quotedMessageId = null;
+    let quotedContent = null;
+    let quotedSenderName = null;
+    let quotedMessageType = null;
+    let quotedFromMe = null;
+
+    // Helper to extract quoted content from any contextInfo
+    const extractQuotedInfo = (ctxInfo) => {
+      if (!ctxInfo?.quotedMessage) return;
+      quotedMessageId = ctxInfo.stanzaId || null;
+      quotedFromMe = ctxInfo.fromMe || false;
+      quotedSenderName = ctxInfo.participant 
+        ? String(ctxInfo.participant).replace(/@.*$/, '').replace(/\D/g, '')
+        : null;
+      const qMsg = ctxInfo.quotedMessage;
+      if (qMsg.conversation) {
+        quotedContent = qMsg.conversation;
+        quotedMessageType = 'text';
+      } else if (qMsg.extendedTextMessage?.text) {
+        quotedContent = qMsg.extendedTextMessage.text;
+        quotedMessageType = 'text';
+      } else if (qMsg.imageMessage) {
+        quotedContent = qMsg.imageMessage.caption || '[Imagem]';
+        quotedMessageType = 'image';
+      } else if (qMsg.videoMessage) {
+        quotedContent = qMsg.videoMessage.caption || '[Vídeo]';
+        quotedMessageType = 'video';
+      } else if (qMsg.audioMessage) {
+        quotedContent = '[Áudio]';
+        quotedMessageType = 'audio';
+      } else if (qMsg.documentMessage) {
+        quotedContent = qMsg.documentMessage.fileName || '[Documento]';
+        quotedMessageType = 'document';
+      } else if (qMsg.stickerMessage) {
+        quotedContent = '[Figurinha]';
+        quotedMessageType = 'sticker';
+      } else {
+        quotedContent = '[Mensagem]';
+        quotedMessageType = 'text';
+      }
+    };
 
     // msgContent already declared above (line 870)
 
@@ -1833,8 +1873,8 @@ async function handleMessageUpsert(connection, data) {
     } else if (msgContent.extendedTextMessage) {
       content = msgContent.extendedTextMessage.text;
       messageType = 'text';
-      if (msgContent.extendedTextMessage.contextInfo?.quotedMessage) {
-        quotedMessageId = msgContent.extendedTextMessage.contextInfo.stanzaId;
+      if (msgContent.extendedTextMessage.contextInfo) {
+        extractQuotedInfo(msgContent.extendedTextMessage.contextInfo);
       }
     } else if (msgContent.imageMessage) {
       messageType = 'image';
