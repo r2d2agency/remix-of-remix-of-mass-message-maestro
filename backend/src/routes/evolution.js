@@ -1881,25 +1881,30 @@ async function handleMessageUpsert(connection, data) {
       content = msgContent.imageMessage.caption || '';
       mediaUrl = msgContent.imageMessage.url || data.media?.url;
       mediaMimetype = msgContent.imageMessage.mimetype;
+      if (msgContent.imageMessage.contextInfo) extractQuotedInfo(msgContent.imageMessage.contextInfo);
     } else if (msgContent.videoMessage) {
       messageType = 'video';
       content = msgContent.videoMessage.caption || '';
       mediaUrl = msgContent.videoMessage.url || data.media?.url;
       mediaMimetype = msgContent.videoMessage.mimetype;
+      if (msgContent.videoMessage.contextInfo) extractQuotedInfo(msgContent.videoMessage.contextInfo);
     } else if (msgContent.audioMessage) {
       messageType = 'audio';
       mediaUrl = msgContent.audioMessage.url || data.media?.url;
       mediaMimetype = msgContent.audioMessage.mimetype;
+      if (msgContent.audioMessage.contextInfo) extractQuotedInfo(msgContent.audioMessage.contextInfo);
     } else if (msgContent.documentMessage || msgContent.documentWithCaptionMessage) {
       const docMsg = msgContent.documentMessage || msgContent.documentWithCaptionMessage?.message?.documentMessage;
       messageType = 'document';
       content = docMsg?.fileName || '';
       mediaUrl = docMsg?.url || data.media?.url;
       mediaMimetype = docMsg?.mimetype;
+      if (docMsg?.contextInfo) extractQuotedInfo(docMsg.contextInfo);
     } else if (msgContent.stickerMessage) {
       messageType = 'sticker';
       mediaUrl = msgContent.stickerMessage.url || data.media?.url;
       mediaMimetype = msgContent.stickerMessage.mimetype;
+      if (msgContent.stickerMessage.contextInfo) extractQuotedInfo(msgContent.stickerMessage.contextInfo);
     } else if (msgContent.contactMessage) {
       messageType = 'contact';
       content = msgContent.contactMessage.displayName || 'Contato';
