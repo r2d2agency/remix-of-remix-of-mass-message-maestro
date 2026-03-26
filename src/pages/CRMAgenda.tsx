@@ -8,6 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Calendar } from "@/components/ui/calendar";
 import { TaskDialog } from "@/components/crm/TaskDialog";
 import { useCRMTasks, useCRMTaskMutations, CRMTask } from "@/hooks/use-crm";
+import { useAllTaskCards, TaskCard } from "@/hooks/use-task-boards";
 import { useGoogleCalendarStatus, useGoogleCalendarEvents, GoogleCalendarEvent } from "@/hooks/use-google-calendar";
 import { 
   Plus, 
@@ -56,6 +57,37 @@ export default function CRMAgenda() {
   // Fetch all tasks for the calendar
   const { data: allTasks, isLoading } = useCRMTasks({ period: "all" });
   const { completeTask } = useCRMTaskMutations();
+  const { data: allTaskCards } = useAllTaskCards();
+
+  // Merge task_cards (from Kanban) into CRM tasks for the calendar
+  const mergedTasks = useMemo(() => {
+    const crmTasks = allTasks || [];
+    const taskCards = (allTaskCards || []).filter(tc => tc.due_date && tc.status !== 'archived');
+    // Convert task_cards to CRM task-like objects for display
+    const convertedCards: CRMTask[] = taskCards.map(tc => ({
+      id: `tc_${tc.id}`,
+      title: tc.title,
+      description: tc.description,
+      type: 'task' as const,
+      priority: tc.priority,
+      due_date: tc.due_date,
+      status: tc.status === 'completed' ? 'completed' as const : 'pending' as const,
+      assigned_to: tc.assigned_to,
+      assigned_to_name: tc.assigned_to_name,
+      created_by: tc.created_by,
+      created_by_name: tc.created_by_name,
+      deal_id: tc.deal_id,
+      deal_title: tc.deal_title,
+      company_id: tc.company_id,
+      company_name: tc.company_name,
+      created_at: tc.created_at,
+      completed_at: tc.completed_at,
+    }));
+    // Deduplicate by title+due_date to avoid showing CRM task + its synced task_card
+    const seen = new Set(crmTasks.map(t => `${t.title}|${t.due_date?.slice(0,10)}`));
+    const uniqueCards = convertedCards.filter(c => !seen.has(`${c.title}|${c.due_date?.slice(0,10)}`));
+    return [...crmTasks, ...uniqueCards];
+  }, [allTasks, allTaskCards]);
 
   // Fetch Google Calendar status and events
   const { data: googleStatus } = useGoogleCalendarStatus();
@@ -84,12 +116,12 @@ export default function CRMAgenda() {
     googleStatus?.connected ? googleDateRange.timeMax : undefined
   );
 
-  // Group tasks by date
+  // Group tasks by date (using merged CRM tasks + task cards)
   const tasksByDate = useMemo(() => {
-    if (!allTasks) return new Map<string, CRMTask[]>();
+    if (!mergedTasks) return new Map<string, CRMTask[]>();
     
     const map = new Map<string, CRMTask[]>();
-    allTasks.forEach((task) => {
+    mergedTasks.forEach((task) => {
       if (task.due_date) {
         const dateKey = format(parseISO(task.due_date), "yyyy-MM-dd");
         const existing = map.get(dateKey) || [];
@@ -97,7 +129,7 @@ export default function CRMAgenda() {
       }
     });
     return map;
-  }, [allTasks]);
+  }, [mergedTasks]);
 
   // Group Google Calendar events by date
   const googleEventsByDate = useMemo(() => {
