@@ -1473,7 +1473,7 @@ router.get('/conversations/:id/messages', authenticate, async (req, res) => {
         COALESCE(qm.sender_name, qu.name) as quoted_sender_name
       FROM chat_messages m
       LEFT JOIN users u ON u.id = m.sender_id
-      LEFT JOIN chat_messages qm ON qm.id = m.quoted_message_id
+      LEFT JOIN chat_messages qm ON qm.message_id = m.quoted_message_id
       LEFT JOIN users qu ON qu.id = qm.sender_id
       WHERE m.conversation_id = $1
     `;
