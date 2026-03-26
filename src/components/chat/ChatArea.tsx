@@ -1965,7 +1965,7 @@ export function ChatArea({
                 )}
 
                 {/* Quoted message */}
-                {msg.quoted_message_id && msg.quoted_content && (
+                {msg.quoted_message_id && (msg.quoted_content || msg.quoted_message_type) && (
                   <div className={cn(
                     "mb-2 p-2 rounded border-l-4 text-xs",
                     msg.from_me 
