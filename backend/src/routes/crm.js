@@ -1545,11 +1545,11 @@ router.post('/tasks', async (req, res) => {
         }
         
         await query(
-          `INSERT INTO task_cards (board_id, column_id, title, description, priority, due_date, assigned_to, created_by, deal_id, company_id, tags, position)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+          `INSERT INTO task_cards (board_id, column_id, title, description, priority, due_date, assigned_to, created_by, deal_id, company_id, contact_id, tags, position)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
           [boardId, columnId, title, description, priority || 'medium', due_date, 
-           assigned_to || req.userId, req.userId, deal_id || null, taskCompanyId, 
-           JSON.stringify([]), posResult.rows[0].next_pos]
+           assigned_to || req.userId, req.userId, deal_id || null, taskCompanyId,
+           resolvedContactId, JSON.stringify([]), posResult.rows[0].next_pos]
         );
       }
     } catch (syncError) {
