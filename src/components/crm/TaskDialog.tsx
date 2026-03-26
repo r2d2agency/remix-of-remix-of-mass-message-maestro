@@ -74,7 +74,7 @@ function useCreateMeetingWithMeet() {
   });
 }
 
-export function TaskDialog({ task, dealId, companyId, open, onOpenChange, defaultDate }: TaskDialogProps) {
+export function TaskDialog({ task, dealId, companyId, contactPhone, contactName, open, onOpenChange, defaultDate }: TaskDialogProps) {
   const { user } = useAuth();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
