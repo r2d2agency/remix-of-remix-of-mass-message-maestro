@@ -1536,10 +1536,10 @@ async function handleIncomingMessage(connection, payload) {
 
     // Insert message into chat_messages table
     await query(
-      `INSERT INTO chat_messages (conversation_id, message_id, content, message_type, media_url, media_mimetype, wa_media_key, from_me, sender_name, sender_phone, quoted_message_id, quoted_content, quoted_sender_name, quoted_message_type, quoted_from_me, status, timestamp)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, false, $8, $9, $10, $11, $12, $13, $14, 'received', NOW())
+      `INSERT INTO chat_messages (conversation_id, message_id, content, raw_text, caption, message_type, media_url, media_mimetype, wa_media_key, from_me, sender_name, sender_phone, quoted_message_id, quoted_content, quoted_text, quoted_sender_name, quoted_message_type, quoted_from_me, status, timestamp)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, false, $10, $11, $12, $13, $14, $15, $16, $17, 'received', NOW())
        ON CONFLICT (message_id) WHERE message_id IS NOT NULL AND message_id NOT LIKE 'temp_%' DO NOTHING`,
-      [conversationId, messageId, content || (isMediaType ? `[${messageType === 'image' ? 'Imagem' : messageType === 'audio' ? 'Áudio' : messageType === 'video' ? 'Vídeo' : messageType === 'document' ? 'Documento' : 'Mídia'}]` : null), messageType, effectiveMediaUrl, effectiveMediaMimetype, waMediaKey, senderName, senderPhone, quotedMessageId, quotedContent, quotedSenderName, quotedMessageType, quotedFromMe]
+      [conversationId, messageId, content || (isMediaType ? `[${messageType === 'image' ? 'Imagem' : messageType === 'audio' ? 'Áudio' : messageType === 'video' ? 'Vídeo' : messageType === 'document' ? 'Documento' : 'Mídia'}]` : null), content || null, ['image', 'video', 'document'].includes(messageType) ? (content || null) : null, messageType, effectiveMediaUrl, effectiveMediaMimetype, waMediaKey, senderName, senderPhone, quotedMessageId, quotedContent, quotedContent, quotedSenderName, quotedMessageType, quotedFromMe]
     );
 
     console.log('[W-API] Message saved. Type:', messageType, 'MediaURL:', effectiveMediaUrl?.slice?.(0, 100));

@@ -727,8 +727,21 @@ DO $$ BEGIN
     ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS quoted_sender_name VARCHAR(255);
     ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS quoted_message_type VARCHAR(50);
     ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS quoted_from_me BOOLEAN;
+    ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS raw_text TEXT;
+    ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS quoted_text TEXT;
+    ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS caption TEXT;
 EXCEPTION
     WHEN duplicate_column THEN null;
+END $$;
+
+DO $$ BEGIN
+    ALTER TABLE chat_messages ALTER COLUMN content TYPE TEXT;
+    ALTER TABLE chat_messages ALTER COLUMN raw_text TYPE TEXT;
+    ALTER TABLE chat_messages ALTER COLUMN quoted_content TYPE TEXT;
+    ALTER TABLE chat_messages ALTER COLUMN quoted_text TYPE TEXT;
+    ALTER TABLE chat_messages ALTER COLUMN caption TYPE TEXT;
+EXCEPTION
+    WHEN undefined_column THEN null;
 END $$;
 
 -- Add unique index on message_id to prevent duplicates (excludes temp_ messages)
