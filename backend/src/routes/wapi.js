@@ -572,7 +572,19 @@ async function cacheMediaFromWapiDownload({ messageId, messageType, mediaMimetyp
 router.post('/webhook', async (req, res) => {
   try {
     const payload = req.body;
-    console.log('[W-API Webhook] Received:', JSON.stringify(payload).slice(0, 500));
+    console.log('[W-API Webhook] Received:', JSON.stringify(payload).slice(0, 800));
+    console.log('[W-API Webhook] Key fields:', {
+      event: payload.event,
+      fromMe: payload.fromMe,
+      isFromMe: payload.isFromMe,
+      fromApi: payload.fromApi,
+      chatId: payload.chat?.id,
+      phone: payload.phone,
+      instanceId: payload.instanceId,
+      hasMsgContent: !!payload.msgContent,
+      hasText: !!payload.text,
+      ack: payload.ack,
+    });
 
     // W-API sends different payload structures depending on event type
     // Common fields: instanceId, phone, message, messageId, etc.
