@@ -1182,6 +1182,103 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
             </div>
           </ScrollArea>
         </TabsContent>
+
+        {/* Audit Tab */}
+        <TabsContent value="audit" className="mt-4 space-y-4">
+          {auditSummary && (
+            <div className="grid grid-cols-4 gap-2">
+              <div className="text-center p-2 rounded bg-muted/50">
+                <div className="text-lg font-bold">{auditSummary.total}</div>
+                <div className="text-[10px] text-muted-foreground">Total (24h)</div>
+              </div>
+              <div className="text-center p-2 rounded bg-muted/50">
+                <div className="text-lg font-bold text-green-600">{auditSummary.processed}</div>
+                <div className="text-[10px] text-muted-foreground">Processados</div>
+              </div>
+              <div className="text-center p-2 rounded bg-muted/50">
+                <div className="text-lg font-bold text-destructive">{auditSummary.errors}</div>
+                <div className="text-[10px] text-muted-foreground">Erros</div>
+              </div>
+              <div className="text-center p-2 rounded bg-muted/50">
+                <div className="text-lg font-bold text-yellow-600">{auditSummary.skipped}</div>
+                <div className="text-[10px] text-muted-foreground">Ignorados</div>
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between gap-2">
+            <select
+              className="text-xs border rounded px-2 py-1 bg-background"
+              value={auditFilter}
+              onChange={(e) => setAuditFilter(e.target.value)}
+            >
+              <option value="all">Todos</option>
+              <option value="processed">Processados</option>
+              <option value="errors">Com erro</option>
+            </select>
+            <Button variant="outline" size="sm" onClick={fetchAudit} disabled={auditLoading}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${auditLoading ? 'animate-spin' : ''}`} />
+              Atualizar
+            </Button>
+          </div>
+
+          <ScrollArea className="h-[400px] rounded-md border border-border">
+            <div className="p-3 space-y-2">
+              {auditEntries.length === 0 ? (
+                <div className="text-sm text-muted-foreground text-center py-8">
+                  Nenhum evento de auditoria encontrado.
+                </div>
+              ) : (
+                auditEntries.map((entry) => (
+                  <div key={entry.id} className="rounded-md border border-border p-3 text-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-muted-foreground">
+                        {new Date(entry.received_at).toLocaleString()}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Badge variant="outline" className="text-[10px]">
+                          {entry.event_type || '?'}
+                        </Badge>
+                        {entry.processed ? (
+                          <Badge variant="default" className="bg-green-600 text-[10px]">OK</Badge>
+                        ) : entry.process_result === 'error' ? (
+                          <Badge variant="destructive" className="text-[10px]">Erro</Badge>
+                        ) : entry.process_result === 'skipped' ? (
+                          <Badge variant="secondary" className="text-[10px]">Ignorado</Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px]">Pendente</Badge>
+                        )}
+                      </div>
+                    </div>
+                    <div className="mt-1 text-muted-foreground">
+                      {entry.remote_jid && <div>JID: {entry.remote_jid}</div>}
+                      {entry.process_error && <div className="text-destructive">Erro: {entry.process_error}</div>}
+                    </div>
+                    <div className="mt-1 flex justify-end">
+                      <Button variant="ghost" size="sm" className="h-6 text-[10px]" onClick={() => fetchAuditDetail(entry.id)}>
+                        <Eye className="h-3 w-3 mr-1" /> Ver payload
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </ScrollArea>
+
+          {auditDetail && (
+            <div className="rounded-md border border-border p-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium">Payload completo</span>
+                <Button variant="ghost" size="sm" onClick={() => setAuditDetail(null)}>✕</Button>
+              </div>
+              <ScrollArea className="h-[300px]">
+                <pre className="text-xs whitespace-pre-wrap break-words bg-muted/40 rounded p-2">
+                  {JSON.stringify(auditDetail.payload, null, 2)}
+                </pre>
+              </ScrollArea>
+            </div>
+          )}
+        </TabsContent>
       </Tabs>
     </div>
   );
