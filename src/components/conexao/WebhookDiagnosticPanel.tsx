@@ -915,7 +915,7 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
       </Card>
 
       <Tabs defaultValue="status" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="status">Status</TabsTrigger>
           <TabsTrigger value="config">Configuração</TabsTrigger>
           <TabsTrigger value="events" className="relative">
@@ -925,6 +925,10 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
                 {events.length}
               </Badge>
             )}
+          </TabsTrigger>
+          <TabsTrigger value="audit">
+            <Database className="h-3 w-3 mr-1" />
+            Auditoria
           </TabsTrigger>
         </TabsList>
 
