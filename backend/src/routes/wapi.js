@@ -570,26 +570,33 @@ async function cacheMediaFromWapiDownload({ messageId, messageType, mediaMimetyp
  * - "Ao receber uma mensagem": https://your-backend/api/wapi/webhook
  */
 router.post('/webhook', async (req, res) => {
+  let auditId = null;
   try {
     const payload = req.body;
-    console.log('[W-API Webhook] Received:', JSON.stringify(payload).slice(0, 800));
-    console.log('[W-API Webhook] Key fields:', {
-      event: payload.event,
-      fromMe: payload.fromMe,
-      isFromMe: payload.isFromMe,
-      fromApi: payload.fromApi,
-      chatId: payload.chat?.id,
-      phone: payload.phone,
-      instanceId: payload.instanceId,
-      hasMsgContent: !!payload.msgContent,
-      hasText: !!payload.text,
-      ack: payload.ack,
-    });
 
     // W-API sends different payload structures depending on event type
-    // Common fields: instanceId, phone, message, messageId, etc.
-
     const instanceId = payload.instanceId || payload.instance_id || payload.instance;
+    const eventMsgId = payload.messageId || payload.id || payload.key?.id || null;
+    const remoteJid = payload.chat?.id || payload.phone || payload.remoteJid || payload.from || null;
+    const eventType = detectEventType(payload);
+    const fromMe = payload.fromMe === true || payload.isFromMe === true || payload.fromApi === true;
+
+    // ── Persist audit row BEFORE any processing ──
+    try {
+      const truncatedPayload = JSON.stringify(payload).slice(0, 8000);
+      const auditResult = await query(
+        `INSERT INTO inbound_webhook_audit (provider, event_id, event_type, remote_jid, instance_id, from_me, payload, received_at)
+         VALUES ('wapi', $1, $2, $3, $4, $5, $6::jsonb, NOW())
+         ON CONFLICT (provider, event_id) WHERE event_id IS NOT NULL DO UPDATE SET received_at = NOW()
+         RETURNING id`,
+        [eventMsgId, eventType, remoteJid, instanceId || null, fromMe, truncatedPayload]
+      );
+      auditId = auditResult.rows[0]?.id || null;
+    } catch (auditErr) {
+      console.error('[W-API Webhook] Audit insert error (non-fatal):', auditErr.message);
+    }
+
+    console.log('[W-API Webhook] Event:', eventType, 'Instance:', instanceId, 'JID:', remoteJid, 'auditId:', auditId);
 
     if (!instanceId) {
       console.log('[W-API Webhook] No instanceId in payload');
