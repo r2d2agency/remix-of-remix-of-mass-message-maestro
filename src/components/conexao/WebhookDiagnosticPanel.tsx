@@ -289,7 +289,37 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
     }
   }, [connection.id, isWapi]);
 
-  const fetchWapiSendAttempts = useCallback(async () => {
+  const fetchAudit = useCallback(async () => {
+    setAuditLoading(true);
+    try {
+      const providerPath = isWapi ? 'wapi' : 'evolution';
+      let processedParam = '';
+      if (auditFilter === 'processed') processedParam = '&processed=true';
+      else if (auditFilter === 'errors') processedParam = '&processed=false';
+      
+      const result = await api<{ audit: AuditEntry[]; summary: AuditSummary }>(
+        `/api/${providerPath}/${connection.id}/webhook-audit?limit=100${processedParam}`
+      );
+      setAuditEntries(result.audit || []);
+      setAuditSummary(result.summary || null);
+    } catch (error: any) {
+      console.error('Error fetching audit:', error);
+    } finally {
+      setAuditLoading(false);
+    }
+  }, [connection.id, isWapi, auditFilter]);
+
+  const fetchAuditDetail = useCallback(async (auditId: string) => {
+    try {
+      const providerPath = isWapi ? 'wapi' : 'evolution';
+      const result = await api<any>(`/api/${providerPath}/${connection.id}/webhook-audit/${auditId}`);
+      setAuditDetail(result);
+    } catch (error: any) {
+      toast.error('Erro ao carregar detalhe');
+    }
+  }, [connection.id, isWapi]);
+
+
     if (!isWapi) return;
 
     setWapiSendAttemptsLoading(true);
