@@ -319,7 +319,7 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
     }
   }, [connection.id, isWapi]);
 
-
+  const fetchWapiSendAttempts = useCallback(async () => {
     if (!isWapi) return;
 
     setWapiSendAttemptsLoading(true);
