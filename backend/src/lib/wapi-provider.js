@@ -448,6 +448,9 @@ export async function sendText(instanceId, token, phone, message) {
   const cleanPhone = isGroup ? phone : phone.replace(/\D/g, '');
   const at = new Date().toISOString();
 
+  // Build body: use chatId for groups, phone for individuals
+  const phoneOrChat = isGroup ? { chatId: cleanPhone } : { phone: cleanPhone };
+
   try {
     const response = await fetch(
       `${W_API_BASE_URL}/message/send-text?instanceId=${instanceId}`,
@@ -455,7 +458,7 @@ export async function sendText(instanceId, token, phone, message) {
         method: 'POST',
         headers: getHeaders(token),
         body: JSON.stringify({
-          phone: cleanPhone,
+          ...phoneOrChat,
           message: message,
         }),
       }
@@ -515,6 +518,7 @@ export async function sendText(instanceId, token, phone, message) {
 export async function sendImage(instanceId, token, phone, imageUrl, caption = '') {
   const isGroup = phone.includes('@g.us');
   const cleanPhone = isGroup ? phone : phone.replace(/\D/g, '');
+  const phoneOrChat = isGroup ? { chatId: cleanPhone } : { phone: cleanPhone };
   
   try {
     const response = await fetch(
@@ -523,7 +527,7 @@ export async function sendImage(instanceId, token, phone, imageUrl, caption = ''
         method: 'POST',
         headers: getHeaders(token),
         body: JSON.stringify({
-          phone: cleanPhone,
+          ...phoneOrChat,
           image: imageUrl,
           caption: caption,
         }),
@@ -555,6 +559,7 @@ export async function sendImage(instanceId, token, phone, imageUrl, caption = ''
 export async function sendAudio(instanceId, token, phone, audioUrl) {
   const isGroup = phone.includes('@g.us');
   const cleanPhone = isGroup ? phone : phone.replace(/\D/g, '');
+  const phoneOrChat = isGroup ? { chatId: cleanPhone } : { phone: cleanPhone };
   
   try {
     // W-API only accepts .mp3 or .ogg URLs.
@@ -582,7 +587,7 @@ export async function sendAudio(instanceId, token, phone, audioUrl) {
         method: 'POST',
         headers: getHeaders(token),
         body: JSON.stringify({
-          phone: cleanPhone,
+          ...phoneOrChat,
           audio: finalAudioUrl,
         }),
       }
@@ -613,6 +618,7 @@ export async function sendAudio(instanceId, token, phone, audioUrl) {
 export async function sendVideo(instanceId, token, phone, videoUrl, caption = '') {
   const isGroup = phone.includes('@g.us');
   const cleanPhone = isGroup ? phone : phone.replace(/\D/g, '');
+  const phoneOrChat = isGroup ? { chatId: cleanPhone } : { phone: cleanPhone };
   
   try {
     const response = await fetch(
@@ -621,7 +627,7 @@ export async function sendVideo(instanceId, token, phone, videoUrl, caption = ''
         method: 'POST',
         headers: getHeaders(token),
         body: JSON.stringify({
-          phone: cleanPhone,
+          ...phoneOrChat,
           video: videoUrl,
           caption: caption,
         }),
@@ -771,13 +777,14 @@ export async function sendDocument(instanceId, token, phone, documentUrl, filena
   const extension = extensionMatch ? extensionMatch[1].toLowerCase() : 'pdf';
 
   try {
+    const phoneOrChat = isGroup ? { chatId: cleanPhone } : { phone: cleanPhone };
     const response = await fetch(
       `${W_API_BASE_URL}/message/send-document?instanceId=${instanceId}`,
       {
         method: 'POST',
         headers: getHeaders(token),
         body: JSON.stringify({
-          phone: cleanPhone,
+          ...phoneOrChat,
           document: effectiveDocumentUrl,
           filename: filenameWithExt,
           // Some W-API installations/docs use camelCase
@@ -1217,6 +1224,7 @@ export async function sendMessage(instanceId, token, phone, content, messageType
 export async function sendReaction(instanceId, token, phone, messageId, reaction) {
   const isGroup = phone.includes('@g.us');
   const cleanPhone = isGroup ? phone : phone.replace(/\D/g, '');
+  const phoneOrChat = isGroup ? { chatId: cleanPhone } : { phone: cleanPhone };
 
   try {
     const response = await fetch(
@@ -1225,7 +1233,7 @@ export async function sendReaction(instanceId, token, phone, messageId, reaction
         method: 'POST',
         headers: getHeaders(token),
         body: JSON.stringify({
-          phone: cleanPhone,
+          ...phoneOrChat,
           messageId,
           reaction,
         }),
