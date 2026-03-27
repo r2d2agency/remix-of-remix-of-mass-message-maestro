@@ -1211,6 +1211,53 @@ router.delete('/:connectionId/webhook-events', authenticate, async (req, res) =>
   }
 });
 
+// ── Webhook Audit (persisted in DB) ──
+router.get('/:connectionId/webhook-audit', authenticate, async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+    const allowedIds = await getUserConnectionIds(req.userId);
+    if (!allowedIds.includes(connectionId)) return res.status(403).json({ error: 'Sem permissão' });
+
+    const limit = Math.min(parseInt(req.query.limit) || 100, 500);
+    const processedOnly = req.query.processed;
+
+    let sql = `SELECT id, provider, event_id, event_type, remote_jid, instance_id, from_me, processed, process_result, process_error, received_at
+               FROM inbound_webhook_audit WHERE connection_id = $1`;
+    const params = [connectionId];
+    let idx = 2;
+    if (processedOnly === 'true') sql += ` AND processed = true`;
+    else if (processedOnly === 'false') sql += ` AND processed = false`;
+    sql += ` ORDER BY received_at DESC LIMIT $${idx}`;
+    params.push(limit);
+
+    const result = await query(sql, params);
+    const summary = await query(
+      `SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE processed = true) as processed,
+              COUNT(*) FILTER (WHERE process_result = 'error') as errors,
+              COUNT(*) FILTER (WHERE process_result = 'skipped') as skipped
+       FROM inbound_webhook_audit WHERE connection_id = $1 AND received_at > NOW() - INTERVAL '24 hours'`,
+      [connectionId]
+    );
+    res.json({ audit: result.rows, summary: summary.rows[0] });
+  } catch (error) {
+    console.error('[Evolution] webhook-audit error:', error);
+    res.status(500).json({ error: 'Erro ao buscar auditoria' });
+  }
+});
+
+router.get('/:connectionId/webhook-audit/:auditId', authenticate, async (req, res) => {
+  try {
+    const { connectionId, auditId } = req.params;
+    const allowedIds = await getUserConnectionIds(req.userId);
+    if (!allowedIds.includes(connectionId)) return res.status(403).json({ error: 'Sem permissão' });
+    const result = await query(`SELECT * FROM inbound_webhook_audit WHERE id = $1 AND connection_id = $2`, [auditId, connectionId]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Não encontrado' });
+    res.json(result.rows[0]);
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao buscar detalhe' });
+  }
+});
+
 // Reconfigure webhook for a connection
 router.post('/:connectionId/reconfigure-webhook', authenticate, async (req, res) => {
   try {
