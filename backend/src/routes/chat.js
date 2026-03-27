@@ -1656,6 +1656,10 @@ router.post('/conversations/:id/messages', authenticate, async (req, res) => {
           }
         }
 
+        if (!to) {
+          throw new Error('Número de telefone ou ID do grupo não encontrado na conversa');
+        }
+
         // Use unified provider to send message
         const result = await whatsappProvider.sendMessage(
           conversation,
