@@ -829,7 +829,7 @@ router.get('/:connectionId/webhook-audit/:auditId', authenticate, async (req, re
     const { connectionId, auditId } = req.params;
     const connection = await getAccessibleConnection(connectionId, req.userId);
     if (!connection) return res.status(404).json({ error: 'Conexão não encontrada' });
-    const result = await query(`SELECT * FROM inbound_webhook_audit WHERE id = $1 AND connection_id = $2`, [auditId, connectionId]);
+    const result = await query(`SELECT * FROM inbound_webhook_audit WHERE id = $1 AND (connection_id = $2 OR connection_id IS NULL)`, [auditId, connectionId]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Não encontrado' });
     res.json(result.rows[0]);
   } catch (error) {
