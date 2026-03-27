@@ -448,6 +448,9 @@ export async function sendText(instanceId, token, phone, message) {
   const cleanPhone = isGroup ? phone : phone.replace(/\D/g, '');
   const at = new Date().toISOString();
 
+  // Build body: use chatId for groups, phone for individuals
+  const phoneOrChat = isGroup ? { chatId: cleanPhone } : { phone: cleanPhone };
+
   try {
     const response = await fetch(
       `${W_API_BASE_URL}/message/send-text?instanceId=${instanceId}`,
@@ -455,7 +458,7 @@ export async function sendText(instanceId, token, phone, message) {
         method: 'POST',
         headers: getHeaders(token),
         body: JSON.stringify({
-          phone: cleanPhone,
+          ...phoneOrChat,
           message: message,
         }),
       }
