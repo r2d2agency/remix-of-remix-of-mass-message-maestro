@@ -600,12 +600,10 @@ router.post('/webhook', async (req, res) => {
 
     if (!instanceId) {
       console.log('[W-API Webhook] No instanceId in payload');
-      pushWebhookEvent({ connectionId: null, instanceId: null, eventType: 'unknown', req, payload });
+    pushWebhookEvent({ connectionId: null, instanceId: null, eventType: 'unknown', req, payload });
+      if (auditId) await query(`UPDATE inbound_webhook_audit SET process_result='skipped', process_error='no instanceId' WHERE id=$1`, [auditId]).catch(()=>{});
       return res.status(200).json({ received: true, skipped: 'no instanceId' });
     }
-
-    // Detect event type from payload
-    const eventType = detectEventType(payload);
 
     // Find connection by instance_id
     const connResult = await query(
