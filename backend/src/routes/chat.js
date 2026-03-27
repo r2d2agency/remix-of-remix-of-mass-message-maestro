@@ -54,6 +54,23 @@ async function getUserConnections(userId) {
   return ownResult.rows.map(r => r.id);
 }
 
+let chatMessagesColumnsCache = null;
+
+async function getChatMessagesColumns() {
+  if (chatMessagesColumnsCache) {
+    return chatMessagesColumnsCache;
+  }
+
+  const result = await query(
+    `SELECT column_name
+     FROM information_schema.columns
+     WHERE table_name = 'chat_messages'`
+  );
+
+  chatMessagesColumnsCache = new Set(result.rows.map((row) => row.column_name));
+  return chatMessagesColumnsCache;
+}
+
 // ==========================================
 // CONVERSATIONS
 // ==========================================
@@ -1447,8 +1464,8 @@ router.post('/conversations/cleanup-empty', authenticate, async (req, res) => {
 
 // Get messages for a conversation
 router.get('/conversations/:id/messages', authenticate, async (req, res) => {
+  const { id } = req.params;
   try {
-    const { id } = req.params;
     const { limit = 50, before } = req.query;
     const connectionIds = await getUserConnections(req.userId);
 
@@ -1462,47 +1479,85 @@ router.get('/conversations/:id/messages', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'Conversa não encontrada' });
     }
 
+    const columns = await getChatMessagesColumns();
+    const hasQuotedMessageId = columns.has('quoted_message_id');
+    const hasQuotedContent = columns.has('quoted_content');
+    const hasQuotedMessageType = columns.has('quoted_message_type');
+    const hasQuotedFromMe = columns.has('quoted_from_me');
+    const hasQuotedSenderName = columns.has('quoted_sender_name');
+    const hasSenderName = columns.has('sender_name');
+    const hasSenderPhone = columns.has('sender_phone');
+
+    const senderNameExpr = hasSenderName ? 'm.sender_name' : 'NULL';
+    const senderPhoneExpr = hasSenderPhone ? 'm.sender_phone' : 'NULL';
+    const quotedContentBaseExpr = hasQuotedContent ? 'm.quoted_content' : 'NULL';
+    const quotedMessageTypeBaseExpr = hasQuotedMessageType ? 'm.quoted_message_type' : 'NULL';
+    const quotedFromMeBaseExpr = hasQuotedFromMe ? 'm.quoted_from_me' : 'NULL';
+    const quotedSenderNameBaseExpr = hasQuotedSenderName ? 'm.quoted_sender_name' : 'NULL';
+
     let sql = `
       SELECT 
         m.*,
         COALESCE(
-          m.sender_name,
+          ${senderNameExpr},
           u.name,
           CASE WHEN m.from_me THEN 'Você' END,
-          m.sender_phone,
+          ${senderPhoneExpr},
           'Desconhecido'
         ) as sender_name,
-        m.sender_phone,
-        COALESCE(quoted.content, m.quoted_content) as quoted_content,
-        COALESCE(quoted.message_type, m.quoted_message_type) as quoted_message_type,
-        COALESCE(quoted.from_me, m.quoted_from_me) as quoted_from_me,
-        COALESCE(quoted.sender_name, m.quoted_sender_name, 'Desconhecido') as quoted_sender_name
+        ${senderPhoneExpr} as sender_phone,
+        ${quotedContentBaseExpr} as quoted_content,
+        ${quotedMessageTypeBaseExpr} as quoted_message_type,
+        ${quotedFromMeBaseExpr} as quoted_from_me,
+        COALESCE(${quotedSenderNameBaseExpr}, 'Desconhecido') as quoted_sender_name
       FROM chat_messages m
       LEFT JOIN users u ON u.id = m.sender_id
-      LEFT JOIN LATERAL (
-        SELECT
-          q.content,
-          q.message_type,
-          q.from_me,
-          COALESCE(
-            q.sender_name,
-            qu.name,
-            CASE WHEN q.from_me THEN 'Você' END,
-            q.sender_phone,
-            'Desconhecido'
-          ) as sender_name
-        FROM chat_messages q
-        LEFT JOIN users qu ON qu.id = q.sender_id
-        WHERE m.quoted_message_id IS NOT NULL
-          AND (
-            q.id::text = m.quoted_message_id::text
-            OR q.message_id = m.quoted_message_id::text
-          )
-        ORDER BY
-          CASE WHEN q.id::text = m.quoted_message_id::text THEN 0 ELSE 1 END,
-          q.timestamp DESC
-        LIMIT 1
-      ) quoted ON true
+    `;
+
+    if (hasQuotedMessageId) {
+      sql += `
+        LEFT JOIN LATERAL (
+          SELECT
+            q.content,
+            q.message_type,
+            q.from_me,
+            COALESCE(
+              ${hasSenderName ? 'q.sender_name,' : ''}
+              qu.name,
+              CASE WHEN q.from_me THEN 'Você' END,
+              ${hasSenderPhone ? 'q.sender_phone,' : ''}
+              'Desconhecido'
+            ) as sender_name
+          FROM chat_messages q
+          LEFT JOIN users qu ON qu.id = q.sender_id
+          WHERE m.quoted_message_id IS NOT NULL
+            AND (
+              q.id::text = m.quoted_message_id::text
+              OR q.message_id = m.quoted_message_id::text
+            )
+          ORDER BY
+            CASE WHEN q.id::text = m.quoted_message_id::text THEN 0 ELSE 1 END,
+            q.timestamp DESC
+          LIMIT 1
+        ) quoted ON true
+      `;
+
+      sql = sql.replace(
+        `${quotedContentBaseExpr} as quoted_content,`,
+        `COALESCE(quoted.content, ${quotedContentBaseExpr}) as quoted_content,`
+      ).replace(
+        `${quotedMessageTypeBaseExpr} as quoted_message_type,`,
+        `COALESCE(quoted.message_type, ${quotedMessageTypeBaseExpr}) as quoted_message_type,`
+      ).replace(
+        `${quotedFromMeBaseExpr} as quoted_from_me,`,
+        `COALESCE(quoted.from_me, ${quotedFromMeBaseExpr}) as quoted_from_me,`
+      ).replace(
+        `COALESCE(${quotedSenderNameBaseExpr}, 'Desconhecido') as quoted_sender_name`,
+        `COALESCE(quoted.sender_name, ${quotedSenderNameBaseExpr}, 'Desconhecido') as quoted_sender_name`
+      );
+    }
+
+    sql += `
       WHERE m.conversation_id = $1
     `;
     const params = [id];
@@ -1517,33 +1572,15 @@ router.get('/conversations/:id/messages', authenticate, async (req, res) => {
     sql += ` ORDER BY m.timestamp DESC LIMIT $${paramIndex}`;
     params.push(parseInt(limit));
 
-     let result;
-     try {
-       result = await query(sql, params);
-     } catch (queryErr) {
-       // If lateral join fails, fallback to simpler query without quoted message resolution
-       console.error('Get messages query failed, trying fallback:', queryErr.message);
-       const fallbackSql = `
-         SELECT 
-           m.*,
-           COALESCE(m.sender_name, u.name, CASE WHEN m.from_me THEN 'Você' END, m.sender_phone, 'Desconhecido') as sender_name,
-           m.sender_phone,
-           m.quoted_content,
-           m.quoted_message_type,
-           m.quoted_from_me,
-           COALESCE(m.quoted_sender_name, 'Desconhecido') as quoted_sender_name
-         FROM chat_messages m
-         LEFT JOIN users u ON u.id = m.sender_id
-         WHERE m.conversation_id = $1
-         ORDER BY m.timestamp DESC
-         LIMIT $2
-       `;
-       result = await query(fallbackSql, [id, parseInt(limit)]);
-     }
-     // Return in chronological order
-     res.json(result.rows.reverse());
+    const result = await query(sql, params);
+
+    res.json(result.rows.reverse());
   } catch (error) {
-    console.error('Get messages error:', error.message, { conversationId: id, stack: error.stack });
+    console.error('Get messages error:', {
+      conversationId: id,
+      message: error.message,
+      stack: error.stack,
+    });
     res.status(500).json({ error: 'Erro ao buscar mensagens' });
   }
 });
@@ -1677,9 +1714,24 @@ router.post('/conversations/:id/messages', authenticate, async (req, res) => {
           }
         }
 
+        if (!to && conversation.is_group && conversation.contact_phone) {
+          to = String(conversation.contact_phone);
+        }
+
         if (!to) {
           throw new Error('Número de telefone ou ID do grupo não encontrado na conversa');
         }
+
+        console.log('Chat send destination resolved:', {
+          conversation_id: id,
+          provider,
+          is_group: isGroup,
+          remote_jid: conversation.remote_jid,
+          contact_phone: conversation.contact_phone,
+          destination: to,
+          message_type,
+          quoted_message_id: quoted_message_id || null,
+        });
 
         // Use unified provider to send message
         const result = await whatsappProvider.sendMessage(
