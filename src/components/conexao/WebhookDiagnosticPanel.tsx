@@ -137,6 +137,27 @@ interface WapiSendAttempt {
   preview?: string;
 }
 
+interface AuditEntry {
+  id: string;
+  provider: string;
+  event_id: string | null;
+  event_type: string | null;
+  remote_jid: string | null;
+  instance_id: string | null;
+  from_me: boolean;
+  processed: boolean;
+  process_result: string | null;
+  process_error: string | null;
+  received_at: string;
+}
+
+interface AuditSummary {
+  total: string;
+  processed: string;
+  errors: string;
+  skipped: string;
+}
+
 interface Props {
   connection: Connection;
   onClose?: () => void;
