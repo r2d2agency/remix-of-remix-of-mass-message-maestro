@@ -1517,12 +1517,33 @@ router.get('/conversations/:id/messages', authenticate, async (req, res) => {
     sql += ` ORDER BY m.timestamp DESC LIMIT $${paramIndex}`;
     params.push(parseInt(limit));
 
-    const result = await query(sql, params);
-    
-    // Return in chronological order
-    res.json(result.rows.reverse());
+     let result;
+     try {
+       result = await query(sql, params);
+     } catch (queryErr) {
+       // If lateral join fails, fallback to simpler query without quoted message resolution
+       console.error('Get messages query failed, trying fallback:', queryErr.message);
+       const fallbackSql = `
+         SELECT 
+           m.*,
+           COALESCE(m.sender_name, u.name, CASE WHEN m.from_me THEN 'Você' END, m.sender_phone, 'Desconhecido') as sender_name,
+           m.sender_phone,
+           m.quoted_content,
+           m.quoted_message_type,
+           m.quoted_from_me,
+           COALESCE(m.quoted_sender_name, 'Desconhecido') as quoted_sender_name
+         FROM chat_messages m
+         LEFT JOIN users u ON u.id = m.sender_id
+         WHERE m.conversation_id = $1
+         ORDER BY m.timestamp DESC
+         LIMIT $2
+       `;
+       result = await query(fallbackSql, [id, parseInt(limit)]);
+     }
+     // Return in chronological order
+     res.json(result.rows.reverse());
   } catch (error) {
-    console.error('Get messages error:', error);
+    console.error('Get messages error:', error.message, { conversationId: id, stack: error.stack });
     res.status(500).json({ error: 'Erro ao buscar mensagens' });
   }
 });
