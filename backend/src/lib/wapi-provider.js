@@ -777,13 +777,14 @@ export async function sendDocument(instanceId, token, phone, documentUrl, filena
   const extension = extensionMatch ? extensionMatch[1].toLowerCase() : 'pdf';
 
   try {
+    const phoneOrChat = isGroup ? { chatId: cleanPhone } : { phone: cleanPhone };
     const response = await fetch(
       `${W_API_BASE_URL}/message/send-document?instanceId=${instanceId}`,
       {
         method: 'POST',
         headers: getHeaders(token),
         body: JSON.stringify({
-          phone: cleanPhone,
+          ...phoneOrChat,
           document: effectiveDocumentUrl,
           filename: filenameWithExt,
           // Some W-API installations/docs use camelCase
