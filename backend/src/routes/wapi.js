@@ -618,20 +618,20 @@ router.post('/webhook', async (req, res) => {
     if (connResult.rows.length === 0) {
       console.log('[W-API Webhook] Connection not found for instance:', instanceId);
       pushWebhookEvent({ connectionId: null, instanceId, eventType, req, payload });
+      if (auditId) await query(`UPDATE inbound_webhook_audit SET process_result='skipped', process_error='connection not found' WHERE id=$1`, [auditId]).catch(()=>{});
       return res.status(200).json({ received: true, skipped: 'connection not found' });
     }
 
     const connection = connResult.rows[0];
 
-    pushWebhookEvent({ connectionId: connection.id, instanceId, eventType, req, payload });
+    // Update audit with connection_id
+    if (auditId) await query(`UPDATE inbound_webhook_audit SET connection_id=$1 WHERE id=$2`, [connection.id, auditId]).catch(()=>{});
 
-    console.log('[W-API Webhook] Event type:', eventType, 'Instance:', instanceId, 'fromMe:', payload.fromMe, 'chat.id:', payload.chat?.id);
+    pushWebhookEvent({ connectionId: connection.id, instanceId, eventType, req, payload });
 
     switch (eventType) {
       case 'message_received':
-        console.log('[W-API Webhook] Calling handleIncomingMessage...');
         await handleIncomingMessage(connection, payload);
-        console.log('[W-API Webhook] handleIncomingMessage completed');
         break;
       case 'message_sent':
         await handleOutgoingMessage(connection, payload);
@@ -643,13 +643,19 @@ router.post('/webhook', async (req, res) => {
         await handleConnectionUpdate(connection, payload);
         break;
       default:
+        if (auditId) await query(`UPDATE inbound_webhook_audit SET process_result='skipped', process_error='unknown event type' WHERE id=$1`, [auditId]).catch(()=>{});
         console.log('[W-API Webhook] Unknown event type, payload:', JSON.stringify(payload).slice(0, 300));
+    }
+
+    // Mark audit as processed for known event types
+    if (auditId && ['message_received', 'message_sent', 'status_update', 'connection_update'].includes(eventType)) {
+      await query(`UPDATE inbound_webhook_audit SET processed=true, process_result='saved' WHERE id=$1`, [auditId]).catch(()=>{});
     }
 
     res.status(200).json({ received: true, processed: eventType });
   } catch (error) {
     console.error('[W-API Webhook] Error:', error);
-    // Always return 200 to prevent W-API from retrying
+    if (auditId) await query(`UPDATE inbound_webhook_audit SET processed=false, process_result='error', process_error=$1 WHERE id=$2`, [error.message, auditId]).catch(()=>{});
     res.status(200).json({ received: true, error: error.message });
   }
 });
