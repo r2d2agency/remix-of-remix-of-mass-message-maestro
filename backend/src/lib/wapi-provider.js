@@ -559,6 +559,7 @@ export async function sendImage(instanceId, token, phone, imageUrl, caption = ''
 export async function sendAudio(instanceId, token, phone, audioUrl) {
   const isGroup = phone.includes('@g.us');
   const cleanPhone = isGroup ? phone : phone.replace(/\D/g, '');
+  const phoneOrChat = isGroup ? { chatId: cleanPhone } : { phone: cleanPhone };
   
   try {
     // W-API only accepts .mp3 or .ogg URLs.
@@ -586,7 +587,7 @@ export async function sendAudio(instanceId, token, phone, audioUrl) {
         method: 'POST',
         headers: getHeaders(token),
         body: JSON.stringify({
-          phone: cleanPhone,
+          ...phoneOrChat,
           audio: finalAudioUrl,
         }),
       }
