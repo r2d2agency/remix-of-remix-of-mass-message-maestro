@@ -115,6 +115,30 @@ function getHeaders(token) {
   };
 }
 
+function normalizeWapiRecipient(phone) {
+  const raw = String(phone || '').trim();
+
+  if (!raw) {
+    return { isGroup: false, target: '', payload: { phone: '' } };
+  }
+
+  const normalized = raw
+    .replace(/^['"]|['"]$/g, '')
+    .replace(/\s+/g, '')
+    .trim();
+
+  const isGroup = normalized.includes('@g.us');
+  const target = isGroup
+    ? normalized.replace(/@.*$/, '') + '@g.us'
+    : normalized.replace(/\D/g, '');
+
+  return {
+    isGroup,
+    target,
+    payload: isGroup ? { chatId: target } : { phone: target },
+  };
+}
+
 /**
  * Configure all webhooks for a W-API instance
  * Called when creating or updating a connection
@@ -443,13 +467,8 @@ export async function disconnect(instanceId, token) {
  * Send text message
  */
 export async function sendText(instanceId, token, phone, message) {
-  // For groups (@g.us), keep the full JID; for individuals, clean the phone
-  const isGroup = phone.includes('@g.us');
-  const cleanPhone = isGroup ? phone : phone.replace(/\D/g, '');
+  const { target: cleanPhone, payload: phoneOrChat } = normalizeWapiRecipient(phone);
   const at = new Date().toISOString();
-
-  // Build body: use chatId for groups, phone for individuals
-  const phoneOrChat = isGroup ? { chatId: cleanPhone } : { phone: cleanPhone };
 
   try {
     const response = await fetch(
@@ -516,9 +535,7 @@ export async function sendText(instanceId, token, phone, message) {
  * Send image message
  */
 export async function sendImage(instanceId, token, phone, imageUrl, caption = '') {
-  const isGroup = phone.includes('@g.us');
-  const cleanPhone = isGroup ? phone : phone.replace(/\D/g, '');
-  const phoneOrChat = isGroup ? { chatId: cleanPhone } : { phone: cleanPhone };
+  const { target: cleanPhone, payload: phoneOrChat } = normalizeWapiRecipient(phone);
   
   try {
     const response = await fetch(
@@ -557,9 +574,7 @@ export async function sendImage(instanceId, token, phone, imageUrl, caption = ''
  * Send audio message
  */
 export async function sendAudio(instanceId, token, phone, audioUrl) {
-  const isGroup = phone.includes('@g.us');
-  const cleanPhone = isGroup ? phone : phone.replace(/\D/g, '');
-  const phoneOrChat = isGroup ? { chatId: cleanPhone } : { phone: cleanPhone };
+  const { target: cleanPhone, payload: phoneOrChat } = normalizeWapiRecipient(phone);
   
   try {
     // W-API only accepts .mp3 or .ogg URLs.
@@ -616,9 +631,7 @@ export async function sendAudio(instanceId, token, phone, audioUrl) {
  * Send video message
  */
 export async function sendVideo(instanceId, token, phone, videoUrl, caption = '') {
-  const isGroup = phone.includes('@g.us');
-  const cleanPhone = isGroup ? phone : phone.replace(/\D/g, '');
-  const phoneOrChat = isGroup ? { chatId: cleanPhone } : { phone: cleanPhone };
+  const { target: cleanPhone, payload: phoneOrChat } = normalizeWapiRecipient(phone);
   
   try {
     const response = await fetch(
@@ -657,8 +670,7 @@ export async function sendVideo(instanceId, token, phone, videoUrl, caption = ''
  * Send document message
  */
 export async function sendDocument(instanceId, token, phone, documentUrl, filename = 'document') {
-  const isGroup = phone.includes('@g.us');
-  const cleanPhone = isGroup ? phone : phone.replace(/\D/g, '');
+  const { isGroup, target: cleanPhone } = normalizeWapiRecipient(phone);
   const at = new Date().toISOString();
 
   const sanitizeFilenameBase = (name) => {
@@ -777,7 +789,7 @@ export async function sendDocument(instanceId, token, phone, documentUrl, filena
   const extension = extensionMatch ? extensionMatch[1].toLowerCase() : 'pdf';
 
   try {
-    const phoneOrChat = isGroup ? { chatId: cleanPhone } : { phone: cleanPhone };
+    const { payload: phoneOrChat } = normalizeWapiRecipient(phone);
     const response = await fetch(
       `${W_API_BASE_URL}/message/send-document?instanceId=${instanceId}`,
       {
@@ -1222,9 +1234,7 @@ export async function sendMessage(instanceId, token, phone, content, messageType
  * Body: { phone, messageId, reaction }
  */
 export async function sendReaction(instanceId, token, phone, messageId, reaction) {
-  const isGroup = phone.includes('@g.us');
-  const cleanPhone = isGroup ? phone : phone.replace(/\D/g, '');
-  const phoneOrChat = isGroup ? { chatId: cleanPhone } : { phone: cleanPhone };
+  const { target: cleanPhone, payload: phoneOrChat } = normalizeWapiRecipient(phone);
 
   try {
     const response = await fetch(
