@@ -1633,7 +1633,19 @@ router.post('/conversations/:id/messages', authenticate, async (req, res) => {
         const isGroup = String(conversation.remote_jid || '').includes('@g.us') || conversation.is_group === true;
         let to;
         if (isGroup) {
-          to = conversation.remote_jid;
+          // Use remote_jid if it already has @g.us; otherwise reconstruct from available data
+          const jid = String(conversation.remote_jid || '');
+          if (jid.includes('@g.us')) {
+            to = jid;
+          } else if (conversation.group_jid) {
+            to = conversation.group_jid;
+          } else if (jid && !jid.includes('@')) {
+            to = `${jid}@g.us`;
+          } else {
+            // Last resort: strip any suffix and add @g.us
+            const cleanJid = jid.replace(/@.*$/, '');
+            to = cleanJid ? `${cleanJid}@g.us` : null;
+          }
         } else {
           // For @lid JIDs, use contact_phone instead (the @lid ID is not a real phone number)
           const jid = String(conversation.remote_jid || '');
