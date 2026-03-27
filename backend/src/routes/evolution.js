@@ -879,28 +879,41 @@ router.get('/:connectionId/info', authenticate, async (req, res) => {
 // Evolution API Webhook - receives real-time messages
 // This endpoint should be public (no authentication)
 router.post('/webhook', async (req, res) => {
+  let auditId = null;
   try {
     const payload = req.body;
-    
-    console.log('=== WEBHOOK RECEIVED ===');
-    console.log('Headers:', JSON.stringify(req.headers, null, 2));
-    console.log('Body:', JSON.stringify(payload, null, 2));
 
-    // Evolution API can send events in different formats
-    // Format 1: { event: "messages.upsert", instance: "name", data: {...} }
-    // Format 2: { instance: "name", data: {...}, event: "messages.upsert" }
-    // Format 3: { apikey: "...", event: "MESSAGES_UPSERT", instance: "name", data: {...} }
-    
     const event = payload.event?.toLowerCase?.() || payload.event;
     const instanceName = payload.instance || payload.instanceName;
     const data = payload.data || payload;
+    const normalizedEvent = typeof event === 'string' ? event.replace(/_/g, '.').toLowerCase() : null;
 
-    const normalizedEvent = typeof event === 'string'
-      ? event.replace(/_/g, '.').toLowerCase()
-      : null;
+    // Extract message ID and remote JID for audit
+    const eventMsgId = data?.key?.id || data?.id || data?.messageId || null;
+    const remoteJid = data?.key?.remoteJid || data?.remoteJid || data?.from || null;
+    const fromMe = data?.key?.fromMe === true;
 
-    console.log('Parsed - Event:', event, 'Instance:', instanceName);
-    console.log('Webhook: Normalized event:', normalizedEvent);
+    // ── Persist audit row BEFORE any processing ──
+    try {
+      let safePayload = payload;
+      if (safePayload && typeof safePayload === 'object') {
+        safePayload = { ...safePayload };
+        delete safePayload.apikey;
+      }
+      const truncatedPayload = JSON.stringify(safePayload).slice(0, 8000);
+      const auditResult = await query(
+        `INSERT INTO inbound_webhook_audit (provider, event_id, event_type, remote_jid, instance_id, from_me, payload, received_at)
+         VALUES ('evolution', $1, $2, $3, $4, $5, $6::jsonb, NOW())
+         ON CONFLICT (provider, event_id) WHERE event_id IS NOT NULL DO UPDATE SET received_at = NOW()
+         RETURNING id`,
+        [eventMsgId, normalizedEvent, remoteJid, instanceName || null, fromMe, truncatedPayload]
+      );
+      auditId = auditResult.rows[0]?.id || null;
+    } catch (auditErr) {
+      console.error('[Evolution Webhook] Audit insert error (non-fatal):', auditErr.message);
+    }
+
+    console.log('Webhook: Event:', normalizedEvent, 'Instance:', instanceName, 'auditId:', auditId);
 
     // Track last webhook received + keep small buffer for UI debugging
     try {
@@ -919,18 +932,13 @@ router.post('/webhook', async (req, res) => {
         'x-real-ip': req.headers['x-real-ip'],
       };
 
-      let safePayload = payload;
-      if (safePayload && typeof safePayload === 'object') {
-        safePayload = { ...safePayload };
-        delete safePayload.apikey;
+      let safePayload2 = payload;
+      if (safePayload2 && typeof safePayload2 === 'object') {
+        safePayload2 = { ...safePayload2 };
+        delete safePayload2.apikey;
       }
-
       let preview = '';
-      try {
-        preview = JSON.stringify(safePayload);
-      } catch {
-        preview = '';
-      }
+      try { preview = JSON.stringify(safePayload2); } catch { preview = ''; }
       if (preview.length > 4000) preview = `${preview.slice(0, 4000)}…`;
 
       webhookEvents.push({
@@ -950,6 +958,7 @@ router.post('/webhook', async (req, res) => {
 
     if (!instanceName) {
       console.log('Webhook: Missing instance name');
+      if (auditId) await query(`UPDATE inbound_webhook_audit SET process_result='skipped', process_error='no instance name' WHERE id=$1`, [auditId]).catch(()=>{});
       return res.status(200).json({ received: true });
     }
 
@@ -961,12 +970,15 @@ router.post('/webhook', async (req, res) => {
 
     if (connResult.rows.length === 0) {
       console.log('Webhook: Connection not found for instance:', instanceName);
+      if (auditId) await query(`UPDATE inbound_webhook_audit SET process_result='skipped', process_error='connection not found' WHERE id=$1`, [auditId]).catch(()=>{});
       return res.status(200).json({ received: true });
     }
 
     const connection = connResult.rows[0];
     console.log('Webhook: Found connection:', connection.id, connection.name);
 
+    // Update audit with connection_id
+    if (auditId) await query(`UPDATE inbound_webhook_audit SET connection_id=$1 WHERE id=$2`, [connection.id, auditId]).catch(()=>{});
 
     // Handle different event types
     switch (normalizedEvent) {
@@ -992,13 +1004,19 @@ router.post('/webhook', async (req, res) => {
         break;
       
       default:
+        if (auditId) await query(`UPDATE inbound_webhook_audit SET process_result='skipped', process_error='unhandled event' WHERE id=$1`, [auditId]).catch(()=>{});
         console.log('Webhook: Event type:', normalizedEvent, '- not handled');
+    }
+
+    // Mark audit as processed for known event types
+    if (auditId && ['messages.upsert', 'send.message', 'messages.update', 'connection.update', 'presence.update'].includes(normalizedEvent)) {
+      await query(`UPDATE inbound_webhook_audit SET processed=true, process_result='saved' WHERE id=$1`, [auditId]).catch(()=>{});
     }
 
     res.status(200).json({ received: true, event: normalizedEvent });
   } catch (error) {
     console.error('Webhook error:', error);
-    // Always return 200 to acknowledge receipt
+    if (auditId) await query(`UPDATE inbound_webhook_audit SET processed=false, process_result='error', process_error=$1 WHERE id=$2`, [error.message, auditId]).catch(()=>{});
     res.status(200).json({ received: true, error: error.message });
   }
 });
