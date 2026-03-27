@@ -1465,16 +1465,44 @@ router.get('/conversations/:id/messages', authenticate, async (req, res) => {
     let sql = `
       SELECT 
         m.*,
-        COALESCE(m.sender_name, u.name) as sender_name,
+        COALESCE(
+          m.sender_name,
+          u.name,
+          CASE WHEN m.from_me THEN 'Você' END,
+          m.sender_phone,
+          'Desconhecido'
+        ) as sender_name,
         m.sender_phone,
-        COALESCE(qm.content, m.quoted_content) as quoted_content,
-        COALESCE(qm.message_type, m.quoted_message_type) as quoted_message_type,
-        COALESCE(qm.from_me, m.quoted_from_me) as quoted_from_me,
-        COALESCE(qm.sender_name, qu.name, m.quoted_sender_name) as quoted_sender_name
+        COALESCE(quoted.content, m.quoted_content) as quoted_content,
+        COALESCE(quoted.message_type, m.quoted_message_type) as quoted_message_type,
+        COALESCE(quoted.from_me, m.quoted_from_me) as quoted_from_me,
+        COALESCE(quoted.sender_name, m.quoted_sender_name, 'Desconhecido') as quoted_sender_name
       FROM chat_messages m
       LEFT JOIN users u ON u.id = m.sender_id
-      LEFT JOIN chat_messages qm ON qm.message_id = m.quoted_message_id
-      LEFT JOIN users qu ON qu.id = qm.sender_id
+      LEFT JOIN LATERAL (
+        SELECT
+          q.content,
+          q.message_type,
+          q.from_me,
+          COALESCE(
+            q.sender_name,
+            qu.name,
+            CASE WHEN q.from_me THEN 'Você' END,
+            q.sender_phone,
+            'Desconhecido'
+          ) as sender_name
+        FROM chat_messages q
+        LEFT JOIN users qu ON qu.id = q.sender_id
+        WHERE m.quoted_message_id IS NOT NULL
+          AND (
+            q.id::text = m.quoted_message_id::text
+            OR q.message_id = m.quoted_message_id::text
+          )
+        ORDER BY
+          CASE WHEN q.id::text = m.quoted_message_id::text THEN 0 ELSE 1 END,
+          q.timestamp DESC
+        LIMIT 1
+      ) quoted ON true
       WHERE m.conversation_id = $1
     `;
     const params = [id];
