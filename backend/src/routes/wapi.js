@@ -1016,33 +1016,33 @@ router.post('/:connectionId/sync-all-groups', authenticate, async (req, res) => 
  */
 function detectEventType(payload) {
   const event = payload.event;
-  const hasMessageContent = !!(payload.msgContent || payload.text || payload.body);
+  const hasMessageContent = !!(payload.msgContent || payload.text || payload.body || payload.message);
   const hasChatId = !!(payload.chat?.id || payload.phone || payload.from || payload.remoteJid);
 
   // W-API specific event types
-  // webhookReceived can be fromMe=true when sent from the phone directly
-  if (event === 'webhookReceived' || event === 'onMessage' || event === 'message_received') {
-    // Check if it's actually a message we sent from the phone
+  if (event === 'webhookReceived' || event === 'onMessage' || event === 'message_received' || event === 'onGroupMessage') {
     if (payload.fromMe === true || payload.isFromMe === true) {
       return 'message_sent';
     }
     return 'message_received';
   }
   if (event === 'webhookDelivery' || event === 'onMessageSent' || event === 'message_sent') return 'message_sent';
-  if (event === 'webhookStatus' || event === 'onAck' || event === 'message_status') return 'status_update';
+  if (event === 'webhookStatus' || event === 'onAck' || event === 'message_status' || event === 'onMessageAck') return 'status_update';
   if (event === 'webhookConnected' || event === 'webhookDisconnected' || event === 'connection.update') return 'connection_update';
+  // Group-specific events from W-API
+  if (event === 'onGroupJoin' || event === 'onGroupLeave' || event === 'onGroupUpdate' || event === 'onGroupParticipantsUpdate') return 'status_update';
+  // Presence/typing events
+  if (event === 'onPresenceUpdate' || event === 'onTyping' || event === 'presence.update') return 'status_update';
 
   // Legacy/fallback: Evolution-style events
   if (event === 'message' || event === 'messages.upsert') {
     if (payload.fromMe === false || payload.isFromMe === false) return 'message_received';
     if (payload.fromMe === true || payload.isFromMe === true) return 'message_sent';
-    // If fromMe is undefined, check for msgContent to decide
     if (hasMessageContent) return 'message_received';
     return 'message_sent';
   }
 
   // IMPORTANT: Check for message content BEFORE ack/status checks
-  // This prevents W-API payloads with extra fields from being misclassified
   if (hasMessageContent && hasChatId) {
     if (payload.fromMe === true || payload.isFromMe === true || payload.fromApi === true) return 'message_sent';
     return 'message_received';
@@ -1051,7 +1051,7 @@ function detectEventType(payload) {
   // Status update (legacy ack) - only if no message content
   if (event === 'message.ack' || (payload.ack !== undefined && !hasMessageContent)) return 'status_update';
 
-  // Connection status (be strict: avoid treating delivery status as connection)
+  // Connection status
   if (
     payload.connected !== undefined &&
     !hasMessageContent &&
@@ -1066,7 +1066,6 @@ function detectEventType(payload) {
     payload.state === 'open' ||
     payload.state === 'close'
   ) {
-    // Only treat as connection_update if no message content
     if (!hasMessageContent && !hasChatId) return 'connection_update';
   }
 
@@ -1074,7 +1073,6 @@ function detectEventType(payload) {
   if (hasChatId) {
     if (payload.fromMe === true || payload.isFromMe === true || payload.fromApi === true) return 'message_sent';
     if (payload.fromMe === false || payload.isFromMe === false) return 'message_received';
-    // If completely ambiguous but has a chat target, assume incoming
     if (hasMessageContent) return 'message_received';
   }
 
