@@ -184,6 +184,13 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
   const [wapiSendAttempts, setWapiSendAttempts] = useState<WapiSendAttempt[]>([]);
   const [wapiSendAttemptsLoading, setWapiSendAttemptsLoading] = useState(false);
 
+  // Webhook Audit (persisted in DB)
+  const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
+  const [auditSummary, setAuditSummary] = useState<AuditSummary | null>(null);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditFilter, setAuditFilter] = useState<string>('all'); // 'all', 'processed', 'errors', 'skipped'
+  const [auditDetail, setAuditDetail] = useState<any>(null);
+
   const fetchDiagnostic = useCallback(async () => {
     setLoading(true);
     try {
