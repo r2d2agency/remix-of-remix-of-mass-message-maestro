@@ -1921,7 +1921,7 @@ function extractMessageContent(payload) {
   let mediaMimetype = null;
   let waMediaKey = null; // For encrypted WhatsApp media
 
-  const msgContent = payload.msgContent || {};
+  const msgContent = payload.msgContent || payload.message?.message || payload.message || {};
 
   // Helper to extract mediaKey from various locations
   const extractMediaKey = (obj) => {
@@ -1942,20 +1942,78 @@ function extractMessageContent(payload) {
     const m = pickFirstString(obj, ['mimetype', 'mimeType', 'type', 'contentType']);
     return m || null;
   };
+
+  const addTextCandidate = (candidates, value, source) => {
+    if (typeof value !== 'string') return;
+    const normalized = value.replace(/\u0000/g, '').trim();
+    if (!normalized) return;
+    candidates.push({
+      value: normalized,
+      source,
+      score: /^[.…。]+$/.test(normalized) ? 0 : normalized.length,
+    });
+  };
+
+  const collectTextCandidates = (node, candidates, depth = 0) => {
+    if (!node || typeof node !== 'object' || depth > 6) return;
+
+    addTextCandidate(candidates, node.conversation, `conversation:${depth}`);
+    addTextCandidate(candidates, node.extendedTextMessage?.text, `extendedText:${depth}`);
+    addTextCandidate(candidates, node.imageMessage?.caption, `imageCaption:${depth}`);
+    addTextCandidate(candidates, node.videoMessage?.caption, `videoCaption:${depth}`);
+    addTextCandidate(candidates, node.documentMessage?.caption, `documentCaption:${depth}`);
+    addTextCandidate(candidates, node.documentWithCaptionMessage?.message?.documentMessage?.caption, `documentWithCaption:${depth}`);
+    addTextCandidate(candidates, node.editedMessage?.message?.conversation, `editedConversation:${depth}`);
+    addTextCandidate(candidates, node.editedMessage?.message?.extendedTextMessage?.text, `editedExtendedText:${depth}`);
+    addTextCandidate(candidates, node.protocolMessage?.editedMessage?.message?.conversation, `protocolEditedConversation:${depth}`);
+    addTextCandidate(candidates, node.protocolMessage?.editedMessage?.message?.extendedTextMessage?.text, `protocolEditedExtendedText:${depth}`);
+
+    const nestedKeys = [
+      'message',
+      'msgContent',
+      'ephemeralMessage',
+      'viewOnceMessage',
+      'viewOnceMessageV2',
+      'viewOnceMessageV2Extension',
+      'documentWithCaptionMessage',
+      'editedMessage',
+      'protocolMessage',
+    ];
+
+    for (const key of nestedKeys) {
+      collectTextCandidates(node[key], candidates, depth + 1);
+    }
+  };
+
+  const textCandidates = [];
+  collectTextCandidates(msgContent, textCandidates);
+  collectTextCandidates(payload.message, textCandidates);
+  addTextCandidate(textCandidates, payload.text, 'payload.text');
+  addTextCandidate(textCandidates, payload.body, 'payload.body');
+
+  if (typeof payload.message === 'string') {
+    addTextCandidate(textCandidates, payload.message, 'payload.message');
+  } else if (payload.message && typeof payload.message === 'object') {
+    addTextCandidate(textCandidates, payload.message?.text, 'payload.message.text');
+    addTextCandidate(textCandidates, payload.message?.body, 'payload.message.body');
+    addTextCandidate(textCandidates, payload.message?.conversation, 'payload.message.conversation');
+  }
+
+  const bestTextCandidate = textCandidates.sort((a, b) => b.score - a.score)[0]?.value || '';
   
   // Check for direct media URL at payload level (some W-API versions)
   const payloadMediaUrl = pickFirstString(payload, ['mediaUrl', 'url', 'fileUrl', 'downloadUrl', 'media', 'base64', 'data']);
 
   // Text message (W-API uses msgContent.conversation)
   if (typeof msgContent.conversation === 'string' && msgContent.conversation) {
-    content = msgContent.conversation;
+    content = bestTextCandidate || msgContent.conversation;
     messageType = 'text';
     return { messageType, content, mediaUrl, mediaMimetype, waMediaKey };
   }
 
   // Extended text message
   if (msgContent.extendedTextMessage) {
-    content = msgContent.extendedTextMessage.text || '';
+    content = bestTextCandidate || msgContent.extendedTextMessage.text || '';
     messageType = 'text';
     return { messageType, content, mediaUrl, mediaMimetype, waMediaKey };
   }
@@ -1967,7 +2025,7 @@ function extractMessageContent(payload) {
     mediaUrl =
       pickFirstString(msgContent.imageMessage, ['url', 'fileUrl', 'mediaUrl', 'link', 'downloadUrl', 'base64', 'data']) ||
       payloadMediaUrl;
-    content = msgContent.imageMessage.caption || '';
+    content = msgContent.imageMessage.caption || bestTextCandidate || '';
     waMediaKey = extractMediaKey(msgContent.imageMessage) || extractMediaKey(payload);
     console.log('[W-API Extract] Image message found. MediaURL:', mediaUrl?.slice?.(0, 100), 'MIME:', mediaMimetype, 'hasMediaKey:', Boolean(waMediaKey));
     return { messageType, content, mediaUrl, mediaMimetype, waMediaKey };
@@ -1992,7 +2050,7 @@ function extractMessageContent(payload) {
     mediaUrl =
       pickFirstString(msgContent.videoMessage, ['url', 'fileUrl', 'mediaUrl', 'link', 'downloadUrl', 'base64', 'data']) ||
       pickFirstString(payload, ['mediaUrl', 'url', 'fileUrl', 'downloadUrl', 'base64', 'data']);
-    content = msgContent.videoMessage.caption || '';
+    content = msgContent.videoMessage.caption || bestTextCandidate || '';
     waMediaKey = extractMediaKey(msgContent.videoMessage) || extractMediaKey(payload);
     return { messageType, content, mediaUrl, mediaMimetype, waMediaKey };
   }
@@ -2005,7 +2063,7 @@ function extractMessageContent(payload) {
     mediaUrl =
       pickFirstString(docMsg, ['url', 'fileUrl', 'mediaUrl', 'link', 'downloadUrl', 'base64', 'data']) ||
       pickFirstString(payload, ['mediaUrl', 'url', 'fileUrl', 'downloadUrl', 'base64', 'data']);
-    content = docMsg.fileName || msgContent.documentWithCaptionMessage?.message?.documentMessage?.caption || '[Documento]';
+    content = docMsg.fileName || msgContent.documentWithCaptionMessage?.message?.documentMessage?.caption || bestTextCandidate || '[Documento]';
     waMediaKey = extractMediaKey(docMsg) || extractMediaKey(payload);
     return { messageType, content, mediaUrl, mediaMimetype, waMediaKey };
   }
@@ -2043,10 +2101,10 @@ function extractMessageContent(payload) {
   }
 
   // Fallback: legacy format (payload.text, payload.body, etc.)
-  if (payload.text || payload.body || payload.message) {
-    content = payload.text || payload.body || payload.message;
+  if (bestTextCandidate || payload.text || payload.body || payload.message) {
+    content = bestTextCandidate || payload.text || payload.body || payload.message;
     if (typeof content === 'object') {
-      content = content.text || content.body || content.conversation || JSON.stringify(content);
+      content = content.text || content.body || content.conversation || bestTextCandidate || JSON.stringify(content);
     }
     messageType = 'text';
   }
