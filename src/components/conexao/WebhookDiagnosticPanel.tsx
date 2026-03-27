@@ -396,6 +396,7 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
 
   useEffect(() => {
     fetchDiagnostic();
+    fetchAudit();
 
     if (isWapi) {
       fetchWapiEvents();
@@ -403,7 +404,7 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
     } else {
       fetchEvents();
     }
-  }, [fetchDiagnostic, fetchEvents, fetchWapiEvents, fetchWapiSendAttempts, isWapi]);
+  }, [fetchDiagnostic, fetchEvents, fetchWapiEvents, fetchWapiSendAttempts, fetchAudit, isWapi]);
 
   // Auto-refresh every 3 seconds
   useEffect(() => {
