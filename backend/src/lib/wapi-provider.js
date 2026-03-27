@@ -618,6 +618,7 @@ export async function sendAudio(instanceId, token, phone, audioUrl) {
 export async function sendVideo(instanceId, token, phone, videoUrl, caption = '') {
   const isGroup = phone.includes('@g.us');
   const cleanPhone = isGroup ? phone : phone.replace(/\D/g, '');
+  const phoneOrChat = isGroup ? { chatId: cleanPhone } : { phone: cleanPhone };
   
   try {
     const response = await fetch(
@@ -626,7 +627,7 @@ export async function sendVideo(instanceId, token, phone, videoUrl, caption = ''
         method: 'POST',
         headers: getHeaders(token),
         body: JSON.stringify({
-          phone: cleanPhone,
+          ...phoneOrChat,
           video: videoUrl,
           caption: caption,
         }),
