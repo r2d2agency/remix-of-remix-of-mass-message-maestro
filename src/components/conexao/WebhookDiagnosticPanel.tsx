@@ -23,6 +23,8 @@ import {
   Copy,
   Play,
   Radio,
+  Database,
+  Eye,
 } from "lucide-react";
 
 interface Connection {
