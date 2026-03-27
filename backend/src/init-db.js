@@ -3235,6 +3235,31 @@ CREATE INDEX IF NOT EXISTS idx_conn_error_logs_org ON connection_error_logs(orga
 CREATE INDEX IF NOT EXISTS idx_conn_error_logs_created ON connection_error_logs(created_at);
 `;
 
+// Step 43: Inbound Webhook Audit
+const step43WebhookAudit = `
+CREATE TABLE IF NOT EXISTS inbound_webhook_audit (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  provider VARCHAR(20) NOT NULL,
+  event_id VARCHAR(255),
+  event_type VARCHAR(100),
+  remote_jid VARCHAR(255),
+  instance_id VARCHAR(255),
+  connection_id UUID,
+  from_me BOOLEAN,
+  processed BOOLEAN DEFAULT false,
+  process_result VARCHAR(50),
+  process_error TEXT,
+  payload JSONB,
+  received_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_webhook_audit_provider_event 
+  ON inbound_webhook_audit(provider, event_id) WHERE event_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_webhook_audit_connection_time 
+  ON inbound_webhook_audit(connection_id, received_at DESC);
+CREATE INDEX IF NOT EXISTS idx_webhook_audit_received 
+  ON inbound_webhook_audit(received_at DESC);
+`;
+
 // Migration steps in order of execution
 const migrationSteps = [
   { name: 'Enums', sql: step1Enums, critical: true },
@@ -3280,6 +3305,7 @@ const migrationSteps = [
   { name: 'Flow Categories & Access', sql: step40FlowCategoriesAccess, critical: false },
   { name: 'Permission Templates', sql: step41PermissionTemplates, critical: false },
   { name: 'Connection Error Logs', sql: step42ConnectionErrorLogs, critical: false },
+  { name: 'Webhook Audit', sql: step43WebhookAudit, critical: false },
 ];
 
 export async function initDatabase() {

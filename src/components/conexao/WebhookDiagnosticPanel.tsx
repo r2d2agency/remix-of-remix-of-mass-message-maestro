@@ -23,6 +23,8 @@ import {
   Copy,
   Play,
   Radio,
+  Database,
+  Eye,
 } from "lucide-react";
 
 interface Connection {
@@ -135,6 +137,27 @@ interface WapiSendAttempt {
   preview?: string;
 }
 
+interface AuditEntry {
+  id: string;
+  provider: string;
+  event_id: string | null;
+  event_type: string | null;
+  remote_jid: string | null;
+  instance_id: string | null;
+  from_me: boolean;
+  processed: boolean;
+  process_result: string | null;
+  process_error: string | null;
+  received_at: string;
+}
+
+interface AuditSummary {
+  total: string;
+  processed: string;
+  errors: string;
+  skipped: string;
+}
+
 interface Props {
   connection: Connection;
   onClose?: () => void;
@@ -160,6 +183,13 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
   const [wapiEventsLoading, setWapiEventsLoading] = useState(false);
   const [wapiSendAttempts, setWapiSendAttempts] = useState<WapiSendAttempt[]>([]);
   const [wapiSendAttemptsLoading, setWapiSendAttemptsLoading] = useState(false);
+
+  // Webhook Audit (persisted in DB)
+  const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
+  const [auditSummary, setAuditSummary] = useState<AuditSummary | null>(null);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditFilter, setAuditFilter] = useState<string>('all'); // 'all', 'processed', 'errors', 'skipped'
+  const [auditDetail, setAuditDetail] = useState<any>(null);
 
   const fetchDiagnostic = useCallback(async () => {
     setLoading(true);
@@ -259,6 +289,36 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
     }
   }, [connection.id, isWapi]);
 
+  const fetchAudit = useCallback(async () => {
+    setAuditLoading(true);
+    try {
+      const providerPath = isWapi ? 'wapi' : 'evolution';
+      let processedParam = '';
+      if (auditFilter === 'processed') processedParam = '&processed=true';
+      else if (auditFilter === 'errors') processedParam = '&processed=false';
+      
+      const result = await api<{ audit: AuditEntry[]; summary: AuditSummary }>(
+        `/api/${providerPath}/${connection.id}/webhook-audit?limit=100${processedParam}`
+      );
+      setAuditEntries(result.audit || []);
+      setAuditSummary(result.summary || null);
+    } catch (error: any) {
+      console.error('Error fetching audit:', error);
+    } finally {
+      setAuditLoading(false);
+    }
+  }, [connection.id, isWapi, auditFilter]);
+
+  const fetchAuditDetail = useCallback(async (auditId: string) => {
+    try {
+      const providerPath = isWapi ? 'wapi' : 'evolution';
+      const result = await api<any>(`/api/${providerPath}/${connection.id}/webhook-audit/${auditId}`);
+      setAuditDetail(result);
+    } catch (error: any) {
+      toast.error('Erro ao carregar detalhe');
+    }
+  }, [connection.id, isWapi]);
+
   const fetchWapiSendAttempts = useCallback(async () => {
     if (!isWapi) return;
 
@@ -336,6 +396,7 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
 
   useEffect(() => {
     fetchDiagnostic();
+    fetchAudit();
 
     if (isWapi) {
       fetchWapiEvents();
@@ -343,7 +404,7 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
     } else {
       fetchEvents();
     }
-  }, [fetchDiagnostic, fetchEvents, fetchWapiEvents, fetchWapiSendAttempts, isWapi]);
+  }, [fetchDiagnostic, fetchEvents, fetchWapiEvents, fetchWapiSendAttempts, fetchAudit, isWapi]);
 
   // Auto-refresh every 3 seconds
   useEffect(() => {
@@ -554,11 +615,138 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="webhooks" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
+            <Tabs defaultValue="audit" className="w-full">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="audit">
+                  <Database className="h-3 w-3 mr-1" />
+                  Auditoria
+                </TabsTrigger>
                 <TabsTrigger value="webhooks">Webhooks</TabsTrigger>
                 <TabsTrigger value="envios">Envios</TabsTrigger>
               </TabsList>
+
+              <TabsContent value="audit" className="mt-4">
+                {/* Summary */}
+                {auditSummary && (
+                  <div className="grid grid-cols-4 gap-2 mb-3">
+                    <div className="text-center p-2 rounded bg-muted/50">
+                      <div className="text-lg font-bold">{auditSummary.total}</div>
+                      <div className="text-[10px] text-muted-foreground">Total (24h)</div>
+                    </div>
+                    <div className="text-center p-2 rounded bg-muted/50">
+                      <div className="text-lg font-bold text-green-600">{auditSummary.processed}</div>
+                      <div className="text-[10px] text-muted-foreground">Processados</div>
+                    </div>
+                    <div className="text-center p-2 rounded bg-muted/50">
+                      <div className="text-lg font-bold text-destructive">{auditSummary.errors}</div>
+                      <div className="text-[10px] text-muted-foreground">Erros</div>
+                    </div>
+                    <div className="text-center p-2 rounded bg-muted/50">
+                      <div className="text-lg font-bold text-yellow-600">{auditSummary.skipped}</div>
+                      <div className="text-[10px] text-muted-foreground">Ignorados</div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <div className="flex items-center gap-1">
+                    <select
+                      className="text-xs border rounded px-2 py-1 bg-background"
+                      value={auditFilter}
+                      onChange={(e) => setAuditFilter(e.target.value)}
+                    >
+                      <option value="all">Todos</option>
+                      <option value="processed">Processados</option>
+                      <option value="errors">Com erro</option>
+                    </select>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={fetchAudit} disabled={auditLoading}>
+                    <RefreshCw className={`h-4 w-4 mr-2 ${auditLoading ? 'animate-spin' : ''}`} />
+                    Atualizar
+                  </Button>
+                </div>
+
+                <ScrollArea className="h-[400px] rounded-md border border-border">
+                  <div className="p-3 space-y-2">
+                    {auditEntries.length === 0 ? (
+                      <div className="text-sm text-muted-foreground text-center py-8">
+                        Nenhum evento de auditoria encontrado.
+                        <br />
+                        <span className="text-xs">Os eventos serão registrados quando mensagens chegarem via webhook.</span>
+                      </div>
+                    ) : (
+                      auditEntries.map((entry) => (
+                        <div key={entry.id} className="rounded-md border border-border p-3 text-xs">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="text-muted-foreground">
+                              {new Date(entry.received_at).toLocaleString()}
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Badge variant="outline" className="text-[10px]">
+                                {entry.event_type || '?'}
+                              </Badge>
+                              {entry.processed ? (
+                                <Badge variant="default" className="bg-green-600 text-[10px]">
+                                  <CheckCircle className="h-2.5 w-2.5 mr-0.5" />
+                                  OK
+                                </Badge>
+                              ) : entry.process_result === 'error' ? (
+                                <Badge variant="destructive" className="text-[10px]">
+                                  <XCircle className="h-2.5 w-2.5 mr-0.5" />
+                                  Erro
+                                </Badge>
+                              ) : entry.process_result === 'skipped' ? (
+                                <Badge variant="secondary" className="text-[10px]">
+                                  Ignorado
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-[10px]">
+                                  Pendente
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                          <div className="mt-1 space-y-0.5 text-muted-foreground">
+                            {entry.remote_jid && (
+                              <div><span className="font-medium">JID:</span> {entry.remote_jid}</div>
+                            )}
+                            {entry.from_me && <span className="text-primary font-medium">[Enviado por mim]</span>}
+                            {entry.process_error && (
+                              <div className="text-destructive">Erro: {entry.process_error}</div>
+                            )}
+                          </div>
+                          <div className="mt-1 flex justify-end">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 text-[10px]"
+                              onClick={() => fetchAuditDetail(entry.id)}
+                            >
+                              <Eye className="h-3 w-3 mr-1" />
+                              Ver payload
+                            </Button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </ScrollArea>
+
+                {/* Audit Detail Modal */}
+                {auditDetail && (
+                  <div className="mt-3 rounded-md border border-border p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium">Payload completo</span>
+                      <Button variant="ghost" size="sm" onClick={() => setAuditDetail(null)}>✕</Button>
+                    </div>
+                    <ScrollArea className="h-[300px]">
+                      <pre className="text-xs whitespace-pre-wrap break-words bg-muted/40 rounded p-2">
+                        {JSON.stringify(auditDetail.payload, null, 2)}
+                      </pre>
+                    </ScrollArea>
+                  </div>
+                )}
+              </TabsContent>
 
               <TabsContent value="webhooks" className="mt-4">
                 <div className="flex items-center justify-between gap-2 mb-3">
@@ -727,7 +915,7 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
       </Card>
 
       <Tabs defaultValue="status" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="status">Status</TabsTrigger>
           <TabsTrigger value="config">Configuração</TabsTrigger>
           <TabsTrigger value="events" className="relative">
@@ -737,6 +925,10 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
                 {events.length}
               </Badge>
             )}
+          </TabsTrigger>
+          <TabsTrigger value="audit">
+            <Database className="h-3 w-3 mr-1" />
+            Auditoria
           </TabsTrigger>
         </TabsList>
 
@@ -989,6 +1181,103 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
               )}
             </div>
           </ScrollArea>
+        </TabsContent>
+
+        {/* Audit Tab */}
+        <TabsContent value="audit" className="mt-4 space-y-4">
+          {auditSummary && (
+            <div className="grid grid-cols-4 gap-2">
+              <div className="text-center p-2 rounded bg-muted/50">
+                <div className="text-lg font-bold">{auditSummary.total}</div>
+                <div className="text-[10px] text-muted-foreground">Total (24h)</div>
+              </div>
+              <div className="text-center p-2 rounded bg-muted/50">
+                <div className="text-lg font-bold text-green-600">{auditSummary.processed}</div>
+                <div className="text-[10px] text-muted-foreground">Processados</div>
+              </div>
+              <div className="text-center p-2 rounded bg-muted/50">
+                <div className="text-lg font-bold text-destructive">{auditSummary.errors}</div>
+                <div className="text-[10px] text-muted-foreground">Erros</div>
+              </div>
+              <div className="text-center p-2 rounded bg-muted/50">
+                <div className="text-lg font-bold text-yellow-600">{auditSummary.skipped}</div>
+                <div className="text-[10px] text-muted-foreground">Ignorados</div>
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between gap-2">
+            <select
+              className="text-xs border rounded px-2 py-1 bg-background"
+              value={auditFilter}
+              onChange={(e) => setAuditFilter(e.target.value)}
+            >
+              <option value="all">Todos</option>
+              <option value="processed">Processados</option>
+              <option value="errors">Com erro</option>
+            </select>
+            <Button variant="outline" size="sm" onClick={fetchAudit} disabled={auditLoading}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${auditLoading ? 'animate-spin' : ''}`} />
+              Atualizar
+            </Button>
+          </div>
+
+          <ScrollArea className="h-[400px] rounded-md border border-border">
+            <div className="p-3 space-y-2">
+              {auditEntries.length === 0 ? (
+                <div className="text-sm text-muted-foreground text-center py-8">
+                  Nenhum evento de auditoria encontrado.
+                </div>
+              ) : (
+                auditEntries.map((entry) => (
+                  <div key={entry.id} className="rounded-md border border-border p-3 text-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-muted-foreground">
+                        {new Date(entry.received_at).toLocaleString()}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Badge variant="outline" className="text-[10px]">
+                          {entry.event_type || '?'}
+                        </Badge>
+                        {entry.processed ? (
+                          <Badge variant="default" className="bg-green-600 text-[10px]">OK</Badge>
+                        ) : entry.process_result === 'error' ? (
+                          <Badge variant="destructive" className="text-[10px]">Erro</Badge>
+                        ) : entry.process_result === 'skipped' ? (
+                          <Badge variant="secondary" className="text-[10px]">Ignorado</Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px]">Pendente</Badge>
+                        )}
+                      </div>
+                    </div>
+                    <div className="mt-1 text-muted-foreground">
+                      {entry.remote_jid && <div>JID: {entry.remote_jid}</div>}
+                      {entry.process_error && <div className="text-destructive">Erro: {entry.process_error}</div>}
+                    </div>
+                    <div className="mt-1 flex justify-end">
+                      <Button variant="ghost" size="sm" className="h-6 text-[10px]" onClick={() => fetchAuditDetail(entry.id)}>
+                        <Eye className="h-3 w-3 mr-1" /> Ver payload
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </ScrollArea>
+
+          {auditDetail && (
+            <div className="rounded-md border border-border p-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium">Payload completo</span>
+                <Button variant="ghost" size="sm" onClick={() => setAuditDetail(null)}>✕</Button>
+              </div>
+              <ScrollArea className="h-[300px]">
+                <pre className="text-xs whitespace-pre-wrap break-words bg-muted/40 rounded p-2">
+                  {JSON.stringify(auditDetail.payload, null, 2)}
+                </pre>
+              </ScrollArea>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>

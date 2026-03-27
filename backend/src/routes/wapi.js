@@ -570,35 +570,40 @@ async function cacheMediaFromWapiDownload({ messageId, messageType, mediaMimetyp
  * - "Ao receber uma mensagem": https://your-backend/api/wapi/webhook
  */
 router.post('/webhook', async (req, res) => {
+  let auditId = null;
   try {
     const payload = req.body;
-    console.log('[W-API Webhook] Received:', JSON.stringify(payload).slice(0, 800));
-    console.log('[W-API Webhook] Key fields:', {
-      event: payload.event,
-      fromMe: payload.fromMe,
-      isFromMe: payload.isFromMe,
-      fromApi: payload.fromApi,
-      chatId: payload.chat?.id,
-      phone: payload.phone,
-      instanceId: payload.instanceId,
-      hasMsgContent: !!payload.msgContent,
-      hasText: !!payload.text,
-      ack: payload.ack,
-    });
 
     // W-API sends different payload structures depending on event type
-    // Common fields: instanceId, phone, message, messageId, etc.
-
     const instanceId = payload.instanceId || payload.instance_id || payload.instance;
+    const eventMsgId = payload.messageId || payload.id || payload.key?.id || null;
+    const remoteJid = payload.chat?.id || payload.phone || payload.remoteJid || payload.from || null;
+    const eventType = detectEventType(payload);
+    const fromMe = payload.fromMe === true || payload.isFromMe === true || payload.fromApi === true;
+
+    // ── Persist audit row BEFORE any processing ──
+    try {
+      const truncatedPayload = JSON.stringify(payload).slice(0, 8000);
+      const auditResult = await query(
+        `INSERT INTO inbound_webhook_audit (provider, event_id, event_type, remote_jid, instance_id, from_me, payload, received_at)
+         VALUES ('wapi', $1, $2, $3, $4, $5, $6::jsonb, NOW())
+         ON CONFLICT (provider, event_id) WHERE event_id IS NOT NULL DO UPDATE SET received_at = NOW()
+         RETURNING id`,
+        [eventMsgId, eventType, remoteJid, instanceId || null, fromMe, truncatedPayload]
+      );
+      auditId = auditResult.rows[0]?.id || null;
+    } catch (auditErr) {
+      console.error('[W-API Webhook] Audit insert error (non-fatal):', auditErr.message);
+    }
+
+    console.log('[W-API Webhook] Event:', eventType, 'Instance:', instanceId, 'JID:', remoteJid, 'auditId:', auditId);
 
     if (!instanceId) {
       console.log('[W-API Webhook] No instanceId in payload');
-      pushWebhookEvent({ connectionId: null, instanceId: null, eventType: 'unknown', req, payload });
+    pushWebhookEvent({ connectionId: null, instanceId: null, eventType: 'unknown', req, payload });
+      if (auditId) await query(`UPDATE inbound_webhook_audit SET process_result='skipped', process_error='no instanceId' WHERE id=$1`, [auditId]).catch(()=>{});
       return res.status(200).json({ received: true, skipped: 'no instanceId' });
     }
-
-    // Detect event type from payload
-    const eventType = detectEventType(payload);
 
     // Find connection by instance_id
     const connResult = await query(
@@ -613,20 +618,20 @@ router.post('/webhook', async (req, res) => {
     if (connResult.rows.length === 0) {
       console.log('[W-API Webhook] Connection not found for instance:', instanceId);
       pushWebhookEvent({ connectionId: null, instanceId, eventType, req, payload });
+      if (auditId) await query(`UPDATE inbound_webhook_audit SET process_result='skipped', process_error='connection not found' WHERE id=$1`, [auditId]).catch(()=>{});
       return res.status(200).json({ received: true, skipped: 'connection not found' });
     }
 
     const connection = connResult.rows[0];
 
-    pushWebhookEvent({ connectionId: connection.id, instanceId, eventType, req, payload });
+    // Update audit with connection_id
+    if (auditId) await query(`UPDATE inbound_webhook_audit SET connection_id=$1 WHERE id=$2`, [connection.id, auditId]).catch(()=>{});
 
-    console.log('[W-API Webhook] Event type:', eventType, 'Instance:', instanceId, 'fromMe:', payload.fromMe, 'chat.id:', payload.chat?.id);
+    pushWebhookEvent({ connectionId: connection.id, instanceId, eventType, req, payload });
 
     switch (eventType) {
       case 'message_received':
-        console.log('[W-API Webhook] Calling handleIncomingMessage...');
         await handleIncomingMessage(connection, payload);
-        console.log('[W-API Webhook] handleIncomingMessage completed');
         break;
       case 'message_sent':
         await handleOutgoingMessage(connection, payload);
@@ -638,13 +643,19 @@ router.post('/webhook', async (req, res) => {
         await handleConnectionUpdate(connection, payload);
         break;
       default:
+        if (auditId) await query(`UPDATE inbound_webhook_audit SET process_result='skipped', process_error='unknown event type' WHERE id=$1`, [auditId]).catch(()=>{});
         console.log('[W-API Webhook] Unknown event type, payload:', JSON.stringify(payload).slice(0, 300));
+    }
+
+    // Mark audit as processed for known event types
+    if (auditId && ['message_received', 'message_sent', 'status_update', 'connection_update'].includes(eventType)) {
+      await query(`UPDATE inbound_webhook_audit SET processed=true, process_result='saved' WHERE id=$1`, [auditId]).catch(()=>{});
     }
 
     res.status(200).json({ received: true, processed: eventType });
   } catch (error) {
     console.error('[W-API Webhook] Error:', error);
-    // Always return 200 to prevent W-API from retrying
+    if (auditId) await query(`UPDATE inbound_webhook_audit SET processed=false, process_result='error', process_error=$1 WHERE id=$2`, [error.message, auditId]).catch(()=>{});
     res.status(200).json({ received: true, error: error.message });
   }
 });
@@ -774,6 +785,55 @@ router.delete('/:connectionId/webhook-events', authenticate, async (req, res) =>
   } catch (error) {
     console.error('[W-API] webhook-events DELETE error:', error);
     res.status(500).json({ error: 'Erro ao limpar eventos do webhook' });
+  }
+});
+
+// ── Webhook Audit (persisted in DB) ──
+router.get('/:connectionId/webhook-audit', authenticate, async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+    const connection = await getAccessibleConnection(connectionId, req.userId);
+    if (!connection) return res.status(404).json({ error: 'Conexão não encontrada' });
+
+    const limit = Math.min(parseInt(req.query.limit) || 100, 500);
+    const eventType = req.query.event_type || null;
+    const processedOnly = req.query.processed;
+
+    let sql = `SELECT id, provider, event_id, event_type, remote_jid, instance_id, from_me, processed, process_result, process_error, received_at
+               FROM inbound_webhook_audit WHERE connection_id = $1`;
+    const params = [connectionId];
+    let idx = 2;
+    if (eventType) { sql += ` AND event_type = $${idx++}`; params.push(eventType); }
+    if (processedOnly === 'true') sql += ` AND processed = true`;
+    else if (processedOnly === 'false') sql += ` AND processed = false`;
+    sql += ` ORDER BY received_at DESC LIMIT $${idx}`;
+    params.push(limit);
+
+    const result = await query(sql, params);
+    const summary = await query(
+      `SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE processed = true) as processed,
+              COUNT(*) FILTER (WHERE process_result = 'error') as errors,
+              COUNT(*) FILTER (WHERE process_result = 'skipped') as skipped
+       FROM inbound_webhook_audit WHERE connection_id = $1 AND received_at > NOW() - INTERVAL '24 hours'`,
+      [connectionId]
+    );
+    res.json({ audit: result.rows, summary: summary.rows[0] });
+  } catch (error) {
+    console.error('[W-API] webhook-audit error:', error);
+    res.status(500).json({ error: 'Erro ao buscar auditoria' });
+  }
+});
+
+router.get('/:connectionId/webhook-audit/:auditId', authenticate, async (req, res) => {
+  try {
+    const { connectionId, auditId } = req.params;
+    const connection = await getAccessibleConnection(connectionId, req.userId);
+    if (!connection) return res.status(404).json({ error: 'Conexão não encontrada' });
+    const result = await query(`SELECT * FROM inbound_webhook_audit WHERE id = $1 AND connection_id = $2`, [auditId, connectionId]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Não encontrado' });
+    res.json(result.rows[0]);
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao buscar detalhe' });
   }
 });
 
