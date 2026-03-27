@@ -1224,6 +1224,7 @@ export async function sendMessage(instanceId, token, phone, content, messageType
 export async function sendReaction(instanceId, token, phone, messageId, reaction) {
   const isGroup = phone.includes('@g.us');
   const cleanPhone = isGroup ? phone : phone.replace(/\D/g, '');
+  const phoneOrChat = isGroup ? { chatId: cleanPhone } : { phone: cleanPhone };
 
   try {
     const response = await fetch(
@@ -1232,7 +1233,7 @@ export async function sendReaction(instanceId, token, phone, messageId, reaction
         method: 'POST',
         headers: getHeaders(token),
         body: JSON.stringify({
-          phone: cleanPhone,
+          ...phoneOrChat,
           messageId,
           reaction,
         }),
