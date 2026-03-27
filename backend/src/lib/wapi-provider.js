@@ -518,6 +518,7 @@ export async function sendText(instanceId, token, phone, message) {
 export async function sendImage(instanceId, token, phone, imageUrl, caption = '') {
   const isGroup = phone.includes('@g.us');
   const cleanPhone = isGroup ? phone : phone.replace(/\D/g, '');
+  const phoneOrChat = isGroup ? { chatId: cleanPhone } : { phone: cleanPhone };
   
   try {
     const response = await fetch(
@@ -526,7 +527,7 @@ export async function sendImage(instanceId, token, phone, imageUrl, caption = ''
         method: 'POST',
         headers: getHeaders(token),
         body: JSON.stringify({
-          phone: cleanPhone,
+          ...phoneOrChat,
           image: imageUrl,
           caption: caption,
         }),
