@@ -135,7 +135,7 @@ function normalizeWapiRecipient(phone) {
   return {
     isGroup,
     target,
-    payload: isGroup ? { chatId: target } : { phone: target },
+    payload: isGroup ? { groupId: target } : { phone: target },
   };
 }
 
