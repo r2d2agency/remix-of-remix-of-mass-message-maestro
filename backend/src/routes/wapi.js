@@ -642,6 +642,9 @@ router.post('/webhook', async (req, res) => {
       case 'connection_update':
         await handleConnectionUpdate(connection, payload);
         break;
+      case 'presence':
+        if (auditId) await query(`UPDATE inbound_webhook_audit SET processed=true, process_result='skipped', process_error='presence event (${payload.status || 'unknown'})' WHERE id=$1`, [auditId]).catch(()=>{});
+        break;
       default:
         if (auditId) await query(`UPDATE inbound_webhook_audit SET process_result='skipped', process_error='unknown event type' WHERE id=$1`, [auditId]).catch(()=>{});
         console.log('[W-API Webhook] Unknown event type, payload:', JSON.stringify(payload).slice(0, 300));
@@ -1032,7 +1035,13 @@ function detectEventType(payload) {
   // Group-specific events from W-API
   if (event === 'onGroupJoin' || event === 'onGroupLeave' || event === 'onGroupUpdate' || event === 'onGroupParticipantsUpdate') return 'status_update';
   // Presence/typing events
-  if (event === 'onPresenceUpdate' || event === 'onTyping' || event === 'presence.update') return 'status_update';
+  if (event === 'onPresenceUpdate' || event === 'onTyping' || event === 'presence.update') return 'presence';
+
+  // Presence detection by payload shape (COMPOSING, AVAILABLE, PAUSED, UNAVAILABLE)
+  const presenceStatuses = ['COMPOSING', 'AVAILABLE', 'PAUSED', 'UNAVAILABLE', 'RECORDING'];
+  if (payload.status && presenceStatuses.includes(payload.status) && payload.chat?.id && !hasMessageContent) {
+    return 'presence';
+  }
 
   // Legacy/fallback: Evolution-style events
   if (event === 'message' || event === 'messages.upsert') {
