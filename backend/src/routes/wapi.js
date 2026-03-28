@@ -1032,7 +1032,13 @@ function detectEventType(payload) {
   // Group-specific events from W-API
   if (event === 'onGroupJoin' || event === 'onGroupLeave' || event === 'onGroupUpdate' || event === 'onGroupParticipantsUpdate') return 'status_update';
   // Presence/typing events
-  if (event === 'onPresenceUpdate' || event === 'onTyping' || event === 'presence.update') return 'status_update';
+  if (event === 'onPresenceUpdate' || event === 'onTyping' || event === 'presence.update') return 'presence';
+
+  // Presence detection by payload shape (COMPOSING, AVAILABLE, PAUSED, UNAVAILABLE)
+  const presenceStatuses = ['COMPOSING', 'AVAILABLE', 'PAUSED', 'UNAVAILABLE', 'RECORDING'];
+  if (payload.status && presenceStatuses.includes(payload.status) && payload.chat?.id && !hasMessageContent) {
+    return 'presence';
+  }
 
   // Legacy/fallback: Evolution-style events
   if (event === 'message' || event === 'messages.upsert') {
