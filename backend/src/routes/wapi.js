@@ -670,31 +670,30 @@ router.post('/webhook', async (req, res) => {
 
     pushWebhookEvent({ connectionId: connection.id, instanceId, eventType, req, payload });
 
+    let outcome = null;
     switch (eventType) {
       case 'message_received':
-        await handleIncomingMessage(connection, payload);
+        outcome = await handleIncomingMessage(connection, payload);
         break;
       case 'message_sent':
-        await handleOutgoingMessage(connection, payload);
+        outcome = await handleOutgoingMessage(connection, payload);
         break;
       case 'status_update':
-        await handleStatusUpdate(connection, payload);
+        outcome = await handleStatusUpdate(connection, payload);
         break;
       case 'connection_update':
         await handleConnectionUpdate(connection, payload);
+        outcome = buildAuditOutcome('saved', null, true);
         break;
       case 'presence':
-        if (auditId) await query(`UPDATE inbound_webhook_audit SET processed=true, process_result='skipped', process_error='presence event (${payload.status || 'unknown'})' WHERE id=$1`, [auditId]).catch(()=>{});
+        outcome = buildAuditOutcome('ignored', `presence event (${payload.status || 'unknown'})`, true);
         break;
       default:
-        if (auditId) await query(`UPDATE inbound_webhook_audit SET process_result='skipped', process_error='unknown event type' WHERE id=$1`, [auditId]).catch(()=>{});
+        outcome = buildAuditOutcome('skipped', 'unknown event type', false);
         console.log('[W-API Webhook] Unknown event type, payload:', JSON.stringify(payload).slice(0, 300));
     }
 
-    // Mark audit as processed for known event types
-    if (auditId && ['message_received', 'message_sent', 'status_update', 'connection_update'].includes(eventType)) {
-      await query(`UPDATE inbound_webhook_audit SET processed=true, process_result='saved' WHERE id=$1`, [auditId]).catch(()=>{});
-    }
+    await updateAuditRow(auditId, outcome || buildAuditOutcome('saved', null, true));
 
     res.status(200).json({ received: true, processed: eventType });
   } catch (error) {
