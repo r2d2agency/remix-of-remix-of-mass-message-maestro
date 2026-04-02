@@ -1271,7 +1271,7 @@ async function handleIncomingMessage(connection, payload) {
 
     if (!chatId) {
       console.log('[W-API] No chatId in incoming message, payload:', JSON.stringify(payload).slice(0, 300));
-      return;
+      return buildAuditOutcome('skipped', 'incoming message without chatId', false);
     }
 
     // Check if this is a group message
@@ -1280,7 +1280,7 @@ async function handleIncomingMessage(connection, payload) {
     // Check if connection allows group messages (default to true if column doesn't exist)
     if (isGroup && connection.show_groups === false) {
       console.log('[W-API] Skipping group message (show_groups disabled):', chatId);
-      return;
+      return buildAuditOutcome('ignored', 'group message ignored because show_groups=false', true);
     }
 
     // For individual chats, get the sender info
@@ -1301,7 +1301,7 @@ async function handleIncomingMessage(connection, payload) {
     
     if (!remoteJid) {
       console.log('[W-API] Invalid chat format:', chatId);
-      return;
+      return buildAuditOutcome('skipped', 'invalid incoming chat format', false);
     }
 
     // IMPORTANT: Extract message content BEFORE creating conversation
@@ -1325,7 +1325,7 @@ async function handleIncomingMessage(connection, payload) {
       const hasMediaHint = /image|audio|video|document|sticker|media|file/i.test(payloadStr) && payloadStr.length > 50;
       if (!hasMediaHint) {
         console.log('[W-API] Empty message content, skipping before conversation creation. Full msgContent:', payloadStr.slice(0, 500));
-        return;
+        return buildAuditOutcome('ignored', 'incoming message without extractable content', true);
       }
       console.log('[W-API] Empty content but payload has media hints, proceeding. msgContent:', payloadStr.slice(0, 500));
     }
@@ -1583,7 +1583,7 @@ async function handleIncomingMessage(connection, payload) {
 
     if (existingMsg.rows.length > 0) {
       console.log('[W-API] Duplicate message, skipping:', messageId);
-      return;
+      return buildAuditOutcome('duplicate', `duplicate incoming message: ${messageId}`, true);
     }
 
     // Get sender info for group messages
@@ -1728,7 +1728,7 @@ async function handleIncomingMessage(connection, payload) {
       
       if (continueResult?.continued) {
         console.log('[W-API] Flow continued successfully');
-        return; // Don't check keywords if we continued a flow
+        return buildAuditOutcome('saved', null, true); // Don't check keywords if we continued a flow
       }
       
       // If no active flow, check for keyword-triggered flows
@@ -1773,8 +1773,16 @@ async function handleIncomingMessage(connection, payload) {
       console.log('[W-API] WARNING: Non-text message without mediaUrl! Type:', messageType);
     }
     console.log('[W-API] Incoming message saved:', messageId, 'Type:', messageType, 'From:', cleanPhone);
+    return buildAuditOutcome('saved', null, true);
   } catch (error) {
     console.error('[W-API] Error handling incoming message:', error);
+    logError('wapi.handle_incoming_message_failed', error, {
+      connection_id: connection?.id,
+      instance_id: connection?.instance_id,
+      event: payload?.event || null,
+      message_id: payload?.messageId || payload?.id || payload?.key?.id || null,
+    });
+    return buildAuditOutcome('error', error.message, false);
   }
 }
 
