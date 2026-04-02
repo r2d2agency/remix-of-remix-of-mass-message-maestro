@@ -1743,9 +1743,16 @@ router.post('/conversations/:id/messages', authenticate, async (req, res) => {
         );
 
         if (result.success) {
-          // Update message with provider message_id and status='sent'
+          // Update message with provider message_id and upgrade status to 'sent'
+          // Use status progression: only upgrade, never downgrade (webhook may have already set delivered/read)
           await query(
-            `UPDATE chat_messages SET message_id = $1, status = 'sent' WHERE id = $2`,
+            `UPDATE chat_messages SET 
+              message_id = COALESCE($1, message_id),
+              status = CASE 
+                WHEN status IN ('pending', 'failed') THEN 'sent'
+                ELSE status 
+              END
+            WHERE id = $2`,
             [result.messageId || null, savedMessage.id]
           );
         } else {
