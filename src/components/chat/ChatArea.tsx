@@ -2204,6 +2204,20 @@ export function ChatArea({
                     </div>
                   </div>
                 )}
+
+                {/* Pending message - show subtle indicator only after 30 seconds */}
+                {msg.status === 'pending' && msg.from_me && (
+                  (() => {
+                    const msgAge = Date.now() - new Date(msg.timestamp).getTime();
+                    return msgAge > 30000 ? (
+                      <div className="flex items-center justify-end gap-1 mt-1">
+                        <span className="text-[10px] text-muted-foreground/70">
+                          Enviando...
+                        </span>
+                      </div>
+                    ) : null;
+                  })()
+                )}
               </div>
 
               {/* Reactions display */}
