@@ -10,6 +10,7 @@ import { logError, logInfo } from '../logger.js';
 import { pauseNurturingOnReply } from './nurturing.js';
 import { analyzeGroupMessage } from '../lib/group-secretary.js';
 import { processIncomingWithAgent } from '../lib/ai-agent-processor.js';
+import { parseComparableTimestamp, pickBestPendingMessage, summarizeHandlerOutcomes } from '../lib/message-sync.js';
 
 
 const router = Router();
@@ -29,6 +30,45 @@ const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY;
 const WEBHOOK_BASE_URL = process.env.WEBHOOK_BASE_URL || process.env.API_BASE_URL || '';
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
 const API_BASE_URL = process.env.API_BASE_URL || '';
+
+function buildAuditOutcome(processResult, processError = null, processed = true, extra = {}) {
+  return {
+    processed,
+    processResult,
+    processError,
+    ...extra,
+  };
+}
+
+async function updateAuditRow(auditId, outcome) {
+  if (!auditId || !outcome) return;
+  const processed = outcome.processed !== false;
+  await query(
+    `UPDATE inbound_webhook_audit
+     SET processed = $1,
+         process_result = $2,
+         process_error = $3
+     WHERE id = $4`,
+    [processed, outcome.processResult || null, outcome.processError || null, auditId]
+  ).catch(() => {});
+}
+
+async function loadPendingMessagesForConversation(conversationId) {
+  if (!conversationId) return [];
+  const result = await query(
+    `SELECT id, message_id, content, message_type, media_mimetype, quoted_message_id, timestamp
+     FROM chat_messages
+     WHERE conversation_id = $1
+       AND from_me = true
+       AND status = 'pending'
+       AND message_id LIKE 'temp_%'
+       AND timestamp > NOW() - INTERVAL '10 minutes'
+     ORDER BY timestamp DESC
+     LIMIT 20`,
+    [conversationId]
+  );
+  return result.rows;
+}
 
 // Ensure uploads directory exists
 if (!fs.existsSync(UPLOADS_DIR)) {
