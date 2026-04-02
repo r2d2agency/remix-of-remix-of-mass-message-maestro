@@ -2007,7 +2007,7 @@ async function handleOutgoingMessage(connection, payload) {
 async function handleStatusUpdate(connection, payload) {
   try {
     const messageId = payload.messageId || payload.id || payload.key?.id;
-    if (!messageId) return;
+    if (!messageId) return buildAuditOutcome('ignored', 'no messageId in status update', true);
 
     let status = 'sent';
 
@@ -2018,24 +2018,61 @@ async function handleStatusUpdate(connection, payload) {
       else if (s === 'DELIVERY' || s === 'DELIVERED') status = 'delivered';
       else if (s === 'READ') status = 'read';
       else if (s === 'FAILED' || s === 'ERROR') status = 'failed';
+      else if (s === 'PLAYED') status = 'read'; // audio/video played = read
     } else {
       // Legacy ack mapping
       const ack = payload.ack;
-      if (ack === 1) status = 'sent';
+      if (ack === 0) status = 'pending';  // clock - message queued on server, NOT failed
+      else if (ack === 1) status = 'sent';
       else if (ack === 2) status = 'delivered';
       else if (ack === 3) status = 'read';
-      else if (ack === -1 || ack === 0) status = 'failed';
+      else if (ack === -1) status = 'failed'; // only -1 is truly failed
     }
 
-    const updateResult = await query(
-      `UPDATE chat_messages SET status = $1 WHERE message_id = $2`,
-      [status, messageId]
-    );
+    // Status progression hierarchy - never downgrade status
+    // pending(0) < sent(1) < delivered(2) < read(3), failed(-1) can only be set if current is pending/sent
+    const statusRank = { pending: 0, sent: 1, delivered: 2, read: 3, failed: -1 };
+    const newRank = statusRank[status] ?? 0;
 
-    console.log('[W-API] Status updated:', messageId, status);
-    return updateResult.rowCount > 0
-      ? buildAuditOutcome('updated', null, true)
-      : buildAuditOutcome('ignored', `status update without matching message: ${messageId}`, true);
+    let updateResult;
+    if (status === 'failed') {
+      // Only mark as failed if current status is pending or sent (not already delivered/read)
+      updateResult = await query(
+        `UPDATE chat_messages SET status = 'failed' 
+         WHERE message_id = $1 AND status IN ('pending', 'sent')`,
+        [messageId]
+      );
+    } else {
+      // Only upgrade status, never downgrade
+      updateResult = await query(
+        `UPDATE chat_messages SET status = $1 
+         WHERE message_id = $2 
+         AND (
+           CASE status 
+             WHEN 'pending' THEN 0 
+             WHEN 'sent' THEN 1 
+             WHEN 'delivered' THEN 2 
+             WHEN 'read' THEN 3 
+             ELSE 0 
+           END
+         ) < $3`,
+        [status, messageId, newRank]
+      );
+    }
+
+    if (updateResult.rowCount > 0) {
+      console.log('[W-API] Status updated:', messageId, status);
+      return buildAuditOutcome('updated', null, true);
+    }
+
+    // If no rows updated, check if message exists (might be already at higher status)
+    const exists = await query(`SELECT status FROM chat_messages WHERE message_id = $1 LIMIT 1`, [messageId]);
+    if (exists.rows.length > 0) {
+      console.log('[W-API] Status not downgraded:', messageId, `${exists.rows[0].status} -> ${status} (skipped)`);
+      return buildAuditOutcome('ignored', `status not downgraded: ${exists.rows[0].status} >= ${status}`, true);
+    }
+
+    return buildAuditOutcome('ignored', `status update without matching message: ${messageId}`, true);
   } catch (error) {
     console.error('[W-API] Error handling status update:', error);
     return buildAuditOutcome('error', error.message, false);
