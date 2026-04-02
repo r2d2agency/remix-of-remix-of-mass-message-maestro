@@ -2283,31 +2283,50 @@ async function handleMessageUpdate(connection, data) {
 
       // Map Evolution status to our status
       let newStatus = null;
+      let statusRank = 0;
       switch (status) {
         case 1: // PENDING
           newStatus = 'pending';
+          statusRank = 0;
           break;
         case 2: // SENT (server received)
           newStatus = 'sent';
+          statusRank = 1;
           break;
         case 3: // DELIVERED
           newStatus = 'delivered';
+          statusRank = 2;
           break;
         case 4: // READ
           newStatus = 'read';
+          statusRank = 3;
           break;
         case 5: // PLAYED (for audio)
-          newStatus = 'played';
+          newStatus = 'read';
+          statusRank = 3;
           break;
       }
 
       if (newStatus) {
+        // Only upgrade status, never downgrade (prevent regression)
         const result = await query(
-          `UPDATE chat_messages SET status = $1 WHERE message_id = $2`,
-          [newStatus, messageId]
+          `UPDATE chat_messages SET status = $1 
+           WHERE message_id = $2 
+           AND (
+             CASE status 
+               WHEN 'pending' THEN 0 
+               WHEN 'sent' THEN 1 
+               WHEN 'delivered' THEN 2 
+               WHEN 'read' THEN 3 
+               ELSE 0 
+             END
+           ) < $3`,
+          [newStatus, messageId, statusRank]
         );
         updatedCount += result.rowCount || 0;
-        console.log('Webhook: Message status updated:', messageId, '->', newStatus);
+        if (result.rowCount > 0) {
+          console.log('Webhook: Message status updated:', messageId, '->', newStatus);
+        }
       }
     }
     return updatedCount > 0
