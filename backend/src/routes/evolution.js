@@ -1523,10 +1523,11 @@ async function handleMessageUpsert(connection, data) {
       null;
 
     if (candidates) {
+      const outcomes = [];
       for (const item of candidates) {
-        await handleMessageUpsert(connection, item);
+        outcomes.push(await handleMessageUpsert(connection, item));
       }
-      return;
+      return summarizeHandlerOutcomes(outcomes);
     }
 
     const message = data?.message || data;
@@ -1536,7 +1537,7 @@ async function handleMessageUpsert(connection, data) {
       console.log('Webhook: No message key found', {
         topLevelKeys: Object.keys(data || {}).slice(0, 15),
       });
-      return;
+      return buildAuditOutcome('ignored', 'message without key', true);
     }
 
     // Evolution v2 sends remoteJidAlt with the real phone JID when remoteJid is @lid
@@ -1551,7 +1552,7 @@ async function handleMessageUpsert(connection, data) {
     // Skip status messages (broadcast)
     if (rawRemoteJid === 'status@broadcast') {
       console.log('Webhook: Skipping broadcast message');
-      return;
+      return buildAuditOutcome('ignored', 'broadcast status message', true);
     }
 
     const isGroup = typeof rawRemoteJid === 'string' && rawRemoteJid.includes('@g.us');
@@ -1559,7 +1560,7 @@ async function handleMessageUpsert(connection, data) {
     // Check if connection allows group messages (default to true if column doesn't exist)
     if (isGroup && connection.show_groups === false) {
       console.log('Webhook: Skipping group message (show_groups disabled):', rawRemoteJid);
-      return;
+      return buildAuditOutcome('ignored', 'group message ignored because show_groups=false', true);
     }
 
     // For group messages, extract participant info
@@ -1876,34 +1877,9 @@ async function handleMessageUpsert(connection, data) {
 
     // For fromMe messages: also check if there's a pending optimistic message waiting for this confirmation
     // Match by conversation, from_me, same type, and recent timestamp (within 60 seconds)
-    if (!existingRow && fromMe) {
-      // For outgoing messages from our system: look for a pending optimistic message
-      // that was saved before Evolution confirmed. Match by conversation + content/type + recent time.
-      const pendingMsg = await query(
-        `SELECT id, media_url, message_type, media_mimetype, status, message_id, content
-         FROM chat_messages 
-         WHERE conversation_id = $1 
-           AND from_me = true 
-           AND status = 'pending'
-           AND message_id LIKE 'temp_%'
-           AND timestamp > NOW() - INTERVAL '60 seconds'
-         ORDER BY timestamp DESC
-         LIMIT 1`,
-        [conversationId]
-      );
-
-      if (pendingMsg.rows.length > 0) {
-        // Update the pending message with the real Evolution message_id and mark as sent
-        await query(
-          `UPDATE chat_messages SET message_id = $1, status = 'sent' WHERE id = $2`,
-          [messageId, pendingMsg.rows[0].id]
-        );
-        console.log('Webhook: Linked pending optimistic message to Evolution ID:', messageId);
-
-        // Mark as existing so we don't insert a duplicate
-        existingRow = { ...pendingMsg.rows[0], message_id: messageId, status: 'sent' };
-      }
-    }
+    const pendingCandidates = !existingRow && fromMe
+      ? await loadPendingMessagesForConversation(conversationId)
+      : [];
 
     // For incoming messages (fromMe=false), check if we somehow already have this exact message_id
     // This should only happen if webhook is called twice
@@ -2109,6 +2085,30 @@ async function handleMessageUpsert(connection, data) {
       }
     }
 
+    if (!existingRow && fromMe) {
+      const matchedPending = pickBestPendingMessage(pendingCandidates, {
+        content,
+        messageType,
+        mediaMimetype,
+        quotedMessageId,
+        timestamp: parseComparableTimestamp(message.messageTimestamp || data.messageTimestamp || Date.now()),
+      });
+
+      if (matchedPending) {
+        await query(
+          `UPDATE chat_messages
+           SET message_id = $1,
+               status = 'sent',
+               media_url = COALESCE($2, media_url),
+               media_mimetype = COALESCE($3, media_mimetype)
+           WHERE id = $4`,
+          [messageId, mediaUrl, mediaMimetype, matchedPending.id]
+        );
+        console.log('Webhook: Linked pending optimistic message to Evolution ID:', messageId);
+        existingRow = { ...matchedPending, id: matchedPending.id, message_id: messageId, status: 'sent', media_url: mediaUrl, media_mimetype: mediaMimetype, message_type: messageType };
+      }
+    }
+
     // If message already existed, only update its media fields and exit
     if (existingRow) {
       if (mediaTypes.includes(messageType) && mediaUrl && isLocalUploadsUrl(mediaUrl) &&
@@ -2118,8 +2118,9 @@ async function handleMessageUpsert(connection, data) {
           [mediaUrl, mediaMimetype, existingRow.id]
         );
         console.log('Webhook: Updated existing message media:', messageId);
+        return buildAuditOutcome(existingRow.message_id === messageId ? 'updated' : 'linked_pending', null, true);
       }
-      return;
+      return buildAuditOutcome(existingRow.message_id === messageId ? 'duplicate' : 'linked_pending', null, true);
     }
 
     // Get message timestamp
@@ -2254,13 +2255,17 @@ async function handleMessageUpsert(connection, data) {
             });
           }
         }
+        return buildAuditOutcome('saved', null, true);
       }
     } catch (insertError) {
       // Log but don't throw - allow webhook to continue for other messages
       console.error('Webhook: Insert message failed:', insertError.message, 'MessageId:', messageId);
+      return buildAuditOutcome('error', insertError.message, false);
     }
+    return buildAuditOutcome('saved', null, true);
   } catch (error) {
     console.error('Handle message upsert error:', error.message);
+    return buildAuditOutcome('error', error.message, false);
   }
 }
 
@@ -2268,6 +2273,7 @@ async function handleMessageUpsert(connection, data) {
 async function handleMessageUpdate(connection, data) {
   try {
     const updates = Array.isArray(data) ? data : [data];
+    let updatedCount = 0;
 
     for (const update of updates) {
       const messageId = update.key?.id || update.id;
@@ -2296,15 +2302,20 @@ async function handleMessageUpdate(connection, data) {
       }
 
       if (newStatus) {
-        await query(
+        const result = await query(
           `UPDATE chat_messages SET status = $1 WHERE message_id = $2`,
           [newStatus, messageId]
         );
+        updatedCount += result.rowCount || 0;
         console.log('Webhook: Message status updated:', messageId, '->', newStatus);
       }
     }
+    return updatedCount > 0
+      ? buildAuditOutcome('updated', null, true)
+      : buildAuditOutcome('ignored', 'status update without matching message', true);
   } catch (error) {
     console.error('Handle message update error:', error);
+    return buildAuditOutcome('error', error.message, false);
   }
 }
 

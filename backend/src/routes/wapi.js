@@ -1804,7 +1804,7 @@ async function handleOutgoingMessage(connection, payload) {
 
     if (!chatId || !messageId) {
       console.log('[W-API] Missing chatId or messageId in outgoing:', { chatId, messageId });
-      return;
+      return buildAuditOutcome('skipped', 'outgoing message without chatId or messageId', false);
     }
 
     // Check if this is a group message
@@ -1824,7 +1824,7 @@ async function handleOutgoingMessage(connection, payload) {
 
     if (!remoteJid) {
       console.log('[W-API] Invalid chat format for outgoing:', chatId);
-      return;
+      return buildAuditOutcome('skipped', 'invalid outgoing chat format', false);
     }
 
     // Find conversation
@@ -1902,36 +1902,57 @@ async function handleOutgoingMessage(connection, payload) {
       }
     }
 
-    // Check for duplicate or pending message (optimistic UI pattern)
-    const existingMsg = await query(
-      `SELECT id, message_id FROM chat_messages WHERE message_id = $1 OR 
-       (message_id LIKE 'temp_%' AND conversation_id = $2 AND from_me = true AND status = 'pending' 
-         AND timestamp > NOW() - INTERVAL '120 seconds')
-       ORDER BY CASE WHEN message_id = $1 THEN 0 ELSE 1 END
-       LIMIT 1`,
-      [messageId, conversationId]
+    const directExisting = await query(
+      `SELECT id, message_id FROM chat_messages WHERE message_id = $1 LIMIT 1`,
+      [messageId]
     );
 
-    if (existingMsg.rows.length > 0) {
-      const existing = existingMsg.rows[0];
-      if (existing.message_id === messageId) {
-        console.log('[W-API] Outgoing message already exists:', messageId);
-        return;
-      }
-      // Update the pending message with real message ID
+    if (directExisting.rows.length > 0) {
+      console.log('[W-API] Outgoing message already exists:', messageId);
+      return buildAuditOutcome('duplicate', `duplicate outgoing message: ${messageId}`, true);
+    }
+
+    const pendingCandidates = await loadPendingMessagesForConversation(conversationId);
+    const matchedPending = pickBestPendingMessage(pendingCandidates, {
+      content,
+      messageType,
+      mediaMimetype: effectiveMediaMimetype,
+      timestamp: parseComparableTimestamp(payload.moment || payload.timestamp || payload.date || Date.now()),
+    });
+
+    if (matchedPending) {
       await query(
-        `UPDATE chat_messages SET message_id = $1, status = 'sent' WHERE id = $2`,
-        [messageId, existing.id]
+        `UPDATE chat_messages
+         SET message_id = $1,
+             status = 'sent',
+             media_url = COALESCE($2, media_url),
+             media_mimetype = COALESCE($3, media_mimetype)
+         WHERE id = $4`,
+        [messageId, effectiveMediaUrl, effectiveMediaMimetype, matchedPending.id]
       );
-      console.log('[W-API] Updated pending message with real ID:', messageId);
-      return;
+      logInfo('wapi.outgoing_message_linked_pending', {
+        connection_id: connection.id,
+        instance_id: connection.instance_id,
+        conversation_id: conversationId,
+        message_id: messageId,
+        pending_message_id: matchedPending.message_id,
+      });
+      return buildAuditOutcome('linked_pending', null, true);
     }
 
     // Insert sent message if not found (e.g., sent from W-API panel directly)
     await query(
       `INSERT INTO chat_messages (conversation_id, message_id, content, message_type, media_url, media_mimetype, from_me, status, timestamp)
-       VALUES ($1, $2, $3, $4, $5, $6, true, 'sent', NOW())`,
-      [conversationId, messageId, content, messageType, effectiveMediaUrl, effectiveMediaMimetype]
+       VALUES ($1, $2, $3, $4, $5, $6, true, 'sent', $7)`,
+      [
+        conversationId,
+        messageId,
+        content,
+        messageType,
+        effectiveMediaUrl,
+        effectiveMediaMimetype,
+        parseComparableTimestamp(payload.moment || payload.timestamp || payload.date || Date.now()) || new Date(),
+      ]
     );
 
     // Background cache as a fallback (so even if eager caching times out, the media will appear later)
@@ -1962,13 +1983,21 @@ async function handleOutgoingMessage(connection, payload) {
 
     // Update conversation timestamp
     await query(
-      `UPDATE conversations SET last_message_at = NOW() WHERE id = $1`,
-      [conversationId]
+      `UPDATE conversations SET last_message_at = GREATEST(COALESCE(last_message_at, to_timestamp(0)), $2), updated_at = NOW() WHERE id = $1`,
+      [conversationId, parseComparableTimestamp(payload.moment || payload.timestamp || payload.date || Date.now()) || new Date()]
     );
 
     console.log('[W-API] Outgoing message saved:', messageId, 'To:', remoteJid);
+    return buildAuditOutcome('saved', null, true);
   } catch (error) {
     console.error('[W-API] Error handling outgoing message:', error);
+    logError('wapi.handle_outgoing_message_failed', error, {
+      connection_id: connection?.id,
+      instance_id: connection?.instance_id,
+      event: payload?.event || null,
+      message_id: payload?.messageId || payload?.id || payload?.key?.id || null,
+    });
+    return buildAuditOutcome('error', error.message, false);
   }
 }
 
@@ -1998,14 +2027,18 @@ async function handleStatusUpdate(connection, payload) {
       else if (ack === -1 || ack === 0) status = 'failed';
     }
 
-    await query(
+    const updateResult = await query(
       `UPDATE chat_messages SET status = $1 WHERE message_id = $2`,
       [status, messageId]
     );
 
     console.log('[W-API] Status updated:', messageId, status);
+    return updateResult.rowCount > 0
+      ? buildAuditOutcome('updated', null, true)
+      : buildAuditOutcome('ignored', `status update without matching message: ${messageId}`, true);
   } catch (error) {
     console.error('[W-API] Error handling status update:', error);
+    return buildAuditOutcome('error', error.message, false);
   }
 }
 
