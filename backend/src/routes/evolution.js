@@ -1020,38 +1020,38 @@ router.post('/webhook', async (req, res) => {
     // Update audit with connection_id
     if (auditId) await query(`UPDATE inbound_webhook_audit SET connection_id=$1 WHERE id=$2`, [connection.id, auditId]).catch(()=>{});
 
-    // Handle different event types
+    let outcome = null;
     switch (normalizedEvent) {
       case 'messages.upsert':
       case 'send.message':
-        await handleMessageUpsert(connection, data);
+        outcome = await handleMessageUpsert(connection, data);
         break;
       
       case 'messages.update':
-        await handleMessageUpdate(connection, data);
+        outcome = await handleMessageUpdate(connection, data);
         break;
       
       case 'connection.update':
         await handleConnectionUpdate(connection, data);
+        outcome = buildAuditOutcome('saved', null, true);
         break;
       
       case 'presence.update':
         await handlePresenceUpdate(connection, data);
+        outcome = buildAuditOutcome('ignored', 'presence update', true);
         break;
       
       case 'qrcode.updated':
         console.log('QR Code updated for instance:', instanceName);
+        outcome = buildAuditOutcome('ignored', 'qrcode updated', true);
         break;
       
       default:
-        if (auditId) await query(`UPDATE inbound_webhook_audit SET process_result='skipped', process_error='unhandled event' WHERE id=$1`, [auditId]).catch(()=>{});
+        outcome = buildAuditOutcome('skipped', 'unhandled event', false);
         console.log('Webhook: Event type:', normalizedEvent, '- not handled');
     }
 
-    // Mark audit as processed for known event types
-    if (auditId && ['messages.upsert', 'send.message', 'messages.update', 'connection.update', 'presence.update'].includes(normalizedEvent)) {
-      await query(`UPDATE inbound_webhook_audit SET processed=true, process_result='saved' WHERE id=$1`, [auditId]).catch(()=>{});
-    }
+    await updateAuditRow(auditId, outcome || buildAuditOutcome('saved', null, true));
 
     res.status(200).json({ received: true, event: normalizedEvent });
   } catch (error) {
