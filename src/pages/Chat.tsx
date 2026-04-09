@@ -726,14 +726,14 @@ const Chat = () => {
       <div className={cn(
         "flex flex-col rounded-lg border bg-background shadow-lg",
         isMobile 
-          ? "h-[100dvh] w-full fixed inset-0 z-30 rounded-none border-0 overflow-hidden" 
+          ? "h-[100dvh] w-full fixed inset-0 z-30 rounded-none border-0 overflow-hidden pt-[env(safe-area-inset-top,0px)]" 
           : "h-[calc(100vh-80px)] overflow-hidden"
       )}>
         {/* Tab Header - Hide on mobile when chat is open */}
         {(!isMobile || !selectedConversation) && (
           <div className={cn(
             "border-b bg-muted/30 flex-shrink-0 flex items-center justify-between",
-            isMobile ? "px-3 py-2 pt-14" : "px-4 py-2"
+            isMobile ? "px-3 py-2" : "px-4 py-2"
           )}>
              <Tabs value={activeTab} onValueChange={(v) => {
                 setActiveTab(v as 'chats' | 'groups');
