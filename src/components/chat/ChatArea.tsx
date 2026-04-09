@@ -1125,8 +1125,8 @@ export function ChatArea({
       <div
         className={cn(
           "border-b bg-card flex-shrink-0",
-          isMobile
-            ? "flex items-center gap-2 px-2 py-2"
+        isMobile
+            ? "flex items-center gap-2 px-2 py-2 pt-[max(0.5rem,env(safe-area-inset-top,0px))]"
             : "flex items-center justify-between p-4"
         )}
       >
@@ -1136,10 +1136,10 @@ export function ChatArea({
             <Button
               variant="ghost"
               size="icon"
-              className="h-9 w-9 flex-shrink-0 bg-muted/50"
+              className="h-10 w-10 flex-shrink-0 bg-primary/10 hover:bg-primary/20 rounded-full"
               onClick={onMobileBack}
             >
-              <ArrowLeft className="h-5 w-5" />
+              <ArrowLeft className="h-5 w-5 text-primary" />
             </Button>
           )}
           <Avatar className={cn(isMobile ? "h-8 w-8" : "h-10 w-10", "flex-shrink-0")}>
