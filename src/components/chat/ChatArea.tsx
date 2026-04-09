@@ -1133,14 +1133,12 @@ export function ChatArea({
         <div className={cn("flex items-center gap-2 min-w-0 flex-1", isMobile && "overflow-hidden")}>
           {/* Mobile back button */}
           {isMobile && onMobileBack && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-10 w-10 flex-shrink-0 bg-primary/10 hover:bg-primary/20 rounded-full"
+            <button
+              className="flex-shrink-0 p-1 ml-1 hover:opacity-70 active:scale-90 transition-all"
               onClick={onMobileBack}
             >
-              <ArrowLeft className="h-5 w-5 text-primary" />
-            </Button>
+              <ArrowLeft className="h-5 w-5 text-foreground" />
+            </button>
           )}
           <Avatar className={cn(isMobile ? "h-8 w-8" : "h-10 w-10", "flex-shrink-0")}>
             {profilePictureUrl && !conversation.is_group && (
