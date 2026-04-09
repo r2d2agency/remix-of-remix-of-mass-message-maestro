@@ -733,7 +733,7 @@ const Chat = () => {
         {(!isMobile || !selectedConversation) && (
           <div className={cn(
             "border-b bg-muted/30 flex-shrink-0 flex items-center justify-between",
-            isMobile ? "px-3 py-2 pt-14" : "px-4 py-2"
+            isMobile ? "px-3 py-2" : "px-4 py-2"
           )}>
              <Tabs value={activeTab} onValueChange={(v) => {
                 setActiveTab(v as 'chats' | 'groups');
