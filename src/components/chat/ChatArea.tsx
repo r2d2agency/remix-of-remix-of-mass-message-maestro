@@ -1134,7 +1134,7 @@ export function ChatArea({
           {/* Mobile back button */}
           {isMobile && onMobileBack && (
             <button
-              className="flex-shrink-0 p-1 ml-1 hover:opacity-70 active:scale-90 transition-all"
+              className="flex-shrink-0 p-2 ml-6 hover:opacity-70 active:scale-90 transition-all"
               onClick={onMobileBack}
             >
               <ArrowLeft className="h-5 w-5 text-foreground" />
