@@ -42,6 +42,7 @@ import aaspRoutes from './routes/aasp.js';
 import cnpjRoutes from './routes/cnpj.js';
 import leadGleegoRoutes from './routes/lead-gleego.js';
 import taskBoardsRoutes from './routes/task-boards.js';
+import meetingsRoutes from './routes/meetings.js';
 
 import { initDatabase } from './init-db.js';
 import { executeNotifications } from './scheduler.js';
@@ -202,6 +203,7 @@ app.use('/api/aasp', aaspRoutes);
 app.use('/api/cnpj', cnpjRoutes);
 app.use('/api/lead-gleego', leadGleegoRoutes);
 app.use('/api/task-boards', taskBoardsRoutes);
+app.use('/api/meetings', meetingsRoutes);
 
 
 app.get('/health', (req, res) => {
