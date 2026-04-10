@@ -66,6 +66,7 @@ interface Plan {
   has_ghost: boolean;
   has_aasp: boolean;
   has_lead_gleego: boolean;
+  has_meetings: boolean;
   price: number;
   billing_period: string;
   is_active: boolean;
@@ -159,6 +160,7 @@ export default function Admin() {
   const [newPlanGhost, setNewPlanGhost] = useState(false);
   const [newPlanAASP, setNewPlanAASP] = useState(false);
   const [newPlanLeadGleego, setNewPlanLeadGleego] = useState(false);
+  const [newPlanMeetings, setNewPlanMeetings] = useState(false);
   const [newPlanPeriod, setNewPlanPeriod] = useState('monthly');
   const [newPlanVisibleOnSignup, setNewPlanVisibleOnSignup] = useState(false);
   const [newPlanTrialDays, setNewPlanTrialDays] = useState('3');
@@ -431,6 +433,7 @@ export default function Admin() {
       has_ghost: newPlanGhost,
       has_aasp: newPlanAASP,
       has_lead_gleego: newPlanLeadGleego,
+      has_meetings: newPlanMeetings,
       price: parseFloat(newPlanPrice) || 0,
       billing_period: newPlanPeriod,
       visible_on_signup: newPlanVisibleOnSignup,
@@ -470,6 +473,7 @@ export default function Admin() {
     setNewPlanGhost(false);
     setNewPlanAASP(false);
     setNewPlanLeadGleego(false);
+    setNewPlanMeetings(false);
     setNewPlanPeriod('monthly');
     setNewPlanVisibleOnSignup(false);
     setNewPlanTrialDays('3');
@@ -500,6 +504,7 @@ export default function Admin() {
       has_ghost: editingPlan.has_ghost,
       has_aasp: editingPlan.has_aasp,
       has_lead_gleego: editingPlan.has_lead_gleego,
+      has_meetings: editingPlan.has_meetings,
       price: editingPlan.price,
       billing_period: editingPlan.billing_period,
       is_active: editingPlan.is_active,
@@ -1056,6 +1061,14 @@ export default function Admin() {
                           onCheckedChange={setNewPlanLeadGleego}
                         />
                       </div>
+                      <div className="flex items-center justify-between rounded-lg border p-3">
+                        <Label htmlFor="meetings-switch">Reuniões Jurídicas</Label>
+                        <Switch
+                          id="meetings-switch"
+                          checked={newPlanMeetings}
+                          onCheckedChange={setNewPlanMeetings}
+                        />
+                      </div>
                     </div>
                     <div className="border-t pt-4 space-y-4">
                       <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 p-3">
@@ -1199,6 +1212,9 @@ export default function Admin() {
                         )}
                         {plan.has_lead_gleego && (
                           <Badge variant="secondary" className="text-xs">Lead Gleego</Badge>
+                        )}
+                        {plan.has_meetings && (
+                          <Badge variant="secondary" className="text-xs">Reuniões</Badge>
                         )}
                       </div>
                       <div className="flex items-center justify-between pt-2 border-t">
@@ -2209,6 +2225,14 @@ export default function Admin() {
                     id="edit-lead-gleego"
                     checked={editingPlan.has_lead_gleego}
                     onCheckedChange={(v) => setEditingPlan({ ...editingPlan, has_lead_gleego: v })}
+                  />
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <Label htmlFor="edit-meetings">Reuniões Jurídicas</Label>
+                  <Switch
+                    id="edit-meetings"
+                    checked={editingPlan.has_meetings}
+                    onCheckedChange={(v) => setEditingPlan({ ...editingPlan, has_meetings: v })}
                   />
                 </div>
                 <div className="flex items-center justify-between rounded-lg border p-3">

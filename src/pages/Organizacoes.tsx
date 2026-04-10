@@ -141,6 +141,7 @@ export default function Organizacoes() {
     group_secretary: false,
     ghost: false,
     ai_agents: false,
+    meetings: false,
   });
   const [savingModules, setSavingModules] = useState(false);
 
@@ -236,6 +237,7 @@ export default function Organizacoes() {
         group_secretary: modules.group_secretary ?? false,
         ghost: modules.ghost ?? false,
         ai_agents: modules.ai_agents ?? false,
+        meetings: modules.meetings ?? false,
       });
     } catch (error) {
       console.error('Error loading modules:', error);
@@ -1359,6 +1361,20 @@ export default function Organizacoes() {
                           <Switch
                             checked={modulesEnabled.ghost}
                             onCheckedChange={(checked) => setModulesEnabled(prev => ({ ...prev, ghost: checked }))}
+                            disabled={!canManageOrg}
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between rounded-lg border p-3">
+                          <div>
+                            <p className="font-medium text-sm">Reuniões Jurídicas</p>
+                            <p className="text-xs text-muted-foreground">
+                              Cards de reunião, transcrição e histórico operacional
+                            </p>
+                          </div>
+                          <Switch
+                            checked={modulesEnabled.meetings}
+                            onCheckedChange={(checked) => setModulesEnabled(prev => ({ ...prev, meetings: checked }))}
                             disabled={!canManageOrg}
                           />
                         </div>
