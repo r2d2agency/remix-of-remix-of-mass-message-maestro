@@ -52,7 +52,7 @@ interface NavItem {
   href: string;
   icon: any;
   featureKey?: string;
-  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents' | 'group_secretary' | 'ghost' | 'aasp' | 'lead_gleego';
+  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents' | 'group_secretary' | 'ghost' | 'aasp' | 'lead_gleego' | 'meetings';
   adminOnly?: boolean;
   ownerOnly?: boolean;
   superadminOnly?: boolean;
@@ -62,7 +62,7 @@ interface NavSection {
   title: string;
   icon: any;
   items: NavItem[];
-  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents' | 'group_secretary' | 'ghost' | 'aasp' | 'lead_gleego';
+  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents' | 'group_secretary' | 'ghost' | 'aasp' | 'lead_gleego' | 'meetings';
   adminOnly?: boolean; // Entire section requires admin role
 }
 
@@ -90,7 +90,7 @@ const navSections: NavSection[] = [
       { name: "Negociações", href: "/crm/negociacoes", icon: Kanban, featureKey: 'crm_deals' },
       { name: "Prospects", href: "/crm/prospects", icon: UserPlus, featureKey: 'crm_prospects' },
       { name: "Empresas", href: "/crm/empresas", icon: Building2, featureKey: 'crm_companies' },
-      { name: "Reuniões", href: "/reunioes", icon: CalendarDays, featureKey: 'meetings' },
+      { name: "Reuniões", href: "/reunioes", icon: CalendarDays, moduleKey: 'meetings', featureKey: 'meetings' },
       { name: "Mapa", href: "/mapa", icon: Map, featureKey: 'crm_map' },
       { name: "Agenda", href: "/crm/agenda", icon: CalendarDays, featureKey: 'crm_calendar' },
       { name: "Tarefas", href: "/crm/tarefas", icon: ClipboardList, featureKey: 'crm_tasks' },
