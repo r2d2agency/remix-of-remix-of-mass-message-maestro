@@ -68,7 +68,7 @@ export function ChecklistTemplateManager() {
 
   const handleSetItemDueDate = (idx: number, date: Date | undefined) => {
     const updated = [...items];
-    updated[idx] = { ...updated[idx], due_date: date?.toISOString() };
+    updated[idx] = { ...updated[idx], due_date: date ? toLocalISOString(date) : undefined };
     setItems(updated);
   };
 
