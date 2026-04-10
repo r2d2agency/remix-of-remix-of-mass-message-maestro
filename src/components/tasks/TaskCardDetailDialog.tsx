@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { format, parseISO, differenceInDays, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { cn } from "@/lib/utils";
+import { cn, toLocalISOString } from "@/lib/utils";
 import { toast } from "sonner";
 
 interface TaskCardDetailDialogProps {
@@ -135,7 +135,7 @@ export function TaskCardDetailDialog({ card, open, onOpenChange, boardType, boar
       title,
       description,
       priority,
-      due_date: dueDate?.toISOString(),
+      due_date: dueDate ? toLocalISOString(dueDate) : undefined,
       assigned_to: assignedTo === "__none__" ? undefined : assignedTo || undefined,
       deal_id: dealId === "__none__" ? null : dealId,
       contact_id: contactId === "__none__" ? null : contactId,
@@ -217,7 +217,7 @@ export function TaskCardDetailDialog({ card, open, onOpenChange, boardType, boar
 
   const handleSetCheckItemDueDate = (checklist: any, itemIdx: number, date: Date | undefined) => {
     const items = [...checklist.items];
-    items[itemIdx] = { ...items[itemIdx], due_date: date?.toISOString() };
+    items[itemIdx] = { ...items[itemIdx], due_date: date ? toLocalISOString(date) : undefined };
     updateChecklist.mutate({ id: checklist.id, items });
   };
 

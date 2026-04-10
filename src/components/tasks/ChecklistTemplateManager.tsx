@@ -11,7 +11,7 @@ import { useChecklistTemplates, useChecklistTemplateMutations, ChecklistItem } f
 import { Plus, Trash2, Edit2, CalendarIcon, X, ListChecks, FileText } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { cn } from "@/lib/utils";
+import { cn, toLocalISOString } from "@/lib/utils";
 import { toast } from "sonner";
 
 export function ChecklistTemplateManager() {
@@ -68,7 +68,7 @@ export function ChecklistTemplateManager() {
 
   const handleSetItemDueDate = (idx: number, date: Date | undefined) => {
     const updated = [...items];
-    updated[idx] = { ...updated[idx], due_date: date?.toISOString() };
+    updated[idx] = { ...updated[idx], due_date: date ? toLocalISOString(date) : undefined };
     setItems(updated);
   };
 

@@ -9,7 +9,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { cn } from "@/lib/utils";
+import { cn, toLocalISOString } from "@/lib/utils";
 
 interface CreateCardDialogProps {
   open: boolean;
@@ -32,7 +32,7 @@ export function CreateCardDialog({ open, onOpenChange, onSubmit, boardType, orgM
       title: title.trim(),
       description,
       priority,
-      due_date: dueDate?.toISOString(),
+      due_date: dueDate ? toLocalISOString(dueDate) : undefined,
       assigned_to: assignedTo || undefined,
     });
     setTitle("");
