@@ -203,6 +203,7 @@ app.use('/api/aasp', aaspRoutes);
 app.use('/api/cnpj', cnpjRoutes);
 app.use('/api/lead-gleego', leadGleegoRoutes);
 app.use('/api/task-boards', taskBoardsRoutes);
+app.use('/api/meetings', meetingsRoutes);
 
 
 app.get('/health', (req, res) => {
