@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { format, parseISO, differenceInDays, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { cn } from "@/lib/utils";
+import { cn, toLocalISOString } from "@/lib/utils";
 import { toast } from "sonner";
 
 interface TaskCardDetailDialogProps {
