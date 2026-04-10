@@ -3386,6 +3386,7 @@ const migrationSteps = [
   { name: 'Permission Templates', sql: step41PermissionTemplates, critical: false },
   { name: 'Connection Error Logs', sql: step42ConnectionErrorLogs, critical: false },
   { name: 'Webhook Audit', sql: step43WebhookAudit, critical: false },
+  { name: 'Legal Meetings', sql: step44Meetings, critical: false },
 ];
 
 export async function initDatabase() {
