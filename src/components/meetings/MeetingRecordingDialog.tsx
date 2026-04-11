@@ -192,17 +192,21 @@ export function MeetingRecordingDialog({ open, onOpenChange, meeting, onRecordin
 
       recorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: mimeType });
-        const finalDuration = duration;
-        onRecordingComplete(blob, finalDuration);
+        onRecordingComplete(blob, durationRef.current);
         setPhase("done");
       };
 
       recorder.start(500);
       setPhase("recording");
       setDuration(0);
+      durationRef.current = 0;
 
       timerRef.current = setInterval(() => {
-        setDuration(prev => prev + 1);
+        setDuration(prev => {
+          const next = prev + 1;
+          durationRef.current = next;
+          return next;
+        });
       }, 1000);
 
       // Set up analyser for level meter during recording
