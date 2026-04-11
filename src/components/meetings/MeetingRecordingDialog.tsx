@@ -241,7 +241,11 @@ export function MeetingRecordingDialog({ open, onOpenChange, meeting, onRecordin
     } else if (recorder.state === "paused") {
       recorder.resume();
       timerRef.current = setInterval(() => {
-        setDuration(prev => prev + 1);
+        setDuration(prev => {
+          const next = prev + 1;
+          durationRef.current = next;
+          return next;
+        });
       }, 1000);
       setPhase("recording");
     }
