@@ -407,5 +407,17 @@ initDatabase().then((ok) => {
       timezone: 'America/Sao_Paulo'
     });
     console.log('⚖️ AASP intimações sync started - checks every hour');
+
+    // Meeting audio cleanup - runs every 15 minutes to remove expired audio (24h TTL)
+    cron.schedule('*/15 * * * *', async () => {
+      try {
+        await cleanupExpiredAudio();
+      } catch (error) {
+        console.error('🎙️ [CRON] Error cleaning up meeting audio:', error);
+      }
+    }, {
+      timezone: 'America/Sao_Paulo'
+    });
+    console.log('🎙️ Meeting audio cleanup started - checks every 15 minutes');
   });
 });
