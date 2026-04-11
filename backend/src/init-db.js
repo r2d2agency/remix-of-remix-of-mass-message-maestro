@@ -3341,6 +3341,27 @@ CREATE INDEX IF NOT EXISTS idx_meeting_tasks_meeting ON meeting_tasks(meeting_id
 CREATE INDEX IF NOT EXISTS idx_meeting_tasks_assigned ON meeting_tasks(assigned_to);
 `;
 
+const step45MeetingAudit = `
+CREATE TABLE IF NOT EXISTS meeting_audit_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  meeting_id UUID REFERENCES meetings(id) ON DELETE CASCADE NOT NULL,
+  action VARCHAR(100) NOT NULL,
+  description TEXT,
+  metadata JSONB DEFAULT '{}',
+  created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_meeting_audit_meeting ON meeting_audit_logs(meeting_id);
+CREATE INDEX IF NOT EXISTS idx_meeting_audit_action ON meeting_audit_logs(action);
+CREATE INDEX IF NOT EXISTS idx_meeting_audit_created ON meeting_audit_logs(created_at);
+
+ALTER TABLE meetings ADD COLUMN IF NOT EXISTS audio_url VARCHAR(1000);
+ALTER TABLE meetings ADD COLUMN IF NOT EXISTS audio_expires_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE meetings ADD COLUMN IF NOT EXISTS recording_duration_seconds INTEGER;
+ALTER TABLE meetings ADD COLUMN IF NOT EXISTS speakers JSONB DEFAULT '[]';
+`;
+
 // Migration steps in order of execution
 const migrationSteps = [
   { name: 'Enums', sql: step1Enums, critical: true },
@@ -3388,6 +3409,7 @@ const migrationSteps = [
   { name: 'Connection Error Logs', sql: step42ConnectionErrorLogs, critical: false },
   { name: 'Webhook Audit', sql: step43WebhookAudit, critical: false },
   { name: 'Legal Meetings', sql: step44Meetings, critical: false },
+  { name: 'Meeting Audit & Audio', sql: step45MeetingAudit, critical: false },
 ];
 
 export async function initDatabase() {
