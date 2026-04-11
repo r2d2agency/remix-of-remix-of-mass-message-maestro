@@ -10,9 +10,12 @@ import { useMeetings, MeetingFilters, Meeting } from "@/hooks/use-meetings";
 import { MeetingCard } from "@/components/meetings/MeetingCard";
 import { MeetingFormDialog } from "@/components/meetings/MeetingFormDialog";
 import { MeetingDetailDialog } from "@/components/meetings/MeetingDetailDialog";
+import { MeetingRecordingDialog } from "@/components/meetings/MeetingRecordingDialog";
+import { MeetingCalendarView } from "@/components/meetings/MeetingCalendarView";
+import { useToast } from "@/hooks/use-toast";
 import {
   Plus, Search, CalendarDays, ListChecks, BarChart3, Users,
-  FileText, Clock, CheckSquare, AlertTriangle
+  FileText, Clock, CheckSquare, AlertTriangle, Calendar
 } from "lucide-react";
 
 const STATUS_OPTIONS = [
@@ -42,6 +45,8 @@ export default function Reunioes() {
   const [showForm, setShowForm] = useState(false);
   const [selectedMeeting, setSelectedMeeting] = useState<Meeting | null>(null);
   const [editMeeting, setEditMeeting] = useState<Meeting | null>(null);
+  const [recordingMeeting, setRecordingMeeting] = useState<Meeting | null>(null);
+  const { toast } = useToast();
 
   const { meetings, isLoading, stats, createMeeting, updateMeeting, deleteMeeting } = useMeetings(filters);
 
@@ -56,6 +61,20 @@ export default function Reunioes() {
 
   const handleUpdate = (data: Partial<Meeting> & { id: string }) => {
     updateMeeting.mutate(data);
+  };
+
+  const handleRecordingComplete = (audioBlob: Blob) => {
+    if (!recordingMeeting) return;
+    // Update meeting status to transcrevendo
+    updateMeeting.mutate({
+      id: recordingMeeting.id,
+      status: "transcrevendo",
+    });
+    toast({
+      title: "Gravação concluída",
+      description: `Áudio de ${(audioBlob.size / 1024 / 1024).toFixed(1)}MB capturado. Processando transcrição...`,
+    });
+    // TODO: Upload audioBlob to backend for transcription
   };
 
   return (
@@ -78,6 +97,7 @@ export default function Reunioes() {
         <Tabs defaultValue="cards">
           <TabsList>
             <TabsTrigger value="cards" className="gap-1"><ListChecks className="h-4 w-4" /> Cards</TabsTrigger>
+            <TabsTrigger value="calendario" className="gap-1"><Calendar className="h-4 w-4" /> Calendário</TabsTrigger>
             <TabsTrigger value="dashboard" className="gap-1"><BarChart3 className="h-4 w-4" /> Dashboard</TabsTrigger>
           </TabsList>
 
@@ -115,16 +135,27 @@ export default function Reunioes() {
             ) : (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {meetings.map(m => (
-                  <MeetingCard key={m.id} meeting={m} onClick={() => setSelectedMeeting(m)} />
+                  <MeetingCard
+                    key={m.id}
+                    meeting={m}
+                    onClick={() => setSelectedMeeting(m)}
+                    onStartRecording={() => setRecordingMeeting(m)}
+                  />
                 ))}
               </div>
             )}
           </TabsContent>
 
+          <TabsContent value="calendario" className="mt-4">
+            <MeetingCalendarView
+              meetings={meetings}
+              onMeetingClick={setSelectedMeeting}
+            />
+          </TabsContent>
+
           <TabsContent value="dashboard" className="mt-4">
             {stats ? (
               <div className="space-y-6">
-                {/* Stats Cards */}
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <Card className="p-4">
                     <div className="flex items-center gap-3">
@@ -176,7 +207,6 @@ export default function Reunioes() {
                   </Card>
                 </div>
 
-                {/* By Status */}
                 <Card className="p-4">
                   <h3 className="font-medium mb-3 flex items-center gap-2"><BarChart3 className="h-4 w-4" /> Por Status</h3>
                   <div className="flex flex-wrap gap-2">
@@ -188,7 +218,6 @@ export default function Reunioes() {
                   </div>
                 </Card>
 
-                {/* By Lawyer */}
                 {stats.by_lawyer.length > 0 && (
                   <Card className="p-4">
                     <h3 className="font-medium mb-3 flex items-center gap-2"><Users className="h-4 w-4" /> Reuniões por Advogado</h3>
@@ -225,6 +254,15 @@ export default function Reunioes() {
           onOpenChange={open => !open && setSelectedMeeting(null)}
           meeting={selectedMeeting}
           onUpdate={handleUpdate}
+        />
+      )}
+
+      {recordingMeeting && (
+        <MeetingRecordingDialog
+          open={!!recordingMeeting}
+          onOpenChange={open => !open && setRecordingMeeting(null)}
+          meeting={recordingMeeting}
+          onRecordingComplete={handleRecordingComplete}
         />
       )}
     </MainLayout>
