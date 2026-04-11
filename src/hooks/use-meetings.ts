@@ -28,10 +28,25 @@ export interface Meeting {
   cited_documents?: string[];
   next_steps?: string[];
   internal_notes?: string;
+  audio_url?: string;
+  audio_expires_at?: string;
+  recording_duration_seconds?: number;
+  speakers?: { label: string; identified: boolean }[];
   created_by?: string;
   created_by_name?: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface MeetingAuditLog {
+  id: string;
+  meeting_id: string;
+  action: string;
+  description: string;
+  metadata: Record<string, any>;
+  created_by?: string;
+  user_name?: string;
+  created_at: string;
 }
 
 export interface MeetingTask {
@@ -139,4 +154,48 @@ export function useMeetingTasks(meetingId?: string) {
   });
 
   return { tasks: tasksQuery.data || [], isLoading: tasksQuery.isLoading, createTask, updateTask, deleteTask };
+}
+
+export function useMeetingAudit(meetingId?: string) {
+  const qc = useQueryClient();
+
+  const auditQuery = useQuery<MeetingAuditLog[]>({
+    queryKey: ["meeting-audit", meetingId],
+    queryFn: () => api(`/api/meetings/${meetingId}/audit`),
+    enabled: !!meetingId,
+    refetchInterval: 5000, // poll every 5s during processing
+  });
+
+  return { logs: auditQuery.data || [], isLoading: auditQuery.isLoading, refetch: auditQuery.refetch };
+}
+
+export function useUploadMeetingAudio(meetingId?: string) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ audioBlob, durationSeconds }: { audioBlob: Blob; durationSeconds: number }) => {
+      const formData = new FormData();
+      formData.append("audio", audioBlob, "meeting.webm");
+      formData.append("duration_seconds", String(durationSeconds));
+
+      const baseUrl = (window as any).__API_BASE_URL__ || import.meta.env.VITE_API_URL || "";
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${baseUrl}/api/meetings/${meetingId}/audio`, {
+        method: "POST",
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: formData,
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "Erro ao enviar áudio");
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["meetings"] });
+      qc.invalidateQueries({ queryKey: ["meeting", meetingId] });
+      qc.invalidateQueries({ queryKey: ["meeting-audit", meetingId] });
+      qc.invalidateQueries({ queryKey: ["meetings-stats"] });
+      toast({ title: "Áudio enviado", description: "Processamento iniciado automaticamente." });
+    },
+    onError: (e: any) => toast({ title: "Erro ao enviar áudio", description: e.message, variant: "destructive" }),
+  });
 }
