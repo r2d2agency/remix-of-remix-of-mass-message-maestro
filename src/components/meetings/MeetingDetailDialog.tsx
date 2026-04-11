@@ -7,12 +7,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Meeting, useMeetingTasks } from "@/hooks/use-meetings";
+import { MeetingAuditPanel } from "./MeetingAuditPanel";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   CalendarDays, Clock, User, FileText, CheckSquare, AlertTriangle,
   Sparkles, Plus, Trash2, MessageSquare, ListChecks, Shield,
-  BookOpen, Target, Lightbulb, Scale, Pencil
+  BookOpen, Target, Lightbulb, Scale, Pencil, ClipboardList, Volume2
 } from "lucide-react";
 
 interface Props {
@@ -153,6 +154,7 @@ export function MeetingDetailDialog({ open, onOpenChange, meeting, onUpdate, onE
             <TabsTrigger value="transcricao">Transcrição</TabsTrigger>
             <TabsTrigger value="pontos">Pontos</TabsTrigger>
             <TabsTrigger value="tarefas">Tarefas ({tasks.length})</TabsTrigger>
+            <TabsTrigger value="auditoria" className="gap-1"><ClipboardList className="h-3.5 w-3.5" /> Auditoria</TabsTrigger>
             <TabsTrigger value="ia">Ações IA</TabsTrigger>
             <TabsTrigger value="notas">Notas</TabsTrigger>
           </TabsList>
@@ -242,6 +244,41 @@ export function MeetingDetailDialog({ open, onOpenChange, meeting, onUpdate, onE
                 ))}
               </div>
             )}
+          </TabsContent>
+
+          <TabsContent value="auditoria" className="mt-4">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="font-medium text-sm flex items-center gap-2"><ClipboardList className="h-4 w-4 text-primary" /> Histórico de Processamento</h4>
+              {meeting.recording_duration_seconds && (
+                <Badge variant="secondary" className="text-xs">
+                  <Clock className="h-3 w-3 mr-1" />
+                  {Math.floor(meeting.recording_duration_seconds / 60)}min {meeting.recording_duration_seconds % 60}s
+                </Badge>
+              )}
+            </div>
+            {meeting.audio_url && meeting.audio_expires_at && new Date(meeting.audio_expires_at) > new Date() && (
+              <div className="mb-4 p-3 rounded-lg border bg-muted/30">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium flex items-center gap-2"><Volume2 className="h-4 w-4" /> Áudio da Reunião</span>
+                  <Badge variant="outline" className="text-[10px]">
+                    Expira em {format(new Date(meeting.audio_expires_at), "dd/MM HH:mm")}
+                  </Badge>
+                </div>
+                <audio controls className="w-full h-8" src={`${(window as any).__API_BASE_URL__ || import.meta.env.VITE_API_URL || ""}/api/meetings/${meeting.id}/audio/stream?token=${localStorage.getItem("token")}`} />
+                <p className="text-[10px] text-muted-foreground mt-1">🔒 O áudio será removido automaticamente após 24h por segurança.</p>
+              </div>
+            )}
+            {meeting.speakers && (meeting.speakers as any[]).length > 0 && (
+              <div className="mb-4 p-3 rounded-lg border bg-muted/30">
+                <span className="text-sm font-medium">Participantes Identificados:</span>
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  {(meeting.speakers as any[]).map((s: any, i: number) => (
+                    <Badge key={i} variant="secondary" className="text-xs">{s.label}</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+            <MeetingAuditPanel meetingId={meeting.id} />
           </TabsContent>
 
           <TabsContent value="ia" className="mt-4">

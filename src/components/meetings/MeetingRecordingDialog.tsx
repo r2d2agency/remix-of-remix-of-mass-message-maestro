@@ -13,7 +13,7 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   meeting: Meeting;
-  onRecordingComplete: (audioBlob: Blob) => void;
+  onRecordingComplete: (audioBlob: Blob, durationSeconds: number) => void;
 }
 
 type RecordingPhase = "setup" | "ready" | "recording" | "paused" | "done";
@@ -25,6 +25,7 @@ export function MeetingRecordingDialog({ open, onOpenChange, meeting, onRecordin
   const [micLevel, setMicLevel] = useState(0);
   const [screenShared, setScreenShared] = useState(false);
   const [duration, setDuration] = useState(0);
+  const durationRef = useRef(0);
   const [error, setError] = useState("");
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -191,16 +192,21 @@ export function MeetingRecordingDialog({ open, onOpenChange, meeting, onRecordin
 
       recorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: mimeType });
-        onRecordingComplete(blob);
+        onRecordingComplete(blob, durationRef.current);
         setPhase("done");
       };
 
       recorder.start(500);
       setPhase("recording");
       setDuration(0);
+      durationRef.current = 0;
 
       timerRef.current = setInterval(() => {
-        setDuration(prev => prev + 1);
+        setDuration(prev => {
+          const next = prev + 1;
+          durationRef.current = next;
+          return next;
+        });
       }, 1000);
 
       // Set up analyser for level meter during recording
@@ -235,7 +241,11 @@ export function MeetingRecordingDialog({ open, onOpenChange, meeting, onRecordin
     } else if (recorder.state === "paused") {
       recorder.resume();
       timerRef.current = setInterval(() => {
-        setDuration(prev => prev + 1);
+        setDuration(prev => {
+          const next = prev + 1;
+          durationRef.current = next;
+          return next;
+        });
       }, 1000);
       setPhase("recording");
     }

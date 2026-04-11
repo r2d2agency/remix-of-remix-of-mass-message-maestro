@@ -43,6 +43,7 @@ import cnpjRoutes from './routes/cnpj.js';
 import leadGleegoRoutes from './routes/lead-gleego.js';
 import taskBoardsRoutes from './routes/task-boards.js';
 import meetingsRoutes from './routes/meetings.js';
+import meetingAuditRoutes, { cleanupExpiredAudio } from './routes/meeting-audit.js';
 
 import { initDatabase } from './init-db.js';
 import { executeNotifications } from './scheduler.js';
@@ -204,6 +205,7 @@ app.use('/api/cnpj', cnpjRoutes);
 app.use('/api/lead-gleego', leadGleegoRoutes);
 app.use('/api/task-boards', taskBoardsRoutes);
 app.use('/api/meetings', meetingsRoutes);
+app.use('/api/meetings', meetingAuditRoutes);
 
 
 app.get('/health', (req, res) => {
@@ -405,5 +407,17 @@ initDatabase().then((ok) => {
       timezone: 'America/Sao_Paulo'
     });
     console.log('⚖️ AASP intimações sync started - checks every hour');
+
+    // Meeting audio cleanup - runs every 15 minutes to remove expired audio (24h TTL)
+    cron.schedule('*/15 * * * *', async () => {
+      try {
+        await cleanupExpiredAudio();
+      } catch (error) {
+        console.error('🎙️ [CRON] Error cleaning up meeting audio:', error);
+      }
+    }, {
+      timezone: 'America/Sao_Paulo'
+    });
+    console.log('🎙️ Meeting audio cleanup started - checks every 15 minutes');
   });
 });
