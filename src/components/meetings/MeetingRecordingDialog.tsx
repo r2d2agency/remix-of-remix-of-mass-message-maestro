@@ -13,7 +13,7 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   meeting: Meeting;
-  onRecordingComplete: (audioBlob: Blob) => void;
+  onRecordingComplete: (audioBlob: Blob, durationSeconds: number) => void;
 }
 
 type RecordingPhase = "setup" | "ready" | "recording" | "paused" | "done";
@@ -191,7 +191,8 @@ export function MeetingRecordingDialog({ open, onOpenChange, meeting, onRecordin
 
       recorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: mimeType });
-        onRecordingComplete(blob);
+        const finalDuration = duration;
+        onRecordingComplete(blob, finalDuration);
         setPhase("done");
       };
 
