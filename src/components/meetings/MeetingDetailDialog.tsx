@@ -7,12 +7,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Meeting, useMeetingTasks } from "@/hooks/use-meetings";
+import { MeetingAuditPanel } from "./MeetingAuditPanel";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   CalendarDays, Clock, User, FileText, CheckSquare, AlertTriangle,
   Sparkles, Plus, Trash2, MessageSquare, ListChecks, Shield,
-  BookOpen, Target, Lightbulb, Scale, Pencil
+  BookOpen, Target, Lightbulb, Scale, Pencil, ClipboardList, Volume2
 } from "lucide-react";
 
 interface Props {
@@ -153,6 +154,7 @@ export function MeetingDetailDialog({ open, onOpenChange, meeting, onUpdate, onE
             <TabsTrigger value="transcricao">Transcrição</TabsTrigger>
             <TabsTrigger value="pontos">Pontos</TabsTrigger>
             <TabsTrigger value="tarefas">Tarefas ({tasks.length})</TabsTrigger>
+            <TabsTrigger value="auditoria" className="gap-1"><ClipboardList className="h-3.5 w-3.5" /> Auditoria</TabsTrigger>
             <TabsTrigger value="ia">Ações IA</TabsTrigger>
             <TabsTrigger value="notas">Notas</TabsTrigger>
           </TabsList>
