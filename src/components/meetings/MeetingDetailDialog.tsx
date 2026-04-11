@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +12,7 @@ import { ptBR } from "date-fns/locale";
 import {
   CalendarDays, Clock, User, FileText, CheckSquare, AlertTriangle,
   Sparkles, Plus, Trash2, MessageSquare, ListChecks, Shield,
-  BookOpen, Target, Lightbulb, Scale
+  BookOpen, Target, Lightbulb, Scale, Pencil
 } from "lucide-react";
 
 interface Props {
@@ -20,6 +20,7 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   meeting: Meeting;
   onUpdate: (data: Partial<Meeting> & { id: string }) => void;
+  onEdit: (meeting: Meeting) => void;
 }
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
@@ -51,13 +52,19 @@ const AI_ACTIONS = [
   { label: "Preparar base para contrato", icon: Scale },
 ];
 
-export function MeetingDetailDialog({ open, onOpenChange, meeting, onUpdate }: Props) {
+export function MeetingDetailDialog({ open, onOpenChange, meeting, onUpdate, onEdit }: Props) {
   const { tasks, createTask, updateTask, deleteTask } = useMeetingTasks(meeting.id);
   const [newTaskDesc, setNewTaskDesc] = useState("");
   const [editingTranscript, setEditingTranscript] = useState(false);
   const [transcript, setTranscript] = useState(meeting.transcript || "");
 
   const statusInfo = STATUS_MAP[meeting.status] || STATUS_MAP.aguardando_transcricao;
+
+  useEffect(() => {
+    setTranscript(meeting.transcript || "");
+    setEditingTranscript(false);
+    setNewTaskDesc("");
+  }, [meeting]);
 
   const handleStatusChange = (status: string) => {
     onUpdate({ id: meeting.id, status });
@@ -121,16 +128,22 @@ export function MeetingDetailDialog({ open, onOpenChange, meeting, onUpdate }: P
                 </p>
               )}
             </div>
-            <Select value={meeting.status} onValueChange={handleStatusChange}>
-              <SelectTrigger className="w-44">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(STATUS_MAP).map(([k, v]) => (
-                  <SelectItem key={k} value={k}>{v.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => onEdit(meeting)}>
+                <Pencil className="h-4 w-4 mr-2" />
+                Editar
+              </Button>
+              <Select value={meeting.status} onValueChange={handleStatusChange}>
+                <SelectTrigger className="w-44">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(STATUS_MAP).map(([k, v]) => (
+                    <SelectItem key={k} value={k}>{v.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </DialogHeader>
 

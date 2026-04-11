@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Meeting } from "@/hooks/use-meetings";
-import { CalendarDays, Link as LinkIcon, User, Building2, FileText } from "lucide-react";
+import { CalendarDays, Link as LinkIcon, FileText } from "lucide-react";
 
 interface Props {
   open: boolean;
@@ -26,14 +26,32 @@ const MEETING_TYPES = [
   { value: "outro", label: "Outro" },
 ];
 
+const toDateTimeLocalValue = (value?: string) => {
+  if (!value) return "";
+  const date = new Date(value);
+  const timezoneOffset = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - timezoneOffset).toISOString().slice(0, 16);
+};
+
 export function MeetingFormDialog({ open, onOpenChange, onSubmit, meeting, isLoading }: Props) {
   const [title, setTitle] = useState(meeting?.title || "");
   const [meetingType, setMeetingType] = useState(meeting?.meeting_type || "reuniao_cliente");
-  const [scheduledAt, setScheduledAt] = useState(meeting?.scheduled_at ? new Date(meeting.scheduled_at).toISOString().slice(0, 16) : "");
+  const [scheduledAt, setScheduledAt] = useState(toDateTimeLocalValue(meeting?.scheduled_at));
   const [durationMinutes, setDurationMinutes] = useState(meeting?.duration_minutes?.toString() || "60");
   const [meetingLink, setMeetingLink] = useState(meeting?.meeting_link || "");
   const [processNumber, setProcessNumber] = useState(meeting?.process_number || "");
   const [internalNotes, setInternalNotes] = useState(meeting?.internal_notes || "");
+
+  useEffect(() => {
+    if (!open) return;
+    setTitle(meeting?.title || "");
+    setMeetingType(meeting?.meeting_type || "reuniao_cliente");
+    setScheduledAt(toDateTimeLocalValue(meeting?.scheduled_at));
+    setDurationMinutes(meeting?.duration_minutes?.toString() || "60");
+    setMeetingLink(meeting?.meeting_link || "");
+    setProcessNumber(meeting?.process_number || "");
+    setInternalNotes(meeting?.internal_notes || "");
+  }, [meeting, open]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
