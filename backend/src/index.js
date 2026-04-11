@@ -205,6 +205,7 @@ app.use('/api/cnpj', cnpjRoutes);
 app.use('/api/lead-gleego', leadGleegoRoutes);
 app.use('/api/task-boards', taskBoardsRoutes);
 app.use('/api/meetings', meetingsRoutes);
+app.use('/api/meetings', meetingAuditRoutes);
 
 
 app.get('/health', (req, res) => {
