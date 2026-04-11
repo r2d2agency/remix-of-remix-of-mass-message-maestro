@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Meeting } from "@/hooks/use-meetings";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarDays, Clock, User, FileText, CheckSquare, Play, Pencil } from "lucide-react";
+import { CalendarDays, Clock, User, FileText, CheckSquare, Play, Pencil, Mic, Loader2 } from "lucide-react";
 
 interface Props {
   meeting: Meeting;
@@ -69,6 +69,14 @@ export function MeetingCard({ meeting, onClick, onEdit, onStartRecording }: Prop
         )}
         {hasTranscript && (
           <Badge variant="secondary" className="text-[10px] px-1.5 py-0">📝 Transcrito</Badge>
+        )}
+        {meeting.status === 'transcrevendo' && (
+          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 animate-pulse">
+            <Loader2 className="h-2.5 w-2.5 animate-spin mr-1" />Processando...
+          </Badge>
+        )}
+        {meeting.recording_duration_seconds && (
+          <span className="flex items-center gap-1"><Mic className="h-3 w-3" />{Math.floor(meeting.recording_duration_seconds / 60)}min</span>
         )}
         {nextStepsCount > 0 && (
           <span className="flex items-center gap-1"><CheckSquare className="h-3 w-3" />{nextStepsCount} passos</span>
