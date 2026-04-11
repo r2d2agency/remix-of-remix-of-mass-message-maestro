@@ -246,6 +246,41 @@ export function MeetingDetailDialog({ open, onOpenChange, meeting, onUpdate, onE
             )}
           </TabsContent>
 
+          <TabsContent value="auditoria" className="mt-4">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="font-medium text-sm flex items-center gap-2"><ClipboardList className="h-4 w-4 text-primary" /> Histórico de Processamento</h4>
+              {meeting.recording_duration_seconds && (
+                <Badge variant="secondary" className="text-xs">
+                  <Clock className="h-3 w-3 mr-1" />
+                  {Math.floor(meeting.recording_duration_seconds / 60)}min {meeting.recording_duration_seconds % 60}s
+                </Badge>
+              )}
+            </div>
+            {meeting.audio_url && meeting.audio_expires_at && new Date(meeting.audio_expires_at) > new Date() && (
+              <div className="mb-4 p-3 rounded-lg border bg-muted/30">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium flex items-center gap-2"><Volume2 className="h-4 w-4" /> Áudio da Reunião</span>
+                  <Badge variant="outline" className="text-[10px]">
+                    Expira em {format(new Date(meeting.audio_expires_at), "dd/MM HH:mm")}
+                  </Badge>
+                </div>
+                <audio controls className="w-full h-8" src={`${(window as any).__API_BASE_URL__ || import.meta.env.VITE_API_URL || ""}/api/meetings/${meeting.id}/audio/stream?token=${localStorage.getItem("token")}`} />
+                <p className="text-[10px] text-muted-foreground mt-1">🔒 O áudio será removido automaticamente após 24h por segurança.</p>
+              </div>
+            )}
+            {meeting.speakers && (meeting.speakers as any[]).length > 0 && (
+              <div className="mb-4 p-3 rounded-lg border bg-muted/30">
+                <span className="text-sm font-medium">Participantes Identificados:</span>
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  {(meeting.speakers as any[]).map((s: any, i: number) => (
+                    <Badge key={i} variant="secondary" className="text-xs">{s.label}</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+            <MeetingAuditPanel meetingId={meeting.id} />
+          </TabsContent>
+
           <TabsContent value="ia" className="mt-4">
             <p className="text-sm text-muted-foreground mb-4">Utilize inteligência artificial para processar o conteúdo desta reunião e gerar insights automatizados.</p>
             <div className="grid gap-2 sm:grid-cols-2">
