@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +24,7 @@ interface Props {
   meeting: Meeting;
   onUpdate: (data: Partial<Meeting> & { id: string }) => void;
   onEdit: (meeting: Meeting) => void;
+  onDelete?: (id: string) => void;
 }
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
@@ -54,7 +56,7 @@ const AI_ACTIONS = [
   { label: "Preparar base para contrato", icon: Scale },
 ];
 
-export function MeetingDetailDialog({ open, onOpenChange, meeting, onUpdate, onEdit }: Props) {
+export function MeetingDetailDialog({ open, onOpenChange, meeting, onUpdate, onEdit, onDelete }: Props) {
   const { tasks, createTask, updateTask, deleteTask } = useMeetingTasks(meeting.id);
   const [newTaskDesc, setNewTaskDesc] = useState("");
   const [editingTranscript, setEditingTranscript] = useState(false);
@@ -204,6 +206,30 @@ export function MeetingDetailDialog({ open, onOpenChange, meeting, onUpdate, onE
               )}
             </div>
             <div className="flex items-center gap-2">
+              {onDelete && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="sm">
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Excluir
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Excluir reunião</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Esta ação é irreversível. A reunião, transcrição, tarefas e auditoria serão permanentemente removidas.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => { onDelete(meeting.id); onOpenChange(false); }}>
+                        Confirmar exclusão
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
               <Button variant="outline" size="sm" onClick={() => onEdit(meeting)}>
                 <Pencil className="h-4 w-4 mr-2" />
                 Editar

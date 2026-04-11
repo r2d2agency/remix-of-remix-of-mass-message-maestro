@@ -295,6 +295,7 @@ export default function Reunioes() {
           meeting={selectedMeeting}
           onUpdate={handleUpdate}
           onEdit={openEditForm}
+          onDelete={(id) => { deleteMeeting.mutate(id); setSelectedMeeting(null); }}
         />
       )}
 
