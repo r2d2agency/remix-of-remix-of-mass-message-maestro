@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useMeetings, MeetingFilters, Meeting, useUploadMeetingAudio } from "@/hooks/use-meetings";
+import { useMeetings, MeetingFilters, Meeting, useMeetingDetail, useUploadMeetingAudio } from "@/hooks/use-meetings";
 import { MeetingCard } from "@/components/meetings/MeetingCard";
 import { MeetingFormDialog } from "@/components/meetings/MeetingFormDialog";
 import { MeetingDetailDialog } from "@/components/meetings/MeetingDetailDialog";
@@ -49,6 +49,7 @@ export default function Reunioes() {
   const { toast } = useToast();
 
   const { meetings, isLoading, stats, createMeeting, updateMeeting, deleteMeeting } = useMeetings(filters);
+  const { data: selectedMeetingDetail } = useMeetingDetail(selectedMeeting?.id);
 
   const handleFormOpenChange = (open: boolean) => {
     setShowForm(open);
@@ -292,7 +293,7 @@ export default function Reunioes() {
         <MeetingDetailDialog
           open={!!selectedMeeting}
           onOpenChange={open => !open && setSelectedMeeting(null)}
-          meeting={selectedMeeting}
+          meeting={selectedMeetingDetail || selectedMeeting}
           onUpdate={handleUpdate}
           onEdit={openEditForm}
           onDelete={(id) => { deleteMeeting.mutate(id); setSelectedMeeting(null); }}
