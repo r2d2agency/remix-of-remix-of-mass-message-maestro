@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, API_URL, getAuthToken } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
 export interface Meeting {
@@ -179,9 +179,8 @@ export function useUploadMeetingAudio(meetingId?: string) {
       formData.append("audio", audioBlob, "meeting.webm");
       formData.append("duration_seconds", String(durationSeconds));
 
-      const baseUrl = (window as any).__API_BASE_URL__ || import.meta.env.VITE_API_URL || "";
-      const token = localStorage.getItem("token");
-      const res = await fetch(`${baseUrl}/api/meetings/${meetingId}/audio`, {
+      const token = getAuthToken();
+      const res = await fetch(`${API_URL}/api/meetings/${meetingId}/audio`, {
         method: "POST",
         headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: formData,

@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -274,7 +274,9 @@ export function MeetingRecordingDialog({ open, onOpenChange, meeting, onRecordin
             <Monitor className="h-5 w-5 text-primary" />
             Captura de Reunião
           </DialogTitle>
-          <p className="text-sm text-muted-foreground mt-1 truncate">{meeting.title}</p>
+          <DialogDescription className="text-sm text-muted-foreground mt-1 truncate">
+            Configure microfone, compartilhamento de tela e controle a gravação da reunião {meeting.title}.
+          </DialogDescription>
         </DialogHeader>
 
         {error && (

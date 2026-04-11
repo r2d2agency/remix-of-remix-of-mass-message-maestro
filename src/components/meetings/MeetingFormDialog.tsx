@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -74,6 +74,9 @@ export function MeetingFormDialog({ open, onOpenChange, onSubmit, meeting, isLoa
             <CalendarDays className="h-5 w-5 text-primary" />
             {meeting ? "Editar Reunião" : "Nova Reunião"}
           </DialogTitle>
+          <DialogDescription>
+            Preencha os dados da reunião para criar, reagendar ou atualizar o card jurídico operacional.
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
