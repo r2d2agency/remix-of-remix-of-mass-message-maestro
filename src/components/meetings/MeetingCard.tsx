@@ -1,13 +1,15 @@
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Meeting } from "@/hooks/use-meetings";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarDays, Clock, User, FileText, CheckSquare, AlertTriangle } from "lucide-react";
+import { CalendarDays, Clock, User, FileText, CheckSquare, AlertTriangle, Play } from "lucide-react";
 
 interface Props {
   meeting: Meeting;
   onClick: () => void;
+  onStartRecording?: () => void;
 }
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
