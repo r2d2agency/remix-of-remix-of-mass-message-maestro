@@ -43,6 +43,7 @@ import cnpjRoutes from './routes/cnpj.js';
 import leadGleegoRoutes from './routes/lead-gleego.js';
 import taskBoardsRoutes from './routes/task-boards.js';
 import meetingsRoutes from './routes/meetings.js';
+import meetingAuditRoutes, { cleanupExpiredAudio } from './routes/meeting-audit.js';
 
 import { initDatabase } from './init-db.js';
 import { executeNotifications } from './scheduler.js';
