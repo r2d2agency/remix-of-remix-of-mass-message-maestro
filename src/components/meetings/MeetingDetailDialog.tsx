@@ -311,7 +311,6 @@ export function MeetingDetailDialog({ open, onOpenChange, meeting, onUpdate, onE
                   {meeting.transcript || <span className="text-muted-foreground italic">Nenhuma transcrição disponível. Capture o áudio da reunião para gerar a transcrição automaticamente.</span>}
                 </div>
               </div>
-            )}
           </TabsContent>
 
           <TabsContent value="pontos" className="space-y-4 mt-4">
