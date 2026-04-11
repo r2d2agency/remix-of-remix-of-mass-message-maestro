@@ -25,6 +25,7 @@ export function MeetingRecordingDialog({ open, onOpenChange, meeting, onRecordin
   const [micLevel, setMicLevel] = useState(0);
   const [screenShared, setScreenShared] = useState(false);
   const [duration, setDuration] = useState(0);
+  const durationRef = useRef(0);
   const [error, setError] = useState("");
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
