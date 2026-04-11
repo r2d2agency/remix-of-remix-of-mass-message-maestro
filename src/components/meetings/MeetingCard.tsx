@@ -1,13 +1,15 @@
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Meeting } from "@/hooks/use-meetings";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarDays, Clock, User, FileText, CheckSquare, AlertTriangle } from "lucide-react";
+import { CalendarDays, Clock, User, FileText, CheckSquare, AlertTriangle, Play } from "lucide-react";
 
 interface Props {
   meeting: Meeting;
   onClick: () => void;
+  onStartRecording?: () => void;
 }
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
@@ -29,7 +31,7 @@ const TYPE_LABELS: Record<string, string> = {
   outro: "Outro",
 };
 
-export function MeetingCard({ meeting, onClick }: Props) {
+export function MeetingCard({ meeting, onClick, onStartRecording }: Props) {
   const statusInfo = STATUS_MAP[meeting.status] || STATUS_MAP.aguardando_transcricao;
   const hasTranscript = !!meeting.transcript;
   const nextStepsCount = (meeting.next_steps as string[])?.length || 0;
@@ -70,6 +72,21 @@ export function MeetingCard({ meeting, onClick }: Props) {
           <span className="flex items-center gap-1"><CheckSquare className="h-3 w-3" />{nextStepsCount} passos</span>
         )}
       </div>
+
+      {/* Start recording button - only show if no transcript yet */}
+      {!hasTranscript && onStartRecording && (
+        <div className="mt-3 pt-3 border-t">
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full gap-2 text-xs"
+            onClick={(e) => { e.stopPropagation(); onStartRecording(); }}
+          >
+            <Play className="h-3.5 w-3.5" />
+            Iniciar Captura
+          </Button>
+        </div>
+      )}
     </Card>
   );
 }
