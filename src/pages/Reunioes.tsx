@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useMeetings, MeetingFilters, Meeting } from "@/hooks/use-meetings";
+import { useMeetings, MeetingFilters, Meeting, useUploadMeetingAudio } from "@/hooks/use-meetings";
 import { MeetingCard } from "@/components/meetings/MeetingCard";
 import { MeetingFormDialog } from "@/components/meetings/MeetingFormDialog";
 import { MeetingDetailDialog } from "@/components/meetings/MeetingDetailDialog";
@@ -104,19 +104,17 @@ export default function Reunioes() {
     });
   };
 
-  const handleRecordingComplete = (audioBlob: Blob) => {
+  const uploadAudio = useUploadMeetingAudio(recordingMeeting?.id);
+
+  const handleRecordingComplete = useCallback((audioBlob: Blob, durationSeconds: number) => {
     if (!recordingMeeting) return;
-    // Update meeting status to transcrevendo
-    updateMeeting.mutate({
-      id: recordingMeeting.id,
-      status: "transcrevendo",
+    uploadAudio.mutate({ audioBlob, durationSeconds }, {
+      onSuccess: () => {
+        // After upload, open the detail dialog to show audit trail
+        setSelectedMeeting(recordingMeeting);
+      },
     });
-    toast({
-      title: "Gravação concluída",
-      description: `Áudio de ${(audioBlob.size / 1024 / 1024).toFixed(1)}MB capturado. Processando transcrição...`,
-    });
-    // TODO: Upload audioBlob to backend for transcription
-  };
+  }, [recordingMeeting, uploadAudio]);
 
   return (
     <MainLayout>
