@@ -124,6 +124,10 @@ export function useMeetingDetail(id?: string) {
     queryKey: ["meeting", id],
     queryFn: () => api(`/api/meetings/${id}`),
     enabled: !!id,
+    refetchInterval: (query) => {
+      const meeting = query.state.data;
+      return meeting && ["transcrevendo", "aguardando_transcricao"].includes(meeting.status) ? 4000 : false;
+    },
   });
 }
 
@@ -167,6 +171,22 @@ export function useMeetingAudit(meetingId?: string) {
   });
 
   return { logs: auditQuery.data || [], isLoading: auditQuery.isLoading, refetch: auditQuery.refetch };
+}
+
+export function useReprocessMeetingAudio(meetingId?: string) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => api(`/api/meetings/${meetingId}/audio/reprocess`, { method: "POST" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["meeting", meetingId] });
+      qc.invalidateQueries({ queryKey: ["meeting-audit", meetingId] });
+      qc.invalidateQueries({ queryKey: ["meetings"] });
+      toast({ title: "Reprocessamento iniciado" });
+    },
+    onError: (e: any) => toast({ title: "Erro ao reprocessar áudio", description: e.message, variant: "destructive" }),
+  });
 }
 
 export function useUploadMeetingAudio(meetingId?: string) {
