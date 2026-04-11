@@ -7,14 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Meeting, useMeetingTasks } from "@/hooks/use-meetings";
+import { Meeting, useMeetingAudit, useMeetingTasks, useReprocessMeetingAudio } from "@/hooks/use-meetings";
 import { MeetingAuditPanel } from "./MeetingAuditPanel";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   CalendarDays, Clock, User, FileText, CheckSquare, AlertTriangle,
   Sparkles, Plus, Trash2, MessageSquare, ListChecks, Shield,
-  BookOpen, Target, Lightbulb, Scale, Pencil, ClipboardList, Volume2
+  BookOpen, Target, Lightbulb, Scale, Pencil, ClipboardList, Volume2, RotateCcw
 } from "lucide-react";
 import { API_URL, getAuthToken } from "@/lib/api";
 
@@ -58,6 +58,8 @@ const AI_ACTIONS = [
 
 export function MeetingDetailDialog({ open, onOpenChange, meeting, onUpdate, onEdit, onDelete }: Props) {
   const { tasks, createTask, updateTask, deleteTask } = useMeetingTasks(meeting.id);
+  const { logs } = useMeetingAudit(open ? meeting.id : undefined);
+  const reprocessAudio = useReprocessMeetingAudio(meeting.id);
   const [newTaskDesc, setNewTaskDesc] = useState("");
   const [editingTranscript, setEditingTranscript] = useState(false);
   const [transcript, setTranscript] = useState(meeting.transcript || "");
@@ -66,6 +68,11 @@ export function MeetingDetailDialog({ open, onOpenChange, meeting, onUpdate, onE
   const [audioError, setAudioError] = useState("");
 
   const statusInfo = STATUS_MAP[meeting.status] || STATUS_MAP.aguardando_transcricao;
+  const hasTranscript = Boolean((meeting.transcript || transcript).trim());
+  const isProcessing = meeting.status === "transcrevendo";
+  const canReprocess = !!meeting.audio_url && !isProcessing;
+  const hasBlockingAuditIssue = logs.some((log) => log.action === "transcription_error");
+  const showReprocessHint = !hasTranscript || hasBlockingAuditIssue || meeting.status === "aguardando_transcricao";
 
   useEffect(() => {
     setTranscript(meeting.transcript || "");
@@ -285,9 +292,17 @@ export function MeetingDetailDialog({ open, onOpenChange, meeting, onUpdate, onE
           <TabsContent value="transcricao" className="mt-4">
             <div className="flex justify-between items-center mb-2">
               <h4 className="font-medium text-sm flex items-center gap-2"><BookOpen className="h-4 w-4" /> Transcrição</h4>
-              <Button variant="ghost" size="sm" onClick={() => setEditingTranscript(!editingTranscript)}>
-                {editingTranscript ? "Cancelar" : "Editar"}
-              </Button>
+              <div className="flex items-center gap-2">
+                {showReprocessHint && canReprocess && (
+                  <Button variant="outline" size="sm" onClick={() => reprocessAudio.mutate()} disabled={reprocessAudio.isPending}>
+                    <RotateCcw className={`h-4 w-4 mr-2 ${reprocessAudio.isPending ? "animate-spin" : ""}`} />
+                    Reprocessar
+                  </Button>
+                )}
+                <Button variant="ghost" size="sm" onClick={() => setEditingTranscript(!editingTranscript)}>
+                  {editingTranscript ? "Cancelar" : "Editar"}
+                </Button>
+              </div>
             </div>
             {editingTranscript ? (
               <div className="space-y-2">
@@ -295,8 +310,15 @@ export function MeetingDetailDialog({ open, onOpenChange, meeting, onUpdate, onE
                 <Button size="sm" onClick={handleSaveTranscript}>Salvar Transcrição</Button>
               </div>
             ) : (
-              <div className="p-4 bg-muted/50 rounded-lg text-sm whitespace-pre-wrap max-h-96 overflow-y-auto">
-                {meeting.transcript || <span className="text-muted-foreground italic">Nenhuma transcrição disponível. Capture o áudio da reunião para gerar a transcrição automaticamente.</span>}
+              <div className="space-y-3">
+                {!hasTranscript && showReprocessHint && (
+                  <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
+                    A auditoria concluiu o processamento, mas o texto não apareceu aqui; use <strong>Reprocessar</strong> para tentar novamente.
+                  </div>
+                )}
+                <div className="p-4 bg-muted/50 rounded-lg text-sm whitespace-pre-wrap max-h-96 overflow-y-auto">
+                  {meeting.transcript || <span className="text-muted-foreground italic">Nenhuma transcrição disponível. Capture o áudio da reunião para gerar a transcrição automaticamente.</span>}
+                </div>
               </div>
             )}
           </TabsContent>
