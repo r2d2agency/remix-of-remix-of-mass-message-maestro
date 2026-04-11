@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import {
   Sparkles, Plus, Trash2, MessageSquare, ListChecks, Shield,
   BookOpen, Target, Lightbulb, Scale, Pencil, ClipboardList, Volume2
 } from "lucide-react";
+import { API_URL, getAuthToken } from "@/lib/api";
 
 interface Props {
   open: boolean;
@@ -58,6 +59,9 @@ export function MeetingDetailDialog({ open, onOpenChange, meeting, onUpdate, onE
   const [newTaskDesc, setNewTaskDesc] = useState("");
   const [editingTranscript, setEditingTranscript] = useState(false);
   const [transcript, setTranscript] = useState(meeting.transcript || "");
+  const [audioPlaybackUrl, setAudioPlaybackUrl] = useState<string | null>(null);
+  const [audioLoading, setAudioLoading] = useState(false);
+  const [audioError, setAudioError] = useState("");
 
   const statusInfo = STATUS_MAP[meeting.status] || STATUS_MAP.aguardando_transcricao;
 
@@ -66,6 +70,73 @@ export function MeetingDetailDialog({ open, onOpenChange, meeting, onUpdate, onE
     setEditingTranscript(false);
     setNewTaskDesc("");
   }, [meeting]);
+
+  useEffect(() => {
+    return () => {
+      if (audioPlaybackUrl) URL.revokeObjectURL(audioPlaybackUrl);
+    };
+  }, [audioPlaybackUrl]);
+
+  useEffect(() => {
+    const audioAvailable = !!meeting.audio_url && !!meeting.audio_expires_at && new Date(meeting.audio_expires_at) > new Date();
+
+    setAudioPlaybackUrl((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return null;
+    });
+    setAudioError("");
+
+    if (!open || !audioAvailable) {
+      setAudioLoading(false);
+      return;
+    }
+
+    const token = getAuthToken();
+    if (!token) {
+      setAudioError("Sessão expirada. Faça login novamente para ouvir o áudio.");
+      setAudioLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setAudioLoading(true);
+
+    fetch(`${API_URL}/api/meetings/${meeting.id}/audio/stream`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          let message = "Não foi possível carregar o áudio.";
+          try {
+            const data = await response.json();
+            message = data?.error || message;
+          } catch {
+            message = response.status === 401 ? "Sessão inválida para reproduzir o áudio." : message;
+          }
+          throw new Error(message);
+        }
+
+        return response.blob();
+      })
+      .then((blob) => {
+        const objectUrl = URL.createObjectURL(blob);
+        if (controller.signal.aborted) {
+          URL.revokeObjectURL(objectUrl);
+          return;
+        }
+        setAudioPlaybackUrl(objectUrl);
+      })
+      .catch((error: Error) => {
+        if (controller.signal.aborted) return;
+        setAudioError(error.message || "Não foi possível carregar o áudio.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setAudioLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [open, meeting.id, meeting.audio_url, meeting.audio_expires_at]);
 
   const handleStatusChange = (status: string) => {
     onUpdate({ id: meeting.id, status });
@@ -100,6 +171,9 @@ export function MeetingDetailDialog({ open, onOpenChange, meeting, onUpdate, onE
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
+          <DialogDescription className="sr-only">
+            Visualize resumo, transcrição, tarefas e auditoria operacional desta reunião jurídica.
+          </DialogDescription>
           <div className="flex items-start justify-between gap-4">
             <div>
               <DialogTitle className="text-lg">{meeting.title}</DialogTitle>
@@ -264,7 +338,13 @@ export function MeetingDetailDialog({ open, onOpenChange, meeting, onUpdate, onE
                     Expira em {format(new Date(meeting.audio_expires_at), "dd/MM HH:mm")}
                   </Badge>
                 </div>
-                <audio controls className="w-full h-8" src={`${(window as any).__API_BASE_URL__ || import.meta.env.VITE_API_URL || ""}/api/meetings/${meeting.id}/audio/stream?token=${localStorage.getItem("token")}`} />
+                {audioLoading ? (
+                  <p className="text-xs text-muted-foreground">Carregando áudio autenticado...</p>
+                ) : audioPlaybackUrl ? (
+                  <audio controls className="w-full h-8" src={audioPlaybackUrl} />
+                ) : (
+                  <p className="text-xs text-destructive">{audioError || "Áudio indisponível no momento."}</p>
+                )}
                 <p className="text-[10px] text-muted-foreground mt-1">🔒 O áudio será removido automaticamente após 24h por segurança.</p>
               </div>
             )}
