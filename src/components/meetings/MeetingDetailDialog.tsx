@@ -299,18 +299,9 @@ export function MeetingDetailDialog({ open, onOpenChange, meeting, onUpdate, onE
                     Reprocessar
                   </Button>
                 )}
-                <Button variant="ghost" size="sm" onClick={() => setEditingTranscript(!editingTranscript)}>
-                  {editingTranscript ? "Cancelar" : "Editar"}
-                </Button>
               </div>
             </div>
-            {editingTranscript ? (
-              <div className="space-y-2">
-                <Textarea value={transcript} onChange={e => setTranscript(e.target.value)} rows={15} className="font-mono text-xs" />
-                <Button size="sm" onClick={handleSaveTranscript}>Salvar Transcrição</Button>
-              </div>
-            ) : (
-              <div className="space-y-3">
+            <div className="space-y-3">
                 {!hasTranscript && showReprocessHint && (
                   <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
                     A auditoria concluiu o processamento, mas o texto não apareceu aqui; use <strong>Reprocessar</strong> para tentar novamente.
