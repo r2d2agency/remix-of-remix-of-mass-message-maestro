@@ -50,17 +50,58 @@ export default function Reunioes() {
 
   const { meetings, isLoading, stats, createMeeting, updateMeeting, deleteMeeting } = useMeetings(filters);
 
+  const handleFormOpenChange = (open: boolean) => {
+    setShowForm(open);
+    if (!open) setEditMeeting(null);
+  };
+
+  const openCreateForm = () => {
+    setSelectedMeeting(null);
+    setEditMeeting(null);
+    setShowForm(true);
+  };
+
+  const openEditForm = (meeting: Meeting) => {
+    setSelectedMeeting(null);
+    setEditMeeting(meeting);
+    setShowForm(true);
+  };
+
   const handleSearch = (term: string) => {
     setSearchTerm(term);
     setFilters(prev => ({ ...prev, search: term || undefined }));
   };
 
-  const handleCreate = (data: Partial<Meeting>) => {
-    createMeeting.mutate(data, { onSuccess: () => setShowForm(false) });
+  const handleFormSubmit = (data: Partial<Meeting>) => {
+    if (editMeeting) {
+      updateMeeting.mutate(
+        { id: editMeeting.id, ...data },
+        {
+          onSuccess: (updatedMeeting) => {
+            setEditMeeting(null);
+            setShowForm(false);
+            setSelectedMeeting(updatedMeeting);
+          },
+        }
+      );
+      return;
+    }
+
+    createMeeting.mutate(data, {
+      onSuccess: () => {
+        setShowForm(false);
+        setEditMeeting(null);
+      },
+    });
   };
 
   const handleUpdate = (data: Partial<Meeting> & { id: string }) => {
-    updateMeeting.mutate(data);
+    updateMeeting.mutate(data, {
+      onSuccess: (updatedMeeting) => {
+        if (selectedMeeting?.id === updatedMeeting.id) setSelectedMeeting(updatedMeeting);
+        if (editMeeting?.id === updatedMeeting.id) setEditMeeting(updatedMeeting);
+      },
+    });
   };
 
   const handleRecordingComplete = (audioBlob: Blob) => {
@@ -89,7 +130,7 @@ export default function Reunioes() {
             </h1>
             <p className="text-muted-foreground text-sm mt-1">Central operacional de reuniões, audiências e atendimentos</p>
           </div>
-          <Button onClick={() => { setEditMeeting(null); setShowForm(true); }} className="gap-2">
+          <Button onClick={openCreateForm} className="gap-2">
             <Plus className="h-4 w-4" /> Nova Reunião
           </Button>
         </div>
@@ -128,7 +169,7 @@ export default function Reunioes() {
                 <CalendarDays className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
                 <h3 className="font-medium text-lg">Nenhuma reunião encontrada</h3>
                 <p className="text-muted-foreground text-sm mt-1">Crie sua primeira reunião para começar o prontuário operacional</p>
-                <Button className="mt-4" onClick={() => setShowForm(true)}>
+                <Button className="mt-4" onClick={openCreateForm}>
                   <Plus className="h-4 w-4 mr-2" /> Nova Reunião
                 </Button>
               </Card>
@@ -139,6 +180,7 @@ export default function Reunioes() {
                     key={m.id}
                     meeting={m}
                     onClick={() => setSelectedMeeting(m)}
+                    onEdit={() => openEditForm(m)}
                     onStartRecording={() => setRecordingMeeting(m)}
                   />
                 ))}
@@ -242,10 +284,10 @@ export default function Reunioes() {
       {/* Dialogs */}
       <MeetingFormDialog
         open={showForm}
-        onOpenChange={setShowForm}
+        onOpenChange={handleFormOpenChange}
         meeting={editMeeting}
-        onSubmit={handleCreate}
-        isLoading={createMeeting.isPending}
+        onSubmit={handleFormSubmit}
+        isLoading={createMeeting.isPending || updateMeeting.isPending}
       />
 
       {selectedMeeting && (
@@ -254,6 +296,7 @@ export default function Reunioes() {
           onOpenChange={open => !open && setSelectedMeeting(null)}
           meeting={selectedMeeting}
           onUpdate={handleUpdate}
+          onEdit={openEditForm}
         />
       )}
 
