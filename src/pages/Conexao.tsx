@@ -22,9 +22,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 interface Connection {
   id: string;
   name: string;
-  provider?: 'evolution' | 'wapi';
+  provider?: 'evolution' | 'wapi' | 'uazapi';
   instance_name: string;
   instance_id?: string;
+  uazapi_token?: string;
+  uazapi_instance_name?: string;
+  uazapi_server_url?: string;
   status: string;
   phone_number?: string;
   show_groups?: boolean;
@@ -43,7 +46,8 @@ const Conexao = () => {
   const [creating, setCreating] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [newConnectionName, setNewConnectionName] = useState("");
-  const [newConnectionProvider, setNewConnectionProvider] = useState<'evolution' | 'wapi'>('evolution');
+  const [newConnectionProvider, setNewConnectionProvider] = useState<'evolution' | 'wapi' | 'uazapi'>('uazapi');
+  const [uazapiAvailable, setUazapiAvailable] = useState(false);
   const [newConnectionInstanceId, setNewConnectionInstanceId] = useState("");
   const [newConnectionWapiToken, setNewConnectionWapiToken] = useState("");
   const [newConnectionApiUrl, setNewConnectionApiUrl] = useState("");
@@ -160,7 +164,7 @@ const Conexao = () => {
 
   const resetCreateForm = () => {
     setNewConnectionName('');
-    setNewConnectionProvider('evolution');
+    setNewConnectionProvider(uazapiAvailable ? 'uazapi' : 'evolution');
     setNewConnectionInstanceId('');
     setNewConnectionWapiToken('');
     setNewConnectionApiUrl('');
