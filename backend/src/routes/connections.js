@@ -45,15 +45,19 @@ router.get('/', async (req, res) => {
       [req.userId]
     );
     
+    // Build provider-derivation expression that preserves 'uazapi'
+    const providerExpr = `CASE
+       WHEN c.provider IS NOT NULL AND c.provider <> '' THEN c.provider
+       WHEN c.uazapi_token IS NOT NULL THEN 'uazapi'
+       WHEN c.instance_id IS NOT NULL AND c.wapi_token IS NOT NULL THEN 'wapi'
+       ELSE 'evolution'
+     END`;
+
     if (specificResult.rows.length > 0) {
       const connIds = specificResult.rows.map(r => r.connection_id);
       const result = await query(
         `SELECT c.*, u.name as created_by_name,
-         CASE 
-           WHEN c.provider IS NOT NULL THEN c.provider 
-           WHEN c.instance_id IS NOT NULL AND c.wapi_token IS NOT NULL THEN 'wapi'
-           ELSE 'evolution'
-         END as provider
+         ${providerExpr} as provider
          FROM connections c
          LEFT JOIN users u ON c.user_id = u.id
          WHERE c.id = ANY($1)
@@ -63,20 +67,28 @@ router.get('/', async (req, res) => {
       return res.json(result.rows);
     }
 
-    // No assignments and not owner = no connections
+    // No assignments: owners/admins see all org connections; everyone else nothing
     if (org) {
+      if (['owner', 'admin'].includes(org.role)) {
+        const result = await query(
+          `SELECT c.*, u.name as created_by_name,
+           ${providerExpr.replace(/c\.provider/g, 'c.provider').replace(/c\.uazapi_token/g, 'c.uazapi_token').replace(/c\.instance_id/g, 'c.instance_id').replace(/c\.wapi_token/g, 'c.wapi_token')} as provider
+           FROM connections c
+           LEFT JOIN users u ON c.user_id = u.id
+           WHERE c.organization_id = $1
+           ORDER BY c.created_at DESC`,
+          [org.organization_id]
+        );
+        return res.json(result.rows);
+      }
       return res.json([]);
     }
 
     // Fallback: user without organization sees only their own
     const result = await query(
-      `SELECT *,
-       CASE 
-         WHEN provider IS NOT NULL THEN provider 
-         WHEN instance_id IS NOT NULL AND wapi_token IS NOT NULL THEN 'wapi'
-         ELSE 'evolution'
-       END as provider
-       FROM connections WHERE user_id = $1 ORDER BY created_at DESC`,
+      `SELECT c.*,
+       ${providerExpr} as provider
+       FROM connections c WHERE c.user_id = $1 ORDER BY c.created_at DESC`,
       [req.userId]
     );
     
