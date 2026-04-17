@@ -307,31 +307,37 @@ BEGIN
 END $$;
 
 -- UAZAPI global server config (super-admin)
-CREATE TABLE IF NOT EXISTS uazapi_servers (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name VARCHAR(255) NOT NULL,
-  server_url VARCHAR(500) NOT NULL,
-  admin_token TEXT NOT NULL,
-  is_default BOOLEAN NOT NULL DEFAULT FALSE,
-  is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  notes TEXT,
-  created_by UUID REFERENCES users(id) ON DELETE SET NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE UNIQUE INDEX IF NOT EXISTS uniq_uazapi_default_server
-  ON uazapi_servers((is_default)) WHERE is_default = TRUE;
+DO $$
+BEGIN
+  CREATE TABLE IF NOT EXISTS uazapi_servers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL,
+    server_url VARCHAR(500) NOT NULL,
+    admin_token TEXT NOT NULL,
+    is_default BOOLEAN NOT NULL DEFAULT FALSE,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    notes TEXT,
+    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
 
-CREATE TABLE IF NOT EXISTS uazapi_webhook_events (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  connection_id UUID REFERENCES connections(id) ON DELETE CASCADE,
-  event_type VARCHAR(100),
-  payload JSONB NOT NULL,
-  status VARCHAR(50) DEFAULT 'received',
-  error TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE INDEX IF NOT EXISTS idx_uazapi_webhook_conn ON uazapi_webhook_events(connection_id, created_at DESC);
+  CREATE UNIQUE INDEX IF NOT EXISTS uniq_uazapi_default_server
+    ON uazapi_servers (is_default) WHERE is_default = TRUE;
+
+  CREATE TABLE IF NOT EXISTS uazapi_webhook_events (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    connection_id UUID REFERENCES connections(id) ON DELETE CASCADE,
+    event_type VARCHAR(100),
+    payload JSONB NOT NULL,
+    status VARCHAR(50) DEFAULT 'received',
+    error TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+  CREATE INDEX IF NOT EXISTS idx_uazapi_webhook_conn ON uazapi_webhook_events(connection_id, created_at DESC);
+EXCEPTION WHEN others THEN
+  RAISE NOTICE 'UAZAPI migration skipped: %', SQLERRM;
+END $$;
 
 
 -- Connection Members
