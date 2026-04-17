@@ -56,21 +56,24 @@ export function useConnectionStatus(options: UseConnectionStatusOptions = {}) {
   }, []);
 
   // Check status for a single connection and update it in the backend
-  const checkConnectionStatus = useCallback(async (connectionId: string): Promise<ConnectionStatus | null> => {
+  const checkConnectionStatus = useCallback(async (connectionId: string, provider?: string): Promise<ConnectionStatus | null> => {
     try {
+      const endpoint = provider === 'uazapi'
+        ? `/api/uazapi/${connectionId}/status`
+        : `/api/evolution/${connectionId}/status`;
       const result = await api<{
         status: string;
         phoneNumber?: string | null;
         provider?: string;
         error?: string | null;
-      }>(`/api/evolution/${connectionId}/status`);
-      
+      }>(endpoint);
+
       return {
         id: connectionId,
         name: '',
         status: result.status as 'connected' | 'disconnected' | 'connecting',
         phoneNumber: result.phoneNumber,
-        provider: result.provider as 'evolution' | 'wapi',
+        provider: (result.provider || provider) as 'evolution' | 'wapi',
         error: result.error,
       };
     } catch (error) {
