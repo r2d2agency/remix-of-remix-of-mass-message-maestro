@@ -39,13 +39,13 @@ export const uazapiApi = {
   }) =>
     api<UazapiServer>("/api/uazapi/servers", {
       method: "POST",
-      body: JSON.stringify(body),
+      body,
     }),
 
   updateServer: (id: string, body: Partial<UazapiServer> & { admin_token?: string }) =>
     api<UazapiServer>(`/api/uazapi/servers/${id}`, {
       method: "PATCH",
-      body: JSON.stringify(body),
+      body,
     }),
 
   deleteServer: (id: string) =>
@@ -69,7 +69,7 @@ export const uazapiApi = {
       uazapi_instance_name?: string;
     }>("/api/uazapi/instances", {
       method: "POST",
-      body: JSON.stringify({ name }),
+      body: { name },
     }),
 
   status: (connectionId: string) =>
@@ -82,7 +82,7 @@ export const uazapiApi = {
       pairingCode: string | null;
     }>(`/api/uazapi/${connectionId}/connect`, {
       method: "POST",
-      body: JSON.stringify({ phone }),
+      body: { phone },
     }),
 
   disconnect: (connectionId: string) =>
@@ -93,7 +93,7 @@ export const uazapiApi = {
   reconfigureWebhook: (connectionId: string, url?: string) =>
     api<{ ok: boolean }>(`/api/uazapi/${connectionId}/reconfigure-webhook`, {
       method: "POST",
-      body: JSON.stringify({ url }),
+      body: { url },
     }),
 
   remove: (connectionId: string) =>
@@ -103,7 +103,7 @@ export const uazapiApi = {
   sendText: (connectionId: string, phone: string, text: string) =>
     api(`/api/uazapi/${connectionId}/send/text`, {
       method: "POST",
-      body: JSON.stringify({ phone, text }),
+      body: { phone, text },
     }),
 
   sendMedia: (
@@ -118,13 +118,13 @@ export const uazapiApi = {
   ) =>
     api(`/api/uazapi/${connectionId}/send/media`, {
       method: "POST",
-      body: JSON.stringify(body),
+      body,
     }),
 
   checkNumbers: (connectionId: string, phones: string[]) =>
     api<{ success: boolean; results: { phone: string; exists: boolean }[] }>(
       `/api/uazapi/${connectionId}/check-number`,
-      { method: "POST", body: JSON.stringify({ phones }) }
+      { method: "POST", body: { phones } }
     ),
 
   // Webhook audit
@@ -141,6 +141,6 @@ export const uazapiApi = {
   createCampaign: (connectionId: string, payload: Record<string, unknown>) =>
     api(`/api/uazapi/${connectionId}/campaigns`, {
       method: "POST",
-      body: JSON.stringify(payload),
+      body: payload,
     }),
 };
