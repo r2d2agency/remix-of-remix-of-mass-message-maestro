@@ -583,17 +583,27 @@ const handleGetQRCode = async (connection: Connection) => {
 
     const interval = setInterval(async () => {
       try {
-        const result = await api<{ status: string; phoneNumber?: string }>(`/api/evolution/${selectedConnection.id}/status`);
+        let status: string;
+        let phoneNumber: string | undefined;
+        if (isUazapi(selectedConnection)) {
+          const r = await uazapiApi.status(selectedConnection.id);
+          status = r.status;
+          phoneNumber = r.phoneNumber;
+        } else {
+          const result = await api<{ status: string; phoneNumber?: string }>(`/api/evolution/${selectedConnection.id}/status`);
+          status = result.status;
+          phoneNumber = result.phoneNumber;
+        }
         
-        if (result.status === 'connected') {
+        if (status === 'connected') {
           setConnections(prev => prev.map(c => 
             c.id === selectedConnection.id 
-              ? { ...c, status: result.status, phone_number: result.phoneNumber } 
+              ? { ...c, status, phone_number: phoneNumber } 
               : c
           ));
           setQrCodeDialog(false);
           setQrCode(null);
-          toast.success(`WhatsApp conectado: ${result.phoneNumber || ''}`);
+          toast.success(`WhatsApp conectado: ${phoneNumber || ''}`);
           clearInterval(interval);
         }
       } catch (error) {
