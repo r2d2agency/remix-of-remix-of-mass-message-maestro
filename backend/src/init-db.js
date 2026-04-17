@@ -320,7 +320,7 @@ CREATE TABLE IF NOT EXISTS uazapi_servers (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS uniq_uazapi_default_server
-  ON uazapi_servers((is_default)) WHERE is_default = TRUE;
+  ON uazapi_servers (is_default) WHERE is_default = TRUE;
 
 CREATE TABLE IF NOT EXISTS uazapi_webhook_events (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
