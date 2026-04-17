@@ -1774,6 +1774,7 @@ export default function Admin() {
 
           {/* Integrações Tab */}
           <TabsContent value="integrations" className="space-y-4">
+            <UazapiConfigPanel />
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">

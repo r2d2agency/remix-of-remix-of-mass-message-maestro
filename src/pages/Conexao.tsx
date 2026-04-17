@@ -626,12 +626,20 @@ const handleGetQRCode = async (connection: Connection) => {
                   <Label>Provedor</Label>
                   <Select 
                     value={newConnectionProvider} 
-                    onValueChange={(value: 'evolution' | 'wapi') => setNewConnectionProvider(value)}
+                    onValueChange={(value: 'evolution' | 'wapi' | 'uazapi') => setNewConnectionProvider(value)}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione o provedor" />
                     </SelectTrigger>
                     <SelectContent>
+                      {uazapiAvailable && (
+                        <SelectItem value="uazapi">
+                          <div className="flex items-center gap-2">
+                            <Radio className="h-4 w-4" />
+                            <span>UAZAPI (recomendado)</span>
+                          </div>
+                        </SelectItem>
+                      )}
                       <SelectItem value="evolution">
                         <div className="flex items-center gap-2">
                           <Radio className="h-4 w-4" />
@@ -647,11 +655,13 @@ const handleGetQRCode = async (connection: Connection) => {
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">
-                    {newConnectionProvider === 'evolution' 
-                      ? 'Evolution API: Gera QR Code para conexão' 
-                      : hasIntegratorToken
-                        ? 'W-API: Instância será criada automaticamente via integrador'
-                        : 'W-API: Configure o token do integrador ou forneça dados manualmente'}
+                    {newConnectionProvider === 'uazapi'
+                      ? 'UAZAPI: A instância é criada automaticamente no servidor configurado pelo super-admin. QR Code aberto em seguida.'
+                      : newConnectionProvider === 'evolution' 
+                        ? 'Evolution API: Gera QR Code para conexão' 
+                        : hasIntegratorToken
+                          ? 'W-API: Instância será criada automaticamente via integrador'
+                          : 'W-API: Configure o token do integrador ou forneça dados manualmente'}
                   </p>
                 </div>
 
