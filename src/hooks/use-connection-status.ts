@@ -99,7 +99,7 @@ export function useConnectionStatus(options: UseConnectionStatusOptions = {}) {
       // Check status for each connection in parallel
       const updatedConnections = await Promise.all(
         conns.map(async (conn) => {
-          const status = await checkConnectionStatus(conn.id);
+          const status = await checkConnectionStatus(conn.id, conn.provider);
           return {
             ...conn,
             status: status?.status || conn.status,
