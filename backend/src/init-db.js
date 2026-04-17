@@ -276,24 +276,62 @@ BEGIN
     -- Normalize provider
     UPDATE connections SET provider = 'evolution' WHERE provider IS NULL;
 
-    -- Provider value constraint
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'connections_provider_chk') THEN
-        ALTER TABLE connections
-        ADD CONSTRAINT connections_provider_chk
-        CHECK (provider IN ('evolution', 'wapi'));
-    END IF;
+    -- UAZAPI columns (idempotent)
+    BEGIN
+        ALTER TABLE connections ADD COLUMN IF NOT EXISTS uazapi_token TEXT;
+        ALTER TABLE connections ADD COLUMN IF NOT EXISTS uazapi_instance_name VARCHAR(255);
+        ALTER TABLE connections ADD COLUMN IF NOT EXISTS uazapi_server_url VARCHAR(500);
+    EXCEPTION WHEN others THEN null; END;
 
-    -- Required fields per provider constraint
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'connections_provider_required_fields_chk') THEN
-        ALTER TABLE connections
+    -- Drop old constraint if exists (to recreate including 'uazapi')
+    IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'connections_provider_chk') THEN
+        ALTER TABLE connections DROP CONSTRAINT connections_provider_chk;
+    END IF;
+    ALTER TABLE connections
+        ADD CONSTRAINT connections_provider_chk
+        CHECK (provider IN ('evolution', 'wapi', 'uazapi'));
+
+    -- Drop old required-fields constraint and recreate including uazapi
+    IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'connections_provider_required_fields_chk') THEN
+        ALTER TABLE connections DROP CONSTRAINT connections_provider_required_fields_chk;
+    END IF;
+    ALTER TABLE connections
         ADD CONSTRAINT connections_provider_required_fields_chk
         CHECK (
             (provider = 'wapi' AND instance_id IS NOT NULL AND wapi_token IS NOT NULL)
             OR
             (provider = 'evolution' AND api_url IS NOT NULL AND api_key IS NOT NULL AND instance_name IS NOT NULL)
+            OR
+            (provider = 'uazapi' AND uazapi_token IS NOT NULL AND uazapi_server_url IS NOT NULL)
         );
-    END IF;
 END $$;
+
+-- UAZAPI global server config (super-admin)
+CREATE TABLE IF NOT EXISTS uazapi_servers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(255) NOT NULL,
+  server_url VARCHAR(500) NOT NULL,
+  admin_token TEXT NOT NULL,
+  is_default BOOLEAN NOT NULL DEFAULT FALSE,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  notes TEXT,
+  created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_uazapi_default_server
+  ON uazapi_servers((is_default)) WHERE is_default = TRUE;
+
+CREATE TABLE IF NOT EXISTS uazapi_webhook_events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  connection_id UUID REFERENCES connections(id) ON DELETE CASCADE,
+  event_type VARCHAR(100),
+  payload JSONB NOT NULL,
+  status VARCHAR(50) DEFAULT 'received',
+  error TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_uazapi_webhook_conn ON uazapi_webhook_events(connection_id, created_at DESC);
 
 
 -- Connection Members

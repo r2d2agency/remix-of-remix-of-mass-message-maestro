@@ -44,6 +44,7 @@ import leadGleegoRoutes from './routes/lead-gleego.js';
 import taskBoardsRoutes from './routes/task-boards.js';
 import meetingsRoutes from './routes/meetings.js';
 import meetingAuditRoutes, { cleanupExpiredAudio } from './routes/meeting-audit.js';
+import uazapiRoutes from './routes/uazapi.js';
 
 import { initDatabase } from './init-db.js';
 import { executeNotifications } from './scheduler.js';
@@ -206,6 +207,7 @@ app.use('/api/lead-gleego', leadGleegoRoutes);
 app.use('/api/task-boards', taskBoardsRoutes);
 app.use('/api/meetings', meetingsRoutes);
 app.use('/api/meetings', meetingAuditRoutes);
+app.use('/api/uazapi', uazapiRoutes);
 
 
 app.get('/health', (req, res) => {

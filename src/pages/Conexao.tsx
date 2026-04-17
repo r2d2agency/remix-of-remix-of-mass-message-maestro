@@ -10,6 +10,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Plus, QrCode, RefreshCw, Plug, Unplug, Trash2, Phone, Loader2, Wifi, WifiOff, Send, Settings2, AlertTriangle, CheckCircle, Eye, Activity, Radio, Users, Download, Pencil, UserCheck, Smartphone, Key, FileWarning } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { api } from "@/lib/api";
+import { uazapiApi } from "@/lib/uazapi-api";
 import { toast } from "sonner";
 import { TestMessageDialog } from "@/components/conexao/TestMessageDialog";
 import { WebhookDiagnosticPanel } from "@/components/conexao/WebhookDiagnosticPanel";
@@ -22,9 +23,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 interface Connection {
   id: string;
   name: string;
-  provider?: 'evolution' | 'wapi';
+  provider?: 'evolution' | 'wapi' | 'uazapi';
   instance_name: string;
   instance_id?: string;
+  uazapi_token?: string;
+  uazapi_instance_name?: string;
+  uazapi_server_url?: string;
   status: string;
   phone_number?: string;
   show_groups?: boolean;
@@ -43,7 +47,8 @@ const Conexao = () => {
   const [creating, setCreating] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [newConnectionName, setNewConnectionName] = useState("");
-  const [newConnectionProvider, setNewConnectionProvider] = useState<'evolution' | 'wapi'>('evolution');
+  const [newConnectionProvider, setNewConnectionProvider] = useState<'evolution' | 'wapi' | 'uazapi'>('uazapi');
+  const [uazapiAvailable, setUazapiAvailable] = useState(false);
   const [newConnectionInstanceId, setNewConnectionInstanceId] = useState("");
   const [newConnectionWapiToken, setNewConnectionWapiToken] = useState("");
   const [newConnectionApiUrl, setNewConnectionApiUrl] = useState("");
@@ -110,7 +115,18 @@ const Conexao = () => {
     loadConnections();
     loadPlanLimits();
     loadIntegratorToken();
+    loadUazapiInfo();
   }, []);
+
+  const loadUazapiInfo = async () => {
+    try {
+      const info = await uazapiApi.serverInfo();
+      setUazapiAvailable(!!info.available);
+      if (info.available) setNewConnectionProvider('uazapi');
+    } catch {
+      setUazapiAvailable(false);
+    }
+  };
 
   const loadConnections = async () => {
     try {
@@ -160,7 +176,7 @@ const Conexao = () => {
 
   const resetCreateForm = () => {
     setNewConnectionName('');
-    setNewConnectionProvider('evolution');
+    setNewConnectionProvider(uazapiAvailable ? 'uazapi' : 'evolution');
     setNewConnectionInstanceId('');
     setNewConnectionWapiToken('');
     setNewConnectionApiUrl('');
@@ -185,7 +201,22 @@ const Conexao = () => {
     try {
       let result: Connection & { qrCode?: string };
 
-      if (newConnectionProvider === 'wapi') {
+      if (newConnectionProvider === 'uazapi') {
+        // Create instance via UAZAPI global server
+        result = await uazapiApi.createInstance(newConnectionName) as any;
+        toast.success('Instância UAZAPI criada! Escaneie o QR Code para conectar.');
+        // Immediately fetch QR
+        try {
+          const qr = await uazapiApi.connect(result.id);
+          if (qr.qrcode) {
+            setSelectedConnection(result);
+            setQrCode(qr.qrcode);
+            setQrCodeDialog(true);
+          }
+        } catch (e) {
+          console.warn('Could not fetch UAZAPI QR right away', e);
+        }
+      } else if (newConnectionProvider === 'wapi') {
         if (hasIntegratorToken) {
           // Create via Integrator API (automatic)
           result = await api<Connection>('/api/connections/wapi-integrator/create-instance', {
@@ -595,12 +626,20 @@ const handleGetQRCode = async (connection: Connection) => {
                   <Label>Provedor</Label>
                   <Select 
                     value={newConnectionProvider} 
-                    onValueChange={(value: 'evolution' | 'wapi') => setNewConnectionProvider(value)}
+                    onValueChange={(value: 'evolution' | 'wapi' | 'uazapi') => setNewConnectionProvider(value)}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione o provedor" />
                     </SelectTrigger>
                     <SelectContent>
+                      {uazapiAvailable && (
+                        <SelectItem value="uazapi">
+                          <div className="flex items-center gap-2">
+                            <Radio className="h-4 w-4" />
+                            <span>UAZAPI (recomendado)</span>
+                          </div>
+                        </SelectItem>
+                      )}
                       <SelectItem value="evolution">
                         <div className="flex items-center gap-2">
                           <Radio className="h-4 w-4" />
@@ -616,11 +655,13 @@ const handleGetQRCode = async (connection: Connection) => {
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">
-                    {newConnectionProvider === 'evolution' 
-                      ? 'Evolution API: Gera QR Code para conexão' 
-                      : hasIntegratorToken
-                        ? 'W-API: Instância será criada automaticamente via integrador'
-                        : 'W-API: Configure o token do integrador ou forneça dados manualmente'}
+                    {newConnectionProvider === 'uazapi'
+                      ? 'UAZAPI: A instância é criada automaticamente no servidor configurado pelo super-admin. QR Code aberto em seguida.'
+                      : newConnectionProvider === 'evolution' 
+                        ? 'Evolution API: Gera QR Code para conexão' 
+                        : hasIntegratorToken
+                          ? 'W-API: Instância será criada automaticamente via integrador'
+                          : 'W-API: Configure o token do integrador ou forneça dados manualmente'}
                   </p>
                 </div>
 
