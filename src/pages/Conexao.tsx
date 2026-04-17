@@ -262,6 +262,9 @@ const Conexao = () => {
     }
   };
 
+const isUazapi = (c: Connection) => c.provider === 'uazapi' || !!c.uazapi_token;
+const isWapiConn = (c: Connection) => c.provider === 'wapi' || (!!c.instance_id && !c.uazapi_token);
+
 const handleGetQRCode = async (connection: Connection) => {
   setSelectedConnection(connection);
   setQrCodeDialog(true);
@@ -269,10 +272,16 @@ const handleGetQRCode = async (connection: Connection) => {
   setQrCode(null);
 
   try {
-    const result = await api<{ qrCode: string }>(`/api/evolution/${connection.id}/qrcode`);
-    setQrCode(result.qrCode);
-  } catch (error) {
-    toast.error('Erro ao buscar QR Code');
+    if (isUazapi(connection)) {
+      const r = await uazapiApi.connect(connection.id);
+      setQrCode(r.qrcode || null);
+      if (!r.qrcode) toast.info('Aguardando QR Code do UAZAPI...');
+    } else {
+      const result = await api<{ qrCode: string }>(`/api/evolution/${connection.id}/qrcode`);
+      setQrCode(result.qrCode);
+    }
+  } catch (error: any) {
+    toast.error(error?.message || 'Erro ao buscar QR Code');
   } finally {
     setLoadingQr(false);
   }
@@ -283,13 +292,19 @@ const handleGetQRCode = async (connection: Connection) => {
     
     setLoadingQr(true);
     try {
-      const result = await api<{ qrCode: string; success?: boolean }>(`/api/evolution/${selectedConnection.id}/restart`, {
-        method: 'POST',
-      });
-      setQrCode(result.qrCode);
-      toast.success('QR Code atualizado!');
-    } catch (error) {
-      toast.error('Erro ao atualizar QR Code');
+      if (isUazapi(selectedConnection)) {
+        const r = await uazapiApi.connect(selectedConnection.id);
+        setQrCode(r.qrcode || null);
+        toast.success('QR Code atualizado!');
+      } else {
+        const result = await api<{ qrCode: string; success?: boolean }>(`/api/evolution/${selectedConnection.id}/restart`, {
+          method: 'POST',
+        });
+        setQrCode(result.qrCode);
+        toast.success('QR Code atualizado!');
+      }
+    } catch (error: any) {
+      toast.error(error?.message || 'Erro ao atualizar QR Code');
     } finally {
       setLoadingQr(false);
     }
@@ -298,23 +313,34 @@ const handleGetQRCode = async (connection: Connection) => {
   const handleCheckStatus = async (connection: Connection) => {
     setCheckingStatus(connection.id);
     try {
-      const result = await api<{ status: string; phoneNumber?: string }>(`/api/evolution/${connection.id}/status`);
+      let status: string;
+      let phoneNumber: string | undefined;
+
+      if (isUazapi(connection)) {
+        const r = await uazapiApi.status(connection.id);
+        status = r.status;
+        phoneNumber = r.phoneNumber;
+      } else {
+        const result = await api<{ status: string; phoneNumber?: string }>(`/api/evolution/${connection.id}/status`);
+        status = result.status;
+        phoneNumber = result.phoneNumber;
+      }
       
       setConnections(prev => prev.map(c => 
         c.id === connection.id 
-          ? { ...c, status: result.status, phone_number: result.phoneNumber } 
+          ? { ...c, status, phone_number: phoneNumber } 
           : c
       ));
 
-      if (result.status === 'connected') {
-        toast.success(`Conectado: ${result.phoneNumber || 'WhatsApp'}`);
+      if (status === 'connected') {
+        toast.success(`Conectado: ${phoneNumber || 'WhatsApp'}`);
         setQrCodeDialog(false);
         setQrCode(null);
       } else {
         toast.info('Aguardando conexão...');
       }
-    } catch (error) {
-      toast.error('Erro ao verificar status');
+    } catch (error: any) {
+      toast.error(error?.message || 'Erro ao verificar status');
     } finally {
       setCheckingStatus(null);
     }
@@ -322,7 +348,11 @@ const handleGetQRCode = async (connection: Connection) => {
 
   const handleLogout = async (connection: Connection) => {
     try {
-      await api(`/api/evolution/${connection.id}/logout`, { method: 'POST' });
+      if (isUazapi(connection)) {
+        await uazapiApi.disconnect(connection.id);
+      } else {
+        await api(`/api/evolution/${connection.id}/logout`, { method: 'POST' });
+      }
       
       setConnections(prev => prev.map(c => 
         c.id === connection.id 
@@ -331,22 +361,26 @@ const handleGetQRCode = async (connection: Connection) => {
       ));
       
       toast.success('Desconectado com sucesso');
-    } catch (error) {
-      toast.error('Erro ao desconectar');
+    } catch (error: any) {
+      toast.error(error?.message || 'Erro ao desconectar');
     }
   };
 
   const handleDelete = async (connection: Connection) => {
     try {
-      const isWapi = connection.provider === 'wapi' || !!connection.instance_id;
-      const deleteUrl = isWapi 
-        ? `/api/connections/${connection.id}` 
-        : `/api/evolution/${connection.id}`;
+      let deleteUrl: string;
+      if (isUazapi(connection)) {
+        deleteUrl = `/api/uazapi/${connection.id}`;
+      } else if (isWapiConn(connection)) {
+        deleteUrl = `/api/connections/${connection.id}`;
+      } else {
+        deleteUrl = `/api/evolution/${connection.id}`;
+      }
       await api(deleteUrl, { method: 'DELETE' });
       setConnections(prev => prev.filter(c => c.id !== connection.id));
       toast.success('Conexão excluída');
-    } catch (error) {
-      toast.error('Erro ao excluir conexão');
+    } catch (error: any) {
+      toast.error(error?.message || 'Erro ao excluir conexão');
     }
   };
 
@@ -549,17 +583,27 @@ const handleGetQRCode = async (connection: Connection) => {
 
     const interval = setInterval(async () => {
       try {
-        const result = await api<{ status: string; phoneNumber?: string }>(`/api/evolution/${selectedConnection.id}/status`);
+        let status: string;
+        let phoneNumber: string | undefined;
+        if (isUazapi(selectedConnection)) {
+          const r = await uazapiApi.status(selectedConnection.id);
+          status = r.status;
+          phoneNumber = r.phoneNumber;
+        } else {
+          const result = await api<{ status: string; phoneNumber?: string }>(`/api/evolution/${selectedConnection.id}/status`);
+          status = result.status;
+          phoneNumber = result.phoneNumber;
+        }
         
-        if (result.status === 'connected') {
+        if (status === 'connected') {
           setConnections(prev => prev.map(c => 
             c.id === selectedConnection.id 
-              ? { ...c, status: result.status, phone_number: result.phoneNumber } 
+              ? { ...c, status, phone_number: phoneNumber } 
               : c
           ));
           setQrCodeDialog(false);
           setQrCode(null);
-          toast.success(`WhatsApp conectado: ${result.phoneNumber || ''}`);
+          toast.success(`WhatsApp conectado: ${phoneNumber || ''}`);
           clearInterval(interval);
         }
       } catch (error) {

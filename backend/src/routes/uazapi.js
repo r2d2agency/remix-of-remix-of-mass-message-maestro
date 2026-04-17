@@ -270,12 +270,22 @@ router.post('/instances', async (req, res) => {
 //  CLIENT: per-connection actions
 // ============================================================
 router.get('/:connectionId/status', async (req, res) => {
-  const c = await getConnectionWithAccess(req.params.connectionId, req.userId);
-  if (!c) return res.status(404).json({ error: 'Conexão não encontrada' });
-  const r = await uaz.getStatus({ serverUrl: c.uazapi_server_url, token: c.uazapi_token });
-  // sync DB status
-  await query(`UPDATE connections SET status=$2, updated_at=NOW() WHERE id=$1`, [c.id, r.status]);
-  res.json(r);
+  try {
+    const c = await getConnectionWithAccess(req.params.connectionId, req.userId);
+    if (!c) return res.status(404).json({ error: 'Conexão não encontrada' });
+    if (!c.uazapi_token || !c.uazapi_server_url) {
+      return res.json({ status: c.status || 'disconnected', phoneNumber: c.phone_number, provider: 'uazapi' });
+    }
+    const r = await uaz.getStatus({ serverUrl: c.uazapi_server_url, token: c.uazapi_token });
+    await query(
+      `UPDATE connections SET status=$2, phone_number=COALESCE($3, phone_number), updated_at=NOW() WHERE id=$1`,
+      [c.id, r.status, r.phoneNumber || null]
+    );
+    res.json({ ...r, provider: 'uazapi' });
+  } catch (err) {
+    console.error('[UAZAPI] status error', err);
+    res.json({ status: 'disconnected', provider: 'uazapi', error: err?.message || 'status_error' });
+  }
 });
 
 router.post('/:connectionId/connect', async (req, res) => {
