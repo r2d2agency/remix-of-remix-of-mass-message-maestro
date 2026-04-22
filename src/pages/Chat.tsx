@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { format, subDays, startOfDay, endOfDay } from "date-fns";
 import { useLocation } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { ConversationList } from "@/components/chat/ConversationList";
@@ -83,10 +84,14 @@ const Chat = () => {
     assigned: 'all',
     archived: false,
     connection: 'all',
-    is_group: false, // false = individual chats, true = group chats
+    is_group: false,
     attendance_status: 'attending' as 'waiting' | 'attending' | 'finished',
     department: 'all',
+    startDate: undefined as Date | undefined,
+    endDate: undefined as Date | undefined,
+    page: 1,
   });
+  const [hasMoreConversations, setHasMoreConversations] = useState(true);
   const [activeTab, setActiveTab] = useState<'chats' | 'groups'>('chats');
 
   // Keep latest loader for intervals / effects without stale closures
