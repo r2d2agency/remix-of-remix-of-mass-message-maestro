@@ -357,6 +357,10 @@ const Chat = () => {
     }
   }, [favoriteConversation, loadConversations]);
 
+  const handleFiltersChange = useCallback((newFilters: any) => {
+    setFilters(prev => ({ ...prev, ...newFilters, page: 1 }));
+  }, []);
+
   const handleSelectConversation = useCallback(async (conversation: Conversation) => {
     // Update the ref immediately to prevent race conditions
     selectedIdRef.current = conversation.id;
