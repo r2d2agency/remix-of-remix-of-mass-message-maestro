@@ -92,6 +92,8 @@ interface ConversationListProps {
     is_group: boolean;
     attendance_status: 'waiting' | 'attending' | 'finished';
     department: string;
+    startDate?: Date;
+    endDate?: Date;
   };
   onFiltersChange: (filters: {
     search: string;
@@ -102,6 +104,9 @@ interface ConversationListProps {
     is_group: boolean;
     attendance_status: 'waiting' | 'attending' | 'finished';
     department: string;
+    startDate?: Date;
+    endDate?: Date;
+    page?: number;
   }) => void;
   isAdmin?: boolean;
   connections?: Connection[];
@@ -117,6 +122,8 @@ interface ConversationListProps {
   onGlobalSearchSelect?: (conversationId: string, messageId?: string) => void;
   showFavorites?: boolean;
   onToggleFavorites?: () => void;
+  hasMore?: boolean;
+  onLoadMore?: () => void;
 }
 
 // Generate a consistent color for a connection_id
