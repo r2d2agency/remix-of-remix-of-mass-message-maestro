@@ -29,6 +29,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import {
   Search,
   Archive,
   Tag,
@@ -55,8 +61,10 @@ import {
   Building2,
   Pin,
   Star,
+  Calendar as CalendarIcon,
+  X,
 } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, format, subDays, startOfDay, endOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { Conversation, ConversationTag, TeamMember, Connection } from "@/hooks/use-chat";
@@ -84,6 +92,8 @@ interface ConversationListProps {
     is_group: boolean;
     attendance_status: 'waiting' | 'attending' | 'finished';
     department: string;
+    startDate?: Date;
+    endDate?: Date;
   };
   onFiltersChange: (filters: {
     search: string;
@@ -94,6 +104,9 @@ interface ConversationListProps {
     is_group: boolean;
     attendance_status: 'waiting' | 'attending' | 'finished';
     department: string;
+    startDate?: Date;
+    endDate?: Date;
+    page?: number;
   }) => void;
   isAdmin?: boolean;
   connections?: Connection[];
@@ -109,6 +122,8 @@ interface ConversationListProps {
   onGlobalSearchSelect?: (conversationId: string, messageId?: string) => void;
   showFavorites?: boolean;
   onToggleFavorites?: () => void;
+  hasMore?: boolean;
+  onLoadMore?: () => void;
 }
 
 // Generate a consistent color for a connection_id
@@ -182,6 +197,8 @@ export function ConversationList({
   onGlobalSearchSelect,
   showFavorites,
   onToggleFavorites,
+  hasMore,
+  onLoadMore,
 }: ConversationListProps) {
   const isMobile = useIsMobile();
   const [localSearch, setLocalSearch] = useState(filters.search);
@@ -341,6 +358,15 @@ export function ConversationList({
       .toUpperCase();
   };
 
+  const getCalendarDisplayDate = () => {
+    if (filters.startDate && filters.endDate) {
+      return `${format(filters.startDate, 'dd/MM')} - ${format(filters.endDate, 'dd/MM')}`;
+    }
+    if (filters.startDate) return `A partir de ${format(filters.startDate, 'dd/MM')}`;
+    if (filters.endDate) return `Até ${format(filters.endDate, 'dd/MM')}`;
+    return 'Data';
+  };
+
   return (
     <div className="flex flex-col h-full border-r bg-card overflow-hidden max-w-full">
       {/* Header */}
@@ -399,27 +425,133 @@ export function ConversationList({
           </div>
         </div>
 
-        {/* Search */}
-        <div className="relative flex gap-1">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar conversas..."
-              value={localSearch}
-              onChange={(e) => setLocalSearch(e.target.value)}
-              className="pl-9"
-            />
+        {/* Search and Date Filter */}
+        <div className="flex flex-col gap-2">
+          <div className="flex gap-1">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar conversas..."
+                value={localSearch}
+                onChange={(e) => setLocalSearch(e.target.value)}
+                className="pl-9 h-9"
+              />
+            </div>
+            
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant={filters.startDate || filters.endDate ? "default" : "outline"}
+                  size="icon"
+                  className="flex-shrink-0 h-9 w-9"
+                  title="Filtrar por data"
+                >
+                  <CalendarIcon className="h-4 w-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="end">
+                <div className="p-3 border-b flex flex-wrap gap-2 justify-center">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="text-[10px] h-7"
+                    onClick={() => onFiltersChange({ 
+                      ...filters, 
+                      startDate: startOfDay(new Date()), 
+                      endDate: endOfDay(new Date()) 
+                    })}
+                  >
+                    Hoje
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="text-[10px] h-7"
+                    onClick={() => onFiltersChange({ 
+                      ...filters, 
+                      startDate: startOfDay(subDays(new Date(), 1)), 
+                      endDate: endOfDay(subDays(new Date(), 1)) 
+                    })}
+                  >
+                    Ontem
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="text-[10px] h-7"
+                    onClick={() => onFiltersChange({ 
+                      ...filters, 
+                      startDate: undefined, 
+                      endDate: endOfDay(subDays(new Date(), 2)) 
+                    })}
+                  >
+                    Mais antigas
+                  </Button>
+                  {(filters.startDate || filters.endDate) && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="text-[10px] h-7 text-destructive"
+                      onClick={() => onFiltersChange({ 
+                        ...filters, 
+                        startDate: undefined, 
+                        endDate: undefined 
+                      })}
+                    >
+                      <X className="h-3 w-3 mr-1" /> Limpar
+                    </Button>
+                  )}
+                </div>
+                <Calendar
+                  initialFocus
+                  mode="range"
+                  selected={{
+                    from: filters.startDate,
+                    to: filters.endDate,
+                  }}
+                  onSelect={(range) => onFiltersChange({ 
+                    ...filters, 
+                    startDate: range?.from, 
+                    endDate: range?.to 
+                  })}
+                  numberOfMonths={1}
+                  locale={ptBR}
+                />
+              </PopoverContent>
+            </Popover>
+
+            {onGlobalSearchSelect && (
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setGlobalSearchOpen(true)}
+                title="Buscar em todas as mensagens"
+                className="flex-shrink-0 h-9 w-9"
+              >
+                <SearchCode className="h-4 w-4" />
+              </Button>
+            )}
           </div>
-          {onGlobalSearchSelect && (
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setGlobalSearchOpen(true)}
-              title="Buscar em todas as mensagens"
-              className="flex-shrink-0"
-            >
-              <SearchCode className="h-4 w-4" />
-            </Button>
+          
+          {(filters.startDate || filters.endDate) && (
+            <div className="flex items-center gap-2 px-2 py-1 bg-primary/5 rounded border border-primary/10">
+              <span className="text-[10px] text-primary font-medium truncate">
+                {filters.startDate && filters.endDate 
+                  ? `${format(filters.startDate, 'dd/MM')} até ${format(filters.endDate, 'dd/MM')}`
+                  : filters.startDate 
+                    ? `A partir de ${format(filters.startDate, 'dd/MM')}`
+                    : `Até ${format(filters.endDate, 'dd/MM')}`
+                }
+              </span>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-4 w-4 ml-auto" 
+                onClick={() => onFiltersChange({ ...filters, startDate: undefined, endDate: undefined })}
+              >
+                <X className="h-2 w-2" />
+              </Button>
+            </div>
           )}
         </div>
 
@@ -813,52 +945,52 @@ export function ConversationList({
                           "h-8 w-8 flex-shrink-0",
                           isMobile ? "opacity-100" : "opacity-0 group-hover:opacity-100"
                         )}
-                          onClick={(e) => e.stopPropagation()}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {onPinConversation && (
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onPinConversation(conv.id, !conv.is_pinned);
+                          }}
                         >
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        {onPinConversation && (
+                          <Pin className={cn("h-4 w-4 mr-2", conv.is_pinned && "fill-current text-primary")} />
+                          {conv.is_pinned ? 'Desafixar' : 'Fixar no topo'}
+                        </DropdownMenuItem>
+                      )}
+                      {onFavoriteConversation && (
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onFavoriteConversation(conv.id, !conv.is_favorited);
+                          }}
+                        >
+                          <Star className={cn("h-4 w-4 mr-2", conv.is_favorited && "fill-yellow-400 text-yellow-400")} />
+                          {conv.is_favorited ? 'Desfavoritar' : 'Favoritar'}
+                        </DropdownMenuItem>
+                      )}
+                      {isAdmin && (
+                        <>
+                          <DropdownMenuSeparator />
                           <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
                             onClick={(e) => {
                               e.stopPropagation();
-                              onPinConversation(conv.id, !conv.is_pinned);
+                              setConversationToDelete(conv);
+                              setDeleteDialogOpen(true);
                             }}
                           >
-                            <Pin className={cn("h-4 w-4 mr-2", conv.is_pinned && "fill-current text-primary")} />
-                            {conv.is_pinned ? 'Desafixar' : 'Fixar no topo'}
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Excluir conversa
                           </DropdownMenuItem>
-                        )}
-                        {onFavoriteConversation && (
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onFavoriteConversation(conv.id, !conv.is_favorited);
-                            }}
-                          >
-                            <Star className={cn("h-4 w-4 mr-2", conv.is_favorited && "fill-yellow-400 text-yellow-400")} />
-                            {conv.is_favorited ? 'Desfavoritar' : 'Favoritar'}
-                          </DropdownMenuItem>
-                        )}
-                        {isAdmin && (
-                          <>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="text-destructive focus:text-destructive"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setConversationToDelete(conv);
-                                setDeleteDialogOpen(true);
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Excluir conversa
-                            </DropdownMenuItem>
-                          </>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                        </>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               );
 
@@ -885,6 +1017,25 @@ export function ConversationList({
 
               return <div key={conv.id}>{conversationContent}</div>;
             })}
+
+            {hasMore && (
+              <div className="p-4 flex justify-center">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={onLoadMore}
+                  disabled={loading}
+                  className="w-full h-10 text-primary hover:bg-primary/5 border-primary/20"
+                >
+                  {loading ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <Plus className="h-4 w-4 mr-2" />
+                  )}
+                  Ver mais conversas
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </ScrollArea>

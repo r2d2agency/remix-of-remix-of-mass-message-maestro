@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { format, subDays, startOfDay, endOfDay } from "date-fns";
 import { useLocation } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { ConversationList } from "@/components/chat/ConversationList";
@@ -83,10 +84,14 @@ const Chat = () => {
     assigned: 'all',
     archived: false,
     connection: 'all',
-    is_group: false, // false = individual chats, true = group chats
+    is_group: false,
     attendance_status: 'attending' as 'waiting' | 'attending' | 'finished',
     department: 'all',
+    startDate: undefined as Date | undefined,
+    endDate: undefined as Date | undefined,
+    page: 1,
   });
+  const [hasMoreConversations, setHasMoreConversations] = useState(true);
   const [activeTab, setActiveTab] = useState<'chats' | 'groups'>('chats');
 
   // Keep latest loader for intervals / effects without stale closures
@@ -227,13 +232,18 @@ const Chat = () => {
     }
   };
 
-  const loadConversations = useCallback(async () => {
+  const loadConversations = useCallback(async (isLoadMore = false) => {
     // Prevent overlapping loads
     if (isLoadingConversationsRef.current) return;
     isLoadingConversationsRef.current = true;
     
     try {
-      const filterParams: any = {};
+      const currentPage = isLoadMore ? filters.page + 1 : 1;
+      const filterParams: any = {
+        page: currentPage,
+        limit: 50,
+      };
+
       if (filters.search) filterParams.search = filters.search;
       if (filters.tag !== 'all') filterParams.tag = filters.tag;
       if (filters.assigned !== 'all') filterParams.assigned = filters.assigned;
@@ -243,13 +253,20 @@ const Chat = () => {
       filterParams.is_group = activeTab === 'groups' ? 'true' : 'false';
       filterParams.attendance_status = filters.attendance_status;
       if (showFavorites) filterParams.favorited = 'true';
+      
+      if (filters.startDate) {
+        filterParams.start_date = format(startOfDay(filters.startDate), "yyyy-MM-dd'T'HH:mm:ss");
+      }
+      if (filters.endDate) {
+        filterParams.end_date = format(endOfDay(filters.endDate), "yyyy-MM-dd'T'HH:mm:ss");
+      }
 
       const data = await getConversations(filterParams);
 
       const sticky = stickyConversationRef.current;
 
       // Merge in "empty" conversations we want to keep visible
-      let merged = data;
+      let merged = isLoadMore ? [...conversations, ...data] : data;
       
       // Keep sticky conversation visible if it has no messages yet
       if (sticky && !sticky.last_message_at && !merged.some(c => c.id === sticky.id)) {
@@ -257,6 +274,11 @@ const Chat = () => {
       }
 
       setConversations(merged);
+      setHasMoreConversations(data.length >= 50);
+      
+      if (isLoadMore) {
+        setFilters(prev => ({ ...prev, page: currentPage }));
+      }
 
       // Clear sticky once it is naturally returned by the backend (or has messages)
       if (sticky && (sticky.last_message_at || data.some(c => c.id === sticky.id))) {
@@ -269,7 +291,6 @@ const Chat = () => {
         const updated = merged.find(c => c.id === currentSelectedId);
         if (updated) {
           setSelectedConversation(prev => {
-            // Only update if it's still the same conversation
             if (prev?.id === currentSelectedId) {
               return updated;
             }
@@ -278,15 +299,13 @@ const Chat = () => {
         }
       }
 
-      // Also refresh attendance counts
       loadAttendanceCounts();
     } catch (error) {
       console.error('Error loading conversations:', error);
     } finally {
       isLoadingConversationsRef.current = false;
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [getConversations, filters.search, filters.tag, filters.assigned, filters.connection, filters.archived, filters.attendance_status, filters.department, activeTab, showFavorites, loadAttendanceCounts]);
+  }, [getConversations, filters, activeTab, showFavorites, loadAttendanceCounts, conversations]);
 
   // Keep ref pointing to the latest loadConversations (used by intervals above)
   useEffect(() => {
@@ -337,6 +356,10 @@ const Chat = () => {
       toast.error(error.message || 'Erro ao favoritar conversa');
     }
   }, [favoriteConversation, loadConversations]);
+
+  const handleFiltersChange = useCallback((newFilters: any) => {
+    setFilters(prev => ({ ...prev, ...newFilters, page: 1 }));
+  }, []);
 
   const handleSelectConversation = useCallback(async (conversation: Conversation) => {
     // Update the ref immediately to prevent race conditions
@@ -785,9 +808,9 @@ const Chat = () => {
                   tags={tags}
                   team={team}
                   loading={loading}
-                  onRefresh={loadConversations}
+                  onRefresh={() => loadConversations()}
                   filters={filters}
-                  onFiltersChange={setFilters}
+                  onFiltersChange={handleFiltersChange}
                   isAdmin={isAdmin}
                   connections={connections}
                   onPinConversation={handlePinConversation}
@@ -808,6 +831,8 @@ const Chat = () => {
                   onGlobalSearchSelect={async (conversationId, messageId) => {
                     try { const conv = await getConversation(conversationId); if (conv) { selectedIdRef.current = conv.id; setSelectedConversation(conv); const msgs = await getMessages(conversationId); setMessages(msgs); } } catch (error: any) { toast.error('Erro ao abrir conversa'); }
                   }}
+                  hasMore={hasMoreConversations}
+                  onLoadMore={() => loadConversations(true)}
                 />
               </div>
             )}
@@ -857,9 +882,9 @@ const Chat = () => {
                 tags={tags}
                 team={team}
                 loading={loading}
-                onRefresh={loadConversations}
+                onRefresh={() => loadConversations()}
                 filters={filters}
-                onFiltersChange={setFilters}
+                onFiltersChange={handleFiltersChange}
                 isAdmin={isAdmin}
                 connections={connections}
                 onPinConversation={handlePinConversation}
@@ -880,6 +905,8 @@ const Chat = () => {
                 onGlobalSearchSelect={async (conversationId, messageId) => {
                   try { const conv = await getConversation(conversationId); if (conv) { selectedIdRef.current = conv.id; setSelectedConversation(conv); const msgs = await getMessages(conversationId); setMessages(msgs); } } catch (error: any) { toast.error('Erro ao abrir conversa'); }
                 }}
+                hasMore={hasMoreConversations}
+                onLoadMore={() => loadConversations(true)}
               />
             </ResizablePanel>
 
