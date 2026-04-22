@@ -197,6 +197,8 @@ export function ConversationList({
   onGlobalSearchSelect,
   showFavorites,
   onToggleFavorites,
+  hasMore,
+  onLoadMore,
 }: ConversationListProps) {
   const isMobile = useIsMobile();
   const [localSearch, setLocalSearch] = useState(filters.search);
@@ -354,6 +356,15 @@ export function ConversationList({
       .map(n => n[0])
       .join('')
       .toUpperCase();
+  };
+
+  const getCalendarDisplayDate = () => {
+    if (filters.startDate && filters.endDate) {
+      return `${format(filters.startDate, 'dd/MM')} - ${format(filters.endDate, 'dd/MM')}`;
+    }
+    if (filters.startDate) return `A partir de ${format(filters.startDate, 'dd/MM')}`;
+    if (filters.endDate) return `Até ${format(filters.endDate, 'dd/MM')}`;
+    return 'Data';
   };
 
   return (
@@ -745,16 +756,268 @@ export function ConversationList({
         ) : (
           <div className="divide-y">
             {conversations.map((conv) => {
-              // ... existing conversation rendering code ...
-              return (
-                <div key={conv.id}>
-                  <SwipeableConversationItem
-                    // ... existing props ...
-                  />
+              // Use the actual conversation status, not the filter
+              const isWaiting = conv.attendance_status === 'waiting';
+              const isAttending = conv.attendance_status === 'attending';
+              const isFinished = conv.attendance_status === 'finished';
+              
+              const connColor = getConnectionColor(conv.connection_id, connections);
+              
+              const conversationContent = (
+                <div
+                  className={cn(
+                    "flex items-start gap-3 p-4 cursor-pointer transition-colors hover:bg-accent/50 group",
+                    selectedId === conv.id && "bg-accent"
+                  )}
+                  style={connColor ? { borderLeft: `3px solid ${connColor}` } : undefined}
+                >
+                  {/* Avatar with profile picture */}
+                  <Avatar 
+                    className="h-12 w-12 flex-shrink-0"
+                    onClick={() => onSelect(conv)}
+                  >
+                    {profilePictures[conv.id] && (
+                      <AvatarImage 
+                        src={profilePictures[conv.id]} 
+                        alt={conv.contact_name || 'Avatar'}
+                        className="object-cover"
+                      />
+                    )}
+                    <AvatarFallback className={cn(
+                      "text-primary",
+                      conv.is_group ? "bg-blue-100 dark:bg-blue-900/30" : "bg-primary/10"
+                    )}>
+                      {conv.is_group ? (
+                        <Users className="h-5 w-5" />
+                      ) : (
+                        getInitials(conv.contact_name)
+                      )}
+                    </AvatarFallback>
+                  </Avatar>
+
+                  {/* Content */}
+                  <div className="flex-1 min-w-0" onClick={() => onSelect(conv)}>
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="font-medium truncate flex-1 min-w-0 flex items-center gap-1">
+                        {conv.is_pinned && <Pin className="h-3 w-3 text-primary flex-shrink-0 fill-current" />}
+                        {conv.is_favorited && <Star className="h-3 w-3 text-yellow-400 flex-shrink-0 fill-yellow-400" />}
+                        {conv.is_group 
+                          ? (conv.group_name || 'Grupo sem nome')
+                          : (conv.contact_name || conv.contact_phone || 'Desconhecido')}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground whitespace-nowrap ml-1">
+                        {conv.last_message_at
+                          ? formatDistanceToNow(new Date(conv.last_message_at), {
+                              addSuffix: false,
+                              locale: ptBR,
+                            })
+                          : ''}
+                      </span>
+                    </div>
+
+                    {/* Last message preview */}
+                    <div className="flex items-center gap-1 text-sm text-muted-foreground mt-0.5">
+                      {getMessageTypeIcon(conv.last_message_type)}
+                      <span className="truncate">
+                        {getMessagePreview(conv.last_message, conv.last_message_type)}
+                      </span>
+                    </div>
+
+                    {/* Tags and Department row */}
+                    <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                      {/* Department badge */}
+                      {conv.department_name && (() => {
+                        const deptColor = allDepartments.find(d => d.id === conv.department_id)?.color || '#6b7280';
+                        return (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] px-1.5 py-0"
+                            style={{ 
+                              borderColor: deptColor, 
+                              color: deptColor,
+                              backgroundColor: `${deptColor}15`
+                            }}
+                          >
+                            <Building2 className="h-2.5 w-2.5 mr-0.5" />
+                            {conv.department_name}
+                          </Badge>
+                        );
+                      })()}
+                      
+                      {/* Tags */}
+                      {conv.tags.slice(0, 2).map(tag => (
+                        <Badge
+                          key={tag.id}
+                          variant="outline"
+                          className="text-[10px] px-1.5 py-0"
+                          style={{ borderColor: tag.color, color: tag.color }}
+                        >
+                          {tag.name}
+                        </Badge>
+                      ))}
+                      {conv.tags.length > 2 && (
+                        <span className="text-[10px] text-muted-foreground">
+                          +{conv.tags.length - 2}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Connection name, Assigned user, and Unread count */}
+                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                      {/* Connection name */}
+                      {conv.connection_name && (() => {
+                        const cColor = connColor;
+                        return (
+                          <span 
+                            className="text-[10px] px-1.5 py-0.5 rounded truncate max-w-[80px] font-medium"
+                            style={cColor 
+                              ? { backgroundColor: `${cColor}20`, color: cColor, border: `1px solid ${cColor}40` }
+                              : { backgroundColor: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' }
+                            }
+                          >
+                            {conv.connection_name}
+                          </span>
+                        );
+                      })()}
+                      
+                      {/* Assigned user */}
+                      {conv.assigned_name && (
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                          {conv.assigned_name.split(' ')[0]}
+                        </Badge>
+                      )}
+
+                      {/* Unread count */}
+                      {conv.unread_count > 0 && (
+                        <Badge className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0 min-w-[20px] justify-center">
+                          {conv.unread_count}
+                        </Badge>
+                      )}
+                    </div>
+
+                    {/* Accept button for waiting conversations - only show on desktop */}
+                    {!isMobile && isWaiting && onAcceptConversation && (
+                      <Button
+                        size="sm"
+                        variant="default"
+                        className="h-6 px-2 text-[10px] mt-2 max-w-full truncate"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onAcceptConversation(conv.id);
+                        }}
+                      >
+                        <CheckCircle className="h-3 w-3 mr-1 flex-shrink-0" />
+                        <span className="truncate">Aceitar</span>
+                      </Button>
+                    )}
+
+                    {/* Reopen button for finished conversations - only show on desktop */}
+                    {!isMobile && isFinished && onReopenConversation && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-6 px-2 text-[10px] mt-2 max-w-full truncate text-blue-600 border-blue-300"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onReopenConversation(conv.id);
+                        }}
+                      >
+                        <RotateCcw className="h-3 w-3 mr-1 flex-shrink-0" />
+                        <span className="truncate">Reabrir</span>
+                      </Button>
+                    )}
+
+                    {/* Swipe hint for mobile */}
+                    {isMobile && (isWaiting || isAttending || isFinished) && (
+                      <p className="text-[9px] text-muted-foreground mt-1.5 italic">
+                        {isWaiting ? '→ Deslize para aceitar' : isFinished ? '→ Deslize para reabrir' : '→ Deslize para liberar/finalizar'}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Actions dropdown - visible for all users */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={cn(
+                          "h-8 w-8 flex-shrink-0",
+                          isMobile ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                        )}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {onPinConversation && (
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onPinConversation(conv.id, !conv.is_pinned);
+                          }}
+                        >
+                          <Pin className={cn("h-4 w-4 mr-2", conv.is_pinned && "fill-current text-primary")} />
+                          {conv.is_pinned ? 'Desafixar' : 'Fixar no topo'}
+                        </DropdownMenuItem>
+                      )}
+                      {onFavoriteConversation && (
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onFavoriteConversation(conv.id, !conv.is_favorited);
+                          }}
+                        >
+                          <Star className={cn("h-4 w-4 mr-2", conv.is_favorited && "fill-yellow-400 text-yellow-400")} />
+                          {conv.is_favorited ? 'Desfavoritar' : 'Favoritar'}
+                        </DropdownMenuItem>
+                      )}
+                      {isAdmin && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setConversationToDelete(conv);
+                              setDeleteDialogOpen(true);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Excluir conversa
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               );
+
+              // Wrap with swipeable on mobile
+              if (isMobile) {
+                return (
+                  <SwipeableConversationItem
+                    key={conv.id}
+                    isWaiting={isWaiting}
+                    isAttending={isAttending}
+                    isAdmin={isAdmin}
+                    onAccept={onAcceptConversation ? () => onAcceptConversation(conv.id) : undefined}
+                    onRelease={onReleaseConversation ? () => onReleaseConversation(conv.id) : undefined}
+                    onArchive={onArchiveConversation ? () => onArchiveConversation(conv.id) : undefined}
+                    onDelete={isAdmin ? () => {
+                      setConversationToDelete(conv);
+                      setDeleteDialogOpen(true);
+                    } : undefined}
+                  >
+                    {conversationContent}
+                  </SwipeableConversationItem>
+                );
+              }
+
+              return <div key={conv.id}>{conversationContent}</div>;
             })}
-            
+
             {hasMore && (
               <div className="p-4 flex justify-center">
                 <Button 
@@ -762,7 +1025,7 @@ export function ConversationList({
                   size="sm" 
                   onClick={onLoadMore}
                   disabled={loading}
-                  className="w-full"
+                  className="w-full h-10 text-primary hover:bg-primary/5 border-primary/20"
                 >
                   {loading ? (
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
