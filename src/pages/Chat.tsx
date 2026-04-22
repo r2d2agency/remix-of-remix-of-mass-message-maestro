@@ -882,9 +882,9 @@ const Chat = () => {
                 tags={tags}
                 team={team}
                 loading={loading}
-                onRefresh={loadConversations}
+                onRefresh={() => loadConversations()}
                 filters={filters}
-                onFiltersChange={setFilters}
+                onFiltersChange={handleFiltersChange}
                 isAdmin={isAdmin}
                 connections={connections}
                 onPinConversation={handlePinConversation}
@@ -905,6 +905,8 @@ const Chat = () => {
                 onGlobalSearchSelect={async (conversationId, messageId) => {
                   try { const conv = await getConversation(conversationId); if (conv) { selectedIdRef.current = conv.id; setSelectedConversation(conv); const msgs = await getMessages(conversationId); setMessages(msgs); } } catch (error: any) { toast.error('Erro ao abrir conversa'); }
                 }}
+                hasMore={hasMoreConversations}
+                onLoadMore={() => loadConversations(true)}
               />
             </ResizablePanel>
 
