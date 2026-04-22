@@ -414,27 +414,133 @@ export function ConversationList({
           </div>
         </div>
 
-        {/* Search */}
-        <div className="relative flex gap-1">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar conversas..."
-              value={localSearch}
-              onChange={(e) => setLocalSearch(e.target.value)}
-              className="pl-9"
-            />
+        {/* Search and Date Filter */}
+        <div className="flex flex-col gap-2">
+          <div className="flex gap-1">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar conversas..."
+                value={localSearch}
+                onChange={(e) => setLocalSearch(e.target.value)}
+                className="pl-9 h-9"
+              />
+            </div>
+            
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant={filters.startDate || filters.endDate ? "default" : "outline"}
+                  size="icon"
+                  className="flex-shrink-0 h-9 w-9"
+                  title="Filtrar por data"
+                >
+                  <CalendarIcon className="h-4 w-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="end">
+                <div className="p-3 border-b flex flex-wrap gap-2 justify-center">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="text-[10px] h-7"
+                    onClick={() => onFiltersChange({ 
+                      ...filters, 
+                      startDate: startOfDay(new Date()), 
+                      endDate: endOfDay(new Date()) 
+                    })}
+                  >
+                    Hoje
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="text-[10px] h-7"
+                    onClick={() => onFiltersChange({ 
+                      ...filters, 
+                      startDate: startOfDay(subDays(new Date(), 1)), 
+                      endDate: endOfDay(subDays(new Date(), 1)) 
+                    })}
+                  >
+                    Ontem
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="text-[10px] h-7"
+                    onClick={() => onFiltersChange({ 
+                      ...filters, 
+                      startDate: undefined, 
+                      endDate: endOfDay(subDays(new Date(), 2)) 
+                    })}
+                  >
+                    Mais antigas
+                  </Button>
+                  {(filters.startDate || filters.endDate) && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="text-[10px] h-7 text-destructive"
+                      onClick={() => onFiltersChange({ 
+                        ...filters, 
+                        startDate: undefined, 
+                        endDate: undefined 
+                      })}
+                    >
+                      <X className="h-3 w-3 mr-1" /> Limpar
+                    </Button>
+                  )}
+                </div>
+                <Calendar
+                  initialFocus
+                  mode="range"
+                  selected={{
+                    from: filters.startDate,
+                    to: filters.endDate,
+                  }}
+                  onSelect={(range) => onFiltersChange({ 
+                    ...filters, 
+                    startDate: range?.from, 
+                    endDate: range?.to 
+                  })}
+                  numberOfMonths={1}
+                  locale={ptBR}
+                />
+              </PopoverContent>
+            </Popover>
+
+            {onGlobalSearchSelect && (
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setGlobalSearchOpen(true)}
+                title="Buscar em todas as mensagens"
+                className="flex-shrink-0 h-9 w-9"
+              >
+                <SearchCode className="h-4 w-4" />
+              </Button>
+            )}
           </div>
-          {onGlobalSearchSelect && (
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setGlobalSearchOpen(true)}
-              title="Buscar em todas as mensagens"
-              className="flex-shrink-0"
-            >
-              <SearchCode className="h-4 w-4" />
-            </Button>
+          
+          {(filters.startDate || filters.endDate) && (
+            <div className="flex items-center gap-2 px-2 py-1 bg-primary/5 rounded border border-primary/10">
+              <span className="text-[10px] text-primary font-medium truncate">
+                {filters.startDate && filters.endDate 
+                  ? `${format(filters.startDate, 'dd/MM')} até ${format(filters.endDate, 'dd/MM')}`
+                  : filters.startDate 
+                    ? `A partir de ${format(filters.startDate, 'dd/MM')}`
+                    : `Até ${format(filters.endDate, 'dd/MM')}`
+                }
+              </span>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-4 w-4 ml-auto" 
+                onClick={() => onFiltersChange({ ...filters, startDate: undefined, endDate: undefined })}
+              >
+                <X className="h-2 w-2" />
+              </Button>
+            </div>
           )}
         </div>
 
