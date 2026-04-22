@@ -265,15 +265,16 @@ const Chat = () => {
 
       const sticky = stickyConversationRef.current;
 
-      // Merge in "empty" conversations we want to keep visible
-      let merged = isLoadMore ? [...conversations, ...data] : data;
-      
-      // Keep sticky conversation visible if it has no messages yet
-      if (sticky && !sticky.last_message_at && !merged.some(c => c.id === sticky.id)) {
-        merged = [sticky, ...merged];
-      }
-
-      setConversations(merged);
+      setConversations(prev => {
+        // Merge in "empty" conversations we want to keep visible
+        let merged = isLoadMore ? [...prev, ...data] : data;
+        
+        // Keep sticky conversation visible if it has no messages yet
+        if (sticky && !sticky.last_message_at && !merged.some(c => c.id === sticky.id)) {
+          merged = [sticky, ...merged];
+        }
+        return merged;
+      });
       setHasMoreConversations(data.length >= 50);
       
       if (isLoadMore) {
