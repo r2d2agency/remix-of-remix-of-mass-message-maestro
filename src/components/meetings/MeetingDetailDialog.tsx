@@ -405,15 +405,12 @@ export function MeetingDetailDialog({ open, onOpenChange, meetingId }: MeetingDe
                       <div className="grid grid-cols-1 gap-4">
                         {standardPrompts.map((p) => {
                           const statusLog = logs.find(l => 
-                            (l.action === 'ai_analysis' || l.action === 'analysis_generated') && 
-                            l.description.includes(p.title)
+                            (l.action?.includes('analysis') || l.action?.includes('ata')) && 
+                            (l.description?.includes(p.title) || l.description?.toLowerCase().includes(p.id))
                           );
                           
                           const handleCardClick = () => {
                             if (loadingPromptId) return;
-                            
-                            // If it's already generated and we have the result in logs, we could show it
-                            // For now, let's just run it or let them know it's in the history
                             handleRunAnalysis(p.prompt, p.id);
                           };
                           
@@ -422,18 +419,21 @@ export function MeetingDetailDialog({ open, onOpenChange, meetingId }: MeetingDe
                               key={p.id} 
                               className={cn(
                                 "p-4 hover:border-primary/50 transition-colors cursor-pointer group",
-                                loadingPromptId === p.id && "border-primary bg-primary/5"
+                                loadingPromptId === p.id && "border-primary bg-primary/5",
+                                statusLog && "border-green-100 dark:border-green-900/30"
                               )} 
                               onClick={handleCardClick}
                             >
                               <div className="flex justify-between items-start">
                                 <div>
-                                  <h4 className="font-semibold text-sm group-hover:text-primary transition-colors">{p.title}</h4>
+                                  <h4 className="font-semibold text-sm group-hover:text-primary transition-colors flex items-center gap-2">
+                                    {p.title}
+                                    {statusLog && <CheckCircle2 className="h-3 w-3 text-green-500" />}
+                                  </h4>
                                   <p className="text-xs text-muted-foreground mt-1">{p.description}</p>
                                   {statusLog ? (
                                     <div className="flex items-center gap-2 mt-2">
-                                      <Badge variant="secondary" className="bg-green-50 text-green-700 border-green-100 text-[10px] px-1.5 py-0 h-5 font-medium">
-                                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                                      <Badge variant="secondary" className="bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-100 dark:border-green-900/30 text-[10px] px-1.5 py-0 h-5 font-medium">
                                         Já gerada
                                       </Badge>
                                       <span className="text-[10px] text-muted-foreground">
@@ -450,7 +450,13 @@ export function MeetingDetailDialog({ open, onOpenChange, meetingId }: MeetingDe
                                   )}
                                 </div>
                                 <Button size="sm" variant="ghost" className="h-8 w-8 p-0" disabled={!!loadingPromptId}>
-                                  {loadingPromptId === p.id ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <Play className="h-4 w-4" />}
+                                  {loadingPromptId === p.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                                  ) : statusLog ? (
+                                    <RefreshCw className="h-4 w-4 text-muted-foreground group-hover:text-primary" />
+                                  ) : (
+                                    <Play className="h-4 w-4" />
+                                  )}
                                 </Button>
                               </div>
                             </Card>
