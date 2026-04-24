@@ -201,11 +201,34 @@ export function MeetingDetailDialog({ open, onOpenChange, meetingId }: MeetingDe
                             </Button>
                           )}
                           {audioBlob && !uploadAudio.isPending && (
-                            <Button onClick={handleUploadAudio} className="gap-2 bg-green-600 hover:bg-green-700">
-                              <Upload className="h-4 w-4" />
-                              Enviar Gravação
-                            </Button>
+                            <div className="flex flex-col items-center gap-2 bg-background p-3 rounded-lg border shadow-sm">
+                              <p className="text-xs font-medium text-muted-foreground uppercase">Prévia da Gravação</p>
+                              <audio 
+                                src={URL.createObjectURL(audioBlob)} 
+                                controls 
+                                className="h-10 w-64"
+                              />
+                              <div className="flex gap-2 w-full">
+                                <Button 
+                                  onClick={() => setAudioBlob(null)} 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  className="flex-1 h-8 text-xs text-destructive"
+                                >
+                                  Descartar
+                                </Button>
+                                <Button 
+                                  onClick={handleUploadAudio} 
+                                  size="sm"
+                                  className="flex-1 h-8 text-xs bg-green-600 hover:bg-green-700 gap-1"
+                                >
+                                  <Upload className="h-3 w-3" />
+                                  Enviar para Transcrição
+                                </Button>
+                              </div>
+                            </div>
                           )}
+
                           <div className="relative">
                             <input
                               type="file"
