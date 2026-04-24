@@ -2728,6 +2728,8 @@ export function ChatArea({
                   value={messageText}
                   onChange={(e) => setMessageText(e.target.value)}
                   onPaste={handlePaste}
+                  spellCheck="true"
+                  lang="pt-BR"
                   onKeyDown={(e) => {
                     // Don't trigger send if mentions are showing
                     if (showMentionSuggestions && (e.key === "Enter" || e.key === "Tab" || e.key === "ArrowUp" || e.key === "ArrowDown")) {
@@ -2735,7 +2737,8 @@ export function ChatArea({
                     }
                     handleKeyPress(e);
                   }}
-                  className={cn("min-h-[40px] resize-none", isMobile ? "max-h-[100px]" : "max-h-[120px]")}
+                  className={cn("min-h-[40px] resize-none focus-visible:ring-primary", isMobile ? "max-h-[100px]" : "max-h-[120px]")}
+
                   rows={isMobile ? 2 : 1}
                   onInput={(e) => {
                     const target = e.target as HTMLTextAreaElement;
