@@ -1215,7 +1215,7 @@ export default function Admin() {
                           <Badge variant="secondary" className="text-xs">Lead Gleego</Badge>
                         )}
                         {plan.has_meetings && (
-                          <Badge variant="secondary" className="text-xs">Atendimento Online</Badge>
+                          <Badge variant="secondary" className="text-xs">Reunião Jurídica</Badge>
                         )}
                       </div>
                       <div className="flex items-center justify-between pt-2 border-t">
