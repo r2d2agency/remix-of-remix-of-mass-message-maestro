@@ -65,8 +65,10 @@ export function MeetingDetailDialog({ open, onOpenChange, meetingId }: MeetingDe
     }
   ];
 
-  const handleRunAnalysis = async (prompt: string) => {
+  const handleRunAnalysis = async (prompt: string, promptId: string = 'custom') => {
     try {
+      setLoadingPromptId(promptId);
+      setAnalysisResult(null); // Clear previous result
       const result = await aiAnalysis.mutateAsync({ prompt }) as any;
       if (result && result.analysis) {
         setAnalysisResult(result.analysis);
@@ -77,6 +79,8 @@ export function MeetingDetailDialog({ open, onOpenChange, meetingId }: MeetingDe
       }
     } catch (error) {
       console.error("Analysis error:", error);
+    } finally {
+      setLoadingPromptId(null);
     }
   };
 
