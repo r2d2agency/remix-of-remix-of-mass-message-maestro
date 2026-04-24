@@ -75,7 +75,7 @@ const navSections: NavSection[] = [
     items: [
       { name: "Chat", href: "/chat", icon: MessagesSquare, moduleKey: 'chat', featureKey: 'chat' },
       { name: "Portal Jurídico", href: "/chat?type=legal", icon: ScaleIcon, moduleKey: 'legal_attendance', featureKey: 'legal_attendance' },
-      { name: "Reunião Jurídica", href: "/crm/agenda", icon: CalendarDays, moduleKey: 'meetings', featureKey: 'meetings' },
+      { name: "Reunião Jurídica", href: "/meetings", icon: CalendarDays, moduleKey: 'meetings', featureKey: 'meetings' },
       { name: "Secretária IA", href: "/secretaria-grupos", icon: Bot, moduleKey: 'group_secretary', adminOnly: true, featureKey: 'group_secretary' },
       { name: "Agentes IA", href: "/agentes-ia", icon: Sparkles, moduleKey: 'ai_agents', adminOnly: true, featureKey: 'ai_agents' },
       { name: "Chatbots", href: "/chatbots", icon: Bot, moduleKey: 'chatbots', adminOnly: true, featureKey: 'chatbots' },
