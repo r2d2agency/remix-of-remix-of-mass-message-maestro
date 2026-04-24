@@ -68,7 +68,7 @@ function buildAASPHeaders(token, mode = 'bearer') {
 }
 
 async function fetchAASPWithAuthFallback(url, token, label, organizationId, preferredMode) {
-  const baseModes = ['bearer', 'raw', 'explicit'];
+  const baseModes = ['bearer', 'raw', 'chave-acesso', 'explicit'];
   const modes = preferredMode ? [preferredMode, ...baseModes.filter((m) => m !== preferredMode)] : baseModes;
 
   let lastResponse = null;
