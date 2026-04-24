@@ -66,7 +66,7 @@ export function MeetingDetailDialog({ open, onOpenChange, meetingId }: MeetingDe
 
   const handleRunAnalysis = async (prompt: string) => {
     try {
-      const result = await aiAnalysis.mutateAsync({ prompt });
+      const result = await aiAnalysis.mutateAsync({ prompt }) as any;
       if (result && result.analysis) {
         setAnalysisResult(result.analysis);
         toast.success("Análise concluída com sucesso!");
