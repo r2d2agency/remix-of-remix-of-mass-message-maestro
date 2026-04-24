@@ -181,7 +181,7 @@ export function MeetingDetailDialog({ open, onOpenChange, meeting, onUpdate, onE
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogDescription className="sr-only">
-            Visualize resumo, transcrição, tarefas e auditoria operacional desta reunião jurídica.
+            Visualize resumo, transcrição, tarefas e auditoria operacional deste atendimento online.
           </DialogDescription>
           <div className="flex items-start justify-between gap-4">
             <div>
