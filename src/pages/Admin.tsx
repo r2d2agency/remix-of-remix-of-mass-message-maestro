@@ -164,6 +164,8 @@ export default function Admin() {
   const [newPlanAASP, setNewPlanAASP] = useState(false);
   const [newPlanLeadGleego, setNewPlanLeadGleego] = useState(false);
   const [newPlanMeetings, setNewPlanMeetings] = useState(false);
+  const [newPlanDigitalSignature, setNewPlanDigitalSignature] = useState(false);
+  const [newPlanLegalAttendance, setNewPlanLegalAttendance] = useState(false);
   const [newPlanPeriod, setNewPlanPeriod] = useState('monthly');
   const [newPlanVisibleOnSignup, setNewPlanVisibleOnSignup] = useState(false);
   const [newPlanTrialDays, setNewPlanTrialDays] = useState('3');
