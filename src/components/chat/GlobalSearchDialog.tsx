@@ -76,6 +76,7 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
       setQuery('');
       setResults([]);
       setSearched(false);
+      setError(null);
     }
   }, [open]);
 
