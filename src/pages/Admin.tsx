@@ -2271,6 +2271,30 @@ export default function Admin() {
                     onCheckedChange={(v) => setEditingPlan({ ...editingPlan, has_meetings: v })}
                   />
                 </div>
+
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="edit-signature" className="text-sm font-medium">Assinatura Digital</Label>
+                    <p className="text-xs text-muted-foreground">Módulo de assinaturas eletrônicas</p>
+                  </div>
+                  <Switch
+                    id="edit-signature"
+                    checked={editingPlan.has_digital_signature}
+                    onCheckedChange={(v) => setEditingPlan({ ...editingPlan, has_digital_signature: v })}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="edit-legal-attendance" className="text-sm font-medium">Atendimento Jurídico</Label>
+                    <p className="text-xs text-muted-foreground">Portal de atendimento jurídico online</p>
+                  </div>
+                  <Switch
+                    id="edit-legal-attendance"
+                    checked={editingPlan.has_legal_attendance}
+                    onCheckedChange={(v) => setEditingPlan({ ...editingPlan, has_legal_attendance: v })}
+                  />
+                </div>
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <Label htmlFor="edit-lead-scoring">Lead Scoring</Label>
                   <Switch
