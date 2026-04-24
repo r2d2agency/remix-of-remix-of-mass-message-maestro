@@ -1367,7 +1367,7 @@ export default function Organizacoes() {
 
                         <div className="flex items-center justify-between rounded-lg border p-3">
                           <div>
-                            <p className="font-medium text-sm">Atendimento Online</p>
+                            <p className="font-medium text-sm">Reunião Jurídica</p>
                             <p className="text-xs text-muted-foreground">
                               Gestão de atendimentos, transcrição e histórico operacional
                             </p>
