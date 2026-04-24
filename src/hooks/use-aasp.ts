@@ -63,8 +63,11 @@ const MOCK_INTIMACOES: AASPIntimacao[] = [
 ];
 
 export function useAASPConfig() {
-  return { 
-    config: {
+  const queryClient = useQueryClient();
+
+  const configQuery = useQuery({
+    queryKey: ['aasp-config-mock'],
+    queryFn: async () => ({
       id: "config1",
       organization_id: "org1",
       api_token_masked: "••••••••••••1234",
@@ -73,10 +76,18 @@ export function useAASPConfig() {
       is_active: true,
       last_sync_at: new Date().toISOString(),
       created_at: new Date().toISOString(),
-    }, 
-    isLoading: false, 
-    saveConfig: { mutate: () => {}, isPending: false } 
-  };
+    }),
+  });
+
+  const saveConfig = useMutation({
+    mutationFn: async (data: any) => {
+      await new Promise(r => setTimeout(r, 800));
+      return { id: "config1", ...data };
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['aasp-config-mock'] }),
+  });
+
+  return { config: configQuery.data, isLoading: configQuery.isLoading, saveConfig };
 }
 
 export function useAASPIntimacoes(page = 1, unreadOnly = false) {
@@ -120,6 +131,7 @@ export function useAASPActions() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['aasp-intimacoes'] });
       queryClient.invalidateQueries({ queryKey: ['aasp-unread-count'] });
+      queryClient.invalidateQueries({ queryKey: ['aasp-config-mock'] });
     },
   });
 
