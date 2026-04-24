@@ -68,15 +68,28 @@ function buildAASPHeaders(token, mode = 'bearer') {
 }
 
 async function fetchAASPWithAuthFallback(url, token, label, organizationId, preferredMode) {
-  const baseModes = ['bearer', 'raw', 'chave-acesso', 'explicit'];
+  const baseModes = ['bearer', 'raw', 'chave-acesso', 'query-param', 'explicit'];
   const modes = preferredMode ? [preferredMode, ...baseModes.filter((m) => m !== preferredMode)] : baseModes;
 
   let lastResponse = null;
 
   for (const mode of modes) {
+    let finalUrl = url;
+    let finalHeaders = buildAASPHeaders(token, mode);
+
+    if (mode === 'query-param') {
+      const urlObj = new URL(url);
+      urlObj.searchParams.set('ChaveAcesso', token);
+      urlObj.searchParams.set('chave-acesso', token);
+      urlObj.searchParams.set('token', token);
+      urlObj.searchParams.set('api-key', token);
+      finalUrl = urlObj.toString();
+      finalHeaders = { 'Accept': 'application/json' };
+    }
+
     const response = await fetchJsonWithRetry(
-      url,
-      { headers: buildAASPHeaders(token, mode) },
+      finalUrl,
+      { headers: finalHeaders },
       { retries: 2, label: `${label}-${mode}` }
     );
 
