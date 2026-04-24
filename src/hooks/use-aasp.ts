@@ -1,16 +1,4 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/api';
-
-interface AASPConfig {
-  id: string;
-  organization_id: string;
-  api_token_masked: string;
-  notify_phone: string | null;
-  connection_id: string | null;
-  is_active: boolean;
-  last_sync_at: string | null;
-  created_at: string;
-}
 
 export interface AASPIntimacao {
   id: string;
@@ -32,18 +20,71 @@ export interface AASPIntimacao {
   created_at: string;
 }
 
+// Mock Data
+const MOCK_INTIMACOES: AASPIntimacao[] = [
+  {
+    id: "1",
+    organization_id: "org1",
+    external_id: "ext1",
+    jornal: "Diário de Justiça de São Paulo",
+    data_publicacao: new Date().toISOString(),
+    data_disponibilizacao: new Date().toISOString(),
+    caderno: "Judicial I",
+    pagina: "125",
+    comarca: "São Paulo",
+    vara: "2ª Vara Cível",
+    processo: "1002345-67.2023.8.26.0100",
+    tipo: "Publicação de Despacho",
+    conteudo: "Vistos. Ante a certidão supra, manifeste-se a parte autora sobre o prosseguimento do feito no prazo de 5 dias.",
+    partes: "João Silva vs. Banco do Brasil S/A",
+    advogados: "Dr. Ricardo Almeida (OAB/SP 123.456)",
+    read: false,
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "2",
+    organization_id: "org1",
+    external_id: "ext2",
+    jornal: "Diário de Justiça Federal",
+    data_publicacao: new Date(Date.now() - 86400000).toISOString(),
+    data_disponibilizacao: new Date(Date.now() - 86400000).toISOString(),
+    caderno: "Administrativo",
+    pagina: "45",
+    comarca: "Tribunal Regional Federal",
+    vara: "1ª Turma Recursal",
+    processo: "5001234-89.2022.4.03.6100",
+    tipo: "Inclusão em Pauta",
+    conteudo: "Ficam as partes intimadas da inclusão do processo em epígrafe na pauta de julgamentos da sessão virtual do dia 15/10.",
+    partes: "Maria Oliveira vs. INSS",
+    advogados: "Dra. Camila Santos (OAB/SP 234.567)",
+    read: true,
+    created_at: new Date(Date.now() - 86400000).toISOString(),
+  }
+];
+
 export function useAASPConfig() {
   const queryClient = useQueryClient();
 
   const configQuery = useQuery({
-    queryKey: ['aasp-config'],
-    queryFn: () => api<AASPConfig | null>('/api/aasp/config'),
+    queryKey: ['aasp-config-mock'],
+    queryFn: async () => ({
+      id: "config1",
+      organization_id: "org1",
+      api_token_masked: "••••••••••••1234",
+      notify_phone: "11999999999",
+      connection_id: "conn1",
+      is_active: true,
+      last_sync_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+    }),
   });
 
   const saveConfig = useMutation({
-    mutationFn: (data: { api_token: string; notify_phone?: string; connection_id?: string; is_active?: boolean }) =>
-      api<AASPConfig>('/api/aasp/config', { method: 'POST', body: data }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['aasp-config'] }),
+    mutationFn: async (data: any) => {
+      await new Promise(r => setTimeout(r, 800));
+      return { id: "config1", ...data };
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['aasp-config-mock'] }),
   });
 
   return { config: configQuery.data, isLoading: configQuery.isLoading, saveConfig };
@@ -52,18 +93,19 @@ export function useAASPConfig() {
 export function useAASPIntimacoes(page = 1, unreadOnly = false) {
   return useQuery({
     queryKey: ['aasp-intimacoes', page, unreadOnly],
-    queryFn: () =>
-      api<{ data: AASPIntimacao[]; total: number; page: number; limit: number }>(
-        `/api/aasp/intimacoes?page=${page}&limit=50${unreadOnly ? '&unread_only=true' : ''}`
-      ),
+    queryFn: async () => {
+      await new Promise(r => setTimeout(r, 800));
+      const filtered = unreadOnly ? MOCK_INTIMACOES.filter(i => !i.read) : MOCK_INTIMACOES;
+      return { data: filtered, total: filtered.length, page: 1, limit: 50 };
+    },
   });
 }
 
 export function useAASPUnreadCount() {
   return useQuery({
     queryKey: ['aasp-unread-count'],
-    queryFn: () => api<{ count: number }>('/api/aasp/intimacoes/unread-count'),
-    refetchInterval: 60000, // refresh every minute
+    queryFn: async () => ({ count: MOCK_INTIMACOES.filter(i => !i.read).length }),
+    refetchInterval: 60000,
   });
 }
 
@@ -71,8 +113,10 @@ export function useAASPActions() {
   const queryClient = useQueryClient();
 
   const markRead = useMutation({
-    mutationFn: (ids?: string[]) =>
-      api('/api/aasp/intimacoes/mark-read', { method: 'POST', body: { ids } }),
+    mutationFn: async (ids?: string[]) => {
+      await new Promise(r => setTimeout(r, 500));
+      return { success: true };
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['aasp-intimacoes'] });
       queryClient.invalidateQueries({ queryKey: ['aasp-unread-count'] });
@@ -80,11 +124,14 @@ export function useAASPActions() {
   });
 
   const syncNow = useMutation({
-    mutationFn: () => api<{ success: boolean; newCount: number; total: number }>('/api/aasp/sync', { method: 'POST' }),
+    mutationFn: async () => {
+      await new Promise(r => setTimeout(r, 1500));
+      return { success: true, newCount: 0, total: MOCK_INTIMACOES.length };
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['aasp-intimacoes'] });
       queryClient.invalidateQueries({ queryKey: ['aasp-unread-count'] });
-      queryClient.invalidateQueries({ queryKey: ['aasp-config'] });
+      queryClient.invalidateQueries({ queryKey: ['aasp-config-mock'] });
     },
   });
 
