@@ -33,12 +33,51 @@ export function MeetingDetailDialog({ open, onOpenChange, meetingId }: MeetingDe
   const { logs } = useMeetingAudit(meetingId);
   const uploadAudio = useUploadMeetingAudio(meetingId);
   const reprocessAudio = useReprocessMeetingAudio(meetingId);
+  const aiAnalysis = useMeetingAIAnalysis(meetingId);
   
   const [isRecording, setIsRecording] = useState(false);
   const [recordDuration, setRecordDuration] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [customPrompt, setCustomPrompt] = useState("");
+  const [analysisResult, setAnalysisResult] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const timerRef = useRef<any>(null);
+
+  const standardPrompts = [
+    {
+      id: 'ata',
+      title: 'Gerar Ata de Reunião',
+      description: 'Cria um documento formal com tópicos, decisões e participantes.',
+      prompt: 'Gere uma ata de reunião formal baseada nesta transcrição, incluindo: 1. Participantes mencionados, 2. Tópicos discutidos, 3. Decisões tomadas, 4. Próximos passos.'
+    },
+    {
+      id: 'tasks',
+      title: 'Extrair Tarefas',
+      description: 'Identifica compromissos e responsáveis citados no áudio.',
+      prompt: 'Analise a transcrição e extraia todas as tarefas e compromissos mencionados. Para cada tarefa, tente identificar o responsável e o prazo se disponível. Formate como uma lista.'
+    },
+    {
+      id: 'summary',
+      title: 'Resumo para Advogados',
+      description: 'Focado em pontos jurídicos e orientações dadas.',
+      prompt: 'Crie um resumo técnico focado nos pontos jurídicos discutidos, orientações fornecidas ao cliente e riscos legais identificados.'
+    }
+  ];
+
+  const handleRunAnalysis = async (prompt: string) => {
+    try {
+      const result = await aiAnalysis.mutateAsync({ prompt });
+      if (result && result.analysis) {
+        setAnalysisResult(result.analysis);
+        toast.success("Análise concluída com sucesso!");
+      } else if (result && result.result) {
+        setAnalysisResult(result.result);
+        toast.success("Análise concluída com sucesso!");
+      }
+    } catch (error) {
+      console.error("Analysis error:", error);
+    }
+  };
 
   // Audio recording logic
   const startRecording = async () => {
