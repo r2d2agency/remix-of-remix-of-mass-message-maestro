@@ -448,7 +448,12 @@ router.get('/messages/search', authenticate, async (req, res) => {
       FROM chat_messages m
       JOIN conversations conv ON conv.id = m.conversation_id
       WHERE conv.connection_id = ANY($1)
-        AND m.content ILIKE $2
+        AND (
+          m.content ILIKE $2 OR 
+          conv.contact_name ILIKE $2 OR 
+          conv.contact_phone ILIKE $2 OR 
+          conv.group_name ILIKE $2
+        )
         AND m.content IS NOT NULL
         AND m.content != ''
       ORDER BY m.timestamp DESC
