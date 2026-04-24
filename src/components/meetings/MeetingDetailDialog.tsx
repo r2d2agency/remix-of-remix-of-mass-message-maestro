@@ -5,14 +5,15 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
 import { 
   FileText, Brain, Clock, Users, Play, Pause, Mic, 
   CheckCircle2, AlertCircle, Download, Trash2, 
   MessageSquare, Target, Shield, ListTodo, FileAudio,
   Loader2, RefreshCw, Upload, Sparkles, ExternalLink,
-  Calendar, Video, Plus
+  Calendar, Video, Plus, Wand2, Copy, Save
 } from "lucide-react";
-import { useMeetingDetail, useMeetingTasks, useMeetingAudit, useUploadMeetingAudio, useReprocessMeetingAudio } from "@/hooks/use-meetings";
+import { useMeetingDetail, useMeetingTasks, useMeetingAudit, useUploadMeetingAudio, useReprocessMeetingAudio, useMeetingAIAnalysis } from "@/hooks/use-meetings";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
