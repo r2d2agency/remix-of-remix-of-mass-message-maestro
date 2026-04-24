@@ -824,7 +824,7 @@ router.post('/events-with-meet', async (req, res) => {
             style: 'currency',
             currency: 'BRL',
             minimumFractionDigits: 0,
-          }).format(dealInfo.value);
+          }).format(Number(dealInfo.value) || 0);
           contextParts.push('💰 Valor: ' + formattedValue);
         }
         
