@@ -439,6 +439,8 @@ export default function Admin() {
       has_aasp: newPlanAASP,
       has_lead_gleego: newPlanLeadGleego,
       has_meetings: newPlanMeetings,
+      has_digital_signature: newPlanDigitalSignature,
+      has_legal_attendance: newPlanLegalAttendance,
       price: parseFloat(newPlanPrice) || 0,
       billing_period: newPlanPeriod,
       visible_on_signup: newPlanVisibleOnSignup,
