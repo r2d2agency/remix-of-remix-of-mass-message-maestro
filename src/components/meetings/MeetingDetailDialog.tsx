@@ -77,15 +77,26 @@ export function MeetingDetailDialog({ open, onOpenChange, meetingId }: MeetingDe
       setLoadingPromptId(promptId);
       setAnalysisResult(null); // Clear previous result
       const result = await aiAnalysis.mutateAsync({ prompt }) as any;
+      console.log("Analysis result:", result);
+      
       if (result && result.analysis) {
         setAnalysisResult(result.analysis);
-        toast.success("Análise concluída com sucesso!");
+        toast.success("Análise concluída!");
       } else if (result && result.result) {
         setAnalysisResult(result.result);
-        toast.success("Análise concluída com sucesso!");
+        toast.success("Análise concluída!");
+      } else if (typeof result === 'string') {
+        setAnalysisResult(result);
+        toast.success("Análise concluída!");
+      } else if (result && result.content) {
+        setAnalysisResult(result.content);
+        toast.success("Análise concluída!");
+      } else {
+        toast.error("Resposta em formato inesperado");
       }
     } catch (error) {
       console.error("Analysis error:", error);
+      toast.error("Erro ao processar análise");
     } finally {
       setLoadingPromptId(null);
     }
