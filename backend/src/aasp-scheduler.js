@@ -160,8 +160,8 @@ export async function syncAASP(config) {
     logInfo('aasp.sync.jornais_response', { organization_id, status: jornaisResp.status, ok: jornaisResp.ok, dataType: typeof jornaisResp.data, dataPreview: JSON.stringify(jornaisResp.data)?.substring(0, 500) });
 
     if (!jornaisResp.ok) {
-      logError('aasp.sync.jornais_failed', null, { organization_id, status: jornaisResp.status, data: jornaisResp.data });
-      await dbLog(organization_id, 'error', 'sync.jornais_failed', { status: jornaisResp.status, data: typeof jornaisResp.data === 'string' ? jornaisResp.data.substring(0, 500) : jornaisResp.data });
+      logError('aasp.sync.jornais_failed', null, { organization_id, status: jornaisResp.status, authMode: jornaisResp.authMode, data: jornaisResp.data });
+      await dbLog(organization_id, 'error', 'sync.jornais_failed', { status: jornaisResp.status, authMode: jornaisResp.authMode, data: typeof jornaisResp.data === 'string' ? jornaisResp.data.substring(0, 500) : jornaisResp.data });
       return { success: false, error: `API retornou status ${jornaisResp.status}`, newCount: 0 };
     }
 
