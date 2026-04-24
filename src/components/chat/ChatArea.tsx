@@ -282,6 +282,8 @@ export function ChatArea({
   const [selectedDeal, setSelectedDeal] = useState<CRMDeal | null>(null);
   const [showSummaryPanel, setShowSummaryPanel] = useState(false);
   const [showCallDialog, setShowCallDialog] = useState(false);
+  const [showSignatureDialog, setShowSignatureDialog] = useState(false);
+
   const [savingCall, setSavingCall] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [selectedMessages, setSelectedMessages] = useState<ChatMessage[]>([]);
