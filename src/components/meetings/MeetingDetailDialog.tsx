@@ -386,14 +386,21 @@ export function MeetingDetailDialog({ open, onOpenChange, meetingId }: MeetingDe
                     <div className="space-y-6">
                       <div className="grid grid-cols-1 gap-4">
                         {standardPrompts.map((p) => (
-                          <Card key={p.id} className="p-4 hover:border-primary/50 transition-colors cursor-pointer group" onClick={() => handleRunAnalysis(p.prompt)}>
+                          <Card 
+                            key={p.id} 
+                            className={cn(
+                              "p-4 hover:border-primary/50 transition-colors cursor-pointer group",
+                              loadingPromptId === p.id && "border-primary bg-primary/5"
+                            )} 
+                            onClick={() => !loadingPromptId && handleRunAnalysis(p.prompt, p.id)}
+                          >
                             <div className="flex justify-between items-start">
                               <div>
                                 <h4 className="font-semibold text-sm group-hover:text-primary transition-colors">{p.title}</h4>
                                 <p className="text-xs text-muted-foreground mt-1">{p.description}</p>
                               </div>
-                              <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
-                                {aiAnalysis.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                              <Button size="sm" variant="ghost" className="h-8 w-8 p-0" disabled={!!loadingPromptId}>
+                                {loadingPromptId === p.id ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <Play className="h-4 w-4" />}
                               </Button>
                             </div>
                           </Card>
@@ -410,13 +417,14 @@ export function MeetingDetailDialog({ open, onOpenChange, meetingId }: MeetingDe
                           className="min-h-[100px] text-sm"
                           value={customPrompt}
                           onChange={(e) => setCustomPrompt(e.target.value)}
+                          disabled={!!loadingPromptId}
                         />
                         <Button 
                           className="w-full gap-2" 
-                          disabled={!customPrompt || aiAnalysis.isPending}
-                          onClick={() => handleRunAnalysis(customPrompt)}
+                          disabled={!customPrompt || !!loadingPromptId}
+                          onClick={() => handleRunAnalysis(customPrompt, 'custom')}
                         >
-                          {aiAnalysis.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                          {loadingPromptId === 'custom' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
                           Executar Prompt Customizado
                         </Button>
                       </div>
