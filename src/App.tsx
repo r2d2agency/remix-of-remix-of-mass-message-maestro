@@ -124,6 +124,7 @@ const App = () => (
             <Route path="/intimacoes" element={<ProtectedRoute><Intimacoes /></ProtectedRoute>} />
             <Route path="/lead-gleego" element={<ProtectedRoute><LeadGleego /></ProtectedRoute>} />
             <Route path="/reunioes" element={<ProtectedRoute><Reunioes /></ProtectedRoute>} />
+            <Route path="/assinaturas" element={<ProtectedRoute><Assinaturas /></ProtectedRoute>} />
             
             <Route path="/f/:slug" element={<PublicFormPage />} />
             <Route path="/politica-privacidade" element={<PoliticaPrivacidade />} />
