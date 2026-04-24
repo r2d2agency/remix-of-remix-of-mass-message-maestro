@@ -17,7 +17,7 @@ interface User {
   is_orphan?: boolean;
 }
 
-interface Plan {
+export interface Plan {
   id: string;
   name: string;
   description: string | null;
