@@ -51,7 +51,9 @@ import LeadGleego from "./pages/LeadGleego";
 import Documentos from "./pages/Documentos";
 import Assinaturas from "./pages/Assinaturas";
 import AssinaturaPublica from "./pages/AssinaturaPublica";
+import Meetings from "./pages/Meetings";
 import NotFound from "./pages/NotFound";
+
 
 const queryClient = new QueryClient();
 
