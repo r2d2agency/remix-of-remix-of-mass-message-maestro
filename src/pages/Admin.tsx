@@ -481,6 +481,8 @@ export default function Admin() {
     setNewPlanAASP(false);
     setNewPlanLeadGleego(false);
     setNewPlanMeetings(false);
+    setNewPlanDigitalSignature(false);
+    setNewPlanLegalAttendance(false);
     setNewPlanPeriod('monthly');
     setNewPlanVisibleOnSignup(false);
     setNewPlanTrialDays('3');
