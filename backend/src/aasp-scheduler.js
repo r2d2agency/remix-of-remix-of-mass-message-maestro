@@ -50,6 +50,8 @@ function buildAASPHeaders(token, mode = 'bearer') {
       'token': token,
       'ChaveAcesso': token,
       'chave-acesso': token,
+      'chave_acesso': token,
+      'chaveacesso': token,
       'Accept': 'application/json',
     };
   }
@@ -57,6 +59,9 @@ function buildAASPHeaders(token, mode = 'bearer') {
   if (mode === 'chave-acesso') {
     return {
       'ChaveAcesso': token,
+      'chave-acesso': token,
+      'chave_acesso': token,
+      'chaveacesso': token,
       'Accept': 'application/json',
     };
   }
