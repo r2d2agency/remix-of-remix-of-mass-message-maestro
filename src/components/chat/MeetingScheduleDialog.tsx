@@ -84,6 +84,8 @@ export function MeetingScheduleDialog({
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("10:00");
   const [addMeet, setAddMeet] = useState(true);
+  const [manualLink, setManualLink] = useState("");
+
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
   const [externalEmail, setExternalEmail] = useState("");
   const [externalEmails, setExternalEmails] = useState<string[]>([]);
