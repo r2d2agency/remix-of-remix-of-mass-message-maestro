@@ -4,9 +4,12 @@ import { FileSignature, Plus, Search, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
+import { SignatureList } from "@/components/signatures/SignatureList";
+import { SignatureRequestDialog } from "@/components/signatures/SignatureRequestDialog";
 
 export default function Assinaturas() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [requestDialogOpen, setRequestDialogOpen] = useState(false);
 
   return (
     <MainLayout>
@@ -21,7 +24,7 @@ export default function Assinaturas() {
               <p className="text-sm text-muted-foreground">Gestão de assinaturas eletrônicas</p>
             </div>
           </div>
-          <Button className="gap-2">
+          <Button className="gap-2" onClick={() => setRequestDialogOpen(true)}>
             <Plus className="h-4 w-4" />
             Solicitar Assinatura
           </Button>
@@ -44,18 +47,20 @@ export default function Assinaturas() {
         </div>
 
         <Card>
-          <CardHeader>
+          <CardHeader className="pb-3">
             <CardTitle>Solicitações de Assinatura</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-center py-12 text-muted-foreground">
-              <FileSignature className="h-12 w-12 mx-auto mb-4 opacity-20" />
-              <p>Nenhuma solicitação de assinatura encontrada.</p>
-              <p className="text-sm">Envie um documento para assinatura para começar.</p>
-            </div>
+            <SignatureList />
           </CardContent>
         </Card>
       </div>
+
+      <SignatureRequestDialog 
+        open={requestDialogOpen} 
+        onOpenChange={setRequestDialogOpen} 
+      />
     </MainLayout>
   );
 }
+
