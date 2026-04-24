@@ -26,7 +26,7 @@ import {
   Shield,
 } from 'lucide-react';
 
-type ModuleKey = 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents' | 'group_secretary';
+type ModuleKey = 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents' | 'group_secretary' | 'meetings' | 'digital_signature' | 'legal_attendance';
 
 interface FeatureDoc {
   id: string;
