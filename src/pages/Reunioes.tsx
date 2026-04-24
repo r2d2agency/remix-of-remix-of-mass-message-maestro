@@ -125,7 +125,7 @@ export default function Reunioes() {
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2">
               <CalendarDays className="h-7 w-7 text-primary" />
-              Reuniões Jurídicas
+              Atendimento Online
             </h1>
             <p className="text-muted-foreground text-sm mt-1">Central operacional de reuniões, audiências e atendimentos</p>
           </div>
