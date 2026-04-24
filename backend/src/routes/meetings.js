@@ -15,6 +15,31 @@ async function getOrgId(userId) {
   return r.rows[0]?.organization_id;
 }
 
+// === DASHBOARD STATS ===
+router.get('/stats/dashboard', authenticate, async (req, res) => {
+  try {
+    const orgId = await getOrgId(req.userId);
+    if (!orgId) return res.json({});
+
+    const [recent, byStatus, pendingTasks, byLawyer] = await Promise.all([
+      query(`SELECT COUNT(*) as total FROM meetings WHERE organization_id = $1 AND scheduled_at > NOW() - INTERVAL '30 days'`, [orgId]),
+      query(`SELECT status, COUNT(*) as count FROM meetings WHERE organization_id = $1 GROUP BY status`, [orgId]),
+      query(`SELECT COUNT(*) as total FROM meeting_tasks mt JOIN meetings m ON m.id = mt.meeting_id WHERE m.organization_id = $1 AND mt.status = 'pending'`, [orgId]),
+      query(`SELECT u.name, COUNT(*) as count FROM meetings m JOIN users u ON u.id = m.lawyer_user_id WHERE m.organization_id = $1 AND m.scheduled_at > NOW() - INTERVAL '30 days' GROUP BY u.name ORDER BY count DESC LIMIT 10`, [orgId]),
+    ]);
+
+    res.json({
+      recent_count: parseInt(recent.rows[0]?.total || '0'),
+      by_status: byStatus.rows,
+      pending_tasks: parseInt(pendingTasks.rows[0]?.total || '0'),
+      by_lawyer: byLawyer.rows,
+    });
+  } catch (error) {
+    logError('meetings.stats', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // LIST meetings
 router.get('/', authenticate, async (req, res) => {
   try {
