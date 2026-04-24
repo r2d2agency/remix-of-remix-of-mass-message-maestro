@@ -86,22 +86,6 @@ const navSections: NavSection[] = [
     ],
   },
   {
-    title: "Atendimento Digital",
-    icon: CalendarDays,
-    moduleKey: 'meetings',
-    items: [
-      { name: "Acessar Atendimento", href: "/reunioes", icon: CalendarDays, featureKey: 'meetings' },
-    ],
-  },
-  {
-    title: "Assinatura Online",
-    icon: FileSignature,
-    moduleKey: 'digital_signature',
-    items: [
-      { name: "Minhas Assinaturas", href: "/assinaturas", icon: FileSignature, featureKey: 'digital_signature' },
-    ],
-  },
-  {
     title: "CRM",
     icon: Briefcase,
     moduleKey: 'crm',
