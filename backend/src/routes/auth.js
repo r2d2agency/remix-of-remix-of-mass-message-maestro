@@ -241,6 +241,10 @@ router.post('/login', async (req, res) => {
       chat: true,
       crm: true,
       aasp: true,
+      lead_gleego: true,
+      meetings: true,
+      digital_signature: true,
+      legal_attendance: true,
     };
     
     // Only superadmin bypasses module restrictions - owners/admins follow plan settings
@@ -330,6 +334,10 @@ router.get('/me', async (req, res) => {
       chat: true,
       crm: true,
       aasp: true,
+      lead_gleego: true,
+      meetings: true,
+      digital_signature: true,
+      legal_attendance: true,
     };
     
     // Only superadmin bypasses module restrictions - owners/admins follow plan settings

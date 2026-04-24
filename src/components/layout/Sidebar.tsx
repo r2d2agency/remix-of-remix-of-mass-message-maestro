@@ -38,6 +38,8 @@ import {
   Ghost,
   Scale,
   Search,
+  FileSignature,
+  Scale as ScaleIcon,
 } from "lucide-react";
 import { API_URL, getAuthToken } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -52,7 +54,7 @@ interface NavItem {
   href: string;
   icon: any;
   featureKey?: string;
-  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents' | 'group_secretary' | 'ghost' | 'aasp' | 'lead_gleego' | 'meetings';
+  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents' | 'group_secretary' | 'ghost' | 'aasp' | 'lead_gleego' | 'meetings' | 'digital_signature' | 'legal_attendance';
   adminOnly?: boolean;
   ownerOnly?: boolean;
   superadminOnly?: boolean;
@@ -62,7 +64,7 @@ interface NavSection {
   title: string;
   icon: any;
   items: NavItem[];
-  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents' | 'group_secretary' | 'ghost' | 'aasp' | 'lead_gleego' | 'meetings';
+  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents' | 'group_secretary' | 'ghost' | 'aasp' | 'lead_gleego' | 'meetings' | 'digital_signature' | 'legal_attendance';
   adminOnly?: boolean; // Entire section requires admin role
 }
 
@@ -72,6 +74,8 @@ const navSections: NavSection[] = [
     icon: MessagesSquare,
     items: [
       { name: "Chat", href: "/chat", icon: MessagesSquare, moduleKey: 'chat', featureKey: 'chat' },
+      { name: "Atendimento Online", href: "/chat?type=legal", icon: ScaleIcon, moduleKey: 'legal_attendance', featureKey: 'legal_attendance' },
+      { name: "Assinatura Digital", href: "/assinaturas", icon: FileSignature, moduleKey: 'digital_signature', featureKey: 'digital_signature' },
       { name: "Secretária IA", href: "/secretaria-grupos", icon: Bot, moduleKey: 'group_secretary', adminOnly: true, featureKey: 'group_secretary' },
       { name: "Agentes IA", href: "/agentes-ia", icon: Sparkles, moduleKey: 'ai_agents', adminOnly: true, featureKey: 'ai_agents' },
       { name: "Chatbots", href: "/chatbots", icon: Bot, moduleKey: 'chatbots', adminOnly: true, featureKey: 'chatbots' },

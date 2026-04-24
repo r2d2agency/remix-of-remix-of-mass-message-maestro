@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { useSuperadmin } from '@/hooks/use-superadmin';
+import { useSuperadmin, Plan } from '@/hooks/use-superadmin';
 import { useAdminSettings } from '@/hooks/use-branding';
 import { useUpload } from '@/hooks/use-upload';
 import { BrandingTab } from '@/components/admin/BrandingTab';
@@ -44,38 +44,6 @@ interface User {
   is_orphan?: boolean;
 }
 
-interface Plan {
-  id: string;
-  name: string;
-  description: string | null;
-  max_connections: number;
-  max_monthly_messages: number;
-  max_users: number;
-  max_supervisors: number;
-  has_asaas_integration: boolean;
-  has_chat: boolean;
-  has_whatsapp_groups: boolean;
-  has_campaigns: boolean;
-  has_chatbots: boolean;
-  has_scheduled_messages: boolean;
-  has_crm: boolean;
-  has_ai_agents: boolean;
-  has_departments: boolean;
-  has_lead_scoring: boolean;
-  has_ai_summary: boolean;
-  has_group_secretary: boolean;
-  has_ghost: boolean;
-  has_aasp: boolean;
-  has_lead_gleego: boolean;
-  has_meetings: boolean;
-  price: number;
-  billing_period: string;
-  is_active: boolean;
-  visible_on_signup: boolean;
-  trial_days: number;
-  org_count?: number;
-  created_at: string;
-}
 
 interface Organization {
   id: string;
@@ -162,6 +130,8 @@ export default function Admin() {
   const [newPlanAASP, setNewPlanAASP] = useState(false);
   const [newPlanLeadGleego, setNewPlanLeadGleego] = useState(false);
   const [newPlanMeetings, setNewPlanMeetings] = useState(false);
+  const [newPlanDigitalSignature, setNewPlanDigitalSignature] = useState(false);
+  const [newPlanLegalAttendance, setNewPlanLegalAttendance] = useState(false);
   const [newPlanPeriod, setNewPlanPeriod] = useState('monthly');
   const [newPlanVisibleOnSignup, setNewPlanVisibleOnSignup] = useState(false);
   const [newPlanTrialDays, setNewPlanTrialDays] = useState('3');
@@ -435,6 +405,8 @@ export default function Admin() {
       has_aasp: newPlanAASP,
       has_lead_gleego: newPlanLeadGleego,
       has_meetings: newPlanMeetings,
+      has_digital_signature: newPlanDigitalSignature,
+      has_legal_attendance: newPlanLegalAttendance,
       price: parseFloat(newPlanPrice) || 0,
       billing_period: newPlanPeriod,
       visible_on_signup: newPlanVisibleOnSignup,
@@ -475,6 +447,8 @@ export default function Admin() {
     setNewPlanAASP(false);
     setNewPlanLeadGleego(false);
     setNewPlanMeetings(false);
+    setNewPlanDigitalSignature(false);
+    setNewPlanLegalAttendance(false);
     setNewPlanPeriod('monthly');
     setNewPlanVisibleOnSignup(false);
     setNewPlanTrialDays('3');
@@ -506,6 +480,8 @@ export default function Admin() {
       has_aasp: editingPlan.has_aasp,
       has_lead_gleego: editingPlan.has_lead_gleego,
       has_meetings: editingPlan.has_meetings,
+      has_digital_signature: editingPlan.has_digital_signature,
+      has_legal_attendance: editingPlan.has_legal_attendance,
       price: editingPlan.price,
       billing_period: editingPlan.billing_period,
       is_active: editingPlan.is_active,
@@ -1068,6 +1044,30 @@ export default function Admin() {
                           id="meetings-switch"
                           checked={newPlanMeetings}
                           onCheckedChange={setNewPlanMeetings}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between rounded-lg border p-3">
+                        <div className="space-y-0.5">
+                          <Label htmlFor="signature-switch" className="text-sm font-medium">Assinatura Digital</Label>
+                          <p className="text-xs text-muted-foreground">Módulo de assinaturas eletrônicas</p>
+                        </div>
+                        <Switch
+                          id="signature-switch"
+                          checked={newPlanDigitalSignature}
+                          onCheckedChange={setNewPlanDigitalSignature}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between rounded-lg border p-3">
+                        <div className="space-y-0.5">
+                          <Label htmlFor="legal-attendance-switch" className="text-sm font-medium">Atendimento Jurídico</Label>
+                          <p className="text-xs text-muted-foreground">Portal de atendimento jurídico online</p>
+                        </div>
+                        <Switch
+                          id="legal-attendance-switch"
+                          checked={newPlanLegalAttendance}
+                          onCheckedChange={setNewPlanLegalAttendance}
                         />
                       </div>
                     </div>
@@ -2235,6 +2235,30 @@ export default function Admin() {
                     id="edit-meetings"
                     checked={editingPlan.has_meetings}
                     onCheckedChange={(v) => setEditingPlan({ ...editingPlan, has_meetings: v })}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="edit-signature" className="text-sm font-medium">Assinatura Digital</Label>
+                    <p className="text-xs text-muted-foreground">Módulo de assinaturas eletrônicas</p>
+                  </div>
+                  <Switch
+                    id="edit-signature"
+                    checked={editingPlan.has_digital_signature}
+                    onCheckedChange={(v) => setEditingPlan({ ...editingPlan, has_digital_signature: v })}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="edit-legal-attendance" className="text-sm font-medium">Atendimento Jurídico</Label>
+                    <p className="text-xs text-muted-foreground">Portal de atendimento jurídico online</p>
+                  </div>
+                  <Switch
+                    id="edit-legal-attendance"
+                    checked={editingPlan.has_legal_attendance}
+                    onCheckedChange={(v) => setEditingPlan({ ...editingPlan, has_legal_attendance: v })}
                   />
                 </div>
                 <div className="flex items-center justify-between rounded-lg border p-3">

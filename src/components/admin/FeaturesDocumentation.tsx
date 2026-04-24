@@ -26,7 +26,7 @@ import {
   Shield,
 } from 'lucide-react';
 
-type ModuleKey = 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents' | 'group_secretary';
+type ModuleKey = 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents' | 'group_secretary' | 'meetings' | 'digital_signature' | 'legal_attendance';
 
 interface FeatureDoc {
   id: string;
@@ -179,6 +179,30 @@ const allFeatures: FeatureDoc[] = [
       { name: 'Logs de detecção', description: 'Histórico completo de todas as detecções com grupo, remetente, responsável e confiança.' },
     ],
     howToActivate: 'Para ativar: acesse Configurações da Organização → aba Módulos → ative "Secretária IA de Grupos". O superadmin também pode habilitar/desabilitar no plano.',
+  },
+  {
+    id: 'digital_signature',
+    moduleKey: 'digital_signature',
+    icon: <FileText className="h-5 w-5" />,
+    title: 'Assinatura Digital',
+    description: 'Solicite e gerencie assinaturas eletrônicas de documentos diretamente pelo chat.',
+    features: [
+      { name: 'Solicitação via Chat', description: 'Envie links de assinatura segura para seus clientes durante a conversa.' },
+      { name: 'Gestão de Documentos', description: 'Acompanhe o status de cada documento (pendente, assinado, cancelado).' },
+      { name: 'Notificações Automáticas', description: 'Receba alertas quando um documento for assinado.' },
+    ],
+  },
+  {
+    id: 'legal_attendance',
+    moduleKey: 'legal_attendance',
+    icon: <Zap className="h-5 w-5" />,
+    title: 'Atendimento Jurídico Online',
+    description: 'Portal especializado para atendimento jurídico com triagem e fluxos específicos.',
+    features: [
+      { name: 'Triagem Especializada', description: 'Fluxos de conversa otimizados para coleta de dados jurídicos.' },
+      { name: 'Integração com Prontuário', description: 'Vincula atendimentos diretamente ao histórico do cliente no CRM.' },
+      { name: 'Agendamento de Consultas', description: 'Permite que o cliente agende horários diretamente pelo portal.' },
+    ],
   },
   {
     id: 'nurturing',

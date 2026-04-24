@@ -17,7 +17,7 @@ interface User {
   is_orphan?: boolean;
 }
 
-interface Plan {
+export interface Plan {
   id: string;
   name: string;
   description: string | null;
@@ -41,6 +41,8 @@ interface Plan {
   has_aasp: boolean;
   has_lead_gleego: boolean;
   has_meetings: boolean;
+  has_digital_signature: boolean;
+  has_legal_attendance: boolean;
   price: number;
   billing_period: string;
   is_active: boolean;
@@ -130,6 +132,8 @@ export function useSuperadmin() {
     has_aasp?: boolean;
     has_lead_gleego?: boolean;
     has_meetings?: boolean;
+    has_digital_signature?: boolean;
+    has_legal_attendance?: boolean;
     price: number;
     billing_period: string;
     visible_on_signup?: boolean;
