@@ -153,6 +153,16 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
             </div>
+          ) : error ? (
+            <div className="flex flex-col items-center justify-center py-12 text-destructive">
+              <p className="text-sm font-medium">{error}</p>
+              <button 
+                onClick={() => setQuery(q => q)} // Trigger re-search
+                className="text-xs underline mt-2 text-muted-foreground hover:text-primary"
+              >
+                Tentar novamente
+              </button>
+            </div>
           ) : results.length === 0 ? (
             searched && query.length >= 2 ? (
               <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
