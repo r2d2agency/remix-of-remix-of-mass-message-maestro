@@ -55,9 +55,10 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
           `/api/chat/messages/search?q=${encodeURIComponent(query)}&limit=50`
         );
         setResults(data.results || []);
-      } catch (error) {
+      } catch (error: any) {
         console.error('Global search error:', error);
         setResults([]);
+        // Handle error more gracefully in UI if needed
       } finally {
         setLoading(false);
       }
