@@ -324,7 +324,4 @@ router.post('/:id/analyze', authenticate, async (req, res) => {
   }
 });
 
-// === DASHBOARD STATS ===
-router.get('/stats/dashboard', authenticate, async (req, res) => {
-...
 export default router;
