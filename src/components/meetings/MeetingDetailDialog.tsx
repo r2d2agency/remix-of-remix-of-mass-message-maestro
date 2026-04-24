@@ -194,16 +194,22 @@ export function MeetingDetailDialog({ open, onOpenChange, meetingId }: MeetingDe
           <div className="flex-1 flex flex-col overflow-hidden">
             <Tabs defaultValue="transcript" className="flex-1 flex flex-col">
               <div className="px-6 border-b bg-muted/20">
-                <TabsList className="bg-transparent border-none p-0 h-12 gap-6">
-                  <TabsTrigger value="transcript" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none shadow-none h-full px-0">
+                <TabsList className="bg-transparent border-none p-0 h-12 gap-6 overflow-x-auto no-scrollbar flex-nowrap">
+                  <TabsTrigger value="transcript" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none shadow-none h-full px-0 whitespace-nowrap">
                     <FileText className="h-4 w-4 mr-2" />
                     Transcrição
                   </TabsTrigger>
-                  <TabsTrigger value="intelligence" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none shadow-none h-full px-0">
+                  <TabsTrigger value="intelligence" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none shadow-none h-full px-0 whitespace-nowrap">
                     <Brain className="h-4 w-4 mr-2" />
                     Inteligência IA
                   </TabsTrigger>
-                  <TabsTrigger value="tasks" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none shadow-none h-full px-0">
+                  {meeting.transcript && (
+                    <TabsTrigger value="analysis" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none shadow-none h-full px-0 whitespace-nowrap">
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      Análise de Prompt
+                    </TabsTrigger>
+                  )}
+                  <TabsTrigger value="tasks" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none shadow-none h-full px-0 whitespace-nowrap">
                     <ListTodo className="h-4 w-4 mr-2" />
                     Tarefas ({tasks.length})
                   </TabsTrigger>
