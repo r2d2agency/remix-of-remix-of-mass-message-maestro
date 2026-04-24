@@ -1787,7 +1787,7 @@ export function ChatArea({
             onKeyDown={handleSearchKeyDown}
             className="h-8 text-sm bg-transparent border-none focus-visible:ring-0 focus-visible:ring-offset-0 px-0"
           />
-          {searchResults.length > 0 && (
+          {searchResults.length > 0 ? (
             <div className="flex items-center gap-1.5 flex-shrink-0">
               <span className="text-[10px] font-semibold text-muted-foreground bg-background px-1.5 py-0.5 rounded border shadow-sm">
                 {currentSearchIndex + 1} / {searchResults.length}
@@ -1813,6 +1813,8 @@ export function ChatArea({
                 </Button>
               </div>
             </div>
+          ) : searchQuery && (
+            <span className="text-xs text-muted-foreground">Nenhum resultado</span>
           )}
           <Button
             variant="ghost"
@@ -1828,33 +1830,6 @@ export function ChatArea({
         </div>
       )}
 
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
-                onClick={() => navigateSearch(1)}
-                title="Próximo (Enter)"
-              >
-                <ChevronDown className="h-3 w-3" />
-              </Button>
-            </div>
-          )}
-          {searchQuery && searchResults.length === 0 && (
-            <span className="text-xs text-muted-foreground">Nenhum resultado</span>
-          )}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 flex-shrink-0"
-            onClick={() => {
-              setShowSearch(false);
-              setSearchQuery("");
-            }}
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-      )}
 
       {/* Messages */}
       <ScrollArea
