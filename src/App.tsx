@@ -50,6 +50,7 @@ import Intimacoes from "./pages/Intimacoes";
 import LeadGleego from "./pages/LeadGleego";
 import Reunioes from "./pages/Reunioes";
 
+import Assinaturas from "./pages/Assinaturas";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
