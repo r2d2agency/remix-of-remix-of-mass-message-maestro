@@ -52,6 +52,7 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
     const timer = setTimeout(async () => {
       setLoading(true);
       setSearched(true);
+      setError(null);
       try {
         const data = await api<{ results: SearchResult[] }>(
           `/api/chat/messages/search?q=${encodeURIComponent(query)}&limit=50`
@@ -59,8 +60,8 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
         setResults(data.results || []);
       } catch (error: any) {
         console.error('Global search error:', error);
+        setError(error.message || 'Erro ao realizar busca');
         setResults([]);
-        // Handle error more gracefully in UI if needed
       } finally {
         setLoading(false);
       }
