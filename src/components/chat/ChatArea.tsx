@@ -1508,7 +1508,13 @@ export function ChatArea({
                 </DropdownMenuItem>
               )}
 
+              <DropdownMenuItem onClick={() => setShowSignatureDialog(true)}>
+                <FileSignature className="h-4 w-4 mr-2" />
+                Solicitar assinatura digital
+              </DropdownMenuItem>
+
               <DropdownMenuItem onClick={() => setShowNotes(!showNotes)}>
+
                 <StickyNote className="h-4 w-4 mr-2" />
                 Anotações internas
                 {notesCount > 0 && (
