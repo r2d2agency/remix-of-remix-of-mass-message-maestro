@@ -862,7 +862,7 @@ router.post('/events-with-meet', async (req, res) => {
     }
 
     // Add attendees
-    if (attendees.length > 0) {
+    if (Array.isArray(attendees) && attendees.length > 0) {
       event.attendees = attendees.map(email => ({
         email,
         responseStatus: 'needsAction',
