@@ -124,6 +124,9 @@ import { DealDetailDialog } from "@/components/crm/DealDetailDialog";
 import { AIAgentBanner } from "./AIAgentBanner";
 import { ForwardMessageDialog } from "./ForwardMessageDialog";
 import { ShareContactDialog } from "./ShareContactDialog";
+import { DigitalSignatureDialog } from "./DigitalSignatureDialog";
+import { FileSignature } from "lucide-react";
+
 
 interface ChatAreaProps {
   conversation: Conversation | null;
@@ -279,6 +282,8 @@ export function ChatArea({
   const [selectedDeal, setSelectedDeal] = useState<CRMDeal | null>(null);
   const [showSummaryPanel, setShowSummaryPanel] = useState(false);
   const [showCallDialog, setShowCallDialog] = useState(false);
+  const [showSignatureDialog, setShowSignatureDialog] = useState(false);
+
   const [savingCall, setSavingCall] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [selectedMessages, setSelectedMessages] = useState<ChatMessage[]>([]);
@@ -524,15 +529,16 @@ export function ChatArea({
       // Show scroll button when user is away from bottom
       setShowScrollButton(distanceFromBottom > 300);
       
-      // User is scrolling up (browsing history)
+      // Smart Scroll: Detect if user is manually scrolling up
       if (scrollTop < lastScrollTopRef.current && distanceFromBottom > 150) {
         isUserScrollingRef.current = true;
       }
       
-      // User scrolled back to bottom
+      // If user scrolled back to bottom, resume auto-scrolling
       if (distanceFromBottom < 50) {
         isUserScrollingRef.current = false;
       }
+
       
       lastScrollTopRef.current = scrollTop;
       
@@ -1502,7 +1508,13 @@ export function ChatArea({
                 </DropdownMenuItem>
               )}
 
+              <DropdownMenuItem onClick={() => setShowSignatureDialog(true)}>
+                <FileSignature className="h-4 w-4 mr-2" />
+                Solicitar assinatura digital
+              </DropdownMenuItem>
+
               <DropdownMenuItem onClick={() => setShowNotes(!showNotes)}>
+
                 <StickyNote className="h-4 w-4 mr-2" />
                 Anotações internas
                 {notesCount > 0 && (
@@ -1764,9 +1776,8 @@ export function ChatArea({
         </div>
       )}
 
-      {/* Search Bar */}
       {showSearch && (
-        <div className="flex items-center gap-2 px-4 py-2 border-b bg-muted/50">
+        <div className="flex items-center gap-2 px-4 py-2 border-b bg-muted/50 animate-in slide-in-from-top duration-200">
           <Search className="h-4 w-4 text-muted-foreground flex-shrink-0" />
           <Input
             ref={searchInputRef}
@@ -1774,38 +1785,41 @@ export function ChatArea({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={handleSearchKeyDown}
-            className="h-8 text-sm"
+            className="h-8 text-sm bg-transparent border-none focus-visible:ring-0 focus-visible:ring-offset-0 px-0"
           />
-          {searchResults.length > 0 && (
-            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-              <span>{currentSearchIndex + 1}/{searchResults.length}</span>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
-                onClick={() => navigateSearch(-1)}
-                title="Anterior (Shift+Enter)"
-              >
-                <ChevronUp className="h-3 w-3" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
-                onClick={() => navigateSearch(1)}
-                title="Próximo (Enter)"
-              >
-                <ChevronDown className="h-3 w-3" />
-              </Button>
+          {searchResults.length > 0 ? (
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              <span className="text-[10px] font-semibold text-muted-foreground bg-background px-1.5 py-0.5 rounded border shadow-sm">
+                {currentSearchIndex + 1} / {searchResults.length}
+              </span>
+              <div className="flex items-center bg-background border rounded-md shadow-sm overflow-hidden">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 rounded-none border-r hover:bg-muted"
+                  onClick={() => navigateSearch(-1)}
+                  title="Anterior (Subir)"
+                >
+                  <ChevronUp className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 rounded-none hover:bg-muted"
+                  onClick={() => navigateSearch(1)}
+                  title="Próximo (Descer)"
+                >
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             </div>
-          )}
-          {searchQuery && searchResults.length === 0 && (
+          ) : searchQuery && (
             <span className="text-xs text-muted-foreground">Nenhum resultado</span>
           )}
           <Button
             variant="ghost"
             size="icon"
-            className="h-6 w-6 flex-shrink-0"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-background/80 transition-colors"
             onClick={() => {
               setShowSearch(false);
               setSearchQuery("");
@@ -1815,6 +1829,7 @@ export function ChatArea({
           </Button>
         </div>
       )}
+
 
       {/* Messages */}
       <ScrollArea
@@ -2716,6 +2731,8 @@ export function ChatArea({
                   value={messageText}
                   onChange={(e) => setMessageText(e.target.value)}
                   onPaste={handlePaste}
+                  spellCheck="true"
+                  lang="pt-BR"
                   onKeyDown={(e) => {
                     // Don't trigger send if mentions are showing
                     if (showMentionSuggestions && (e.key === "Enter" || e.key === "Tab" || e.key === "ArrowUp" || e.key === "ArrowDown")) {
@@ -2723,7 +2740,8 @@ export function ChatArea({
                     }
                     handleKeyPress(e);
                   }}
-                  className={cn("min-h-[40px] resize-none", isMobile ? "max-h-[100px]" : "max-h-[120px]")}
+                  className={cn("min-h-[40px] resize-none focus-visible:ring-primary", isMobile ? "max-h-[100px]" : "max-h-[120px]")}
+
                   rows={isMobile ? 2 : 1}
                   onInput={(e) => {
                     const target = e.target as HTMLTextAreaElement;
@@ -3217,6 +3235,19 @@ export function ChatArea({
         }}
       />
 
+      {/* Digital Signature Dialog */}
+      <DigitalSignatureDialog
+        open={showSignatureDialog}
+        onOpenChange={setShowSignatureDialog}
+        onSend={async (docName) => {
+          if (!conversation) return;
+          // In a real scenario, this would call an API to generate a signature link
+          // For now, we'll simulate sending a message with the request
+          const msg = `📄 *Solicitação de Assinatura Digital*\n\nOlá, por favor assine o documento: *${docName}*\n\nClique no link seguro para assinar: https://assine.gleego.com.br/s/${Math.random().toString(36).substring(7)}`;
+          await onSendMessage(msg, 'text');
+        }}
+      />
+
       {/* Share Contact Dialog */}
       <ShareContactDialog
         open={showShareContactDialog}
@@ -3232,3 +3263,4 @@ export function ChatArea({
     </div>
   );
 }
+

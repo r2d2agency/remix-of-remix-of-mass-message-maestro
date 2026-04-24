@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Play, Pause, Loader2, Volume2, FileText } from "lucide-react";
+import { Play, Pause, Loader2, Volume2, FileText, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { API_URL } from "@/lib/api";
@@ -306,23 +306,25 @@ export function AudioPlayer({ src, mimetype, className, isFromMe, messageId, ini
         {/* Transcribe button */}
         <Button
           variant="ghost"
-          size="icon"
+          size="sm"
           className={cn(
-            "h-8 w-8 rounded-full flex-shrink-0",
+            "h-8 gap-1.5 px-2 rounded-full flex-shrink-0",
             isFromMe 
               ? "bg-primary-foreground/20 hover:bg-primary-foreground/30 text-primary-foreground" 
-              : "bg-muted hover:bg-muted/80 text-muted-foreground"
+              : "bg-primary/10 hover:bg-primary/20 text-primary"
           )}
           onClick={transcribeAudio}
           disabled={isTranscribing || isLoading}
-          title="Transcrever áudio"
+          title="Transcrever com IA"
         >
           {isTranscribing ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="h-3 w-3 animate-spin" />
           ) : (
-            <FileText className="h-4 w-4" />
+            <Sparkles className="h-3 w-3" />
           )}
+          <span className="text-[10px] font-medium hidden sm:inline">IA</span>
         </Button>
+
       </div>
 
       {/* Transcribing indicator */}
