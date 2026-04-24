@@ -38,6 +38,8 @@ import {
   Ghost,
   Scale,
   Search,
+  FileSignature,
+  Scale as ScaleIcon,
 } from "lucide-react";
 import { API_URL, getAuthToken } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -52,7 +54,7 @@ interface NavItem {
   href: string;
   icon: any;
   featureKey?: string;
-  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents' | 'group_secretary' | 'ghost' | 'aasp' | 'lead_gleego' | 'meetings';
+  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents' | 'group_secretary' | 'ghost' | 'aasp' | 'lead_gleego' | 'meetings' | 'digital_signature' | 'legal_attendance';
   adminOnly?: boolean;
   ownerOnly?: boolean;
   superadminOnly?: boolean;
