@@ -75,8 +75,6 @@ const navSections: NavSection[] = [
     items: [
       { name: "Chat", href: "/chat", icon: MessagesSquare, moduleKey: 'chat', featureKey: 'chat' },
       { name: "Portal Jurídico", href: "/chat?type=legal", icon: ScaleIcon, moduleKey: 'legal_attendance', featureKey: 'legal_attendance' },
-      { name: "Atendimento Online", href: "/reunioes", icon: CalendarDays, moduleKey: 'meetings', featureKey: 'meetings' },
-      { name: "Assinatura Digital", href: "/assinaturas", icon: FileSignature, moduleKey: 'digital_signature', featureKey: 'digital_signature' },
       { name: "Secretária IA", href: "/secretaria-grupos", icon: Bot, moduleKey: 'group_secretary', adminOnly: true, featureKey: 'group_secretary' },
       { name: "Agentes IA", href: "/agentes-ia", icon: Sparkles, moduleKey: 'ai_agents', adminOnly: true, featureKey: 'ai_agents' },
       { name: "Chatbots", href: "/chatbots", icon: Bot, moduleKey: 'chatbots', adminOnly: true, featureKey: 'chatbots' },
@@ -85,6 +83,22 @@ const navSections: NavSection[] = [
       { name: "Agendamentos", href: "/agendamentos", icon: Bell, moduleKey: 'scheduled_messages', featureKey: 'scheduled_messages' },
       { name: "Tags", href: "/tags", icon: Receipt, featureKey: 'tags' },
       { name: "Contatos", href: "/contatos-chat", icon: Users, featureKey: 'contacts' },
+    ],
+  },
+  {
+    title: "Atendimento Digital",
+    icon: CalendarDays,
+    moduleKey: 'meetings',
+    items: [
+      { name: "Acessar Atendimento", href: "/reunioes", icon: CalendarDays, featureKey: 'meetings' },
+    ],
+  },
+  {
+    title: "Assinatura Online",
+    icon: FileSignature,
+    moduleKey: 'digital_signature',
+    items: [
+      { name: "Minhas Assinaturas", href: "/assinaturas", icon: FileSignature, featureKey: 'digital_signature' },
     ],
   },
   {
