@@ -1,7 +1,8 @@
 import express from 'express';
 import { authenticate } from '../middleware/auth.js';
-import { query } from '../db.js';
+import { query, pool } from '../db.js';
 import { log, logError } from '../logger.js';
+import { callAI } from '../lib/ai-caller.js';
 
 const router = express.Router();
 
@@ -13,6 +14,31 @@ async function getOrgId(userId) {
   );
   return r.rows[0]?.organization_id;
 }
+
+// === DASHBOARD STATS ===
+router.get('/stats/dashboard', authenticate, async (req, res) => {
+  try {
+    const orgId = await getOrgId(req.userId);
+    if (!orgId) return res.json({});
+
+    const [recent, byStatus, pendingTasks, byLawyer] = await Promise.all([
+      query(`SELECT COUNT(*) as total FROM meetings WHERE organization_id = $1 AND scheduled_at > NOW() - INTERVAL '30 days'`, [orgId]),
+      query(`SELECT status, COUNT(*) as count FROM meetings WHERE organization_id = $1 GROUP BY status`, [orgId]),
+      query(`SELECT COUNT(*) as total FROM meeting_tasks mt JOIN meetings m ON m.id = mt.meeting_id WHERE m.organization_id = $1 AND mt.status = 'pending'`, [orgId]),
+      query(`SELECT u.name, COUNT(*) as count FROM meetings m JOIN users u ON u.id = m.lawyer_user_id WHERE m.organization_id = $1 AND m.scheduled_at > NOW() - INTERVAL '30 days' GROUP BY u.name ORDER BY count DESC LIMIT 10`, [orgId]),
+    ]);
+
+    res.json({
+      recent_count: parseInt(recent.rows[0]?.total || '0'),
+      by_status: byStatus.rows,
+      pending_tasks: parseInt(pendingTasks.rows[0]?.total || '0'),
+      by_lawyer: byLawyer.rows,
+    });
+  } catch (error) {
+    logError('meetings.stats', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // LIST meetings
 router.get('/', authenticate, async (req, res) => {
@@ -234,27 +260,66 @@ router.delete('/:meetingId/tasks/:taskId', authenticate, async (req, res) => {
   }
 });
 
-// === DASHBOARD STATS ===
-router.get('/stats/dashboard', authenticate, async (req, res) => {
+// === MEETING AI ANALYSIS ===
+
+async function getOrgAIConfig(userId) {
+  const result = await query(
+    `SELECT o.ai_provider, o.ai_model, o.ai_api_key
+     FROM organizations o
+     JOIN organization_members om ON om.organization_id = o.id
+     WHERE om.user_id = $1 LIMIT 1`,
+    [userId]
+  );
+  const row = result.rows[0];
+  if (!row || !row.ai_provider || row.ai_provider === 'none' || !row.ai_api_key) return null;
+  return { provider: row.ai_provider, model: row.ai_model, apiKey: row.ai_api_key };
+}
+
+router.post('/:id/analyze', authenticate, async (req, res) => {
   try {
+    const meetingId = req.params.id;
+    const { prompt } = req.body;
     const orgId = await getOrgId(req.userId);
-    if (!orgId) return res.json({});
 
-    const [recent, byStatus, pendingTasks, byLawyer] = await Promise.all([
-      query(`SELECT COUNT(*) as total FROM meetings WHERE organization_id = $1 AND scheduled_at > NOW() - INTERVAL '30 days'`, [orgId]),
-      query(`SELECT status, COUNT(*) as count FROM meetings WHERE organization_id = $1 GROUP BY status`, [orgId]),
-      query(`SELECT COUNT(*) as total FROM meeting_tasks mt JOIN meetings m ON m.id = mt.meeting_id WHERE m.organization_id = $1 AND mt.status = 'pending'`, [orgId]),
-      query(`SELECT u.name, COUNT(*) as count FROM meetings m JOIN users u ON u.id = m.lawyer_user_id WHERE m.organization_id = $1 AND m.scheduled_at > NOW() - INTERVAL '30 days' GROUP BY u.name ORDER BY count DESC LIMIT 10`, [orgId]),
-    ]);
+    if (!prompt) return res.status(400).json({ error: 'Prompt é obrigatório' });
 
-    res.json({
-      recent_count: parseInt(recent.rows[0]?.total || '0'),
-      by_status: byStatus.rows,
-      pending_tasks: parseInt(pendingTasks.rows[0]?.total || '0'),
-      by_lawyer: byLawyer.rows,
+    // Get meeting transcript
+    const meetingResult = await query(
+      `SELECT transcript, title FROM meetings WHERE id = $1 AND organization_id = $2`,
+      [meetingId, orgId]
+    );
+
+    const meeting = meetingResult.rows[0];
+    if (!meeting) return res.status(404).json({ error: 'Reunião não encontrada' });
+    if (!meeting.transcript) return res.status(400).json({ error: 'A reunião ainda não possui transcrição para análise' });
+
+    // Get AI config
+    const aiConfig = await getOrgAIConfig(req.userId);
+    if (!aiConfig) {
+      return res.status(400).json({ error: 'IA não configurada. Configure em Configurações > Inteligência Artificial.' });
+    }
+
+    const messages = [
+      { 
+        role: 'system', 
+        content: 'Você é um assistente jurídico especializado em análise de reuniões. Analise a transcrição fornecida de acordo com as instruções do usuário.' 
+      },
+      { 
+        role: 'user', 
+        content: `Título da Reunião: ${meeting.title}\n\nTranscrição:\n${meeting.transcript}\n\nInstrução de Análise: ${prompt}` 
+      }
+    ];
+
+    const aiResponse = await callAI(aiConfig, messages, { 
+      temperature: 0.3, 
+      maxTokens: 2000 
     });
+
+    log('info', 'meetings.analysis_completed', { meetingId, userId: req.userId });
+
+    res.json({ analysis: aiResponse.content });
   } catch (error) {
-    logError('meetings.stats', error);
+    logError('meetings.analyze', error);
     res.status(500).json({ error: error.message });
   }
 });
