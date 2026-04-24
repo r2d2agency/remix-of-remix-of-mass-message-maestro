@@ -43,6 +43,13 @@ export function MeetingDetailDialog({ open, onOpenChange, meetingId }: MeetingDe
   const [loadingPromptId, setLoadingPromptId] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const timerRef = useRef<any>(null);
+  const resultRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (analysisResult && resultRef.current) {
+      resultRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [analysisResult]);
 
   const standardPrompts = [
     {
