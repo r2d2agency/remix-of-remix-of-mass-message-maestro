@@ -48,6 +48,20 @@ function buildAASPHeaders(token, mode = 'bearer') {
       'x-api-key': token,
       'api-key': token,
       'token': token,
+      'ChaveAcesso': token,
+      'chave-acesso': token,
+      'chave_acesso': token,
+      'chaveacesso': token,
+      'Accept': 'application/json',
+    };
+  }
+
+  if (mode === 'chave-acesso') {
+    return {
+      'ChaveAcesso': token,
+      'chave-acesso': token,
+      'chave_acesso': token,
+      'chaveacesso': token,
       'Accept': 'application/json',
     };
   }
@@ -59,15 +73,30 @@ function buildAASPHeaders(token, mode = 'bearer') {
 }
 
 async function fetchAASPWithAuthFallback(url, token, label, organizationId, preferredMode) {
-  const baseModes = ['bearer', 'raw', 'explicit'];
+  const baseModes = ['bearer', 'raw', 'chave-acesso', 'query-param', 'explicit'];
   const modes = preferredMode ? [preferredMode, ...baseModes.filter((m) => m !== preferredMode)] : baseModes;
 
   let lastResponse = null;
 
   for (const mode of modes) {
+    let finalUrl = url;
+    let finalHeaders = buildAASPHeaders(token, mode);
+
+    if (mode === 'query-param') {
+      const urlObj = new URL(url);
+      urlObj.searchParams.set('ChaveAcesso', token);
+      urlObj.searchParams.set('chave-acesso', token);
+      urlObj.searchParams.set('chave_acesso', token);
+      urlObj.searchParams.set('chaveacesso', token);
+      urlObj.searchParams.set('token', token);
+      urlObj.searchParams.set('api-key', token);
+      finalUrl = urlObj.toString();
+      finalHeaders = { 'Accept': 'application/json' };
+    }
+
     const response = await fetchJsonWithRetry(
-      url,
-      { headers: buildAASPHeaders(token, mode) },
+      finalUrl,
+      { headers: finalHeaders },
       { retries: 2, label: `${label}-${mode}` }
     );
 
@@ -131,8 +160,8 @@ export async function syncAASP(config) {
     logInfo('aasp.sync.jornais_response', { organization_id, status: jornaisResp.status, ok: jornaisResp.ok, dataType: typeof jornaisResp.data, dataPreview: JSON.stringify(jornaisResp.data)?.substring(0, 500) });
 
     if (!jornaisResp.ok) {
-      logError('aasp.sync.jornais_failed', null, { organization_id, status: jornaisResp.status, data: jornaisResp.data });
-      await dbLog(organization_id, 'error', 'sync.jornais_failed', { status: jornaisResp.status, data: typeof jornaisResp.data === 'string' ? jornaisResp.data.substring(0, 500) : jornaisResp.data });
+      logError('aasp.sync.jornais_failed', null, { organization_id, status: jornaisResp.status, authMode: jornaisResp.authMode, data: jornaisResp.data });
+      await dbLog(organization_id, 'error', 'sync.jornais_failed', { status: jornaisResp.status, authMode: jornaisResp.authMode, data: typeof jornaisResp.data === 'string' ? jornaisResp.data.substring(0, 500) : jornaisResp.data });
       return { success: false, error: `API retornou status ${jornaisResp.status}`, newCount: 0 };
     }
 
