@@ -1039,7 +1039,7 @@ export default function Admin() {
                         />
                       </div>
                       <div className="flex items-center justify-between rounded-lg border p-3">
-                        <Label htmlFor="meetings-switch">Reuniões Jurídicas</Label>
+                        <Label htmlFor="meetings-switch">Atendimento Online</Label>
                         <Switch
                           id="meetings-switch"
                           checked={newPlanMeetings}
