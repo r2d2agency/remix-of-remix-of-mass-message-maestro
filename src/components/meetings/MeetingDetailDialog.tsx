@@ -5,14 +5,15 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
 import { 
   FileText, Brain, Clock, Users, Play, Pause, Mic, 
   CheckCircle2, AlertCircle, Download, Trash2, 
   MessageSquare, Target, Shield, ListTodo, FileAudio,
   Loader2, RefreshCw, Upload, Sparkles, ExternalLink,
-  Calendar, Video, Plus
+  Calendar, Video, Plus, Wand2, Copy, Save
 } from "lucide-react";
-import { useMeetingDetail, useMeetingTasks, useMeetingAudit, useUploadMeetingAudio, useReprocessMeetingAudio } from "@/hooks/use-meetings";
+import { useMeetingDetail, useMeetingTasks, useMeetingAudit, useUploadMeetingAudio, useReprocessMeetingAudio, useMeetingAIAnalysis } from "@/hooks/use-meetings";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -32,12 +33,51 @@ export function MeetingDetailDialog({ open, onOpenChange, meetingId }: MeetingDe
   const { logs } = useMeetingAudit(meetingId);
   const uploadAudio = useUploadMeetingAudio(meetingId);
   const reprocessAudio = useReprocessMeetingAudio(meetingId);
+  const aiAnalysis = useMeetingAIAnalysis(meetingId);
   
   const [isRecording, setIsRecording] = useState(false);
   const [recordDuration, setRecordDuration] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [customPrompt, setCustomPrompt] = useState("");
+  const [analysisResult, setAnalysisResult] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const timerRef = useRef<any>(null);
+
+  const standardPrompts = [
+    {
+      id: 'ata',
+      title: 'Gerar Ata de Reunião',
+      description: 'Cria um documento formal com tópicos, decisões e participantes.',
+      prompt: 'Gere uma ata de reunião formal baseada nesta transcrição, incluindo: 1. Participantes mencionados, 2. Tópicos discutidos, 3. Decisões tomadas, 4. Próximos passos.'
+    },
+    {
+      id: 'tasks',
+      title: 'Extrair Tarefas',
+      description: 'Identifica compromissos e responsáveis citados no áudio.',
+      prompt: 'Analise a transcrição e extraia todas as tarefas e compromissos mencionados. Para cada tarefa, tente identificar o responsável e o prazo se disponível. Formate como uma lista.'
+    },
+    {
+      id: 'summary',
+      title: 'Resumo para Advogados',
+      description: 'Focado em pontos jurídicos e orientações dadas.',
+      prompt: 'Crie um resumo técnico focado nos pontos jurídicos discutidos, orientações fornecidas ao cliente e riscos legais identificados.'
+    }
+  ];
+
+  const handleRunAnalysis = async (prompt: string) => {
+    try {
+      const result = await aiAnalysis.mutateAsync({ prompt }) as any;
+      if (result && result.analysis) {
+        setAnalysisResult(result.analysis);
+        toast.success("Análise concluída com sucesso!");
+      } else if (result && result.result) {
+        setAnalysisResult(result.result);
+        toast.success("Análise concluída com sucesso!");
+      }
+    } catch (error) {
+      console.error("Analysis error:", error);
+    }
+  };
 
   // Audio recording logic
   const startRecording = async () => {
@@ -154,16 +194,22 @@ export function MeetingDetailDialog({ open, onOpenChange, meetingId }: MeetingDe
           <div className="flex-1 flex flex-col overflow-hidden">
             <Tabs defaultValue="transcript" className="flex-1 flex flex-col">
               <div className="px-6 border-b bg-muted/20">
-                <TabsList className="bg-transparent border-none p-0 h-12 gap-6">
-                  <TabsTrigger value="transcript" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none shadow-none h-full px-0">
+                <TabsList className="bg-transparent border-none p-0 h-12 gap-6 overflow-x-auto no-scrollbar flex-nowrap">
+                  <TabsTrigger value="transcript" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none shadow-none h-full px-0 whitespace-nowrap">
                     <FileText className="h-4 w-4 mr-2" />
                     Transcrição
                   </TabsTrigger>
-                  <TabsTrigger value="intelligence" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none shadow-none h-full px-0">
+                  <TabsTrigger value="intelligence" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none shadow-none h-full px-0 whitespace-nowrap">
                     <Brain className="h-4 w-4 mr-2" />
                     Inteligência IA
                   </TabsTrigger>
-                  <TabsTrigger value="tasks" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none shadow-none h-full px-0">
+                  {meeting.transcript && (
+                    <TabsTrigger value="analysis" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none shadow-none h-full px-0 whitespace-nowrap">
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      Análise de Prompt
+                    </TabsTrigger>
+                  )}
+                  <TabsTrigger value="tasks" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none shadow-none h-full px-0 whitespace-nowrap">
                     <ListTodo className="h-4 w-4 mr-2" />
                     Tarefas ({tasks.length})
                   </TabsTrigger>
@@ -327,6 +373,72 @@ export function MeetingDetailDialog({ open, onOpenChange, meetingId }: MeetingDe
                         </div>
                       </div>
                     )}
+                  </ScrollArea>
+                </TabsContent>
+
+                <TabsContent value="analysis" className="h-full m-0 p-0">
+                  <ScrollArea className="h-full p-6">
+                    <div className="space-y-6">
+                      <div className="grid grid-cols-1 gap-4">
+                        {standardPrompts.map((p) => (
+                          <Card key={p.id} className="p-4 hover:border-primary/50 transition-colors cursor-pointer group" onClick={() => handleRunAnalysis(p.prompt)}>
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <h4 className="font-semibold text-sm group-hover:text-primary transition-colors">{p.title}</h4>
+                                <p className="text-xs text-muted-foreground mt-1">{p.description}</p>
+                              </div>
+                              <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
+                                {aiAnalysis.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                              </Button>
+                            </div>
+                          </Card>
+                        ))}
+                      </div>
+
+                      <div className="space-y-3 pt-4 border-t">
+                        <h4 className="text-sm font-semibold flex items-center gap-2">
+                          <MessageSquare className="h-4 w-4" />
+                          Prompt Customizado
+                        </h4>
+                        <Textarea 
+                          placeholder="Digite seu prompt aqui para analisar a reunião..."
+                          className="min-h-[100px] text-sm"
+                          value={customPrompt}
+                          onChange={(e) => setCustomPrompt(e.target.value)}
+                        />
+                        <Button 
+                          className="w-full gap-2" 
+                          disabled={!customPrompt || aiAnalysis.isPending}
+                          onClick={() => handleRunAnalysis(customPrompt)}
+                        >
+                          {aiAnalysis.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                          Executar Prompt Customizado
+                        </Button>
+                      </div>
+
+                      {analysisResult && (
+                        <div className="space-y-3 pt-6 border-t animate-in fade-in slide-in-from-top-2">
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-sm font-bold text-primary uppercase tracking-wider flex items-center gap-2">
+                              <Sparkles className="h-4 w-4" />
+                              Resultado da Análise
+                            </h4>
+                            <div className="flex gap-2">
+                              <Button variant="ghost" size="sm" className="h-8 text-xs gap-1" onClick={() => {
+                                navigator.clipboard.writeText(analysisResult);
+                                toast.success("Copiado para a área de transferência");
+                              }}>
+                                <Copy className="h-3 w-3" />
+                                Copiar
+                              </Button>
+                            </div>
+                          </div>
+                          <div className="bg-muted/30 p-4 rounded-lg border border-border/50 text-sm leading-relaxed whitespace-pre-wrap">
+                            {analysisResult}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </ScrollArea>
                 </TabsContent>
 
