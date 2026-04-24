@@ -440,7 +440,7 @@ router.get('/messages/search', authenticate, async (req, res) => {
         m.conversation_id,
         m.content,
         m.timestamp,
-        m.is_from_me,
+        m.from_me as is_from_me,
         conv.contact_name,
         conv.contact_phone,
         conv.group_name,
