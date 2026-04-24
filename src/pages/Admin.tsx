@@ -514,6 +514,8 @@ export default function Admin() {
       has_aasp: editingPlan.has_aasp,
       has_lead_gleego: editingPlan.has_lead_gleego,
       has_meetings: editingPlan.has_meetings,
+      has_digital_signature: editingPlan.has_digital_signature,
+      has_legal_attendance: editingPlan.has_legal_attendance,
       price: editingPlan.price,
       billing_period: editingPlan.billing_period,
       is_active: editingPlan.is_active,
