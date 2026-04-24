@@ -96,6 +96,8 @@ DO $$ BEGIN
     ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_aasp BOOLEAN DEFAULT false;
     ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_lead_gleego BOOLEAN DEFAULT false;
     ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_meetings BOOLEAN DEFAULT false;
+    ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_digital_signature BOOLEAN DEFAULT false;
+    ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_legal_attendance BOOLEAN DEFAULT false;
     ALTER TABLE crm_tasks ADD COLUMN IF NOT EXISTS reminder_minutes INTEGER DEFAULT NULL;
     ALTER TABLE crm_tasks ADD COLUMN IF NOT EXISTS reminder_whatsapp BOOLEAN DEFAULT false;
     ALTER TABLE crm_tasks ADD COLUMN IF NOT EXISTS reminder_popup BOOLEAN DEFAULT true;
