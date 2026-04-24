@@ -376,6 +376,72 @@ export function MeetingDetailDialog({ open, onOpenChange, meetingId }: MeetingDe
                   </ScrollArea>
                 </TabsContent>
 
+                <TabsContent value="analysis" className="h-full m-0 p-0">
+                  <ScrollArea className="h-full p-6">
+                    <div className="space-y-6">
+                      <div className="grid grid-cols-1 gap-4">
+                        {standardPrompts.map((p) => (
+                          <Card key={p.id} className="p-4 hover:border-primary/50 transition-colors cursor-pointer group" onClick={() => handleRunAnalysis(p.prompt)}>
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <h4 className="font-semibold text-sm group-hover:text-primary transition-colors">{p.title}</h4>
+                                <p className="text-xs text-muted-foreground mt-1">{p.description}</p>
+                              </div>
+                              <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
+                                {aiAnalysis.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                              </Button>
+                            </div>
+                          </Card>
+                        ))}
+                      </div>
+
+                      <div className="space-y-3 pt-4 border-t">
+                        <h4 className="text-sm font-semibold flex items-center gap-2">
+                          <MessageSquare className="h-4 w-4" />
+                          Prompt Customizado
+                        </h4>
+                        <Textarea 
+                          placeholder="Digite seu prompt aqui para analisar a reunião..."
+                          className="min-h-[100px] text-sm"
+                          value={customPrompt}
+                          onChange={(e) => setCustomPrompt(e.target.value)}
+                        />
+                        <Button 
+                          className="w-full gap-2" 
+                          disabled={!customPrompt || aiAnalysis.isPending}
+                          onClick={() => handleRunAnalysis(customPrompt)}
+                        >
+                          {aiAnalysis.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                          Executar Prompt Customizado
+                        </Button>
+                      </div>
+
+                      {analysisResult && (
+                        <div className="space-y-3 pt-6 border-t animate-in fade-in slide-in-from-top-2">
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-sm font-bold text-primary uppercase tracking-wider flex items-center gap-2">
+                              <Sparkles className="h-4 w-4" />
+                              Resultado da Análise
+                            </h4>
+                            <div className="flex gap-2">
+                              <Button variant="ghost" size="sm" className="h-8 text-xs gap-1" onClick={() => {
+                                navigator.clipboard.writeText(analysisResult);
+                                toast.success("Copiado para a área de transferência");
+                              }}>
+                                <Copy className="h-3 w-3" />
+                                Copiar
+                              </Button>
+                            </div>
+                          </div>
+                          <div className="bg-muted/30 p-4 rounded-lg border border-border/50 text-sm leading-relaxed whitespace-pre-wrap">
+                            {analysisResult}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
+
                 <TabsContent value="tasks" className="h-full m-0 p-0">
                   <ScrollArea className="h-full p-6">
                     <div className="space-y-4">
