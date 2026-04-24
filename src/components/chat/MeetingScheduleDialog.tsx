@@ -11,6 +11,8 @@ import { api } from "@/lib/api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Video, Users, Calendar, Clock, Loader2, X, Plus, Mail } from "lucide-react";
+import { cn } from "@/lib/utils";
+
 
 interface MeetingScheduleDialogProps {
   open: boolean;
