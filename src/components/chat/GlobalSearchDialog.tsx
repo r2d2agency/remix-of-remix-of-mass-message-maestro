@@ -38,25 +38,29 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Debounced search
   useEffect(() => {
     if (!query.trim() || query.length < 2) {
       setResults([]);
       setSearched(false);
+      setError(null);
       return;
     }
 
     const timer = setTimeout(async () => {
       setLoading(true);
       setSearched(true);
+      setError(null);
       try {
         const data = await api<{ results: SearchResult[] }>(
           `/api/chat/messages/search?q=${encodeURIComponent(query)}&limit=50`
         );
         setResults(data.results || []);
-      } catch (error) {
+      } catch (error: any) {
         console.error('Global search error:', error);
+        setError(error.message || 'Erro ao realizar busca');
         setResults([]);
       } finally {
         setLoading(false);
@@ -72,6 +76,7 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
       setQuery('');
       setResults([]);
       setSearched(false);
+      setError(null);
     }
   }, [open]);
 
@@ -148,6 +153,16 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </div>
+          ) : error ? (
+            <div className="flex flex-col items-center justify-center py-12 text-destructive">
+              <p className="text-sm font-medium">{error}</p>
+              <button 
+                onClick={() => setQuery(q => q)} // Trigger re-search
+                className="text-xs underline mt-2 text-muted-foreground hover:text-primary"
+              >
+                Tentar novamente
+              </button>
             </div>
           ) : results.length === 0 ? (
             searched && query.length >= 2 ? (
