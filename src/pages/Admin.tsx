@@ -44,40 +44,6 @@ interface User {
   is_orphan?: boolean;
 }
 
-interface Plan {
-  id: string;
-  name: string;
-  description: string | null;
-  max_connections: number;
-  max_monthly_messages: number;
-  max_users: number;
-  max_supervisors: number;
-  has_asaas_integration: boolean;
-  has_chat: boolean;
-  has_whatsapp_groups: boolean;
-  has_campaigns: boolean;
-  has_chatbots: boolean;
-  has_scheduled_messages: boolean;
-  has_crm: boolean;
-  has_ai_agents: boolean;
-  has_departments: boolean;
-  has_lead_scoring: boolean;
-  has_ai_summary: boolean;
-  has_group_secretary: boolean;
-  has_ghost: boolean;
-  has_aasp: boolean;
-  has_lead_gleego: boolean;
-  has_meetings: boolean;
-  has_digital_signature: boolean;
-  has_legal_attendance: boolean;
-  price: number;
-  billing_period: string;
-  is_active: boolean;
-  visible_on_signup: boolean;
-  trial_days: number;
-  org_count?: number;
-  created_at: string;
-}
 
 interface Organization {
   id: string;
