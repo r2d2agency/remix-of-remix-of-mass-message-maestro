@@ -403,26 +403,44 @@ export function MeetingDetailDialog({ open, onOpenChange, meetingId }: MeetingDe
                   <ScrollArea className="h-full p-6">
                     <div className="space-y-6">
                       <div className="grid grid-cols-1 gap-4">
-                        {standardPrompts.map((p) => (
-                          <Card 
-                            key={p.id} 
-                            className={cn(
-                              "p-4 hover:border-primary/50 transition-colors cursor-pointer group",
-                              loadingPromptId === p.id && "border-primary bg-primary/5"
-                            )} 
-                            onClick={() => !loadingPromptId && handleRunAnalysis(p.prompt, p.id)}
-                          >
-                            <div className="flex justify-between items-start">
-                              <div>
-                                <h4 className="font-semibold text-sm group-hover:text-primary transition-colors">{p.title}</h4>
-                                <p className="text-xs text-muted-foreground mt-1">{p.description}</p>
+                        {standardPrompts.map((p) => {
+                          const statusLog = logs.find(l => 
+                            (l.action === 'ai_analysis' || l.action === 'analysis_generated') && 
+                            l.description.includes(p.title)
+                          );
+                          
+                          return (
+                            <Card 
+                              key={p.id} 
+                              className={cn(
+                                "p-4 hover:border-primary/50 transition-colors cursor-pointer group",
+                                loadingPromptId === p.id && "border-primary bg-primary/5"
+                              )} 
+                              onClick={() => !loadingPromptId && handleRunAnalysis(p.prompt, p.id)}
+                            >
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <h4 className="font-semibold text-sm group-hover:text-primary transition-colors">{p.title}</h4>
+                                  <p className="text-xs text-muted-foreground mt-1">{p.description}</p>
+                                  {statusLog && (
+                                    <div className="flex items-center gap-2 mt-2">
+                                      <Badge variant="secondary" className="bg-green-50 text-green-700 border-green-100 text-[10px] px-1.5 py-0 h-5 font-medium">
+                                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                                        Já gerada
+                                      </Badge>
+                                      <span className="text-[10px] text-muted-foreground">
+                                        {format(new Date(statusLog.created_at), "dd/MM/yy")}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                                <Button size="sm" variant="ghost" className="h-8 w-8 p-0" disabled={!!loadingPromptId}>
+                                  {loadingPromptId === p.id ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <Play className="h-4 w-4" />}
+                                </Button>
                               </div>
-                              <Button size="sm" variant="ghost" className="h-8 w-8 p-0" disabled={!!loadingPromptId}>
-                                {loadingPromptId === p.id ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <Play className="h-4 w-4" />}
-                              </Button>
-                            </div>
-                          </Card>
-                        ))}
+                            </Card>
+                          );
+                        })}
                       </div>
 
                       <div className="space-y-3 pt-4 border-t">
