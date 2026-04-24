@@ -74,7 +74,8 @@ const navSections: NavSection[] = [
     icon: MessagesSquare,
     items: [
       { name: "Chat", href: "/chat", icon: MessagesSquare, moduleKey: 'chat', featureKey: 'chat' },
-      { name: "Atendimento Online", href: "/chat?type=legal", icon: ScaleIcon, moduleKey: 'legal_attendance', featureKey: 'legal_attendance' },
+      { name: "Portal Jurídico", href: "/chat?type=legal", icon: ScaleIcon, moduleKey: 'legal_attendance', featureKey: 'legal_attendance' },
+      { name: "Atendimento Online", href: "/reunioes", icon: CalendarDays, moduleKey: 'meetings', featureKey: 'meetings' },
       { name: "Assinatura Digital", href: "/assinaturas", icon: FileSignature, moduleKey: 'digital_signature', featureKey: 'digital_signature' },
       { name: "Secretária IA", href: "/secretaria-grupos", icon: Bot, moduleKey: 'group_secretary', adminOnly: true, featureKey: 'group_secretary' },
       { name: "Agentes IA", href: "/agentes-ia", icon: Sparkles, moduleKey: 'ai_agents', adminOnly: true, featureKey: 'ai_agents' },
@@ -94,7 +95,7 @@ const navSections: NavSection[] = [
       { name: "Negociações", href: "/crm/negociacoes", icon: Kanban, featureKey: 'crm_deals' },
       { name: "Prospects", href: "/crm/prospects", icon: UserPlus, featureKey: 'crm_prospects' },
       { name: "Empresas", href: "/crm/empresas", icon: Building2, featureKey: 'crm_companies' },
-      { name: "Reuniões", href: "/reunioes", icon: CalendarDays, moduleKey: 'meetings', featureKey: 'meetings' },
+      
       { name: "Mapa", href: "/mapa", icon: Map, featureKey: 'crm_map' },
       { name: "Agenda", href: "/crm/agenda", icon: CalendarDays, featureKey: 'crm_calendar' },
       { name: "Tarefas", href: "/crm/tarefas", icon: ClipboardList, featureKey: 'crm_tasks' },
