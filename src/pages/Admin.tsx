@@ -2252,8 +2252,8 @@ export default function Admin() {
 
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div className="space-y-0.5">
-                    <Label htmlFor="edit-legal-attendance" className="text-sm font-medium">Atendimento Jurídico</Label>
-                    <p className="text-xs text-muted-foreground">Portal de atendimento jurídico online</p>
+                    <Label htmlFor="edit-legal-attendance" className="text-sm font-medium">Portal Jurídico</Label>
+                    <p className="text-xs text-muted-foreground">Área de acesso para clientes do escritório</p>
                   </div>
                   <Switch
                     id="edit-legal-attendance"
