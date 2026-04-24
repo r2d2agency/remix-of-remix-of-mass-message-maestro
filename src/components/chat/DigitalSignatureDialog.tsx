@@ -10,13 +10,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { FileSignature, Send, Loader2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { FileSignature, Send, Loader2, Mail, MessageSquare, Calendar } from "lucide-react";
 import { toast } from "sonner";
 
 interface DigitalSignatureDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSend: (documentName: string) => Promise<void>;
+  onSend?: (data: any) => Promise<void>;
 }
 
 export function DigitalSignatureDialog({
@@ -24,38 +26,45 @@ export function DigitalSignatureDialog({
   onOpenChange,
   onSend,
 }: DigitalSignatureDialogProps) {
+  const [loading, setLoading] = useState(false);
   const [documentName, setDocumentName] = useState("");
-  const [sending, setSending] = useState(false);
+  const [channel, setChannel] = useState("whatsapp");
+  const [deadline, setDeadline] = useState(new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]);
 
   const handleSend = async () => {
     if (!documentName.trim()) {
-      toast.error("Por favor, informe o nome ou descrição do documento");
+      toast.error("Por favor, informe o nome do documento");
       return;
     }
 
-    setSending(true);
+    setLoading(true);
     try {
-      await onSend(documentName);
-      toast.success("Solicitação de assinatura enviada!");
-      setDocumentName("");
+      if (onSend) {
+        await onSend({
+          name: documentName,
+          channel,
+          deadline
+        });
+      }
+      toast.success("Solicitação de assinatura enviada com sucesso!");
       onOpenChange(false);
     } catch (error) {
-      toast.error("Erro ao enviar solicitação de assinatura");
+      toast.error("Erro ao enviar solicitação");
     } finally {
-      setSending(false);
+      setLoading(false);
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-max-w-[425px]">
+      <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileSignature className="h-5 w-5 text-primary" />
             Solicitar Assinatura Digital
           </DialogTitle>
           <DialogDescription>
-            Envie um link para o cliente assinar um documento digitalmente.
+            O cliente receberá um link seguro para visualizar e assinar o documento.
           </DialogDescription>
         </DialogHeader>
 
@@ -67,25 +76,84 @@ export function DigitalSignatureDialog({
               placeholder="Ex: Contrato de Prestação de Serviços"
               value={documentName}
               onChange={(e) => setDocumentName(e.target.value)}
-              disabled={sending}
+              disabled={loading}
             />
           </div>
-          <div className="bg-muted p-3 rounded-md text-xs text-muted-foreground">
-            <p>O cliente receberá uma mensagem com o link seguro para assinatura eletrônica via plataforma integrada.</p>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-2">
+              <Label>Canal de Envio</Label>
+              <Select value={channel} onValueChange={setChannel}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="whatsapp">
+                    <div className="flex items-center gap-2">
+                      <MessageSquare className="h-4 w-4" />
+                      WhatsApp
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="email">
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-4 w-4" />
+                      E-mail
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="both">Ambos</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>Prazo</Label>
+              <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input 
+                  type="date" 
+                  className="pl-9 h-10" 
+                  value={deadline}
+                  onChange={(e) => setDeadline(e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-3 pt-2">
+            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Validação e Segurança</Label>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox id="reminders" defaultChecked />
+                <label htmlFor="reminders" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                  Lembretes automáticos
+                </label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox id="ip" defaultChecked disabled />
+                <label htmlFor="ip" className="text-sm font-medium leading-none text-muted-foreground">
+                  Registro de IP e Dispositivo (Obrigatório)
+                </label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox id="selfie" />
+                <label htmlFor="selfie" className="text-sm font-medium leading-none">
+                  Solicitar Selfie do Assinante
+                </label>
+              </div>
+            </div>
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={sending}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
             Cancelar
           </Button>
-          <Button onClick={handleSend} disabled={sending}>
-            {sending ? (
+          <Button onClick={handleSend} disabled={loading}>
+            {loading ? (
               <Loader2 className="h-4 w-4 animate-spin mr-2" />
             ) : (
               <Send className="h-4 w-4 mr-2" />
             )}
-            Enviar Solicitação
+            Enviar Link de Assinatura
           </Button>
         </DialogFooter>
       </DialogContent>
