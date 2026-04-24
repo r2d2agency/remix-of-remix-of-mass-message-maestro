@@ -47,6 +47,9 @@ interface ModulesEnabled {
   ghost: boolean;
   aasp: boolean;
   lead_gleego: boolean;
+  meetings: boolean;
+  digital_signature: boolean;
+  legal_attendance: boolean;
 }
 
 export interface FeaturePermissions {
