@@ -8,11 +8,12 @@ import {
   Plus, Search, Calendar, Clock, Video, FileText, 
   BarChart3, Users, Play, CheckCircle2, AlertCircle,
   MoreVertical, Download, Trash2, Filter, Settings,
-  Brain, Mic, Headphones
+  Brain, Mic, Headphones, Loader2, Eye
 } from "lucide-react";
 import { useMeetings, Meeting } from "@/hooks/use-meetings";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,9 +22,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MeetingScheduleDialog } from "@/components/chat/MeetingScheduleDialog";
 import { MeetingDetailDialog } from "@/components/meetings/MeetingDetailDialog";
+
 
 export default function Meetings() {
   const [search, setSearch] = useState("");
