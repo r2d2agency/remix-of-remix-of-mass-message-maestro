@@ -45,6 +45,7 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
     if (!query.trim() || query.length < 2) {
       setResults([]);
       setSearched(false);
+      setError(null);
       return;
     }
 
