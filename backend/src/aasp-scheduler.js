@@ -86,6 +86,8 @@ async function fetchAASPWithAuthFallback(url, token, label, organizationId, pref
       const urlObj = new URL(url);
       urlObj.searchParams.set('ChaveAcesso', token);
       urlObj.searchParams.set('chave-acesso', token);
+      urlObj.searchParams.set('chave_acesso', token);
+      urlObj.searchParams.set('chaveacesso', token);
       urlObj.searchParams.set('token', token);
       urlObj.searchParams.set('api-key', token);
       finalUrl = urlObj.toString();
