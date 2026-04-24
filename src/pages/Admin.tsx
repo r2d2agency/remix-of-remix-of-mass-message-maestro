@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { useSuperadmin } from '@/hooks/use-superadmin';
+import { useSuperadmin, Plan } from '@/hooks/use-superadmin';
 import { useAdminSettings } from '@/hooks/use-branding';
 import { useUpload } from '@/hooks/use-upload';
 import { BrandingTab } from '@/components/admin/BrandingTab';
