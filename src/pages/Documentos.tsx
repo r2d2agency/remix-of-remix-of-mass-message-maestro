@@ -4,9 +4,12 @@ import { FileText, Plus, Search, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
+import { DocumentList } from "@/components/documents/DocumentList";
+import { DocumentUploadDialog } from "@/components/documents/DocumentUploadDialog";
 
 export default function Documentos() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
 
   return (
     <MainLayout>
@@ -21,7 +24,7 @@ export default function Documentos() {
               <p className="text-sm text-muted-foreground">Gestão de documentos e arquivos jurídicos</p>
             </div>
           </div>
-          <Button className="gap-2">
+          <Button className="gap-2" onClick={() => setUploadDialogOpen(true)}>
             <Plus className="h-4 w-4" />
             Novo Documento
           </Button>
@@ -44,18 +47,20 @@ export default function Documentos() {
         </div>
 
         <Card>
-          <CardHeader>
+          <CardHeader className="pb-3">
             <CardTitle>Meus Documentos</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-center py-12 text-muted-foreground">
-              <FileText className="h-12 w-12 mx-auto mb-4 opacity-20" />
-              <p>Nenhum documento encontrado.</p>
-              <p className="text-sm">Comece fazendo upload de um novo documento.</p>
-            </div>
+            <DocumentList />
           </CardContent>
         </Card>
       </div>
+
+      <DocumentUploadDialog 
+        open={uploadDialogOpen} 
+        onOpenChange={setUploadDialogOpen} 
+      />
     </MainLayout>
   );
 }
+
