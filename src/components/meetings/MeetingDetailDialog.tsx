@@ -430,15 +430,22 @@ export function MeetingDetailDialog({ open, onOpenChange, meetingId }: MeetingDe
                                 <div>
                                   <h4 className="font-semibold text-sm group-hover:text-primary transition-colors">{p.title}</h4>
                                   <p className="text-xs text-muted-foreground mt-1">{p.description}</p>
-                                  {statusLog && (
+                                  {statusLog ? (
                                     <div className="flex items-center gap-2 mt-2">
                                       <Badge variant="secondary" className="bg-green-50 text-green-700 border-green-100 text-[10px] px-1.5 py-0 h-5 font-medium">
                                         <CheckCircle2 className="h-3 w-3 mr-1" />
                                         Já gerada
                                       </Badge>
                                       <span className="text-[10px] text-muted-foreground">
-                                        {format(new Date(statusLog.created_at), "dd/MM/yy")}
+                                        {format(new Date(statusLog.created_at), "dd/MM/yy", { locale: ptBR })}
                                       </span>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-2 mt-2 opacity-70">
+                                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 font-medium">
+                                        <Clock className="h-3 w-3 mr-1" />
+                                        Disponível
+                                      </Badge>
                                     </div>
                                   )}
                                 </div>
