@@ -48,9 +48,6 @@ import SecretariaGrupos from "./pages/SecretariaGrupos";
 import ModuloFantasma from "./pages/ModuloFantasma";
 import Intimacoes from "./pages/Intimacoes";
 import LeadGleego from "./pages/LeadGleego";
-import Reunioes from "./pages/Reunioes";
-
-import Assinaturas from "./pages/Assinaturas";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -123,8 +120,6 @@ const App = () => (
             <Route path="/modulo-fantasma" element={<ProtectedRoute><ModuloFantasma /></ProtectedRoute>} />
             <Route path="/intimacoes" element={<ProtectedRoute><Intimacoes /></ProtectedRoute>} />
             <Route path="/lead-gleego" element={<ProtectedRoute><LeadGleego /></ProtectedRoute>} />
-            <Route path="/reunioes" element={<ProtectedRoute><Reunioes /></ProtectedRoute>} />
-            <Route path="/assinaturas" element={<ProtectedRoute><Assinaturas /></ProtectedRoute>} />
             
             <Route path="/f/:slug" element={<PublicFormPage />} />
             <Route path="/politica-privacidade" element={<PoliticaPrivacidade />} />
