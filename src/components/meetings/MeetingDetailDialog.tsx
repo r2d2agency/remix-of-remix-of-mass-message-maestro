@@ -40,6 +40,7 @@ export function MeetingDetailDialog({ open, onOpenChange, meetingId }: MeetingDe
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [customPrompt, setCustomPrompt] = useState("");
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
+  const [loadingPromptId, setLoadingPromptId] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const timerRef = useRef<any>(null);
 
