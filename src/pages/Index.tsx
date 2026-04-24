@@ -136,7 +136,7 @@ const Index = () => {
 
   return (
     <MainLayout>
-      <div className="space-y-8 min-w-0 overflow-hidden">
+      <div className="space-y-8 min-w-0">
         {/* Header */}
         <div className="animate-slide-up">
           <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
