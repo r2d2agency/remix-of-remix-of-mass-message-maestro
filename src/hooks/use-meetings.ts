@@ -218,3 +218,19 @@ export function useUploadMeetingAudio(meetingId?: string) {
     onError: (e: any) => toast({ title: "Erro ao enviar áudio", description: e.message, variant: "destructive" }),
   });
 }
+
+export function useMeetingAIAnalysis(meetingId?: string) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: { prompt: string; type?: string }) => 
+      api(`/api/meetings/${meetingId}/analyze`, { method: "POST", body: data }),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["meeting", meetingId] });
+      toast({ title: "Análise concluída" });
+      return data;
+    },
+    onError: (e: any) => toast({ title: "Erro na análise", description: e.message, variant: "destructive" }),
+  });
+}
