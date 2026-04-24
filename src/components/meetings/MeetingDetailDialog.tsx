@@ -436,8 +436,8 @@ export function MeetingDetailDialog({ open, onOpenChange, meetingId }: MeetingDe
                         </Button>
                       </div>
 
-                      {analysisResult && (
-                        <div className="space-y-3 pt-6 border-t animate-in fade-in slide-in-from-top-2">
+                        {analysisResult && (
+                        <div ref={resultRef} className="space-y-3 pt-6 border-t animate-in fade-in slide-in-from-top-2">
                           <div className="flex items-center justify-between">
                             <h4 className="text-sm font-bold text-primary uppercase tracking-wider flex items-center gap-2">
                               <Sparkles className="h-4 w-4" />
