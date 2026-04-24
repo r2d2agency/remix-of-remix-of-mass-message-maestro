@@ -522,934 +522,987 @@ export function CRMSidePanel({
         </div>
 
         <TabsContent value="crm" className="flex-1 flex flex-col overflow-hidden m-0">
-          <ScrollArea className="flex-1">
-            <div className="p-3 space-y-4">
-              {/* Existing CRM Content */}
-              {selectedDeal && (
-
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="h-7 text-xs gap-1"
-              onClick={openDealDetail}
-            >
-              <ExternalLink className="h-3 w-3" />
-              Abrir
-            </Button>
-          )}
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="h-7 text-xs gap-1 text-primary"
-            onClick={openCreateDealForm}
-          >
-            <Plus className="h-3 w-3" />
-            Nova
-          </Button>
-          {!isMobile && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={onToggle}
-              title="Fechar painel CRM"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {/* Inline Deal Creation Form */}
-      {showCreateDeal && (
-        <div className="p-3 border-b bg-muted/20 space-y-3">
-          <div className="flex items-center justify-between">
+          {/* Deal sub-header */}
+          <div className="flex items-center justify-between p-2 border-b min-w-0">
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={resetCreateDealForm}>
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-              <span className="font-medium text-sm">Nova Negociação</span>
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Negociações</span>
+              {deals.length > 0 && (
+                <Badge variant="secondary" className="text-[10px] px-1.5">
+                  {deals.length}
+                </Badge>
+              )}
             </div>
-            {contactName && (
-              <Badge variant="secondary" className="text-[10px]">
-                <User className="h-3 w-3 mr-1" />
-                {contactName}
-              </Badge>
-            )}
-          </div>
-
-          <div className="space-y-3">
-            <div>
-              <Label className="text-xs">Título *</Label>
-              <Input
-                value={newDealTitle}
-                onChange={(e) => setNewDealTitle(e.target.value)}
-                placeholder="Título da negociação"
-                className="h-8 text-xs mt-1"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <Label className="text-xs">Funil *</Label>
-                <Select value={newDealFunnelId} onValueChange={(val) => {
-                  setNewDealFunnelId(val);
-                  setNewDealStageId(""); // Reset stage when funnel changes
-                }}>
-                  <SelectTrigger className="h-8 text-xs mt-1">
-                    <SelectValue placeholder="Selecione" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {funnels.map((funnel) => (
-                      <SelectItem key={funnel.id} value={funnel.id} className="text-xs">
-                        {funnel.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-xs">Etapa *</Label>
-                <Select 
-                  value={newDealStageId} 
-                  onValueChange={setNewDealStageId}
-                  disabled={!newDealFunnelId}
-                >
-                  <SelectTrigger className="h-8 text-xs mt-1">
-                    <SelectValue placeholder="Selecione" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {newDealStages.map((stage) => (
-                      <SelectItem key={stage.id} value={stage.id!} className="text-xs">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: stage.color }} />
-                          {stage.name}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <Label className="text-xs">Valor (R$)</Label>
-                <Input
-                  type="number"
-                  value={newDealValue}
-                  onChange={(e) => setNewDealValue(e.target.value)}
-                  placeholder="0,00"
-                  className="h-8 text-xs mt-1"
-                  min={0}
-                />
-              </div>
-              <div>
-                <Label className="text-xs">Probabilidade: {newDealProbability}%</Label>
-                <Slider
-                  value={[newDealProbability]}
-                  onValueChange={([val]) => setNewDealProbability(val)}
-                  min={0}
-                  max={100}
-                  step={10}
-                  className="mt-2"
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex-1 h-8 text-xs"
-                onClick={resetCreateDealForm}
-              >
-                Cancelar
-              </Button>
-              <Button
-                size="sm"
-                className="flex-1 h-8 text-xs"
-                onClick={handleCreateDealInline}
-                disabled={!newDealTitle.trim() || !newDealFunnelId || !newDealStageId || isCreatingDeal}
-              >
-                {isCreatingDeal ? (
-                  <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                ) : (
-                  <Plus className="h-3 w-3 mr-1" />
-                )}
-                Criar
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Quick Actions */}
-      <div className="grid grid-cols-4 gap-1 p-2 border-b bg-muted/10 min-w-0 overflow-hidden">
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 text-xs gap-1 px-2"
-          onClick={() => setShowTaskDialog(true)}
-        >
-          <ClipboardList className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Tarefa</span>
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 text-xs gap-1 px-2"
-          onClick={() => setShowMeetingDialog(true)}
-        >
-          <Video className="h-3.5 w-3.5 text-green-600" />
-          <span className="hidden sm:inline">Reunião</span>
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 text-xs gap-1 px-2"
-          onClick={() => setShowEmailDialog(true)}
-        >
-          <Mail className="h-3.5 w-3.5 text-blue-600" />
-          <span className="hidden sm:inline">Email</span>
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 text-xs gap-1 px-2"
-          onClick={() => setShowSequenceDialog(true)}
-          title="Inscrever em Sequência de Nurturing"
-        >
-          <RefreshCw className="h-3.5 w-3.5 text-purple-600" />
-          <span className="hidden sm:inline">Seq.</span>
-        </Button>
-      </div>
-
-      <ScrollArea className="flex-1 min-h-0 min-w-0 w-full [&>[data-radix-scroll-area-viewport]]:!overflow-x-hidden">
-        {loadingDeals ? (
-          <div className="flex items-center justify-center p-8">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        ) : (
-          <div className="p-2 min-w-0 w-full max-w-full overflow-hidden">
-            {deals.length === 0 ? (
-              <div className="flex flex-col items-center justify-center p-6 text-center text-muted-foreground mb-2">
-                <Briefcase className="h-10 w-10 mb-3 opacity-40" />
-                <p className="text-sm font-medium">Nenhuma negociação ativa</p>
-                <p className="text-xs mt-1">
-                  {allDeals.length > 0 
-                    ? `${allDeals.length} negociação(ões) encerrada(s)`
-                    : "Este contato não possui negociações"
-                  }
-                </p>
+            <div className="flex items-center gap-1">
+              {selectedDeal && (
                 <Button 
-                  variant="default" 
+                  variant="ghost" 
                   size="sm" 
-                  className="mt-4 gap-1"
-                  onClick={openCreateDealForm}
+                  className="h-7 text-xs gap-1"
+                  onClick={openDealDetail}
                 >
-                  <Plus className="h-3 w-3" />
-                  Criar negociação
+                  <ExternalLink className="h-3 w-3" />
+                  Abrir
                 </Button>
+              )}
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="h-7 text-xs gap-1 text-primary"
+                onClick={openCreateDealForm}
+              >
+                <Plus className="h-3 w-3" />
+                Nova
+              </Button>
+              {!isMobile && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={onToggle}
+                  title="Fechar painel CRM"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Inline Deal Creation Form */}
+          {showCreateDeal && (
+            <div className="p-3 border-b bg-muted/20 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={resetCreateDealForm}>
+                    <ArrowLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="font-medium text-sm">Nova Negociação</span>
+                </div>
+                {contactName && (
+                  <Badge variant="secondary" className="text-[10px]">
+                    <User className="h-3 w-3 mr-1" />
+                    {contactName}
+                  </Badge>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <Label className="text-xs">Título *</Label>
+                  <Input
+                    value={newDealTitle}
+                    onChange={(e) => setNewDealTitle(e.target.value)}
+                    placeholder="Título da negociação"
+                    className="h-8 text-xs mt-1"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs">Funil *</Label>
+                    <Select value={newDealFunnelId} onValueChange={(val) => {
+                      setNewDealFunnelId(val);
+                      setNewDealStageId(""); // Reset stage when funnel changes
+                    }}>
+                      <SelectTrigger className="h-8 text-xs mt-1">
+                        <SelectValue placeholder="Selecione" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {funnels.map((funnel) => (
+                          <SelectItem key={funnel.id} value={funnel.id} className="text-xs">
+                            {funnel.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Etapa *</Label>
+                    <Select 
+                      value={newDealStageId} 
+                      onValueChange={setNewDealStageId}
+                      disabled={!newDealFunnelId}
+                    >
+                      <SelectTrigger className="h-8 text-xs mt-1">
+                        <SelectValue placeholder="Selecione" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {newDealStages.map((stage) => (
+                          <SelectItem key={stage.id} value={stage.id!} className="text-xs">
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: stage.color }} />
+                              {stage.name}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs">Valor (R$)</Label>
+                    <Input
+                      type="number"
+                      value={newDealValue}
+                      onChange={(e) => setNewDealValue(e.target.value)}
+                      placeholder="0,00"
+                      className="h-8 text-xs mt-1"
+                      min={0}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Probabilidade: {newDealProbability}%</Label>
+                    <Slider
+                      value={[newDealProbability]}
+                      onValueChange={([val]) => setNewDealProbability(val)}
+                      min={0}
+                      max={100}
+                      step={10}
+                      className="mt-2"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 h-8 text-xs"
+                    onClick={resetCreateDealForm}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="flex-1 h-8 text-xs"
+                    onClick={handleCreateDealInline}
+                    disabled={!newDealTitle.trim() || !newDealFunnelId || !newDealStageId || isCreatingDeal}
+                  >
+                    {isCreatingDeal ? (
+                      <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                    ) : (
+                      <Plus className="h-3 w-3 mr-1" />
+                    )}
+                    Criar
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Quick Actions */}
+          <div className="grid grid-cols-4 gap-1 p-2 border-b bg-muted/10 min-w-0 overflow-hidden">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs gap-1 px-2"
+              onClick={() => setShowTaskDialog(true)}
+            >
+              <ClipboardList className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Tarefa</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs gap-1 px-2"
+              onClick={() => setShowMeetingDialog(true)}
+            >
+              <Video className="h-3.5 w-3.5 text-green-600" />
+              <span className="hidden sm:inline">Reunião</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs gap-1 px-2"
+              onClick={() => setShowEmailDialog(true)}
+            >
+              <Mail className="h-3.5 w-3.5 text-blue-600" />
+              <span className="hidden sm:inline">Email</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs gap-1 px-2"
+              onClick={() => setShowSequenceDialog(true)}
+              title="Inscrever em Sequência de Nurturing"
+            >
+              <RefreshCw className="h-3.5 w-3.5 text-purple-600" />
+              <span className="hidden sm:inline">Seq.</span>
+            </Button>
+          </div>
+
+          <ScrollArea className="flex-1 min-h-0 min-w-0 w-full [&>[data-radix-scroll-area-viewport]]:!overflow-x-hidden">
+            {loadingDeals ? (
+              <div className="flex items-center justify-center p-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
             ) : (
-              <>
-            {/* Deal selector - prominent when multiple deals */}
-            {deals.length > 1 && (
-              <div className="mb-3 p-3 bg-primary/5 border border-primary/20 rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <Briefcase className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-medium">Qual negociação está em pauta?</span>
-                </div>
-                <Select value={selectedDealId || deals[0]?.id} onValueChange={setSelectedDealId}>
-                  <SelectTrigger className="h-9 text-sm bg-background">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {deals.map(deal => (
-                      <SelectItem key={deal.id} value={deal.id} className="text-sm py-2">
-                        <div className="flex flex-col items-start">
-                          <span className="font-medium">{deal.title}</span>
-                          <span className="text-xs text-muted-foreground">
-                            {formatCurrency(deal.value)} • {deal.stage_name}
-                          </span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-[10px] text-muted-foreground mt-1">
-                  {deals.length} negociações ativas com este contato
-                </p>
-              </div>
-            )}
-
-            <Accordion type="multiple" defaultValue={[]} className="space-y-1 min-w-0">
-              {/* Deal Info - Editable */}
-              <AccordionItem value="deal" className="border rounded-lg px-3">
-                <AccordionTrigger className="py-2 hover:no-underline">
-                  <div className="flex items-center gap-2 text-sm">
-                    <DollarSign className="h-4 w-4 text-green-600" />
-                    <span>Negociação</span>
-                    {selectedDeal && getStatusBadge(selectedDeal)}
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent className="pb-3">
-                  {selectedDeal && (
-                    <div className="space-y-3">
-                      {isEditingDeal ? (
-                        <>
-                          <div>
-                            <Label className="text-xs">Título</Label>
-                            <Input
-                              value={dealForm.title}
-                              onChange={(e) => setDealForm({ ...dealForm, title: e.target.value })}
-                              className="h-8 text-xs mt-1"
-                            />
-                          </div>
-                          <div>
-                            <Label className="text-xs">Valor (R$)</Label>
-                            <Input
-                              type="number"
-                              value={dealForm.value}
-                              onChange={(e) => setDealForm({ ...dealForm, value: parseFloat(e.target.value) || 0 })}
-                              className="h-8 text-xs mt-1"
-                            />
-                          </div>
-                          <div>
-                            <Label className="text-xs">Probabilidade (%)</Label>
-                            <Input
-                              type="number"
-                              min={0}
-                              max={100}
-                              value={dealForm.probability}
-                              onChange={(e) => setDealForm({ ...dealForm, probability: parseInt(e.target.value) || 0 })}
-                              className="h-8 text-xs mt-1"
-                            />
-                          </div>
-                          <div>
-                            <Label className="text-xs">Previsão de fechamento</Label>
-                            <Input
-                              type="date"
-                              value={dealForm.expected_close_date}
-                              onChange={(e) => setDealForm({ ...dealForm, expected_close_date: e.target.value })}
-                              className="h-8 text-xs mt-1"
-                            />
-                          </div>
-                          <div className="flex gap-2 pt-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="flex-1 h-7 text-xs"
-                              onClick={() => setIsEditingDeal(false)}
-                            >
-                              <X className="h-3 w-3 mr-1" />
-                              Cancelar
-                            </Button>
-                            <Button
-                              size="sm"
-                              className="flex-1 h-7 text-xs"
-                              onClick={handleSaveDeal}
-                              disabled={updateDeal.isPending}
-                            >
-                              {updateDeal.isPending ? (
-                                <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                              ) : (
-                                <Save className="h-3 w-3 mr-1" />
-                              )}
-                              Salvar
-                            </Button>
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <div className="flex items-center justify-between">
-                            <span className="text-muted-foreground text-xs">Título:</span>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6"
-                              onClick={() => setIsEditingDeal(true)}
-                            >
-                              <Edit className="h-3 w-3" />
-                            </Button>
-                          </div>
-                          <p className="font-medium text-sm -mt-2">{selectedDeal.title}</p>
-                          
-                          <div className="flex items-center justify-between">
-                            <span className="text-muted-foreground text-xs">Valor:</span>
-                            <span className="font-semibold text-green-600">{formatCurrency(selectedDeal.value)}</span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-muted-foreground text-xs">Probabilidade:</span>
-                            <Badge variant="secondary" className="text-[10px]">{selectedDeal.probability}%</Badge>
-                          </div>
-                          {selectedDeal.expected_close_date && (
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <Calendar className="h-3 w-3" />
-                              <span>Previsão: {format(parseISO(selectedDeal.expected_close_date), "dd/MM/yyyy", { locale: ptBR })}</span>
-                            </div>
-                          )}
-                          {selectedDeal.owner_name && (
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <User className="h-3 w-3" />
-                              <span>Responsável: {selectedDeal.owner_name}</span>
-                            </div>
-                          )}
-                          {Number(selectedDeal.pending_tasks) > 0 && (
-                            <div className="flex items-center gap-1 text-xs text-amber-600">
-                              <CheckSquare className="h-3 w-3" />
-                              <span>{selectedDeal.pending_tasks} tarefa(s) pendente(s)</span>
-                            </div>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  )}
-                </AccordionContent>
-              </AccordionItem>
-
-              {/* Stage/Funnel */}
-              <AccordionItem value="stage" className="border rounded-lg px-3">
-                <AccordionTrigger className="py-2 hover:no-underline">
-                  <div className="flex items-center gap-2 text-sm">
-                    <GitBranch className="h-4 w-4 text-blue-600" />
-                    <span>Funil & Etapa</span>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent className="pb-3">
-                  {selectedDeal && (
-                    <div className="space-y-3">
-                      <div>
-                        <span className="text-muted-foreground text-xs block mb-1">Funil:</span>
-                        <Badge variant="outline" className="text-xs">
-                          {funnels.find(f => f.id === selectedDeal.funnel_id)?.name || 'Carregando...'}
-                        </Badge>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground text-xs block mb-1">Etapa atual:</span>
-                        {selectedDeal.status === 'open' ? (
-                          <Select value={selectedDeal.stage_id} onValueChange={handleStageChange}>
-                            <SelectTrigger className="h-8 text-xs">
-                              <SelectValue placeholder="Selecionar etapa" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {stages.map((stage: CRMStage) => (
-                                <SelectItem key={stage.id} value={stage.id!} className="text-xs">
-                                  <div className="flex items-center gap-2">
-                                    <div 
-                                      className="w-2 h-2 rounded-full" 
-                                      style={{ backgroundColor: stage.color }}
-                                    />
-                                    {stage.name}
-                                  </div>
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          <Badge 
-                            style={{ backgroundColor: selectedDeal.stage_color }}
-                            className="text-white text-xs"
-                          >
-                            {selectedDeal.stage_name}
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </AccordionContent>
-              </AccordionItem>
-
-              {/* Company - With assignment/creation */}
-              <AccordionItem value="company" className="border rounded-lg px-3">
-                <AccordionTrigger className="py-2 hover:no-underline">
-                  <div className="flex items-center gap-2 text-sm">
-                    <Building2 className="h-4 w-4 text-purple-600" />
-                    <span>Empresa</span>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent className="pb-3">
-                  {isAssigningCompany ? (
-                    <div className="space-y-3">
-                      <div className="relative">
-                        <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
-                        <Input
-                          placeholder="Buscar empresa..."
-                          value={companySearch}
-                          onChange={(e) => setCompanySearch(e.target.value)}
-                          className="h-8 text-xs pl-7"
-                        />
-                      </div>
-                      {companySearch.length >= 2 && (
-                        <div className="max-h-32 overflow-y-auto space-y-1">
-                          {companiesSearch.length === 0 ? (
-                            <p className="text-xs text-muted-foreground text-center py-2">Nenhuma empresa encontrada</p>
-                          ) : (
-                            companiesSearch.slice(0, 5).map(c => (
-                              <Button
-                                key={c.id}
-                                variant="ghost"
-                                size="sm"
-                                className="w-full justify-start h-7 text-xs"
-                                onClick={() => handleAssignCompany(c.id)}
-                              >
-                                <Building2 className="h-3 w-3 mr-2" />
-                                {c.name}
-                              </Button>
-                            ))
-                          )}
-                        </div>
-                      )}
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="flex-1 h-7 text-xs"
-                          onClick={() => {
-                            setIsAssigningCompany(false);
-                            setCompanySearch("");
-                          }}
-                        >
-                          Cancelar
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          className="flex-1 h-7 text-xs"
-                          onClick={() => {
-                            setIsAssigningCompany(false);
-                            setShowCompanyDialog(true);
-                          }}
-                        >
-                          <Plus className="h-3 w-3 mr-1" />
-                          Criar nova
-                        </Button>
-                      </div>
-                    </div>
-                  ) : company ? (
-                    <div className="space-y-2 text-sm">
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground text-xs">Nome:</span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={() => setIsAssigningCompany(true)}
-                          title="Alterar empresa"
-                        >
-                          <Edit className="h-3 w-3" />
-                        </Button>
-                      </div>
-                      <p className="font-medium -mt-1">{company.name}</p>
-                      {company.segment_name && (
-                        <div className="flex items-center gap-1">
-                          <span className="text-muted-foreground text-xs">Segmento:</span>
-                          <Badge 
-                            variant="outline" 
-                            className="text-[10px]"
-                            style={{ borderColor: company.segment_color, color: company.segment_color }}
-                          >
-                            {company.segment_name}
-                          </Badge>
-                        </div>
-                      )}
-                      {company.phone && (
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Phone className="h-3 w-3" />
-                          <span>{company.phone}</span>
-                        </div>
-                      )}
-                      {company.email && (
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Mail className="h-3 w-3" />
-                          <span>{company.email}</span>
-                        </div>
-                      )}
-                      {(company.city || company.state) && (
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <MapPin className="h-3 w-3" />
-                          <span>{[company.city, company.state].filter(Boolean).join(', ')}</span>
-                        </div>
-                      )}
-                    </div>
-                  ) : selectedDeal?.company_name && selectedDeal.company_name !== 'Sem empresa' ? (
-                    <div className="space-y-2">
-                      <p className="text-sm">{selectedDeal.company_name}</p>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="w-full h-7 text-xs"
-                        onClick={() => setIsAssigningCompany(true)}
-                      >
-                        <Edit className="h-3 w-3 mr-1" />
-                        Alterar empresa
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <p className="text-sm text-muted-foreground">Sem empresa vinculada</p>
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="flex-1 h-7 text-xs"
-                          onClick={() => setIsAssigningCompany(true)}
-                        >
-                          <Search className="h-3 w-3 mr-1" />
-                          Buscar
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          className="flex-1 h-7 text-xs"
-                          onClick={() => setShowCompanyDialog(true)}
-                        >
-                          <Plus className="h-3 w-3 mr-1" />
-                          Criar
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
-              </>
-            )}
-
-            {/* Always visible sections */}
-            <Accordion type="multiple" defaultValue={["contact", "notes", "ai-agents"]} className="space-y-1 mt-1 min-w-0">
-              {/* Contact */}
-              <AccordionItem value="contact" className="border rounded-lg px-3">
-                <AccordionTrigger className="py-2 hover:no-underline">
-                  <div className="flex items-center gap-2 text-sm">
-                    <User className="h-4 w-4 text-orange-600" />
-                    <span>Contato</span>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent className="pb-3">
-                  <div className="space-y-2 text-sm">
-                    {contactName && (
-                      <div>
-                        <span className="text-muted-foreground text-xs">Nome:</span>
-                        <p className="font-medium">{contactName}</p>
-                      </div>
-                    )}
-                    {contactPhone && (
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Phone className="h-3 w-3" />
-                        <span>{contactPhone}</span>
-                      </div>
-                    )}
-                    {selectedDeal?.contacts && selectedDeal.contacts.length > 0 && (
-                      <div className="mt-2 pt-2 border-t">
-                        <span className="text-muted-foreground text-xs block mb-1">Contatos da negociação:</span>
-                        {selectedDeal.contacts.map(c => (
-                          <div key={c.id} className="flex items-center gap-2 text-xs py-1">
-                            <User className="h-3 w-3 text-muted-foreground" />
-                            <span>{c.name}</span>
-                            {c.is_primary && <Badge variant="secondary" className="text-[9px] px-1">Principal</Badge>}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-
-              {/* Notes */}
-              <AccordionItem value="notes" className="border rounded-lg px-3">
-                <AccordionTrigger className="py-2 hover:no-underline">
-                  <div className="flex items-center gap-2 text-sm">
-                    <StickyNote className="h-4 w-4 text-amber-500" />
-                    <span>Anotações</span>
-                    {notes.length > 0 && (
-                      <Badge variant="secondary" className="text-[10px] px-1.5">{notes.length}</Badge>
-                    )}
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent className="pb-3">
-                  <div className="space-y-3">
-                    {/* New note input */}
-                    <div>
-                      <Textarea
-                        placeholder="Nova anotação..."
-                        value={newNote}
-                        onChange={(e) => setNewNote(e.target.value)}
-                        rows={2}
-                        className="resize-none text-xs"
-                      />
-                      <Button
-                        size="sm"
-                        className="mt-2 w-full h-7 text-xs"
-                        onClick={handleCreateNote}
-                        disabled={!newNote.trim() || savingNote}
-                      >
-                        {savingNote ? (
-                          <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                        ) : (
-                          <Plus className="h-3 w-3 mr-1" />
-                        )}
-                        Adicionar
-                      </Button>
-                    </div>
-
-                    {/* Notes list */}
-                    {loadingNotes ? (
-                      <div className="flex justify-center py-4">
-                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                      </div>
-                    ) : notes.length === 0 ? (
-                      <p className="text-xs text-muted-foreground text-center py-2">
-                        Nenhuma anotação
-                      </p>
-                    ) : (
-                      <div className="space-y-2 max-h-48 overflow-y-auto">
-                        {notes.slice(0, 5).map((note) => (
-                          <div
-                            key={note.id}
-                            className="p-2 rounded bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-800/30 text-xs"
-                          >
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="font-medium truncate">{note.user_name || 'Usuário'}</span>
-                              <span className="text-[10px] text-muted-foreground">
-                                {format(new Date(note.created_at), "dd/MM HH:mm", { locale: ptBR })}
-                              </span>
-                            </div>
-                            <p className="whitespace-pre-wrap break-words line-clamp-3">{note.content}</p>
-                          </div>
-                        ))}
-                        {notes.length > 5 && (
-                          <p className="text-xs text-muted-foreground text-center">
-                            +{notes.length - 5} anotações
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-
-              {/* Task Boards Quick Access */}
-              <AccordionItem value="task-boards" className="border rounded-lg px-3">
-                <AccordionTrigger className="py-2 hover:no-underline">
-                  <div className="flex items-center gap-2 text-sm">
-                    <ClipboardList className="h-4 w-4 text-indigo-500" />
-                    <span>Quadro de Tarefas</span>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent className="pb-3">
-                  <div className="space-y-2">
-                    <p className="text-xs text-muted-foreground">
-                      Acesse o Kanban de tarefas para criar e gerenciar atividades.
+              <div className="p-2 min-w-0 w-full max-w-full overflow-hidden">
+                {deals.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center p-6 text-center text-muted-foreground mb-2">
+                    <Briefcase className="h-10 w-10 mb-3 opacity-40" />
+                    <p className="text-sm font-medium">Nenhuma negociação ativa</p>
+                    <p className="text-xs mt-1">
+                      {allDeals.length > 0 
+                        ? `${allDeals.length} negociação(ões) encerrada(s)`
+                        : "Este contato não possui negociações"
+                      }
                     </p>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="w-full h-7 text-xs"
-                      onClick={() => window.open('/crm/tarefas', '_blank')}
+                    <Button 
+                      variant="default" 
+                      size="sm" 
+                      className="mt-4 gap-1"
+                      onClick={openCreateDealForm}
                     >
-                      <ExternalLink className="h-3 w-3 mr-1" />
-                      Abrir Quadro de Tarefas
+                      <Plus className="h-3 w-3" />
+                      Criar negociação
                     </Button>
                   </div>
-                </AccordionContent>
-              </AccordionItem>
-
-              {/* AI Agents */}
-              <AccordionItem value="ai-agents" className="border rounded-lg px-3">
-                <AccordionTrigger className="py-2 hover:no-underline">
-                  <div className="flex items-center gap-2 text-sm">
-                    <Bot className="h-4 w-4 text-primary" />
-                    <span>Agentes IA</span>
-                    {aiAgents.length > 0 && (
-                      <Badge variant="secondary" className="text-[10px] px-1.5">{aiAgents.length}</Badge>
+                ) : (
+                  <>
+                    {/* Deal selector - prominent when multiple deals */}
+                    {deals.length > 1 && (
+                      <div className="mb-3 p-3 bg-primary/5 border border-primary/20 rounded-lg">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Briefcase className="h-4 w-4 text-primary" />
+                          <span className="text-sm font-medium">Qual negociação está em pauta?</span>
+                        </div>
+                        <Select value={selectedDealId || deals[0]?.id} onValueChange={setSelectedDealId}>
+                          <SelectTrigger className="h-9 text-sm bg-background">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {deals.map(deal => (
+                              <SelectItem key={deal.id} value={deal.id} className="text-sm py-2">
+                                <div className="flex flex-col items-start">
+                                  <span className="font-medium">{deal.title}</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {formatCurrency(deal.value)} • {deal.stage_name}
+                                  </span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-[10px] text-muted-foreground mt-1">
+                          {deals.length} negociações ativas com este contato
+                        </p>
+                      </div>
                     )}
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent className="pb-3">
-                  {loadingAgents ? (
-                    <div className="flex justify-center py-4">
-                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : aiAgents.length === 0 ? (
-                    <p className="text-xs text-muted-foreground text-center py-2">
-                      Nenhum agente ativo disponível
-                    </p>
-                  ) : consultAgent ? (
-                    /* ===== AI Consultation Panel ===== */
-                    <div className="space-y-3">
-                      {/* Header with selected agent */}
-                      <div className="flex items-center gap-2">
-                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setConsultAgent(null); setConsultResponse(""); setConsultPrompt(""); }}>
-                          <ArrowLeft className="h-4 w-4" />
-                        </Button>
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                          <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                            <Brain className="h-3.5 w-3.5 text-primary" />
+
+                    <Accordion type="multiple" defaultValue={[]} className="space-y-1 min-w-0">
+                      {/* Deal Info - Editable */}
+                      <AccordionItem value="deal" className="border rounded-lg px-3">
+                        <AccordionTrigger className="py-2 hover:no-underline">
+                          <div className="flex items-center gap-2 text-sm">
+                            <DollarSign className="h-4 w-4 text-green-600" />
+                            <span>Negociação</span>
+                            {selectedDeal && getStatusBadge(selectedDeal)}
                           </div>
-                          <div className="min-w-0">
-                            <p className="text-xs font-medium truncate">{consultAgent.name}</p>
+                        </AccordionTrigger>
+                        <AccordionContent className="pb-3">
+                          {selectedDeal && (
+                            <div className="space-y-3">
+                              {isEditingDeal ? (
+                                <>
+                                  <div>
+                                    <Label className="text-xs">Título</Label>
+                                    <Input
+                                      value={dealForm.title}
+                                      onChange={(e) => setDealForm({ ...dealForm, title: e.target.value })}
+                                      className="h-8 text-xs mt-1"
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label className="text-xs">Valor (R$)</Label>
+                                    <Input
+                                      type="number"
+                                      value={dealForm.value}
+                                      onChange={(e) => setDealForm({ ...dealForm, value: parseFloat(e.target.value) || 0 })}
+                                      className="h-8 text-xs mt-1"
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label className="text-xs">Probabilidade (%)</Label>
+                                    <Input
+                                      type="number"
+                                      min={0}
+                                      max={100}
+                                      value={dealForm.probability}
+                                      onChange={(e) => setDealForm({ ...dealForm, probability: parseInt(e.target.value) || 0 })}
+                                      className="h-8 text-xs mt-1"
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label className="text-xs">Previsão de fechamento</Label>
+                                    <Input
+                                      type="date"
+                                      value={dealForm.expected_close_date}
+                                      onChange={(e) => setDealForm({ ...dealForm, expected_close_date: e.target.value })}
+                                      className="h-8 text-xs mt-1"
+                                    />
+                                  </div>
+                                  <div className="flex gap-2 pt-2">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="flex-1 h-7 text-xs"
+                                      onClick={() => setIsEditingDeal(false)}
+                                    >
+                                      <X className="h-3 w-3 mr-1" />
+                                      Cancelar
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      className="flex-1 h-7 text-xs"
+                                      onClick={handleSaveDeal}
+                                      disabled={updateDeal.isPending}
+                                    >
+                                      {updateDeal.isPending ? (
+                                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                                      ) : (
+                                        <Save className="h-3 w-3 mr-1" />
+                                      )}
+                                      Salvar
+                                    </Button>
+                                  </div>
+                                </>
+                              ) : (
+                                <>
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-muted-foreground text-xs">Título:</span>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-6 w-6"
+                                      onClick={() => setIsEditingDeal(true)}
+                                    >
+                                      <Edit className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                  <p className="font-medium text-sm -mt-2">{selectedDeal.title}</p>
+                                  
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-muted-foreground text-xs">Valor:</span>
+                                    <span className="font-semibold text-green-600">{formatCurrency(selectedDeal.value)}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-muted-foreground text-xs">Probabilidade:</span>
+                                    <Badge variant="secondary" className="text-[10px]">{selectedDeal.probability}%</Badge>
+                                  </div>
+                                  {selectedDeal.expected_close_date && (
+                                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                      <Calendar className="h-3 w-3" />
+                                      <span>Previsão: {format(parseISO(selectedDeal.expected_close_date), "dd/MM/yyyy", { locale: ptBR })}</span>
+                                    </div>
+                                  )}
+                                  {selectedDeal.owner_name && (
+                                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                      <User className="h-3 w-3" />
+                                      <span>Responsável: {selectedDeal.owner_name}</span>
+                                    </div>
+                                  )}
+                                  {Number(selectedDeal.pending_tasks) > 0 && (
+                                    <div className="flex items-center gap-1 text-xs text-amber-600">
+                                      <CheckSquare className="h-3 w-3" />
+                                      <span>{selectedDeal.pending_tasks} tarefa(s) pendente(s)</span>
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </AccordionContent>
+                      </AccordionItem>
+
+                      {/* Stage/Funnel */}
+                      <AccordionItem value="stage" className="border rounded-lg px-3">
+                        <AccordionTrigger className="py-2 hover:no-underline">
+                          <div className="flex items-center gap-2 text-sm">
+                            <GitBranch className="h-4 w-4 text-blue-600" />
+                            <span>Funil & Etapa</span>
                           </div>
-                        </div>
-                      </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="pb-3">
+                          {selectedDeal && (
+                            <div className="space-y-3">
+                              <div>
+                                <span className="text-muted-foreground text-xs block mb-1">Funil:</span>
+                                <Badge variant="outline" className="text-xs">
+                                  {funnels.find(f => f.id === selectedDeal.funnel_id)?.name || 'Carregando...'}
+                                </Badge>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground text-xs block mb-1">Etapa atual:</span>
+                                {selectedDeal.status === 'open' ? (
+                                  <Select value={selectedDeal.stage_id} onValueChange={handleStageChange}>
+                                    <SelectTrigger className="h-8 text-xs">
+                                      <SelectValue placeholder="Selecionar etapa" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {stages.map((stage: CRMStage) => (
+                                        <SelectItem key={stage.id} value={stage.id!} className="text-xs">
+                                          <div className="flex items-center gap-2">
+                                            <div 
+                                              className="w-2 h-2 rounded-full" 
+                                              style={{ backgroundColor: stage.color }}
+                                            />
+                                            {stage.name}
+                                          </div>
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                ) : (
+                                  <Badge 
+                                    style={{ backgroundColor: selectedDeal.stage_color }}
+                                    className="text-white text-xs"
+                                  >
+                                    {selectedDeal.stage_name}
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </AccordionContent>
+                      </AccordionItem>
 
-                      {/* Quick action buttons */}
-                      <div className="grid grid-cols-2 gap-1.5">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 text-[10px] gap-1"
-                          onClick={() => handleConsultAgent("Analise esta conversa e me dê um resumo do que o cliente precisa e sugestões de como proceder.")}
-                          disabled={consulting}
-                        >
-                          <Sparkles className="h-3 w-3" />
-                          Analisar
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 text-[10px] gap-1"
-                          onClick={() => handleConsultAgent("Elabore uma resposta profissional e empática para enviar ao cliente baseada no contexto da conversa.")}
-                          disabled={consulting}
-                        >
-                          <MessageSquare className="h-3 w-3" />
-                          Elaborar resposta
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 text-[10px] gap-1"
-                          onClick={() => handleConsultAgent("Me ajude a fechar esta negociação. Sugira argumentos de venda, gatilhos mentais e frases de fechamento adequadas ao contexto.")}
-                          disabled={consulting}
-                        >
-                          <Trophy className="h-3 w-3" />
-                          Ajuda fechamento
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 text-[10px] gap-1"
-                          onClick={() => handleConsultAgent("Qualifique este lead baseado na conversa. Identifique nível de interesse, urgência, orçamento e próximos passos recomendados.")}
-                          disabled={consulting}
-                        >
-                          <ClipboardList className="h-3 w-3" />
-                          Qualificar lead
-                        </Button>
-                      </div>
-
-                      {/* Custom prompt */}
-                      <div className="flex gap-1.5">
-                        <Textarea
-                          placeholder="Ou digite sua pergunta..."
-                          value={consultPrompt}
-                          onChange={(e) => setConsultPrompt(e.target.value)}
-                          rows={2}
-                          className="resize-none text-xs flex-1"
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !e.shiftKey && consultPrompt.trim()) {
-                              e.preventDefault();
-                              handleConsultAgent();
-                            }
-                          }}
-                        />
-                        <Button
-                          size="icon"
-                          className="h-auto w-8 flex-shrink-0"
-                          onClick={() => handleConsultAgent()}
-                          disabled={consulting || !consultPrompt.trim()}
-                        >
-                          {consulting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                        </Button>
-                      </div>
-
-                      {/* AI Response */}
-                      {consulting && (
-                        <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/5 border border-primary/20">
-                          <Loader2 className="h-4 w-4 animate-spin text-primary flex-shrink-0" />
-                          <p className="text-xs text-muted-foreground">Analisando conversa...</p>
-                        </div>
-                      )}
-
-                      {consultResponse && !consulting && (
-                        <div className="space-y-2">
-                          <div className="p-3 rounded-lg bg-muted/50 border text-xs leading-relaxed whitespace-pre-wrap max-h-[300px] overflow-y-auto">
-                            {consultResponse}
+                      {/* Company - With assignment/creation */}
+                      <AccordionItem value="company" className="border rounded-lg px-3">
+                        <AccordionTrigger className="py-2 hover:no-underline">
+                          <div className="flex items-center gap-2 text-sm">
+                            <Building2 className="h-4 w-4 text-purple-600" />
+                            <span>Empresa</span>
                           </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="pb-3">
+                          {isAssigningCompany ? (
+                            <div className="space-y-3">
+                              <div className="relative">
+                                <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
+                                <Input
+                                  placeholder="Buscar empresa..."
+                                  value={companySearch}
+                                  onChange={(e) => setCompanySearch(e.target.value)}
+                                  className="h-8 text-xs pl-7"
+                                />
+                              </div>
+                              {companySearch.length >= 2 && (
+                                <div className="max-h-32 overflow-y-auto space-y-1">
+                                  {companiesSearch.length === 0 ? (
+                                    <p className="text-xs text-muted-foreground text-center py-2">Nenhuma empresa encontrada</p>
+                                  ) : (
+                                    companiesSearch.slice(0, 5).map(c => (
+                                      <Button
+                                        key={c.id}
+                                        variant="ghost"
+                                        size="sm"
+                                        className="w-full justify-start h-7 text-xs"
+                                        onClick={() => handleAssignCompany(c.id)}
+                                      >
+                                        <Building2 className="h-3 w-3 mr-2" />
+                                        {c.name}
+                                      </Button>
+                                    ))
+                                  )}
+                                </div>
+                              )}
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="flex-1 h-7 text-xs"
+                                  onClick={() => {
+                                    setIsAssigningCompany(false);
+                                    setCompanySearch("");
+                                  }}
+                                >
+                                  Cancelar
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  className="flex-1 h-7 text-xs"
+                                  onClick={() => {
+                                    setIsAssigningCompany(false);
+                                    setShowCompanyDialog(true);
+                                  }}
+                                >
+                                  <Plus className="h-3 w-3 mr-1" />
+                                  Criar nova
+                                </Button>
+                              </div>
+                            </div>
+                          ) : company ? (
+                            <div className="space-y-2 text-sm">
+                              <div className="flex items-center justify-between">
+                                <span className="text-muted-foreground text-xs">Nome:</span>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6"
+                                  onClick={() => setIsAssigningCompany(true)}
+                                  title="Alterar empresa"
+                                >
+                                  <Edit className="h-3 w-3" />
+                                </Button>
+                              </div>
+                              <p className="font-medium -mt-1">{company.name}</p>
+                              {company.segment_name && (
+                                <div className="flex items-center gap-1">
+                                  <span className="text-muted-foreground text-xs">Segmento:</span>
+                                  <Badge 
+                                    variant="outline" 
+                                    className="text-[10px]"
+                                    style={{ borderColor: company.segment_color, color: company.segment_color }}
+                                  >
+                                    {company.segment_name}
+                                  </Badge>
+                                </div>
+                              )}
+                              {company.phone && (
+                                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                  <Phone className="h-3 w-3" />
+                                  <span>{company.phone}</span>
+                                </div>
+                              )}
+                              {company.email && (
+                                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                  <Mail className="h-3 w-3" />
+                                  <span>{company.email}</span>
+                                </div>
+                              )}
+                              {(company.city || company.state) && (
+                                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                  <MapPin className="h-3 w-3" />
+                                  <span>{[company.city, company.state].filter(Boolean).join(', ')}</span>
+                                </div>
+                              )}
+                            </div>
+                          ) : selectedDeal?.company_name && selectedDeal.company_name !== 'Sem empresa' ? (
+                            <div className="space-y-2">
+                              <p className="text-sm">{selectedDeal.company_name}</p>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="w-full h-7 text-xs"
+                                onClick={() => setIsAssigningCompany(true)}
+                              >
+                                <Edit className="h-3 w-3 mr-1" />
+                                Alterar empresa
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              <p className="text-sm text-muted-foreground">Sem empresa vinculada</p>
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="flex-1 h-7 text-xs"
+                                  onClick={() => setIsAssigningCompany(true)}
+                                >
+                                  <Search className="h-3 w-3 mr-1" />
+                                  Buscar
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  className="flex-1 h-7 text-xs"
+                                  onClick={() => setShowCompanyDialog(true)}
+                                >
+                                  <Plus className="h-3 w-3 mr-1" />
+                                  Criar
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </AccordionContent>
+                      </AccordionItem>
+                    </Accordion>
+                  </>
+                )}
+
+                {/* Always visible sections */}
+                <Accordion type="multiple" defaultValue={["contact", "notes", "ai-agents"]} className="space-y-1 mt-1 min-w-0">
+                  {/* Contact */}
+                  <AccordionItem value="contact" className="border rounded-lg px-3">
+                    <AccordionTrigger className="py-2 hover:no-underline">
+                      <div className="flex items-center gap-2 text-sm">
+                        <User className="h-4 w-4 text-orange-600" />
+                        <span>Contato</span>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="pb-3">
+                      <div className="space-y-2 text-sm">
+                        {contactName && (
+                          <div>
+                            <span className="text-muted-foreground text-xs">Nome:</span>
+                            <p className="font-medium">{contactName}</p>
+                          </div>
+                        )}
+                        {contactPhone && (
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <Phone className="h-3 w-3" />
+                            <span>{contactPhone}</span>
+                          </div>
+                        )}
+                        {selectedDeal?.contacts && selectedDeal.contacts.length > 0 && (
+                          <div className="mt-2 pt-2 border-t">
+                            <span className="text-muted-foreground text-xs block mb-1">Contatos da negociação:</span>
+                            {selectedDeal.contacts.map(c => (
+                              <div key={c.id} className="flex items-center gap-2 text-xs py-1">
+                                <User className="h-3 w-3 text-muted-foreground" />
+                                <span>{c.name}</span>
+                                {c.is_primary && <Badge variant="secondary" className="text-[9px] px-1">Principal</Badge>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+
+                  {/* Notes */}
+                  <AccordionItem value="notes" className="border rounded-lg px-3">
+                    <AccordionTrigger className="py-2 hover:no-underline">
+                      <div className="flex items-center gap-2 text-sm">
+                        <StickyNote className="h-4 w-4 text-amber-500" />
+                        <span>Anotações</span>
+                        {notes.length > 0 && (
+                          <Badge variant="secondary" className="text-[10px] px-1.5">{notes.length}</Badge>
+                        )}
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="pb-3">
+                      <div className="space-y-3">
+                        {/* New note input */}
+                        <div>
+                          <Textarea
+                            placeholder="Nova anotação..."
+                            value={newNote}
+                            onChange={(e) => setNewNote(e.target.value)}
+                            rows={2}
+                            className="resize-none text-xs"
+                          />
                           <Button
-                            variant="outline"
                             size="sm"
-                            className="w-full h-7 text-[10px] gap-1"
-                            onClick={handleCopyResponse}
+                            className="mt-2 w-full h-7 text-xs"
+                            onClick={handleCreateNote}
+                            disabled={!newNote.trim() || savingNote}
                           >
-                            <Copy className="h-3 w-3" />
-                            Copiar resposta
+                            {savingNote ? (
+                              <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                            ) : (
+                              <Plus className="h-3 w-3 mr-1" />
+                            )}
+                            Adicionar
                           </Button>
                         </div>
-                      )}
 
-                      {/* Activate for autonomous mode */}
-                      <div className="pt-2 border-t">
+                        {/* Notes list */}
+                        {loadingNotes ? (
+                          <div className="flex justify-center py-4">
+                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                          </div>
+                        ) : notes.length === 0 ? (
+                          <p className="text-xs text-muted-foreground text-center py-2">
+                            Nenhuma anotação
+                          </p>
+                        ) : (
+                          <div className="space-y-2 max-h-48 overflow-y-auto">
+                            {notes.slice(0, 5).map((note) => (
+                              <div
+                                key={note.id}
+                                className="p-2 rounded bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-800/30 text-xs"
+                              >
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="font-medium truncate">{note.user_name || 'Usuário'}</span>
+                                  <span className="text-[10px] text-muted-foreground">
+                                    {format(new Date(note.created_at), "dd/MM HH:mm", { locale: ptBR })}
+                                  </span>
+                                </div>
+                                <p className="whitespace-pre-wrap break-words line-clamp-3">{note.content}</p>
+                              </div>
+                            ))}
+                            {notes.length > 5 && (
+                              <p className="text-xs text-muted-foreground text-center">
+                                +{notes.length - 5} anotações
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+
+                  {/* Task Boards Quick Access */}
+                  <AccordionItem value="task-boards" className="border rounded-lg px-3">
+                    <AccordionTrigger className="py-2 hover:no-underline">
+                      <div className="flex items-center gap-2 text-sm">
+                        <ClipboardList className="h-4 w-4 text-indigo-500" />
+                        <span>Quadro de Tarefas</span>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="pb-3">
+                      <div className="space-y-2">
+                        <p className="text-xs text-muted-foreground">
+                          Acesse o Kanban de tarefas para criar e gerenciar atividades.
+                        </p>
                         <Button
                           size="sm"
-                          variant="default"
-                          className="w-full h-7 text-[10px] gap-1"
-                          onClick={() => handleActivateAgent(consultAgent)}
-                          disabled={activatingAgent === consultAgent.id}
+                          variant="outline"
+                          className="w-full h-7 text-xs"
+                          onClick={() => window.open('/crm/tarefas', '_blank')}
                         >
-                          {activatingAgent === consultAgent.id ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : (
-                            <Zap className="h-3 w-3" />
-                          )}
-                          Ativar atendimento autônomo
+                          <ExternalLink className="h-3 w-3 mr-1" />
+                          Abrir Quadro de Tarefas
                         </Button>
                       </div>
-                    </div>
-                  ) : (
-                    /* ===== Agent List ===== */
-                    <div className="space-y-2">
-                      {aiAgents.map((agent) => (
-                        <div
-                          key={agent.id}
-                          className="flex items-center gap-2 p-2 rounded-lg border bg-muted/20 hover:bg-muted/40 transition-colors cursor-pointer"
-                          onClick={() => setConsultAgent(agent)}
-                        >
-                          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                            <Sparkles className="h-4 w-4 text-primary" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-medium truncate">{agent.name}</p>
-                            {agent.description && (
-                              <p className="text-[10px] text-muted-foreground break-words whitespace-normal">{agent.description}</p>
-                            )}
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {agent.capabilities.slice(0, 3).map((cap) => (
-                                <Badge key={cap} variant="outline" className="text-[9px] px-1 py-0">
-                                  {cap === 'respond_messages' ? 'Respostas' :
-                                   cap === 'qualify_leads' ? 'Qualificar' :
-                                   cap === 'create_deals' ? 'Negociações' :
-                                   cap === 'summarize_history' ? 'Resumos' :
-                                   cap === 'suggest_actions' ? 'Sugestões' :
-                                   cap === 'generate_content' ? 'Conteúdo' :
-                                   cap === 'schedule_meetings' ? 'Reuniões' :
-                                   cap === 'read_files' ? 'Arquivos' :
-                                   cap}
-                                </Badge>
-                              ))}
+                    </AccordionContent>
+                  </AccordionItem>
+
+                  {/* AI Agents */}
+                  <AccordionItem value="ai-agents" className="border rounded-lg px-3">
+                    <AccordionTrigger className="py-2 hover:no-underline">
+                      <div className="flex items-center gap-2 text-sm">
+                        <Bot className="h-4 w-4 text-primary" />
+                        <span>Agentes IA</span>
+                        {aiAgents.length > 0 && (
+                          <Badge variant="secondary" className="text-[10px] px-1.5">{aiAgents.length}</Badge>
+                        )}
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="pb-3">
+                      {loadingAgents ? (
+                        <div className="flex justify-center py-4">
+                          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                        </div>
+                      ) : aiAgents.length === 0 ? (
+                        <p className="text-xs text-muted-foreground text-center py-2">
+                          Nenhum agente ativo disponível
+                        </p>
+                      ) : consultAgent ? (
+                        /* ===== AI Consultation Panel ===== */
+                        <div className="space-y-3">
+                          {/* Header with selected agent */}
+                          <div className="flex items-center gap-2">
+                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setConsultAgent(null); setConsultResponse(""); setConsultPrompt(""); }}>
+                              <ArrowLeft className="h-4 w-4" />
+                            </Button>
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                <Brain className="h-3.5 w-3.5 text-primary" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-xs font-medium truncate">{consultAgent.name}</p>
+                              </div>
                             </div>
                           </div>
-                          <Brain className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+
+                          {/* Quick action buttons */}
+                          <div className="grid grid-cols-2 gap-1.5">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-[10px] gap-1"
+                              onClick={() => handleConsultAgent("Analise esta conversa e me dê um resumo do que o cliente precisa e sugestões de como proceder.")}
+                              disabled={consulting}
+                            >
+                              <Sparkles className="h-3 w-3" />
+                              Analisar
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-[10px] gap-1"
+                              onClick={() => handleConsultAgent("Elabore uma resposta profissional e empática para enviar ao cliente baseada no contexto da conversa.")}
+                              disabled={consulting}
+                            >
+                              <MessageSquare className="h-3 w-3" />
+                              Elaborar resposta
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-[10px] gap-1"
+                              onClick={() => handleConsultAgent("Me ajude a fechar esta negociação. Sugira argumentos de venda, gatilhos mentais e frases de fechamento adequadas ao contexto.")}
+                              disabled={consulting}
+                            >
+                              <Trophy className="h-3 w-3" />
+                              Ajuda fechamento
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-[10px] gap-1"
+                              onClick={() => handleConsultAgent("Qualifique este lead baseado na conversa. Identifique nível de interesse, urgência, orçamento e próximos passos recomendados.")}
+                              disabled={consulting}
+                            >
+                              <ClipboardList className="h-3 w-3" />
+                              Qualificar lead
+                            </Button>
+                          </div>
+
+                          {/* Custom prompt */}
+                          <div className="flex gap-1.5">
+                            <Textarea
+                              placeholder="Ou digite sua pergunta..."
+                              value={consultPrompt}
+                              onChange={(e) => setConsultPrompt(e.target.value)}
+                              rows={2}
+                              className="resize-none text-xs flex-1"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey && consultPrompt.trim()) {
+                                  e.preventDefault();
+                                  handleConsultAgent();
+                                }
+                              }}
+                            />
+                            <Button
+                              size="icon"
+                              className="h-auto w-8 flex-shrink-0"
+                              onClick={() => handleConsultAgent()}
+                              disabled={consulting || !consultPrompt.trim()}
+                            >
+                              {consulting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                            </Button>
+                          </div>
+
+                          {/* AI Response */}
+                          {consulting && (
+                            <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                              <Loader2 className="h-4 w-4 animate-spin text-primary flex-shrink-0" />
+                              <p className="text-xs text-muted-foreground">Analisando conversa...</p>
+                            </div>
+                          )}
+
+                          {consultResponse && !consulting && (
+                            <div className="space-y-2">
+                              <div className="p-3 rounded-lg bg-muted/50 border text-xs leading-relaxed whitespace-pre-wrap max-h-[300px] overflow-y-auto">
+                                {consultResponse}
+                              </div>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="w-full h-7 text-[10px] gap-1"
+                                onClick={handleCopyResponse}
+                              >
+                                <Copy className="h-3 w-3" />
+                                Copiar resposta
+                              </Button>
+                            </div>
+                          )}
+
+                          {/* Activate for autonomous mode */}
+                          <div className="pt-2 border-t">
+                            <Button
+                              size="sm"
+                              variant="default"
+                              className="w-full h-7 text-[10px] gap-1"
+                              onClick={() => handleActivateAgent(consultAgent)}
+                              disabled={activatingAgent === consultAgent.id}
+                            >
+                              {activatingAgent === consultAgent.id ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Zap className="h-3 w-3" />
+                              )}
+                              Ativar atendimento autônomo
+                            </Button>
+                          </div>
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
-          </div>
-        )}
-      </ScrollArea>
+                      ) : (
+                        /* ===== Agent List ===== */
+                        <div className="space-y-2">
+                          {aiAgents.map((agent) => (
+                            <div
+                              key={agent.id}
+                              className="flex items-center gap-2 p-2 rounded-lg border bg-muted/20 hover:bg-muted/40 transition-colors cursor-pointer"
+                              onClick={() => setConsultAgent(agent)}
+                            >
+                              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                                <Sparkles className="h-4 w-4 text-primary" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-medium truncate">{agent.name}</p>
+                                {agent.description && (
+                                  <p className="text-[10px] text-muted-foreground break-words whitespace-normal">{agent.description}</p>
+                                )}
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {agent.capabilities.slice(0, 3).map((cap) => (
+                                    <Badge key={cap} variant="outline" className="text-[9px] px-1 py-0">
+                                      {cap === 'respond_messages' ? 'Respostas' :
+                                       cap === 'qualify_leads' ? 'Qualificar' :
+                                       cap === 'create_deals' ? 'Negociações' :
+                                       cap === 'summarize_history' ? 'Resumos' :
+                                       cap === 'suggest_actions' ? 'Sugestões' :
+                                       cap === 'generate_content' ? 'Conteúdo' :
+                                       cap === 'schedule_meetings' ? 'Reuniões' :
+                                       cap === 'read_files' ? 'Arquivos' :
+                                       cap}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
+                              <Brain className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+              </div>
+            )}
+          </ScrollArea>
+        </TabsContent>
+
+        <TabsContent value="docs" className="flex-1 flex flex-col overflow-hidden m-0">
+          <ScrollArea className="flex-1">
+            <div className="p-3 space-y-6">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                  <FileText className="h-3.5 w-3.5 text-primary" />
+                  Documentos
+                </h3>
+                <Button size="sm" variant="ghost" className="h-6 text-[10px] gap-1 px-1.5">
+                  <FilePlus className="h-3 w-3" />
+                  Novo
+                </Button>
+              </div>
+
+              {/* Docs List */}
+              <div className="space-y-2">
+                <div className="text-center py-6 text-muted-foreground bg-muted/20 rounded-lg border border-dashed border-muted-foreground/30">
+                  <FileText className="h-6 w-6 mx-auto mb-1 opacity-20" />
+                  <p className="text-[10px]">Nenhum documento vinculado.</p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-2">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                  <FileSignature className="h-3.5 w-3.5 text-primary" />
+                  Assinaturas
+                </h3>
+                <Button size="sm" variant="ghost" className="h-6 text-[10px] gap-1 px-1.5">
+                  <Send className="h-3 w-3" />
+                  Solicitar
+                </Button>
+              </div>
+
+              {/* Signatures List */}
+              <div className="space-y-2">
+                <div className="text-center py-6 text-muted-foreground bg-muted/20 rounded-lg border border-dashed border-muted-foreground/30">
+                  <FileSignature className="h-6 w-6 mx-auto mb-1 opacity-20" />
+                  <p className="text-[10px]">Nenhuma assinatura pendente.</p>
+                </div>
+              </div>
+            </div>
+          </ScrollArea>
+        </TabsContent>
+      </Tabs>
 
       {/* Task Dialog */}
       <TaskDialog
