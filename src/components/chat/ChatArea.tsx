@@ -1508,10 +1508,12 @@ export function ChatArea({
                 </DropdownMenuItem>
               )}
 
-              <DropdownMenuItem onClick={() => setShowSignatureDialog(true)}>
-                <FileSignature className="h-4 w-4 mr-2" />
-                Solicitar assinatura digital
-              </DropdownMenuItem>
+              {modulesEnabled.digital_signature && (
+                <DropdownMenuItem onClick={() => setShowSignatureDialog(true)}>
+                  <FileSignature className="h-4 w-4 mr-2" />
+                  Solicitar assinatura digital
+                </DropdownMenuItem>
+              )}
 
               <DropdownMenuItem onClick={() => setShowNotes(!showNotes)}>
 

@@ -16,7 +16,7 @@ import { useOrganizations } from '@/hooks/use-organizations';
 import { useSuperadmin } from '@/hooks/use-superadmin';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
-import { Building2, Plus, Users, Trash2, UserPlus, Crown, Shield, User, Briefcase, Loader2, Pencil, Link2, Settings, KeyRound, Megaphone, Receipt, UsersRound, CalendarClock, Bot, Layers, MessagesSquare, Upload, Image, Sparkles } from 'lucide-react';
+import { Building2, Plus, Users, Trash2, UserPlus, Crown, Shield, User, Briefcase, Loader2, Pencil, Link2, Settings, KeyRound, Megaphone, Receipt, UsersRound, CalendarClock, Bot, Layers, MessagesSquare, Upload, Image, Sparkles, FileSignature } from 'lucide-react';
 import { useUpload } from '@/hooks/use-upload';
 
 interface Organization {
@@ -142,6 +142,7 @@ export default function Organizacoes() {
     ghost: false,
     ai_agents: false,
     meetings: false,
+    digital_signature: false,
   });
   const [savingModules, setSavingModules] = useState(false);
 
@@ -238,6 +239,7 @@ export default function Organizacoes() {
         ghost: modules.ghost ?? false,
         ai_agents: modules.ai_agents ?? false,
         meetings: modules.meetings ?? false,
+        digital_signature: modules.digital_signature ?? false,
       });
     } catch (error) {
       console.error('Error loading modules:', error);
@@ -435,6 +437,7 @@ export default function Organizacoes() {
     { key: 'scheduled_messages', label: 'Agendamentos', section: 'Atendimento' },
     { key: 'tags', label: 'Tags', section: 'Atendimento' },
     { key: 'contacts', label: 'Contatos', section: 'Atendimento' },
+    { key: 'digital_signature', label: 'Assinatura Digital', section: 'Atendimento' },
     { key: 'crm_deals', label: 'Negociações', section: 'CRM' },
     { key: 'crm_prospects', label: 'Prospects', section: 'CRM' },
     { key: 'crm_companies', label: 'Empresas', section: 'CRM' },
@@ -1375,6 +1378,26 @@ export default function Organizacoes() {
                           <Switch
                             checked={modulesEnabled.meetings}
                             onCheckedChange={(checked) => setModulesEnabled(prev => ({ ...prev, meetings: checked }))}
+                            disabled={!canManageOrg}
+                          />
+                        </div>
+
+                        {/* Digital Signature */}
+                        <div className="flex items-center justify-between rounded-lg border p-4">
+                          <div className="flex items-center gap-4">
+                            <div className="h-10 w-10 rounded-lg bg-pink-500/10 flex items-center justify-center">
+                              <FileSignature className="h-5 w-5 text-pink-500" />
+                            </div>
+                            <div>
+                              <p className="font-medium">Assinatura Digital</p>
+                              <p className="text-sm text-muted-foreground">
+                                Solicite e gerencie assinaturas eletrônicas de documentos
+                              </p>
+                            </div>
+                          </div>
+                          <Switch
+                            checked={modulesEnabled.digital_signature}
+                            onCheckedChange={(checked) => setModulesEnabled(prev => ({ ...prev, digital_signature: checked }))}
                             disabled={!canManageOrg}
                           />
                         </div>
