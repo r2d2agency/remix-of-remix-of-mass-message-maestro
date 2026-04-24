@@ -900,7 +900,7 @@ router.post('/events-with-meet', async (req, res) => {
     // Extract Meet link if created
     const meetLink = eventData.conferenceData?.entryPoints?.find(
       ep => ep.entryPointType === 'video'
-    )?.uri;
+    )?.uri || null;
 
     // Save mapping if deal provided
     if (dealId) {
