@@ -70,7 +70,7 @@ interface NavSection {
 
 const navSections: NavSection[] = [
   {
-    title: "Atendimento",
+    title: "Atendimento Digital",
     icon: MessagesSquare,
     items: [
       { name: "Chat", href: "/chat", icon: MessagesSquare, moduleKey: 'chat', featureKey: 'chat' },

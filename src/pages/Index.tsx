@@ -187,7 +187,7 @@ const Index = () => {
               <Headphones className="h-5 w-5 text-blue-500" />
             </div>
             <div>
-              <h2 className="text-xl font-semibold text-foreground">Atendimento</h2>
+              <h2 className="text-xl font-semibold text-foreground">Atendimento Digital</h2>
               <p className="text-sm text-muted-foreground">Métricas de conversas e suporte</p>
             </div>
           </div>
