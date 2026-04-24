@@ -1061,8 +1061,8 @@ export default function Admin() {
 
                       <div className="flex items-center justify-between rounded-lg border p-3">
                         <div className="space-y-0.5">
-                          <Label htmlFor="legal-attendance-switch" className="text-sm font-medium">Atendimento Jurídico</Label>
-                          <p className="text-xs text-muted-foreground">Portal de atendimento jurídico online</p>
+                          <Label htmlFor="legal-attendance-switch" className="text-sm font-medium">Portal Jurídico</Label>
+                          <p className="text-xs text-muted-foreground">Área de acesso para clientes do escritório</p>
                         </div>
                         <Switch
                           id="legal-attendance-switch"
@@ -1215,7 +1215,7 @@ export default function Admin() {
                           <Badge variant="secondary" className="text-xs">Lead Gleego</Badge>
                         )}
                         {plan.has_meetings && (
-                          <Badge variant="secondary" className="text-xs">Reuniões</Badge>
+                          <Badge variant="secondary" className="text-xs">Atendimento Online</Badge>
                         )}
                       </div>
                       <div className="flex items-center justify-between pt-2 border-t">
