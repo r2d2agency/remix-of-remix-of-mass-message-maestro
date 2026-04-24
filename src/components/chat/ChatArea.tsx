@@ -3229,6 +3229,19 @@ export function ChatArea({
         }}
       />
 
+      {/* Digital Signature Dialog */}
+      <DigitalSignatureDialog
+        open={showSignatureDialog}
+        onOpenChange={setShowSignatureDialog}
+        onSend={async (docName) => {
+          if (!conversation) return;
+          // In a real scenario, this would call an API to generate a signature link
+          // For now, we'll simulate sending a message with the request
+          const msg = `📄 *Solicitação de Assinatura Digital*\n\nOlá, por favor assine o documento: *${docName}*\n\nClique no link seguro para assinar: https://assine.gleego.com.br/s/${Math.random().toString(36).substring(7)}`;
+          await onSendMessage(msg, 'text');
+        }}
+      />
+
       {/* Share Contact Dialog */}
       <ShareContactDialog
         open={showShareContactDialog}
@@ -3244,3 +3257,4 @@ export function ChatArea({
     </div>
   );
 }
+
