@@ -409,6 +409,14 @@ export function MeetingDetailDialog({ open, onOpenChange, meetingId }: MeetingDe
                             l.description.includes(p.title)
                           );
                           
+                          const handleCardClick = () => {
+                            if (loadingPromptId) return;
+                            
+                            // If it's already generated and we have the result in logs, we could show it
+                            // For now, let's just run it or let them know it's in the history
+                            handleRunAnalysis(p.prompt, p.id);
+                          };
+                          
                           return (
                             <Card 
                               key={p.id} 
@@ -416,7 +424,7 @@ export function MeetingDetailDialog({ open, onOpenChange, meetingId }: MeetingDe
                                 "p-4 hover:border-primary/50 transition-colors cursor-pointer group",
                                 loadingPromptId === p.id && "border-primary bg-primary/5"
                               )} 
-                              onClick={() => !loadingPromptId && handleRunAnalysis(p.prompt, p.id)}
+                              onClick={handleCardClick}
                             >
                               <div className="flex justify-between items-start">
                                 <div>
