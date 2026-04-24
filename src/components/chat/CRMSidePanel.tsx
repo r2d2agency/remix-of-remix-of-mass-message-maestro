@@ -13,7 +13,11 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  FileText,
+  FileSignature,
+  FilePlus,
   Briefcase,
   Building2,
   User,
@@ -497,7 +501,32 @@ export function CRMSidePanel({
           )}
         </div>
         <div className="flex items-center gap-1">
-          {selectedDeal && (
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onToggle}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      <Tabs defaultValue="crm" className="flex-1 flex flex-col overflow-hidden">
+        <div className="px-3 pt-2">
+          <TabsList className="w-full grid grid-cols-2">
+            <TabsTrigger value="crm" className="text-xs">
+              <Briefcase className="h-3 w-3 mr-1" />
+              CRM
+            </TabsTrigger>
+            <TabsTrigger value="docs" className="text-xs">
+              <FileText className="h-3 w-3 mr-1" />
+              Documentos
+            </TabsTrigger>
+          </TabsList>
+        </div>
+
+        <TabsContent value="crm" className="flex-1 flex flex-col overflow-hidden m-0">
+          <ScrollArea className="flex-1">
+            <div className="p-3 space-y-4">
+              {/* Existing CRM Content */}
+              {selectedDeal && (
+
             <Button 
               variant="ghost" 
               size="sm" 
