@@ -69,8 +69,8 @@ export default function Meetings() {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2 text-foreground">
-              <Headphones className="h-7 w-7 text-primary" />
-              Inteligência de Reuniões
+              <Video className="h-7 w-7 text-primary" />
+              Reunião Jurídica
             </h1>
             <p className="text-muted-foreground mt-1 text-sm">
               Agende, grave, transcreva e analise reuniões jurídicas com IA
