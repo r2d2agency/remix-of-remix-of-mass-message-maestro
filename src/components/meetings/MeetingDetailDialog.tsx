@@ -40,8 +40,16 @@ export function MeetingDetailDialog({ open, onOpenChange, meetingId }: MeetingDe
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [customPrompt, setCustomPrompt] = useState("");
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
+  const [loadingPromptId, setLoadingPromptId] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const timerRef = useRef<any>(null);
+  const resultRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (analysisResult && resultRef.current) {
+      resultRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [analysisResult]);
 
   const standardPrompts = [
     {
@@ -64,18 +72,33 @@ export function MeetingDetailDialog({ open, onOpenChange, meetingId }: MeetingDe
     }
   ];
 
-  const handleRunAnalysis = async (prompt: string) => {
+  const handleRunAnalysis = async (prompt: string, promptId: string = 'custom') => {
     try {
+      setLoadingPromptId(promptId);
+      setAnalysisResult(null); // Clear previous result
       const result = await aiAnalysis.mutateAsync({ prompt }) as any;
+      console.log("Analysis result:", result);
+      
       if (result && result.analysis) {
         setAnalysisResult(result.analysis);
-        toast.success("Análise concluída com sucesso!");
+        toast.success("Análise concluída!");
       } else if (result && result.result) {
         setAnalysisResult(result.result);
-        toast.success("Análise concluída com sucesso!");
+        toast.success("Análise concluída!");
+      } else if (typeof result === 'string') {
+        setAnalysisResult(result);
+        toast.success("Análise concluída!");
+      } else if (result && result.content) {
+        setAnalysisResult(result.content);
+        toast.success("Análise concluída!");
+      } else {
+        toast.error("Resposta em formato inesperado");
       }
     } catch (error) {
       console.error("Analysis error:", error);
+      toast.error("Erro ao processar análise");
+    } finally {
+      setLoadingPromptId(null);
     }
   };
 
@@ -381,14 +404,21 @@ export function MeetingDetailDialog({ open, onOpenChange, meetingId }: MeetingDe
                     <div className="space-y-6">
                       <div className="grid grid-cols-1 gap-4">
                         {standardPrompts.map((p) => (
-                          <Card key={p.id} className="p-4 hover:border-primary/50 transition-colors cursor-pointer group" onClick={() => handleRunAnalysis(p.prompt)}>
+                          <Card 
+                            key={p.id} 
+                            className={cn(
+                              "p-4 hover:border-primary/50 transition-colors cursor-pointer group",
+                              loadingPromptId === p.id && "border-primary bg-primary/5"
+                            )} 
+                            onClick={() => !loadingPromptId && handleRunAnalysis(p.prompt, p.id)}
+                          >
                             <div className="flex justify-between items-start">
                               <div>
                                 <h4 className="font-semibold text-sm group-hover:text-primary transition-colors">{p.title}</h4>
                                 <p className="text-xs text-muted-foreground mt-1">{p.description}</p>
                               </div>
-                              <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
-                                {aiAnalysis.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                              <Button size="sm" variant="ghost" className="h-8 w-8 p-0" disabled={!!loadingPromptId}>
+                                {loadingPromptId === p.id ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <Play className="h-4 w-4" />}
                               </Button>
                             </div>
                           </Card>
@@ -405,19 +435,20 @@ export function MeetingDetailDialog({ open, onOpenChange, meetingId }: MeetingDe
                           className="min-h-[100px] text-sm"
                           value={customPrompt}
                           onChange={(e) => setCustomPrompt(e.target.value)}
+                          disabled={!!loadingPromptId}
                         />
                         <Button 
                           className="w-full gap-2" 
-                          disabled={!customPrompt || aiAnalysis.isPending}
-                          onClick={() => handleRunAnalysis(customPrompt)}
+                          disabled={!customPrompt || !!loadingPromptId}
+                          onClick={() => handleRunAnalysis(customPrompt, 'custom')}
                         >
-                          {aiAnalysis.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                          {loadingPromptId === 'custom' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
                           Executar Prompt Customizado
                         </Button>
                       </div>
 
-                      {analysisResult && (
-                        <div className="space-y-3 pt-6 border-t animate-in fade-in slide-in-from-top-2">
+                        {analysisResult && (
+                        <div ref={resultRef} className="space-y-3 pt-6 border-t animate-in fade-in slide-in-from-top-2">
                           <div className="flex items-center justify-between">
                             <h4 className="text-sm font-bold text-primary uppercase tracking-wider flex items-center gap-2">
                               <Sparkles className="h-4 w-4" />
