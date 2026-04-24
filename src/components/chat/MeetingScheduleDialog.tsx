@@ -11,6 +11,8 @@ import { api } from "@/lib/api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Video, Users, Calendar, Clock, Loader2, X, Plus, Mail } from "lucide-react";
+import { cn } from "@/lib/utils";
+
 
 interface MeetingScheduleDialogProps {
   open: boolean;
@@ -84,6 +86,8 @@ export function MeetingScheduleDialog({
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("10:00");
   const [addMeet, setAddMeet] = useState(true);
+  const [manualLink, setManualLink] = useState("");
+
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
   const [externalEmail, setExternalEmail] = useState("");
   const [externalEmails, setExternalEmails] = useState<string[]>([]);
@@ -143,10 +147,12 @@ export function MeetingScheduleDialog({
         description,
         startDateTime,
         endDateTime,
-        addMeet,
+        addMeet: !manualLink && addMeet,
         attendees: allAttendees,
         dealId,
-      });
+        meetingLink: manualLink || undefined,
+      } as any);
+
 
       toast.success("Reunião agendada!", {
         description: result.meetLink ? "Link do Meet criado" : "Evento criado no calendário",
@@ -217,19 +223,33 @@ export function MeetingScheduleDialog({
             </div>
 
             {/* Google Meet toggle */}
-            <div className="flex items-center space-x-2 p-3 rounded-lg border bg-muted/30">
-              <Checkbox
-                id="add-meet"
-                checked={addMeet}
-                onCheckedChange={(checked) => setAddMeet(checked as boolean)}
-              />
-              <div className="flex items-center gap-2 flex-1">
-                <Video className="h-4 w-4 text-green-600" />
-                <Label htmlFor="add-meet" className="cursor-pointer flex-1">
-                  Adicionar Google Meet
-                </Label>
+            <div className="space-y-3 p-3 rounded-lg border bg-muted/30">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="add-meet"
+                  checked={addMeet && !manualLink}
+                  disabled={!!manualLink}
+                  onCheckedChange={(checked) => setAddMeet(checked as boolean)}
+                />
+                <div className="flex items-center gap-2 flex-1">
+                  <Video className="h-4 w-4 text-green-600" />
+                  <Label htmlFor="add-meet" className={cn("cursor-pointer flex-1", manualLink && "opacity-50")}>
+                    Adicionar Google Meet automaticamente
+                  </Label>
+                </div>
+              </div>
+
+              <div className="space-y-1.5 pt-2 border-t border-border/50">
+                <Label className="text-xs text-muted-foreground uppercase">Ou link manual (Zoom, Teams, etc.)</Label>
+                <Input
+                  value={manualLink}
+                  onChange={(e) => setManualLink(e.target.value)}
+                  placeholder="https://zoom.us/j/..."
+                  className="h-8 text-sm"
+                />
               </div>
             </div>
+
 
             {/* Participants section */}
             <div className="space-y-3">

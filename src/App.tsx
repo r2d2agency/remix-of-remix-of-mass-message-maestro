@@ -51,7 +51,9 @@ import LeadGleego from "./pages/LeadGleego";
 import Documentos from "./pages/Documentos";
 import Assinaturas from "./pages/Assinaturas";
 import AssinaturaPublica from "./pages/AssinaturaPublica";
+import Meetings from "./pages/Meetings";
 import NotFound from "./pages/NotFound";
+
 
 const queryClient = new QueryClient();
 
@@ -125,6 +127,8 @@ const App = () => (
             <Route path="/lead-gleego" element={<ProtectedRoute><LeadGleego /></ProtectedRoute>} />
             <Route path="/documentos" element={<ProtectedRoute><Documentos /></ProtectedRoute>} />
             <Route path="/assinaturas" element={<ProtectedRoute><Assinaturas /></ProtectedRoute>} />
+            <Route path="/meetings" element={<ProtectedRoute><Meetings /></ProtectedRoute>} />
+
             
             <Route path="/f/:slug" element={<PublicFormPage />} />
             <Route path="/s/:token" element={<AssinaturaPublica />} />
