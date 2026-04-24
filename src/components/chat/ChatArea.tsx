@@ -124,6 +124,9 @@ import { DealDetailDialog } from "@/components/crm/DealDetailDialog";
 import { AIAgentBanner } from "./AIAgentBanner";
 import { ForwardMessageDialog } from "./ForwardMessageDialog";
 import { ShareContactDialog } from "./ShareContactDialog";
+import { DigitalSignatureDialog } from "./DigitalSignatureDialog";
+import { FileSignature } from "lucide-react";
+
 
 interface ChatAreaProps {
   conversation: Conversation | null;
