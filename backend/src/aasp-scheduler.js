@@ -48,6 +48,15 @@ function buildAASPHeaders(token, mode = 'bearer') {
       'x-api-key': token,
       'api-key': token,
       'token': token,
+      'ChaveAcesso': token,
+      'chave-acesso': token,
+      'Accept': 'application/json',
+    };
+  }
+
+  if (mode === 'chave-acesso') {
+    return {
+      'ChaveAcesso': token,
       'Accept': 'application/json',
     };
   }
