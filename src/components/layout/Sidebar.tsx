@@ -84,7 +84,8 @@ const navSections: NavSection[] = [
       { name: "Agendamentos", href: "/agendamentos", icon: Bell, moduleKey: 'scheduled_messages', featureKey: 'scheduled_messages' },
       { name: "Tags", href: "/tags", icon: Receipt, featureKey: 'tags' },
       { name: "Contatos", href: "/contatos-chat", icon: Users, featureKey: 'contacts' },
-      { name: "Assinatura Digital", href: "/chat", icon: FileSignature, moduleKey: 'digital_signature', featureKey: 'digital_signature' },
+      { name: "Documentos", href: "/documentos", icon: FileText, moduleKey: 'digital_signature', featureKey: 'digital_signature' },
+      { name: "Assinaturas", href: "/assinaturas", icon: FileSignature, moduleKey: 'digital_signature', featureKey: 'digital_signature' },
     ],
   },
   {
