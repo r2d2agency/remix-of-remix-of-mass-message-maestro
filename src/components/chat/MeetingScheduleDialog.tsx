@@ -145,10 +145,12 @@ export function MeetingScheduleDialog({
         description,
         startDateTime,
         endDateTime,
-        addMeet,
+        addMeet: !manualLink && addMeet,
         attendees: allAttendees,
         dealId,
-      });
+        meetingLink: manualLink || undefined,
+      } as any);
+
 
       toast.success("Reunião agendada!", {
         description: result.meetLink ? "Link do Meet criado" : "Evento criado no calendário",
