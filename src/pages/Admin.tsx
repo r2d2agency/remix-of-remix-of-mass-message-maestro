@@ -1078,6 +1078,30 @@ export default function Admin() {
                           onCheckedChange={setNewPlanMeetings}
                         />
                       </div>
+
+                      <div className="flex items-center justify-between rounded-lg border p-3">
+                        <div className="space-y-0.5">
+                          <Label htmlFor="signature-switch" className="text-sm font-medium">Assinatura Digital</Label>
+                          <p className="text-xs text-muted-foreground">Módulo de assinaturas eletrônicas</p>
+                        </div>
+                        <Switch
+                          id="signature-switch"
+                          checked={newPlanDigitalSignature}
+                          onCheckedChange={setNewPlanDigitalSignature}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between rounded-lg border p-3">
+                        <div className="space-y-0.5">
+                          <Label htmlFor="legal-attendance-switch" className="text-sm font-medium">Atendimento Jurídico</Label>
+                          <p className="text-xs text-muted-foreground">Portal de atendimento jurídico online</p>
+                        </div>
+                        <Switch
+                          id="legal-attendance-switch"
+                          checked={newPlanLegalAttendance}
+                          onCheckedChange={setNewPlanLegalAttendance}
+                        />
+                      </div>
                     </div>
                     <div className="border-t pt-4 space-y-4">
                       <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 p-3">
