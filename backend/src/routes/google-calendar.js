@@ -941,8 +941,12 @@ router.post('/events-with-meet', async (req, res) => {
       meetLink: meetLink || null,
     });
   } catch (error) {
-    logError('Error creating meeting with Meet:', error);
-    res.status(500).json({ error: error.message });
+    logError('Error creating meeting with Meet:', error, {
+      userId: req.userId,
+      title: req.body.title,
+      dealId: req.body.dealId
+    });
+    res.status(500).json({ error: error.message || 'Erro interno ao agendar reunião' });
   }
 });
 
