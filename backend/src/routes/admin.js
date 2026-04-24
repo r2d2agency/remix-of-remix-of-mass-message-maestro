@@ -480,7 +480,7 @@ router.post('/plans/sync-all', requireSuperadmin, async (req, res) => {
   try {
     // Get all plans with their modules
     const plansResult = await query(
-      `SELECT id, name, has_campaigns, has_asaas_integration, has_whatsapp_groups, has_scheduled_messages, has_chatbots, has_chat, has_crm, has_ai_agents, has_departments, has_lead_scoring, has_ai_summary, has_group_secretary, has_aasp, has_lead_gleego FROM plans`
+      `SELECT id, name, has_campaigns, has_asaas_integration, has_whatsapp_groups, has_scheduled_messages, has_chatbots, has_chat, has_crm, has_ai_agents, has_departments, has_lead_scoring, has_ai_summary, has_group_secretary, has_aasp, has_lead_gleego, has_meetings, has_digital_signature, has_legal_attendance FROM plans`
     );
 
     let syncedCount = 0;
@@ -502,6 +502,9 @@ router.post('/plans/sync-all', requireSuperadmin, async (req, res) => {
         group_secretary: plan.has_group_secretary ?? false,
         aasp: plan.has_aasp ?? false,
         lead_gleego: plan.has_lead_gleego ?? false,
+        meetings: plan.has_meetings ?? false,
+        digital_signature: plan.has_digital_signature ?? false,
+        legal_attendance: plan.has_legal_attendance ?? false,
       };
 
       console.log(`[sync-all] Plan "${plan.name}" (${plan.id}) modules:`, modulesEnabled);
