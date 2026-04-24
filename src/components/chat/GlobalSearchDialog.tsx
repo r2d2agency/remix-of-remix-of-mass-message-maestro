@@ -38,6 +38,7 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Debounced search
   useEffect(() => {
