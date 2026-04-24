@@ -544,7 +544,7 @@ export default function CRMTarefas() {
 
   return (
     <MainLayout>
-      <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden">
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
         {/* Header */}
         <div className="p-4 border-b space-y-3">
           <div className="flex items-center justify-between flex-wrap gap-3">
