@@ -1092,7 +1092,7 @@ export function ChatArea({
 
   return (
     <div 
-      className="flex-1 flex h-full min-w-0 overflow-x-hidden overflow-y-hidden relative max-w-full"
+      className="flex-1 flex h-full min-h-0 min-w-0 overflow-hidden relative"
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
@@ -1110,7 +1110,7 @@ export function ChatArea({
       )}
 
       {/* Main chat area */}
-      <div className="flex-1 flex flex-col h-full min-h-0 min-w-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">
       {/* Archived Banner */}
       {conversation.is_archived && (
         <div className="flex items-center justify-center gap-2 px-4 py-2 bg-amber-500/10 border-b border-amber-500/30 text-amber-600 dark:text-amber-400">
@@ -1838,7 +1838,7 @@ export function ChatArea({
         <ScrollArea
           ref={scrollAreaRef}
           viewportRef={scrollContainerRef}
-          className={cn("absolute inset-0 chat-wallpaper min-w-0 overscroll-contain", isMobile ? "p-3" : "p-4")}
+          className={cn("absolute inset-0 chat-wallpaper overscroll-contain", isMobile ? "p-3" : "p-4")}
         >
         {hasMore && (
           <div className="flex justify-center mb-4">
