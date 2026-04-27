@@ -506,12 +506,11 @@ export function ChatArea({
     const { scrollTop, scrollHeight, clientHeight } = container;
     const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
     
-    // Auto-scroll logic: only if user is close to bottom AND not manually scrolling up
-    const isNearBottom = distanceFromBottom < 200;
+    // Check if near bottom to auto-scroll
+    const isNearBottom = distanceFromBottom < 150;
     
     if (isNearBottom && !isUserScrollingRef.current) {
-      // Use immediate scroll to avoid racing with new messages
-      messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, showSearch]);
 
