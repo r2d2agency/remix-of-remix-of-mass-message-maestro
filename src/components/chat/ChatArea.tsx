@@ -501,14 +501,14 @@ export function ChatArea({
     if (showSearch) return;
     
     const container = scrollContainerRef.current;
-    if (!container) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      return;
-    }
+    if (!container) return;
     
     const { scrollTop, scrollHeight, clientHeight } = container;
     const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-    const isNearBottom = distanceFromBottom < 150;
+    
+    // Use a slightly larger threshold (250px) to consider "near bottom"
+    // and ONLY auto-scroll if the user hasn't explicitly scrolled up
+    const isNearBottom = distanceFromBottom < 250;
     
     if (isNearBottom && !isUserScrollingRef.current) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
