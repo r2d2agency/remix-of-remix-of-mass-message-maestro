@@ -834,7 +834,6 @@ const Chat = () => {
                     hasMore={hasMoreConversations}
                     onLoadMore={() => loadConversations(true)}
                   />
-                </div>
               </div>
             )}
             {selectedConversation && (
