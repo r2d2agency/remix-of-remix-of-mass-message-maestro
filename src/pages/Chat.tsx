@@ -798,11 +798,10 @@ const Chat = () => {
         )}
 
         {isMobile ? (
-          <div className="flex flex-1 min-h-0 w-full overflow-hidden">
+          <div className="flex flex-1 overflow-hidden min-w-0 w-full">
             {!selectedConversation && (
-              <div className="flex-1 flex flex-col min-h-0 w-full">
-                <div className="flex-1 overflow-y-auto">
-                  <ConversationList
+              <div className="w-full h-full max-w-full overflow-hidden min-w-0">
+                <ConversationList
                     conversations={conversations}
                     selectedId={selectedConversation?.id || null}
                     onSelect={handleMobileSelectConversation}
