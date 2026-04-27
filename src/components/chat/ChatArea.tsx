@@ -2327,6 +2327,7 @@ export function ChatArea({
           
           <div ref={messagesEndRef} />
         </div>
+        </div>
 
         {/* Scroll to bottom button */}
         {showScrollButton && (
@@ -2375,7 +2376,7 @@ export function ChatArea({
           </div>
         </div>
       ) : !selectionMode ? (
-      <div className={cn("border-t bg-card", isMobile ? "p-3" : "p-4")}>
+      <div className={cn("border-t bg-card flex-shrink-0", isMobile ? "p-3" : "p-4")}>
         {/* Reply preview */}
         {replyingTo && (
           <div className="flex items-center gap-2 mb-2 p-2 rounded-lg bg-muted border-l-4 border-primary">
