@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useDocuments, removeDocument } from "@/hooks/use-documents-store";
+import { toast } from "@/hooks/use-toast";
 import {
   Table,
   TableBody,
@@ -30,18 +31,6 @@ import {
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
-interface Document {
-  id: string;
-  name: string;
-  client_name: string;
-  case_name?: string;
-  type: string;
-  status: 'draft' | 'in_analysis' | 'awaiting_signature' | 'signed' | 'refused' | 'expired' | 'archived';
-  created_at: string;
-  updated_at: string;
-  responsible_name: string;
-}
-
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" | "success" }> = {
   draft: { label: "Rascunho", variant: "secondary" },
   in_analysis: { label: "Em análise", variant: "outline" },
@@ -53,30 +42,12 @@ const statusConfig: Record<string, { label: string; variant: "default" | "second
 };
 
 export function DocumentList() {
-  // Mock data for initial UI
-  const [documents] = useState<Document[]>([
-    {
-      id: "1",
-      name: "Contrato de Honorários - João Silva",
-      client_name: "João Silva",
-      case_name: "Processo 001/2024",
-      type: "Contrato de honorários",
-      status: "awaiting_signature",
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      responsible_name: "Dr. Roberto",
-    },
-    {
-      id: "2",
-      name: "Procuração Ad Judicia",
-      client_name: "Maria Oliveira",
-      type: "Procuração",
-      status: "signed",
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      responsible_name: "Dr. Roberto",
-    }
-  ]);
+  const documents = useDocuments();
+
+  const handleDelete = (id: string, name: string) => {
+    removeDocument(id);
+    toast({ title: "Documento excluído", description: name });
+  };
 
   return (
     <div className="rounded-md border">
@@ -162,7 +133,7 @@ export function DocumentList() {
                         Arquivar
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem className="text-destructive">
+                      <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(doc.id, doc.name)}>
                         <Trash2 className="mr-2 h-4 w-4" />
                         Excluir
                       </DropdownMenuItem>
