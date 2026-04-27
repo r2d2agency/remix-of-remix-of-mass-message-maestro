@@ -521,7 +521,8 @@ export function CRMSidePanel({
           </TabsList>
         </div>
 
-        <TabsContent value="crm" className="flex-1 min-h-0 flex flex-col overflow-hidden m-0">
+        <div className="relative flex-1 min-h-0 overflow-hidden">
+        <TabsContent value="crm" className="absolute inset-0 m-0 flex flex-col overflow-hidden data-[state=inactive]:hidden">
           {/* Deal sub-header */}
           <div className="flex items-center justify-between p-2 border-b min-w-0">
             <div className="flex items-center gap-2">
@@ -732,7 +733,7 @@ export function CRMSidePanel({
             </Button>
           </div>
 
-          <ScrollArea className="flex-1 h-full min-h-0 min-w-0 w-full [&>[data-radix-scroll-area-viewport]]:!h-full [&>[data-radix-scroll-area-viewport]]:!overflow-x-hidden">
+          <ScrollArea className="flex-1 min-h-0 min-w-0 w-full [&>[data-radix-scroll-area-viewport]]:!h-full [&>[data-radix-scroll-area-viewport]]:!overflow-x-hidden">
             {loadingDeals ? (
               <div className="flex items-center justify-center p-8">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -1459,8 +1460,8 @@ export function CRMSidePanel({
           </ScrollArea>
         </TabsContent>
 
-        <TabsContent value="docs" className="flex-1 flex flex-col overflow-hidden m-0">
-          <ScrollArea className="flex-1">
+        <TabsContent value="docs" className="absolute inset-0 m-0 flex flex-col overflow-hidden data-[state=inactive]:hidden">
+          <ScrollArea className="flex-1 min-h-0">
             <div className="p-3 space-y-6">
               <div className="flex items-center justify-between">
                 <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
@@ -1502,6 +1503,7 @@ export function CRMSidePanel({
             </div>
           </ScrollArea>
         </TabsContent>
+        </div>
       </Tabs>
 
       {/* Task Dialog */}
