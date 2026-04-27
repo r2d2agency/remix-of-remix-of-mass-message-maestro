@@ -338,13 +338,27 @@ router.post('/:connectionId/disconnect', async (req, res) => {
 router.post('/:connectionId/reconfigure-webhook', async (req, res) => {
   const c = await getConnectionWithAccess(req.params.connectionId, req.userId);
   if (!c) return res.status(404).json({ error: 'Conexão não encontrada' });
-  const whUrl = req.body?.url || `${process.env.BACKEND_PUBLIC_URL || ''}/api/uazapi/webhook`;
+  const inferredBase =
+    process.env.BACKEND_PUBLIC_URL ||
+    process.env.WEBHOOK_BASE_URL ||
+    `${req.protocol}://${req.get('host')}`;
+  const whUrl = req.body?.url || `${String(inferredBase).replace(/\/+$/, '')}/api/uazapi/webhook`;
   const r = await uaz.configureWebhook({
     serverUrl: c.uazapi_server_url,
     token: c.uazapi_token,
     webhookUrl: whUrl,
   });
-  res.json({ ok: r.ok, data: r.data });
+  await query(
+    `INSERT INTO uazapi_webhook_events (connection_id, event_type, payload, status, error)
+     VALUES ($1, 'webhook_setup', $2, $3, $4)`,
+    [
+      c.id,
+      JSON.stringify({ webhookUrl: whUrl, response: r.data }),
+      r.ok ? 'configured' : 'failed',
+      r.ok ? null : `HTTP ${r.status}`,
+    ]
+  ).catch(() => {});
+  res.json({ ok: r.ok, status: r.status, webhookUrl: whUrl, data: r.data });
 });
 
 // Send actions
