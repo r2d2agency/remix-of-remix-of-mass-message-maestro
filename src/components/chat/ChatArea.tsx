@@ -1838,7 +1838,7 @@ export function ChatArea({
         <ScrollArea
           ref={scrollAreaRef}
           viewportRef={scrollContainerRef}
-          className={cn("absolute inset-0 chat-wallpaper min-w-0 overscroll-contain", isMobile ? "p-3" : "p-4")}
+          className={cn("absolute inset-0 chat-wallpaper overscroll-contain", isMobile ? "p-3" : "p-4")}
         >
         {hasMore && (
           <div className="flex justify-center mb-4">
