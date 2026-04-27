@@ -32,20 +32,20 @@ function formatBytes(bytes: number) {
 export function DocumentUploadDialog({ open, onOpenChange }: DocumentUploadDialogProps) {
   const [file, setFile] = useState<File | null>(null);
   const [name, setName] = useState("");
-  const [type, setType] = useState("");
+  const [type, setType] = useState("outro");
   const [status, setStatus] = useState<"draft" | "in_analysis">("draft");
   const [client, setClient] = useState("");
   const [progress, setProgress] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const dropRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) {
       setFile(null);
       setName("");
-      setType("");
+      setType("outro");
       setClient("");
       setStatus("draft");
       setProgress(0);
@@ -54,45 +54,72 @@ export function DocumentUploadDialog({ open, onOpenChange }: DocumentUploadDialo
     }
   }, [open]);
 
-  const handleSetFile = (f: File | null) => {
+  const handleSetFile = (f: File | null | undefined) => {
     if (!f) return;
     if (f.size > 10 * 1024 * 1024) {
       toast({ title: "Arquivo muito grande", description: "O limite é 10MB.", variant: "destructive" });
       return;
     }
     setFile(f);
-    if (!name) setName(f.name.replace(/\.[^.]+$/, ""));
+    setName((prev) => prev || f.name.replace(/\.[^.]+$/, ""));
   };
 
-  // Paste (Ctrl+V) support while dialog is open
+  // Paste (Ctrl+V) — listener em document captura mesmo quando o foco está no overlay do Radix
   useEffect(() => {
     if (!open) return;
     const onPaste = (e: ClipboardEvent) => {
       const items = e.clipboardData?.items;
-      if (!items) return;
+      if (!items || items.length === 0) return;
       for (let i = 0; i < items.length; i++) {
         const it = items[i];
         if (it.kind === "file") {
           const f = it.getAsFile();
           if (f) {
+            e.preventDefault();
             handleSetFile(f);
             toast({ title: "Arquivo colado", description: f.name });
-            e.preventDefault();
-            break;
+            return;
           }
         }
       }
     };
-    window.addEventListener("paste", onPaste);
-    return () => window.removeEventListener("paste", onPaste);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    document.addEventListener("paste", onPaste);
+    return () => document.removeEventListener("paste", onPaste);
   }, [open]);
 
-  const onDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOver(false);
-    const f = e.dataTransfer.files?.[0];
-    if (f) handleSetFile(f);
+  // Drag & Drop a nível de janela enquanto o dialog está aberto
+  useEffect(() => {
+    if (!open) return;
+    const prevent = (e: DragEvent) => {
+      e.preventDefault();
+    };
+    const onDrop = (e: DragEvent) => {
+      e.preventDefault();
+      setDragOver(false);
+      const f = e.dataTransfer?.files?.[0];
+      if (f) handleSetFile(f);
+    };
+    const onOver = (e: DragEvent) => {
+      e.preventDefault();
+      if (e.dataTransfer?.types?.includes("Files")) setDragOver(true);
+    };
+    const onLeave = (e: DragEvent) => {
+      if ((e as any).clientX === 0 && (e as any).clientY === 0) setDragOver(false);
+    };
+    window.addEventListener("dragover", onOver);
+    window.addEventListener("dragleave", onLeave);
+    window.addEventListener("drop", onDrop);
+    window.addEventListener("dragenter", prevent);
+    return () => {
+      window.removeEventListener("dragover", onOver);
+      window.removeEventListener("dragleave", onLeave);
+      window.removeEventListener("drop", onDrop);
+      window.removeEventListener("dragenter", prevent);
+    };
+  }, [open]);
+
+  const openPicker = () => {
+    inputRef.current?.click();
   };
 
   const handleUpload = async () => {
@@ -107,7 +134,6 @@ export function DocumentUploadDialog({ open, onOpenChange }: DocumentUploadDialo
     setUploading(true);
     setProgress(0);
 
-    // Simulated progressive upload
     await new Promise<void>((resolve) => {
       let p = 0;
       const tick = () => {
@@ -123,25 +149,30 @@ export function DocumentUploadDialog({ open, onOpenChange }: DocumentUploadDialo
       tick();
     });
 
-    addDocument({
-      name: name.trim(),
-      client_name: client.trim() || "—",
-      type: TYPE_LABELS[type] || "Outros",
-      status,
-      responsible_name: "Você",
-      file_name: file.name,
-      file_size: file.size,
-      file_type: file.type,
-    });
-
-    toast({ title: "Documento cadastrado", description: name });
-    setUploading(false);
-    onOpenChange(false);
+    try {
+      addDocument({
+        name: name.trim(),
+        client_name: client.trim() || "—",
+        type: TYPE_LABELS[type] || "Outros",
+        status,
+        responsible_name: "Você",
+        file_name: file.name,
+        file_size: file.size,
+        file_type: file.type,
+      });
+      toast({ title: "Documento cadastrado", description: name });
+      setUploading(false);
+      onOpenChange(false);
+    } catch (err) {
+      console.error("Erro ao salvar documento:", err);
+      toast({ title: "Erro ao salvar", description: String(err), variant: "destructive" });
+      setUploading(false);
+    }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[560px]">
+      <DialogContent ref={contentRef} className="sm:max-w-[560px]">
         <DialogHeader>
           <DialogTitle>Novo Documento</DialogTitle>
           <DialogDescription>
@@ -153,19 +184,18 @@ export function DocumentUploadDialog({ open, onOpenChange }: DocumentUploadDialo
           <div className="space-y-2">
             <Label>Arquivo</Label>
             <div
-              ref={dropRef}
-              onClick={() => !file && inputRef.current?.click()}
-              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={onDrop}
+              role="button"
+              tabIndex={0}
+              onClick={() => { if (!file) openPicker(); }}
+              onKeyDown={(e) => { if (!file && (e.key === "Enter" || e.key === " ")) openPicker(); }}
               className={cn(
-                "border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center gap-2 transition-colors min-h-[160px]",
-                dragOver ? "border-primary bg-primary/5" : "border-border",
+                "border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center gap-2 transition-colors min-h-[160px] outline-none",
+                dragOver ? "border-primary bg-primary/10 ring-2 ring-primary/30" : "border-border",
                 !file && "cursor-pointer hover:bg-muted/50"
               )}
             >
               {file ? (
-                <div className="w-full space-y-3">
+                <div className="w-full space-y-3" onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center gap-3 p-3 rounded-md bg-muted/50">
                     <FileText className="h-8 w-8 text-primary shrink-0" />
                     <div className="flex-1 min-w-0">
@@ -174,10 +204,11 @@ export function DocumentUploadDialog({ open, onOpenChange }: DocumentUploadDialo
                     </div>
                     {!uploading && (
                       <Button
+                        type="button"
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8"
-                        onClick={(e) => { e.stopPropagation(); setFile(null); setProgress(0); }}
+                        onClick={() => { setFile(null); setProgress(0); }}
                       >
                         <X className="h-4 w-4" />
                       </Button>
@@ -189,35 +220,49 @@ export function DocumentUploadDialog({ open, onOpenChange }: DocumentUploadDialo
                       <p className="text-xs text-muted-foreground text-right">{progress}%</p>
                     </div>
                   )}
+                  {!uploading && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={openPicker}
+                    >
+                      Trocar arquivo
+                    </Button>
+                  )}
                 </div>
               ) : (
                 <>
-                  <Upload className="h-8 w-8 text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground">Arraste um arquivo ou clique para selecionar</p>
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Upload className="h-8 w-8 text-muted-foreground pointer-events-none" />
+                  <p className="text-sm text-muted-foreground pointer-events-none">Arraste um arquivo ou clique para selecionar</p>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1 pointer-events-none">
                     <ClipboardPaste className="h-3 w-3" /> Ou cole com Ctrl+V
                   </p>
-                  <p className="text-xs text-muted-foreground">PDF, DOCX, JPG, PNG (máx 10MB)</p>
+                  <p className="text-xs text-muted-foreground pointer-events-none">PDF, DOCX, JPG, PNG (máx 10MB)</p>
                 </>
               )}
-              <input
-                ref={inputRef}
-                type="file"
-                className="hidden"
-                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,image/*,application/pdf"
-                onChange={(e) => handleSetFile(e.target.files?.[0] ?? null)}
-              />
             </div>
+            <input
+              ref={inputRef}
+              type="file"
+              className="hidden"
+              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,image/*,application/pdf"
+              onChange={(e) => {
+                handleSetFile(e.target.files?.[0]);
+                e.currentTarget.value = "";
+              }}
+            />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="name">Nome do Documento</Label>
-            <Input id="name" placeholder="Ex: Contrato de Honorários - João Silva" value={name} onChange={(e) => setName(e.target.value)} />
+            <Label htmlFor="doc-name">Nome do Documento</Label>
+            <Input id="doc-name" placeholder="Ex: Contrato de Honorários - João Silva" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="client">Cliente</Label>
-            <Input id="client" placeholder="Nome do cliente" value={client} onChange={(e) => setClient(e.target.value)} />
+            <Label htmlFor="doc-client">Cliente</Label>
+            <Input id="doc-client" placeholder="Nome do cliente" value={client} onChange={(e) => setClient(e.target.value)} />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -248,8 +293,8 @@ export function DocumentUploadDialog({ open, onOpenChange }: DocumentUploadDialo
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={uploading}>Cancelar</Button>
-          <Button onClick={handleUpload} disabled={uploading}>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={uploading}>Cancelar</Button>
+          <Button type="button" onClick={handleUpload} disabled={uploading}>
             {uploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
             {uploading ? "Enviando..." : "Cadastrar Documento"}
           </Button>
