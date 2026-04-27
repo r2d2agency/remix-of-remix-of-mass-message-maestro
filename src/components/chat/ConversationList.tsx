@@ -368,7 +368,7 @@ export function ConversationList({
   };
 
   return (
-    <div className="flex flex-col h-full border-r bg-card overflow-hidden max-w-full flex-shrink-0">
+    <div className="flex flex-col h-full min-h-0 border-r bg-card overflow-hidden max-w-full flex-shrink-0">
       {/* Header */}
       <div className="p-4 border-b space-y-3 flex-shrink-0">
         <div className="flex items-center justify-between min-w-0">
@@ -743,7 +743,7 @@ export function ConversationList({
       </div>
 
       {/* Conversation List */}
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0 overscroll-contain">
         {loading && conversations.length === 0 ? (
           <div className="flex items-center justify-center p-8">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
