@@ -869,13 +869,19 @@ const Chat = () => {
         ) : (
           <ResizablePanelGroup
             direction="horizontal"
-            className="flex-1 overflow-hidden min-w-0 w-full relative"
+            className="flex-1 overflow-hidden min-w-0 w-full relative h-full bg-slate-50"
             onLayout={(sizes) => {
               try { localStorage.setItem('chat-panel-sizes', JSON.stringify(sizes)); } catch {}
             }}
           >
-            <ResizablePanel defaultSize={(() => { try { const s = JSON.parse(localStorage.getItem('chat-panel-sizes') || ''); return s[0] ?? 25; } catch { return 25; } })()} minSize={15} maxSize={45} className="overflow-hidden min-w-0">
-              <ConversationList
+            <ResizablePanel 
+              defaultSize={(() => { try { const s = JSON.parse(localStorage.getItem('chat-panel-sizes') || ''); return s[0] ?? 25; } catch { return 25; } })()} 
+              minSize={15} 
+              maxSize={45} 
+              className="overflow-hidden min-w-0 flex flex-col h-full bg-background border-r"
+            >
+              <div className="flex-1 overflow-y-auto">
+                <ConversationList
                 conversations={conversations}
                 selectedId={selectedConversation?.id || null}
                 onSelect={handleMobileSelectConversation}
@@ -908,11 +914,16 @@ const Chat = () => {
                 hasMore={hasMoreConversations}
                 onLoadMore={() => loadConversations(true)}
               />
+              </div>
             </ResizablePanel>
 
             <ResizableHandle withHandle />
 
-            <ResizablePanel defaultSize={(() => { try { const s = JSON.parse(localStorage.getItem('chat-panel-sizes') || ''); return s[1] ?? (crmPanelOpen && selectedConversation && modulesEnabled.crm ? 50 : 75); } catch { return crmPanelOpen && selectedConversation && modulesEnabled.crm ? 50 : 75; } })()} minSize={35} className="overflow-hidden min-w-0">
+            <ResizablePanel 
+              defaultSize={(() => { try { const s = JSON.parse(localStorage.getItem('chat-panel-sizes') || ''); return s[1] ?? (crmPanelOpen && selectedConversation && modulesEnabled.crm ? 50 : 75); } catch { return crmPanelOpen && selectedConversation && modulesEnabled.crm ? 50 : 75; } })()} 
+              minSize={35} 
+              className="overflow-hidden min-w-0 flex flex-col h-full bg-slate-50"
+            >
               <ChatArea
                 conversation={selectedConversation} messages={messages} loading={loadingMessages} sending={sendingMessage}
                 tags={tags} team={team} syncingHistory={syncingHistory} isAdmin={isAdmin} userRole={userRole}
