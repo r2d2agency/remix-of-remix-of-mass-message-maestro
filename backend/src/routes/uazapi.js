@@ -431,9 +431,19 @@ async function saveUazapiMessage(connection, payload) {
     );
   }
 
-  const mediaEntries = msg.mediaItems?.length
+  let mediaEntries = msg.mediaItems?.length
     ? msg.mediaItems
     : [{ messageType: msg.messageType, mediaUrl: msg.mediaUrl, mediaMimetype: msg.mediaMimetype, mediaBase64: msg.mediaBase64, messageId: msg.messageId, content: msg.content }];
+
+  if ((!msg.mediaItems?.length || isAlbumPlaceholder(msg.content)) && msg.messageId && connection?.uazapi_server_url && connection?.uazapi_token) {
+    const downloaded = await uaz.downloadMedia({
+      serverUrl: connection.uazapi_server_url,
+      token: connection.uazapi_token,
+      messageId: msg.messageId,
+    }).catch(() => null);
+    const downloadedItems = downloaded?.ok ? collectMediaItems(downloaded.data).filter((item) => ['image', 'video', 'audio', 'document', 'sticker'].includes(item.messageType)) : [];
+    if (downloadedItems.length > 0) mediaEntries = downloadedItems.map((item) => ({ ...item, content: isAlbumPlaceholder(msg.content) ? null : (item.content || msg.content) }));
+  }
 
   for (let i = 0; i < mediaEntries.length; i++) {
     const entry = mediaEntries[i];
