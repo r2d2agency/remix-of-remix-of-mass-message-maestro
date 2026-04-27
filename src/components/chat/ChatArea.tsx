@@ -501,14 +501,14 @@ export function ChatArea({
     if (showSearch) return;
     
     const container = scrollContainerRef.current;
-    if (!container) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      return;
-    }
+    if (!container) return;
     
     const { scrollTop, scrollHeight, clientHeight } = container;
     const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-    const isNearBottom = distanceFromBottom < 150;
+    
+    // Use a slightly larger threshold (250px) to consider "near bottom"
+    // and ONLY auto-scroll if the user hasn't explicitly scrolled up
+    const isNearBottom = distanceFromBottom < 250;
     
     if (isNearBottom && !isUserScrollingRef.current) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -530,12 +530,13 @@ export function ChatArea({
       setShowScrollButton(distanceFromBottom > 300);
       
       // Smart Scroll: Detect if user is manually scrolling up
-      if (scrollTop < lastScrollTopRef.current && distanceFromBottom > 150) {
+      // Increase threshold to 250px to give more room for the user to stay up
+      if (scrollTop < lastScrollTopRef.current && distanceFromBottom > 250) {
         isUserScrollingRef.current = true;
       }
       
       // If user scrolled back to bottom, resume auto-scrolling
-      if (distanceFromBottom < 50) {
+      if (distanceFromBottom < 100) {
         isUserScrollingRef.current = false;
       }
 
@@ -1834,11 +1835,12 @@ export function ChatArea({
 
 
       {/* Messages */}
-      <ScrollArea
-        ref={scrollAreaRef}
-        viewportRef={scrollContainerRef}
-        className={cn("flex-1 chat-wallpaper min-w-0 relative", isMobile ? "p-3" : "p-4")}
-      >
+      <div className="flex-1 relative min-h-0">
+        <ScrollArea
+          ref={scrollAreaRef}
+          viewportRef={scrollContainerRef}
+          className={cn("absolute inset-0 chat-wallpaper min-w-0", isMobile ? "p-3" : "p-4")}
+        >
         {hasMore && (
           <div className="flex justify-center mb-4">
             <Button
@@ -3124,6 +3126,7 @@ export function ChatArea({
         </DialogContent>
       </Dialog>
       </div>
+    </div>
 
       {/* Quick Replies Panel */}
       {showQuickReplies && (
