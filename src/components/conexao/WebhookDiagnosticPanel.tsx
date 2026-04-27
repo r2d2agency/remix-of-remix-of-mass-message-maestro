@@ -303,7 +303,7 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [connection.id, connection.name, connection.instance_id, isWapi]);
+  }, [connection.id, connection.name, connection.instance_id, isWapi, isUazapi, fetchUazDiagnostic]);
 
   const fetchEvents = useCallback(async () => {
     if (isWapi) return; // Evolution only
