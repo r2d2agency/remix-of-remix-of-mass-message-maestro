@@ -380,12 +380,15 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
   const handleReconfigure = async () => {
     setReconfiguring(true);
     try {
-      if (isWapi) {
+      if (isUazapi) {
+        const result = await uazapiApi.reconfigureWebhook(connection.id);
+        if (result.ok) toast.success("Webhook UAZAPI configurado!");
+        else toast.error("Falha ao configurar webhook UAZAPI");
+      } else if (isWapi) {
         const result = await api<{ success: boolean; message?: string; configured?: number; total?: number }>(
           `/api/connections/${connection.id}/configure-webhooks`,
           { method: "POST" }
         );
-        
         if (result.success) {
           toast.success(result.message || `Webhooks configurados: ${result.configured}/${result.total}`);
         } else {
@@ -400,6 +403,16 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
       toast.error(error.message || "Erro ao reconfigurar");
     } finally {
       setReconfiguring(false);
+    }
+  };
+
+  const handleClearUazEvents = async () => {
+    try {
+      await uazapiApi.clearWebhookEvents(connection.id);
+      setUazEvents([]);
+      toast.success("Eventos UAZAPI limpos");
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao limpar eventos");
     }
   };
 
