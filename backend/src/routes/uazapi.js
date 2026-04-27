@@ -412,6 +412,40 @@ router.get('/:connectionId/webhook-events', async (req, res) => {
   res.json({ events: r.rows });
 });
 
+// Clear webhook events for a connection
+router.delete('/:connectionId/webhook-events', async (req, res) => {
+  const c = await getConnectionWithAccess(req.params.connectionId, req.userId);
+  if (!c) return res.status(404).json({ error: 'Conexão não encontrada' });
+  await query(`DELETE FROM uazapi_webhook_events WHERE connection_id = $1`, [c.id]);
+  res.json({ success: true });
+});
+
+// Fetch the current webhook configuration registered on the UAZAPI server
+router.get('/:connectionId/webhook-status', async (req, res) => {
+  const c = await getConnectionWithAccess(req.params.connectionId, req.userId);
+  if (!c) return res.status(404).json({ error: 'Conexão não encontrada' });
+  const inferredBase =
+    process.env.BACKEND_PUBLIC_URL ||
+    process.env.WEBHOOK_BASE_URL ||
+    `${req.protocol}://${req.get('host')}`;
+  const expectedUrl = `${String(inferredBase).replace(/\/+$/, '')}/api/uazapi/webhook`;
+  const r = await uaz.getWebhook({ serverUrl: c.uazapi_server_url, token: c.uazapi_token });
+  const data = r.data || {};
+  // UAZAPI may return { webhook: {...} } or the object directly
+  const wh = data.webhook || data;
+  res.json({
+    ok: r.ok,
+    status: r.status,
+    expectedUrl,
+    registeredUrl: wh?.url || null,
+    enabled: wh?.enabled ?? null,
+    events: wh?.events || [],
+    excludeMessages: wh?.excludeMessages || [],
+    matches: !!wh?.url && wh.url === expectedUrl && wh?.enabled !== false,
+    raw: data,
+  });
+});
+
 // Delete (full removal of the connection AND remote instance)
 router.delete('/:connectionId', async (req, res) => {
   const c = await getConnectionWithAccess(req.params.connectionId, req.userId);
