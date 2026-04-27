@@ -181,6 +181,10 @@ function normalizeMediaType(value) {
   return null;
 }
 
+function isAlbumPlaceholder(value) {
+  return /^album:\s*\d+\s+/i.test(String(value || '').trim());
+}
+
 function mediaItemFromObject(obj, forcedType = null) {
   if (!isObject(obj)) return null;
   const mimetype = pickFirstString(obj.mimetype, obj.mimeType, obj.mediaMimetype, obj.contentType);
@@ -426,28 +430,29 @@ async function saveUazapiMessage(connection, payload) {
     );
   }
 
-  // Resolve a usable media URL.
-  // 1) Persist inline base64 immediately.
-  // 2) If UAZAPI sends a remote URL, cache it locally because provider URLs may expire or require auth.
-  // 3) Else, for media types, try downloading from UAZAPI by message id.
-  let resolvedMediaUrl = null;
-  const isMediaType = ['image', 'video', 'audio', 'document', 'sticker'].includes(msg.messageType);
-  if (msg.mediaBase64) {
-    resolvedMediaUrl = saveBase64ToUploads(msg.mediaBase64, msg.mediaMimetype);
-  }
-  if (!resolvedMediaUrl && msg.mediaUrl) {
-    resolvedMediaUrl = await cacheRemoteMediaUrl(msg.mediaUrl, msg.mediaMimetype) || msg.mediaUrl;
-  }
-  if (!resolvedMediaUrl && isMediaType && msg.messageId) {
-    resolvedMediaUrl = await downloadAndPersistMedia(connection, msg.messageId, msg.mediaMimetype);
-  }
+  const mediaEntries = msg.mediaItems?.length
+    ? msg.mediaItems
+    : [{ messageType: msg.messageType, mediaUrl: msg.mediaUrl, mediaMimetype: msg.mediaMimetype, mediaBase64: msg.mediaBase64, messageId: msg.messageId, content: msg.content }];
 
-  await query(
-    `INSERT INTO chat_messages (conversation_id, message_id, content, raw_text, caption, message_type, media_url, media_mimetype, from_me, sender_name, sender_phone, status, timestamp)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, COALESCE(to_timestamp($13::double precision / 1000), NOW()))
-     ON CONFLICT (message_id) WHERE message_id IS NOT NULL AND message_id NOT LIKE 'temp_%' DO NOTHING`,
-    [conversationId, msg.messageId, msg.content || null, msg.content || null, (['image','video','document'].includes(msg.messageType) || msg.content) ? msg.content || null : null, msg.messageType, resolvedMediaUrl, msg.mediaMimetype, msg.fromMe, msg.isGroup ? msg.senderName : null, msg.isGroup ? normalizePhone(msg.sender) : null, msg.fromMe ? 'sent' : 'received', Number(msg.timestamp) || null]
-  );
+  for (let i = 0; i < mediaEntries.length; i++) {
+    const entry = mediaEntries[i];
+    const isMediaType = ['image', 'video', 'audio', 'document', 'sticker'].includes(entry.messageType);
+    let resolvedMediaUrl = null;
+    if (entry.mediaBase64) resolvedMediaUrl = saveBase64ToUploads(entry.mediaBase64, entry.mediaMimetype);
+    if (!resolvedMediaUrl && entry.mediaUrl) resolvedMediaUrl = await cacheRemoteMediaUrl(entry.mediaUrl, entry.mediaMimetype) || entry.mediaUrl;
+    if (!resolvedMediaUrl && isMediaType && (entry.messageId || msg.messageId)) {
+      resolvedMediaUrl = await downloadAndPersistMedia(connection, entry.messageId || msg.messageId, entry.mediaMimetype);
+    }
+
+    const content = isAlbumPlaceholder(entry.content || msg.content) ? null : (entry.content || msg.content || null);
+    const storedMessageId = mediaEntries.length > 1 ? `${msg.messageId}_${i + 1}` : msg.messageId;
+    await query(
+      `INSERT INTO chat_messages (conversation_id, message_id, content, raw_text, caption, message_type, media_url, media_mimetype, from_me, sender_name, sender_phone, status, timestamp)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, COALESCE(to_timestamp($13::double precision / 1000), NOW()))
+       ON CONFLICT (message_id) WHERE message_id IS NOT NULL AND message_id NOT LIKE 'temp_%' DO NOTHING`,
+      [conversationId, storedMessageId, content, content, (['image','video','document'].includes(entry.messageType) || content) ? content : null, entry.messageType, resolvedMediaUrl, entry.mediaMimetype, msg.fromMe, msg.isGroup ? msg.senderName : null, msg.isGroup ? normalizePhone(msg.sender) : null, msg.fromMe ? 'sent' : 'received', Number(msg.timestamp) || null]
+    );
+  }
 
   return buildAuditOutcome('saved', null, true);
 }
