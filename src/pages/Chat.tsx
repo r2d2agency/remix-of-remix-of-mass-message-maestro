@@ -937,7 +937,7 @@ const Chat = () => {
                   defaultSize={(() => { try { const s = JSON.parse(localStorage.getItem('chat-panel-sizes') || ''); return s[2] ?? 25; } catch { return 25; } })()} 
                   minSize={15} 
                   maxSize={40} 
-                  className="!flex !flex-col min-h-0 h-full overflow-hidden"
+                  className="relative !flex !flex-col min-h-0 h-full overflow-hidden"
                 >
                   <CRMSidePanel conversationId={selectedConversation.id}
                     contactPhone={selectedConversation.remote_jid?.replace('@s.whatsapp.net', '').replace('@g.us', '') || null}

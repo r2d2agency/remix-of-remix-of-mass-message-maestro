@@ -482,10 +482,10 @@ export function CRMSidePanel({
 
   return (
     <div className={cn(
-      "relative flex flex-col bg-card overflow-hidden min-w-0 h-full min-h-0 flex-1",
+      "flex flex-col bg-card overflow-hidden min-w-0 min-h-0",
       isMobile 
-        ? "w-full" 
-        : "w-full border-l"
+        ? "relative h-full w-full flex-1" 
+        : "absolute inset-0 h-full w-full border-l"
     )}>
       <ToggleButton />
       
@@ -507,7 +507,7 @@ export function CRMSidePanel({
         </div>
       </div>
 
-      <Tabs defaultValue="crm" className="flex-1 flex flex-col overflow-hidden">
+      <Tabs defaultValue="crm" className="flex-1 h-full min-h-0 flex flex-col overflow-hidden">
         <div className="px-3 pt-2">
           <TabsList className="w-full grid grid-cols-2">
             <TabsTrigger value="crm" className="text-xs">
@@ -521,7 +521,7 @@ export function CRMSidePanel({
           </TabsList>
         </div>
 
-        <TabsContent value="crm" className="flex-1 flex flex-col overflow-hidden m-0">
+        <TabsContent value="crm" className="flex-1 min-h-0 flex flex-col overflow-hidden m-0">
           {/* Deal sub-header */}
           <div className="flex items-center justify-between p-2 border-b min-w-0">
             <div className="flex items-center gap-2">
@@ -732,7 +732,7 @@ export function CRMSidePanel({
             </Button>
           </div>
 
-          <ScrollArea className="flex-1 min-h-0 min-w-0 w-full [&>[data-radix-scroll-area-viewport]]:!overflow-x-hidden">
+          <ScrollArea className="flex-1 h-full min-h-0 min-w-0 w-full [&>[data-radix-scroll-area-viewport]]:!h-full [&>[data-radix-scroll-area-viewport]]:!overflow-x-hidden">
             {loadingDeals ? (
               <div className="flex items-center justify-center p-8">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
