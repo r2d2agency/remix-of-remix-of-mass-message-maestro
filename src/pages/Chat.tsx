@@ -800,40 +800,42 @@ const Chat = () => {
         {isMobile ? (
           <div className="flex flex-1 overflow-hidden min-w-0 w-full">
             {!selectedConversation && (
-              <div className="w-full h-full max-w-full overflow-hidden min-w-0">
-                <ConversationList
-                  conversations={conversations}
-                  selectedId={selectedConversation?.id || null}
-                  onSelect={handleMobileSelectConversation}
-                  tags={tags}
-                  team={team}
-                  loading={loading}
-                  onRefresh={() => loadConversations()}
-                  filters={filters}
-                  onFiltersChange={handleFiltersChange}
-                  isAdmin={isAdmin}
-                  connections={connections}
-                  onPinConversation={handlePinConversation}
-                  onFavoriteConversation={handleFavoriteConversation}
-                  showFavorites={showFavorites}
-                  onToggleFavorites={() => { setShowFavorites(v => !v); }}
-                  onNewConversation={activeTab === 'chats' ? () => setNewConversationOpen(true) : undefined}
-                  onAcceptConversation={handleAcceptConversation}
-                  onReleaseConversation={async (id) => {
-                    try { await releaseConversation(id); loadConversations(); toast.success('Conversa liberada'); } catch (error: any) { toast.error(error.message || 'Erro ao liberar conversa'); }
-                  }}
-                  onArchiveConversation={async (id) => {
-                    try { await updateConversation(id, { is_archived: true }); loadConversations(); toast.success('Conversa arquivada'); } catch (error: any) { toast.error(error.message || 'Erro ao arquivar conversa'); }
-                  }}
-                  onFinishConversation={async (id) => { await handleFinishConversation(id); }}
-                  onReopenConversation={async (id) => { await handleReopenConversation(id); }}
-                  attendanceCounts={attendanceCounts}
-                  onGlobalSearchSelect={async (conversationId, messageId) => {
-                    try { const conv = await getConversation(conversationId); if (conv) { selectedIdRef.current = conv.id; setSelectedConversation(conv); const msgs = await getMessages(conversationId); setMessages(msgs); } } catch (error: any) { toast.error('Erro ao abrir conversa'); }
-                  }}
-                  hasMore={hasMoreConversations}
-                  onLoadMore={() => loadConversations(true)}
-                />
+              <div className="w-full h-full max-w-full overflow-hidden min-w-0 flex flex-col">
+                <div className="flex-1 overflow-y-auto">
+                  <ConversationList
+                    conversations={conversations}
+                    selectedId={selectedConversation?.id || null}
+                    onSelect={handleMobileSelectConversation}
+                    tags={tags}
+                    team={team}
+                    loading={loading}
+                    onRefresh={() => loadConversations()}
+                    filters={filters}
+                    onFiltersChange={handleFiltersChange}
+                    isAdmin={isAdmin}
+                    connections={connections}
+                    onPinConversation={handlePinConversation}
+                    onFavoriteConversation={handleFavoriteConversation}
+                    showFavorites={showFavorites}
+                    onToggleFavorites={() => { setShowFavorites(v => !v); }}
+                    onNewConversation={activeTab === 'chats' ? () => setNewConversationOpen(true) : undefined}
+                    onAcceptConversation={handleAcceptConversation}
+                    onReleaseConversation={async (id) => {
+                      try { await releaseConversation(id); loadConversations(); toast.success('Conversa liberada'); } catch (error: any) { toast.error(error.message || 'Erro ao liberar conversa'); }
+                    }}
+                    onArchiveConversation={async (id) => {
+                      try { await updateConversation(id, { is_archived: true }); loadConversations(); toast.success('Conversa arquivada'); } catch (error: any) { toast.error(error.message || 'Erro ao arquivar conversa'); }
+                    }}
+                    onFinishConversation={async (id) => { await handleFinishConversation(id); }}
+                    onReopenConversation={async (id) => { await handleReopenConversation(id); }}
+                    attendanceCounts={attendanceCounts}
+                    onGlobalSearchSelect={async (conversationId, messageId) => {
+                      try { const conv = await getConversation(conversationId); if (conv) { selectedIdRef.current = conv.id; setSelectedConversation(conv); const msgs = await getMessages(conversationId); setMessages(msgs); } } catch (error: any) { toast.error('Erro ao abrir conversa'); }
+                    }}
+                    hasMore={hasMoreConversations}
+                    onLoadMore={() => loadConversations(true)}
+                  />
+                </div>
               </div>
             )}
             {selectedConversation && (
