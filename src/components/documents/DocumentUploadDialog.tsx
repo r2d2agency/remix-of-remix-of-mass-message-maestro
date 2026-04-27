@@ -155,6 +155,13 @@ export function DocumentUploadDialog({ open, onOpenChange, defaultClientName, de
     });
 
     try {
+      let dataUrl: string | undefined;
+      try {
+        dataUrl = await fileToDataURL(file);
+      } catch (e) {
+        console.warn("Falha ao gerar dataURL", e);
+      }
+
       addDocument({
         name: name.trim(),
         client_name: client.trim() || defaultClientName || "—",
@@ -165,6 +172,7 @@ export function DocumentUploadDialog({ open, onOpenChange, defaultClientName, de
         file_name: file.name,
         file_size: file.size,
         file_type: file.type,
+        file_data_url: dataUrl,
       });
       toast({ title: "Documento cadastrado", description: name });
       setUploading(false);
