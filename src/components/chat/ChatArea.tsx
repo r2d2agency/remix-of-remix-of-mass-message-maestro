@@ -3123,7 +3123,6 @@ export function ChatArea({
         </DialogContent>
       </Dialog>
       </div>
-    </div>
 
       {/* Quick Replies Panel */}
       {showQuickReplies && (
