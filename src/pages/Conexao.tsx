@@ -574,6 +574,41 @@ const handleGetQRCode = async (connection: Connection) => {
     }
   };
 
+  const handleMigrateConversations = async () => {
+    if (!migrateFromConnection || !migrateToConnectionId) return;
+    if (migrateConfirmText !== migrateFromConnection.name) {
+      toast.error('Digite o nome exato da conexão de origem para confirmar');
+      return;
+    }
+    setMigrating(true);
+    try {
+      const result = await api<{
+        success: boolean;
+        summary: { merged: Record<string, number>; updated: Record<string, number>; skipped: string[] };
+      }>(`/api/connection-migration/migrate`, {
+        method: 'POST',
+        body: {
+          from_connection_id: migrateFromConnection.id,
+          to_connection_id: migrateToConnectionId,
+        },
+      });
+      const movedConvs = result.summary.updated['conversations'] || 0;
+      const mergedConvs = result.summary.merged['conversations'] || 0;
+      toast.success(
+        `Migração concluída: ${movedConvs} conversas movidas` +
+        (mergedConvs ? `, ${mergedConvs} mescladas` : '')
+      );
+      setMigrateDialogOpen(false);
+      setMigrateFromConnection(null);
+      setMigrateToConnectionId('');
+      setMigrateConfirmText('');
+    } catch (e: any) {
+      toast.error(e.message || 'Erro ao migrar conversas');
+    } finally {
+      setMigrating(false);
+    }
+  };
+
   const fetchWebhookEvents = useCallback(async (connection: Connection) => {
     setWebhookEventsLoading(true);
     setWebhookEventsError(null);
