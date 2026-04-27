@@ -13,6 +13,9 @@ import { cn } from "@/lib/utils";
 interface DocumentUploadDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  defaultClientName?: string | null;
+  defaultClientPhone?: string | null;
+  lockClient?: boolean;
 }
 
 const TYPE_LABELS: Record<string, string> = {
