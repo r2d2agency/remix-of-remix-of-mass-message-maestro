@@ -1613,7 +1613,8 @@ router.post('/conversations/:id/messages', authenticate, async (req, res) => {
         conn.provider,
         conn.instance_id,
         conn.wapi_token,
-        conn.uazapi_url,
+        conn.uazapi_server_url,
+        conn.uazapi_server_url AS uazapi_url,
         conn.uazapi_token,
         conn.status as connection_status
       FROM conversations conv
