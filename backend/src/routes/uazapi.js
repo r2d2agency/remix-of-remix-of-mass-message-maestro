@@ -150,6 +150,87 @@ function pickFirstString(...values) {
   return null;
 }
 
+function isObject(value) {
+  return value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function typeFromMime(mime) {
+  const m = String(mime || '').toLowerCase();
+  if (m.startsWith('image/')) return 'image';
+  if (m.startsWith('video/')) return 'video';
+  if (m.startsWith('audio/')) return 'audio';
+  if (m.includes('pdf') || m.includes('msword') || m.includes('vnd.') || m.includes('octet-stream')) return 'document';
+  return null;
+}
+
+function normalizeMediaType(value) {
+  const type = String(value || '').toLowerCase();
+  if (type.includes('image')) return 'image';
+  if (type.includes('video')) return 'video';
+  if (type.includes('audio') || type.includes('ptt')) return 'audio';
+  if (type.includes('document') || type.includes('file')) return 'document';
+  if (type.includes('sticker')) return 'sticker';
+  return null;
+}
+
+function mediaItemFromObject(obj, forcedType = null) {
+  if (!isObject(obj)) return null;
+  const mimetype = pickFirstString(obj.mimetype, obj.mimeType, obj.mediaMimetype, obj.contentType);
+  const type = forcedType || normalizeMediaType(pickFirstString(obj.messageType, obj.type, obj.mediaType)) || typeFromMime(mimetype);
+  const url = pickFirstString(obj.fileURL, obj.fileUrl, obj.mediaUrl, obj.url, obj.downloadUrl, obj.directUrl);
+  const base64 = pickFirstString(obj.fileBase64, obj.mediaBase64, obj.base64, obj.file, obj.data);
+  const messageId = pickFirstString(obj.messageid, obj.messageId, obj.id, obj.key?.id);
+  const caption = pickFirstString(obj.caption, obj.text, obj.body);
+  if (!type || (!url && !base64 && !messageId)) return null;
+  return { messageType: type, mediaUrl: url, mediaMimetype: mimetype, mediaBase64: base64, messageId, content: caption };
+}
+
+function collectMediaItems(root, maxDepth = 6) {
+  const items = [];
+  const seenObjects = new WeakSet();
+  const seenItems = new Set();
+  const mediaKeys = {
+    imageMessage: 'image', videoMessage: 'video', audioMessage: 'audio',
+    documentMessage: 'document', stickerMessage: 'sticker', pttMessage: 'audio',
+  };
+  const skipKeys = new Set(['contextInfo', 'messageContextInfo', 'quotedMessage', 'quoted', 'quotedMsg']);
+
+  const add = (item) => {
+    if (!item) return;
+    const key = [item.messageType, item.messageId || '', item.mediaUrl || '', item.mediaBase64 ? item.mediaBase64.slice(0, 48) : ''].join('|');
+    if (seenItems.has(key)) return;
+    seenItems.add(key);
+    items.push(item);
+  };
+
+  const walk = (node, depth = 0, forcedType = null) => {
+    if (!node || depth > maxDepth) return;
+    if (Array.isArray(node)) {
+      node.forEach((entry) => walk(entry, depth + 1, forcedType));
+      return;
+    }
+    if (!isObject(node) || seenObjects.has(node)) return;
+    seenObjects.add(node);
+
+    add(mediaItemFromObject(node, forcedType));
+    Object.entries(mediaKeys).forEach(([key, type]) => {
+      if (node[key]) {
+        const nested = isObject(node[key]) ? { ...node[key], messageId: node[key].messageId || node.messageId || node.id } : node[key];
+        add(mediaItemFromObject(nested, type));
+        walk(nested, depth + 1, type);
+      }
+    });
+
+    Object.entries(node).forEach(([key, value]) => {
+      if (skipKeys.has(key)) return;
+      walk(value, depth + 1, forcedType);
+    });
+  };
+
+  walk(root);
+  return items;
+}
+
 function extractUazapiMessage(payload) {
   const data = payload?.data || payload?.message || payload || {};
   const content = data.content && typeof data.content === 'object' ? data.content : {};
