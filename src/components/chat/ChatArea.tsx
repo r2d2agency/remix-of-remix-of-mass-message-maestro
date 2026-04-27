@@ -1833,10 +1833,9 @@ export function ChatArea({
 
       {/* Messages */}
       <div className="flex-1 relative min-h-0 overflow-hidden">
-        <ScrollArea
-          ref={scrollAreaRef}
-          viewportRef={scrollContainerRef}
-          className={cn("absolute inset-0 chat-wallpaper overscroll-contain", isMobile ? "p-3" : "p-4")}
+        <div
+          ref={scrollContainerRef}
+          className={cn("absolute inset-0 chat-wallpaper overflow-y-auto overscroll-contain", isMobile ? "p-3" : "p-4")}
         >
         {hasMore && (
           <div className="flex justify-center mb-4">
@@ -2341,7 +2340,7 @@ export function ChatArea({
             <ChevronDown className="h-5 w-5" />
           </Button>
         )}
-      </ScrollArea>
+        </div>
 
       {/* Selection mode floating bar */}
       {selectionMode && (
