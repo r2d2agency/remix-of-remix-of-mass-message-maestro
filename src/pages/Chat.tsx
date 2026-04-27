@@ -798,7 +798,7 @@ const Chat = () => {
         )}
 
         {isMobile ? (
-          <div className="flex flex-1 overflow-hidden min-w-0 w-full">
+          <div className="flex-1 flex overflow-hidden min-w-0 w-full min-h-0">
             {!selectedConversation && (
               <div className="w-full h-full max-w-full overflow-hidden min-w-0">
                 <ConversationList
