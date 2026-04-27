@@ -530,12 +530,13 @@ export function ChatArea({
       setShowScrollButton(distanceFromBottom > 300);
       
       // Smart Scroll: Detect if user is manually scrolling up
-      if (scrollTop < lastScrollTopRef.current && distanceFromBottom > 150) {
+      // Increase threshold to 250px to give more room for the user to stay up
+      if (scrollTop < lastScrollTopRef.current && distanceFromBottom > 250) {
         isUserScrollingRef.current = true;
       }
       
       // If user scrolled back to bottom, resume auto-scrolling
-      if (distanceFromBottom < 50) {
+      if (distanceFromBottom < 100) {
         isUserScrollingRef.current = false;
       }
 
