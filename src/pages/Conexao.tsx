@@ -1133,7 +1133,7 @@ const handleGetQRCode = async (connection: Connection) => {
             <DialogHeader>
               <DialogTitle>Monitor do Webhook</DialogTitle>
               <DialogDescription>
-                Aqui você vê os últimos eventos que o backend recebeu da Evolution para esta instância.
+                Aqui você vê os últimos eventos que o backend recebeu da {webhookViewerConnection && isUazapi(webhookViewerConnection) ? 'UAZAPI' : 'Evolution'} para esta instância.
               </DialogDescription>
             </DialogHeader>
 
