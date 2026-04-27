@@ -245,7 +245,8 @@ function collectMediaItems(root, maxDepth = 6) {
 
 function extractUazapiMessage(payload) {
   const data = payload?.data || payload?.message || payload || {};
-  const content = data.content && typeof data.content === 'object' ? data.content : {};
+  const nestedMessage = isObject(data.message) ? data.message : {};
+  const content = isObject(data.content) ? data.content : nestedMessage;
   
   // UAZAPI often puts media info in 'data' directly or in 'data.message'
   const msgTypeRaw = pickFirstString(data.messageType, data.type, data.mediaType, content.type) || 'text';
@@ -256,12 +257,12 @@ function extractUazapiMessage(payload) {
   else if (messageType.includes('video')) messageType = 'video';
   else if (messageType.includes('document') || messageType.includes('file')) messageType = 'document';
   else if (messageType.includes('sticker')) messageType = 'sticker';
-  else if (data.imageMessage || data.videoMessage || data.audioMessage || data.documentMessage || data.stickerMessage) {
-    if (data.imageMessage) messageType = 'image';
-    else if (data.videoMessage) messageType = 'video';
-    else if (data.audioMessage) messageType = 'audio';
-    else if (data.documentMessage) messageType = 'document';
-    else if (data.stickerMessage) messageType = 'sticker';
+  else if (data.imageMessage || data.videoMessage || data.audioMessage || data.documentMessage || data.stickerMessage || nestedMessage.imageMessage || nestedMessage.videoMessage || nestedMessage.audioMessage || nestedMessage.documentMessage || nestedMessage.stickerMessage) {
+    if (data.imageMessage || nestedMessage.imageMessage) messageType = 'image';
+    else if (data.videoMessage || nestedMessage.videoMessage) messageType = 'video';
+    else if (data.audioMessage || nestedMessage.audioMessage) messageType = 'audio';
+    else if (data.documentMessage || nestedMessage.documentMessage) messageType = 'document';
+    else if (data.stickerMessage || nestedMessage.stickerMessage) messageType = 'sticker';
   } else {
     messageType = 'text';
   }
