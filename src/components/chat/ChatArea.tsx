@@ -510,7 +510,7 @@ export function ChatArea({
     const isNearBottom = distanceFromBottom < 150;
     
     if (isNearBottom && !isUserScrollingRef.current) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
     }
   }, [messages, showSearch]);
 
