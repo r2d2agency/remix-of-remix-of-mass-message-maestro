@@ -131,6 +131,22 @@ export const uazapiApi = {
   webhookEvents: (connectionId: string) =>
     api<{ events: any[] }>(`/api/uazapi/${connectionId}/webhook-events`),
 
+  clearWebhookEvents: (connectionId: string) =>
+    api<{ success: boolean }>(`/api/uazapi/${connectionId}/webhook-events`, { method: "DELETE" }),
+
+  webhookStatus: (connectionId: string) =>
+    api<{
+      ok: boolean;
+      status: number;
+      expectedUrl: string;
+      registeredUrl: string | null;
+      enabled: boolean | null;
+      events: string[];
+      excludeMessages: string[];
+      matches: boolean;
+      raw: any;
+    }>(`/api/uazapi/${connectionId}/webhook-status`),
+
   // Native UAZAPI features
   listGroups: (connectionId: string) => api(`/api/uazapi/${connectionId}/groups`),
   listLabels: (connectionId: string) => api(`/api/uazapi/${connectionId}/labels`),

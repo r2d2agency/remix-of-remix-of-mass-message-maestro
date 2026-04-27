@@ -1590,6 +1590,33 @@ const handleGetQRCode = async (connection: Connection) => {
                   </div>
                 </>
               )}
+
+              {/* UAZAPI: webhook (re)configure button */}
+              {editingConnection && editingConnection.provider === 'uazapi' && (
+                <div className="space-y-2 rounded-md border p-3 bg-muted/30">
+                  <Label>Webhook UAZAPI</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Cria/atualiza o webhook desta instância no servidor UAZAPI apontando para este sistema.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={async () => {
+                      if (!editingConnection) return;
+                      try {
+                        const r = await uazapiApi.reconfigureWebhook(editingConnection.id);
+                        if (r.ok) toast.success('Webhook UAZAPI configurado!');
+                        else toast.error('Falha ao configurar webhook UAZAPI');
+                      } catch (e: any) {
+                        toast.error(e.message || 'Erro ao configurar webhook');
+                      }
+                    }}
+                  >
+                    Criar / Reconfigurar Webhook
+                  </Button>
+                </div>
+              )}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditDialogOpen(false)}>

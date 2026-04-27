@@ -6,6 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { api, API_URL } from "@/lib/api";
+import { uazapiApi } from "@/lib/uazapi-api";
 import { toast } from "sonner";
 import {
   Loader2,
@@ -164,15 +165,30 @@ interface Props {
 }
 
 export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
-  // Detect W-API: explicit provider OR has instance_id
-  const isWapi = connection.provider === 'wapi' || 
-    (!!connection.instance_id && !connection.instance_name) ||
-    (!!connection.instance_id && connection.instance_id.length > 0);
-  
+  // Detect provider explicitly. UAZAPI takes priority when explicitly marked.
+  const isUazapi = connection.provider === 'uazapi';
+  // W-API: explicit provider OR has instance_id (and not UAZAPI)
+  const isWapi = !isUazapi && (
+    connection.provider === 'wapi' ||
+    (!!connection.instance_id && connection.instance_id.length > 0)
+  );
+
   const [loading, setLoading] = useState(true);
   const [reconfiguring, setReconfiguring] = useState(false);
   const [diagnostic, setDiagnostic] = useState<DiagnosticResult | null>(null);
   const [wapiDiagnostic, setWapiDiagnostic] = useState<WapiDiagnosticResult | null>(null);
+
+  // UAZAPI state
+  const [uazWebhook, setUazWebhook] = useState<{
+    expectedUrl: string;
+    registeredUrl: string | null;
+    enabled: boolean | null;
+    events: string[];
+    matches: boolean;
+    ok: boolean;
+  } | null>(null);
+  const [uazEvents, setUazEvents] = useState<any[]>([]);
+  const [uazStatus, setUazStatus] = useState<{ status: string; phoneNumber?: string } | null>(null);
 
   // Evolution webhook events (persisted on backend)
   const [events, setEvents] = useState<WebhookEvent[]>([]);
@@ -191,10 +207,38 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
   const [auditFilter, setAuditFilter] = useState<string>('all'); // 'all', 'processed', 'errors', 'skipped'
   const [auditDetail, setAuditDetail] = useState<any>(null);
 
+  const fetchUazDiagnostic = useCallback(async () => {
+    try {
+      const [st, wh, ev] = await Promise.all([
+        uazapiApi.status(connection.id).catch(() => null),
+        uazapiApi.webhookStatus(connection.id).catch((e) => ({ error: e?.message })),
+        uazapiApi.webhookEvents(connection.id).catch(() => ({ events: [] })),
+      ]);
+      if (st) setUazStatus({ status: st.status, phoneNumber: st.phoneNumber });
+      if (wh && !('error' in wh)) {
+        setUazWebhook({
+          expectedUrl: (wh as any).expectedUrl,
+          registeredUrl: (wh as any).registeredUrl,
+          enabled: (wh as any).enabled,
+          events: (wh as any).events || [],
+          matches: (wh as any).matches,
+          ok: (wh as any).ok,
+        });
+      }
+      setUazEvents((ev as any).events || []);
+    } catch (e: any) {
+      console.error('UAZAPI diagnostic error', e);
+    }
+  }, [connection.id]);
+
   const fetchDiagnostic = useCallback(async () => {
     setLoading(true);
     try {
-      if (isWapi) {
+      if (isUazapi) {
+        await fetchUazDiagnostic();
+        setDiagnostic(null);
+        setWapiDiagnostic(null);
+      } else if (isWapi) {
         // For W-API, we check status and webhook configuration
         const statusResult = await api<{
           status: string;
@@ -259,7 +303,7 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [connection.id, connection.name, connection.instance_id, isWapi]);
+  }, [connection.id, connection.name, connection.instance_id, isWapi, isUazapi, fetchUazDiagnostic]);
 
   const fetchEvents = useCallback(async () => {
     if (isWapi) return; // Evolution only
@@ -336,12 +380,15 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
   const handleReconfigure = async () => {
     setReconfiguring(true);
     try {
-      if (isWapi) {
+      if (isUazapi) {
+        const result = await uazapiApi.reconfigureWebhook(connection.id);
+        if (result.ok) toast.success("Webhook UAZAPI configurado!");
+        else toast.error("Falha ao configurar webhook UAZAPI");
+      } else if (isWapi) {
         const result = await api<{ success: boolean; message?: string; configured?: number; total?: number }>(
           `/api/connections/${connection.id}/configure-webhooks`,
           { method: "POST" }
         );
-        
         if (result.success) {
           toast.success(result.message || `Webhooks configurados: ${result.configured}/${result.total}`);
         } else {
@@ -356,6 +403,16 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
       toast.error(error.message || "Erro ao reconfigurar");
     } finally {
       setReconfiguring(false);
+    }
+  };
+
+  const handleClearUazEvents = async () => {
+    try {
+      await uazapiApi.clearWebhookEvents(connection.id);
+      setUazEvents([]);
+      toast.success("Eventos UAZAPI limpos");
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao limpar eventos");
     }
   };
 
@@ -396,20 +453,25 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
 
   useEffect(() => {
     fetchDiagnostic();
+    if (isUazapi) {
+      // UAZAPI: only its own diagnostic + events (already fetched inside fetchDiagnostic)
+      return;
+    }
     fetchAudit();
-
     if (isWapi) {
       fetchWapiEvents();
       fetchWapiSendAttempts();
     } else {
       fetchEvents();
     }
-  }, [fetchDiagnostic, fetchEvents, fetchWapiEvents, fetchWapiSendAttempts, fetchAudit, isWapi]);
+  }, [fetchDiagnostic, fetchEvents, fetchWapiEvents, fetchWapiSendAttempts, fetchAudit, isWapi, isUazapi]);
 
   // Auto-refresh every 3 seconds
   useEffect(() => {
     const interval = setInterval(() => {
-      if (isWapi) {
+      if (isUazapi) {
+        fetchUazDiagnostic();
+      } else if (isWapi) {
         fetchWapiEvents();
         fetchWapiSendAttempts();
       } else {
@@ -418,7 +480,7 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [fetchEvents, fetchWapiEvents, fetchWapiSendAttempts, isWapi]);
+  }, [fetchEvents, fetchWapiEvents, fetchWapiSendAttempts, fetchUazDiagnostic, isWapi, isUazapi]);
 
   if (loading) {
     return (
@@ -434,6 +496,164 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
     ) : (
       <XCircle className="h-4 w-4 text-destructive" />
     );
+
+  // UAZAPI Diagnostic View
+  if (isUazapi) {
+    const connected = uazStatus?.status === 'connected';
+    const webhookOk = !!uazWebhook?.matches;
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-semibold flex items-center gap-2">
+              <Radio className="h-5 w-5 text-primary" />
+              Diagnóstico UAZAPI: {connection.name}
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Provedor: <Badge variant="outline">UAZAPI</Badge>
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={fetchDiagnostic} disabled={loading}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+              Atualizar
+            </Button>
+            {onClose && (
+              <Button variant="ghost" size="sm" onClick={onClose}>
+                Fechar
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Health */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              {connected && webhookOk ? (
+                <Badge className="bg-green-500"><CheckCircle className="h-3 w-3 mr-1" /> Tudo OK</Badge>
+              ) : (
+                <Badge variant="destructive"><AlertTriangle className="h-3 w-3 mr-1" /> Verificar configuração</Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-2 gap-4 text-sm">
+            <div className="flex items-center gap-2">
+              <StatusIcon ok={connected} />
+              <span className="text-muted-foreground">Instância:</span>
+              <Badge variant={connected ? "default" : "outline"} className={connected ? "bg-green-500" : ""}>
+                {uazStatus?.status || 'desconhecido'}
+              </Badge>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Telefone:</span>
+              <span className="ml-2">{uazStatus?.phoneNumber || "—"}</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Webhook config */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Webhook className="h-4 w-4" />
+              Webhook na UAZAPI
+            </CardTitle>
+            <CardDescription>
+              Estado do webhook registrado no servidor UAZAPI para esta instância
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <div className="flex items-center gap-2">
+              <StatusIcon ok={!!uazWebhook?.registeredUrl} />
+              <span className="text-muted-foreground">URL registrada:</span>
+              {uazWebhook?.registeredUrl ? (
+                <code className="text-xs bg-muted px-1.5 py-0.5 rounded break-all">{uazWebhook.registeredUrl}</code>
+              ) : (
+                <span className="text-destructive">Nenhuma</span>
+              )}
+              {uazWebhook?.registeredUrl && (
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => copyToClipboard(uazWebhook.registeredUrl!)}>
+                  <Copy className="h-3 w-3" />
+                </Button>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <StatusIcon ok={uazWebhook?.enabled !== false} />
+              <span className="text-muted-foreground">Ativo:</span>
+              <span>{uazWebhook?.enabled === false ? 'Não' : uazWebhook?.enabled ? 'Sim' : '—'}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <StatusIcon ok={webhookOk} />
+              <span className="text-muted-foreground">URL esperada:</span>
+              <code className="text-xs bg-muted px-1.5 py-0.5 rounded break-all">{uazWebhook?.expectedUrl || '—'}</code>
+            </div>
+            {uazWebhook?.events && uazWebhook.events.length > 0 && (
+              <div>
+                <div className="text-muted-foreground mb-1">Eventos inscritos:</div>
+                <div className="flex flex-wrap gap-1">
+                  {uazWebhook.events.map((ev, i) => (
+                    <Badge key={i} variant="secondary" className="text-xs">{ev}</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="pt-2">
+              <Button onClick={handleReconfigure} disabled={reconfiguring} size="sm">
+                {reconfiguring ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Webhook className="h-4 w-4 mr-2" />}
+                {webhookOk ? 'Reconfigurar webhook' : 'Criar/Configurar webhook'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Events log */}
+        <Card>
+          <CardHeader className="pb-2 flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Activity className="h-4 w-4" />
+                Logs UAZAPI ({uazEvents.length})
+              </CardTitle>
+              <CardDescription>Últimos eventos recebidos do webhook UAZAPI</CardDescription>
+            </div>
+            <Button variant="outline" size="sm" onClick={handleClearUazEvents} disabled={uazEvents.length === 0}>
+              <Trash2 className="h-3 w-3 mr-1" /> Limpar
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-[360px] pr-2">
+              {uazEvents.length === 0 ? (
+                <div className="text-sm text-muted-foreground py-6 text-center">
+                  Nenhum evento ainda. Eventos aparecem quando o webhook recebe dados da UAZAPI.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {uazEvents.map((ev) => (
+                    <div key={ev.id} className="border rounded p-2 text-xs space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant={ev.status === 'failed' ? 'destructive' : 'secondary'} className="text-[10px]">
+                          {ev.event_type || 'evento'}
+                        </Badge>
+                        <Badge variant="outline" className="text-[10px]">{ev.status}</Badge>
+                        <span className="text-muted-foreground ml-auto">
+                          {new Date(ev.created_at).toLocaleString()}
+                        </span>
+                      </div>
+                      {ev.error && <div className="text-destructive">{ev.error}</div>}
+                      <pre className="bg-muted/40 p-1.5 rounded overflow-x-auto text-[10px] max-h-32">
+                        {JSON.stringify(ev.payload, null, 2)}
+                      </pre>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   // W-API Diagnostic View
   if (isWapi && wapiDiagnostic) {
