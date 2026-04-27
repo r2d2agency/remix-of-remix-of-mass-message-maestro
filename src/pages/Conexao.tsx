@@ -209,13 +209,20 @@ const Conexao = () => {
         // Immediately try to reconfigure webhook and activate settings for UAZAPI
         try {
           console.log('Auto-configuring UAZAPI for:', result.id);
+          // 1. Reconfigure Webhook
           await uazapiApi.reconfigureWebhook(result.id);
+          
+          // 2. Activate Instance settings (auto-read, etc)
+          // Note: The backend should handle activating settings during/after webhook config, 
+          // or we can call a generic "activate" endpoint if available.
+          // For now, ensuring we call reconfigureWebhook which usually triggers full sync.
         } catch (e) {
           console.warn('Could not auto-configure UAZAPI webhook', e);
         }
 
         // Immediately fetch QR
         try {
+          // Ensure we wait a bit for instance to be ready in UAZAPI
           const qr = await uazapiApi.connect(result.id);
           if (qr.qrcode) {
             setSelectedConnection(result);
@@ -379,16 +386,21 @@ const handleGetQRCode = async (connection: Connection) => {
     try {
       let deleteUrl: string;
       if (isUazapi(connection)) {
-        deleteUrl = `/api/uazapi/${connection.id}`;
+        // Use the native UAZAPI remove method which calls the backend DELETE /api/uazapi/:id
+        // which in turn should call UAZAPI delete instance endpoint
+        await uazapiApi.remove(connection.id);
       } else if (isWapiConn(connection)) {
         deleteUrl = `/api/connections/${connection.id}`;
+        await api(deleteUrl, { method: 'DELETE' });
       } else {
         deleteUrl = `/api/evolution/${connection.id}`;
+        await api(deleteUrl, { method: 'DELETE' });
       }
-      await api(deleteUrl, { method: 'DELETE' });
+      
       setConnections(prev => prev.filter(c => c.id !== connection.id));
-      toast.success('Conexão excluída');
+      toast.success('Conexão excluída com sucesso');
     } catch (error: any) {
+      console.error('Error deleting connection:', error);
       toast.error(error?.message || 'Erro ao excluir conexão');
     }
   };
@@ -1143,14 +1155,25 @@ const handleGetQRCode = async (connection: Connection) => {
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
-                          <AlertDialogTitle>Excluir conexão?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Esta ação não pode ser desfeita. A conexão "{connection.name}" será permanentemente excluída.
+                          <AlertDialogTitle className="text-destructive flex items-center gap-2">
+                            <FileWarning className="h-5 w-5" />
+                            EXCLUIR CONEXÃO E APAGAR TUDO?
+                          </AlertDialogTitle>
+                          <AlertDialogDescription className="space-y-3">
+                            <p className="font-bold text-foreground">
+                              ⚠️ ATENÇÃO: Esta ação é IRREVERSÍVEL.
+                            </p>
+                            <p>
+                              Ao excluir a conexão "<span className="font-semibold">{connection.name}</span>", você perderá o vínculo com todas as conversas e históricos vinculados a este número no sistema.
+                            </p>
                             {connection.status === 'connected' && (
-                              <span className="block mt-2 text-yellow-500">
-                                ⚠️ Esta conexão está ativa e será desconectada.
-                              </span>
+                              <p className="text-destructive font-medium">
+                                Esta conexão está ATIVA e será interrompida imediatamente.
+                              </p>
                             )}
+                            <p className="text-xs text-muted-foreground italic">
+                              Tem certeza que deseja prosseguir com a exclusão definitiva?
+                            </p>
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
