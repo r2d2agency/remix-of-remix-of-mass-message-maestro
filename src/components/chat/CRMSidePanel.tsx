@@ -1519,17 +1519,70 @@ export function CRMSidePanel({
                   </div>
                 ) : (
                   contactDocs.filter(d => d.status !== 'signed').map(doc => (
-                    <div key={doc.id} className="flex items-center justify-between p-2 rounded-lg border bg-card hover:bg-muted/30 transition-colors group">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
-                        <div className="min-w-0">
-                          <p className="text-[11px] font-medium truncate">{doc.name}</p>
-                          <p className="text-[9px] text-muted-foreground">{format(new Date(doc.created_at), "dd/MM/yy", { locale: ptBR })}</p>
+                    <div key={doc.id} className="p-2 rounded-lg border bg-card hover:bg-muted/30 transition-colors">
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="flex items-start gap-2 min-w-0 flex-1">
+                          <FileText className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[11px] font-medium truncate">{doc.name}</p>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className="text-[9px] text-muted-foreground">{format(new Date(doc.created_at), "dd/MM/yy", { locale: ptBR })}</span>
+                              {doc.status === 'awaiting_signature' && (
+                                <Badge variant="outline" className="text-[8px] h-3.5 px-1 bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400">
+                                  Aguardando assinatura
+                                </Badge>
+                              )}
+                              {doc.status === 'draft' && (
+                                <Badge variant="outline" className="text-[8px] h-3.5 px-1">Rascunho</Badge>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       </div>
-                      <Button size="sm" variant="ghost" className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <ExternalLink className="h-3 w-3" />
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 text-[10px] gap-1 px-1.5 flex-1"
+                          onClick={() => handleOpenDoc(doc)}
+                          disabled={!doc.file_data_url}
+                          title={doc.file_data_url ? "Abrir documento" : "Arquivo indisponível"}
+                        >
+                          <Eye className="h-3 w-3" />
+                          Abrir
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 text-[10px] gap-1 px-1.5"
+                          onClick={() => downloadDocument(doc)}
+                          disabled={!doc.file_data_url}
+                          title="Baixar"
+                        >
+                          <Download className="h-3 w-3" />
+                        </Button>
+                        {doc.status === 'awaiting_signature' ? (
+                          <Button
+                            size="sm"
+                            variant="default"
+                            className="h-6 text-[10px] gap-1 px-1.5 flex-1 bg-green-600 hover:bg-green-700"
+                            onClick={() => handleMarkSigned(doc)}
+                          >
+                            <FileSignature className="h-3 w-3" />
+                            Marcar assinado
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="default"
+                            className="h-6 text-[10px] gap-1 px-1.5 flex-1"
+                            onClick={() => handleRequestSignature(doc)}
+                          >
+                            <Send className="h-3 w-3" />
+                            Solicitar assinatura
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   ))
                 )}
