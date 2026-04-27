@@ -170,6 +170,18 @@ function extractUazapiMessage(payload) {
     content.mimeType
   );
 
+  const mediaBase64 = pickFirstString(
+    data.fileBase64,
+    data.base64,
+    data.imageMessage?.base64,
+    data.videoMessage?.base64,
+    data.audioMessage?.base64,
+    data.documentMessage?.base64,
+    data.stickerMessage?.base64,
+    content.base64,
+    content.fileBase64
+  );
+
   // Fallback for caption in text messages if content is actually a caption
   const finalContent = text || (['image', 'video', 'audio', 'document', 'sticker'].includes(messageType) ? null : '');
 
@@ -185,6 +197,7 @@ function extractUazapiMessage(payload) {
     content: finalContent,
     mediaUrl,
     mediaMimetype,
+    mediaBase64,
     timestamp: data.messageTimestamp || data.timestamp || payload?.timestamp || null,
   };
 }
