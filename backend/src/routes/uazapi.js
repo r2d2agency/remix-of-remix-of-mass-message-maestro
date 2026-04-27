@@ -245,19 +245,46 @@ router.post('/instances', async (req, res) => {
     );
     const connection = ins.rows[0];
 
-    // 3) Configure webhook (best-effort)
-    const whUrl = `${process.env.BACKEND_PUBLIC_URL || ''}/api/uazapi/webhook`;
-    if (process.env.BACKEND_PUBLIC_URL) {
-      try {
-        await uaz.configureWebhook({
-          serverUrl: server.server_url,
-          token,
-          webhookUrl: whUrl,
-        });
-      } catch (e) {
-        console.warn('[UAZAPI] webhook config failed:', e?.message);
-      }
+    // 3) Configure webhook (always — infer public URL if env is missing)
+    const inferredBase =
+      process.env.BACKEND_PUBLIC_URL ||
+      process.env.WEBHOOK_BASE_URL ||
+      `${req.protocol}://${req.get('host')}`;
+    const whUrl = `${String(inferredBase).replace(/\/+$/, '')}/api/uazapi/webhook`;
+
+    let webhookResult = { ok: false, status: 0, data: null };
+    try {
+      webhookResult = await uaz.configureWebhook({
+        serverUrl: server.server_url,
+        token,
+        webhookUrl: whUrl,
+      });
+      console.log('[UAZAPI] webhook config result:', {
+        connectionId: connection.id,
+        webhookUrl: whUrl,
+        ok: webhookResult.ok,
+        status: webhookResult.status,
+        data: webhookResult.data,
+      });
+    } catch (e) {
+      console.error('[UAZAPI] webhook config exception:', e?.message);
+      webhookResult = { ok: false, status: 0, data: { error: e?.message } };
     }
+
+    // Audit the webhook configuration in the events table for visibility
+    await query(
+      `INSERT INTO uazapi_webhook_events (connection_id, event_type, payload, status, error)
+       VALUES ($1, 'webhook_setup', $2, $3, $4)`,
+      [
+        connection.id,
+        JSON.stringify({ webhookUrl: whUrl, response: webhookResult.data }),
+        webhookResult.ok ? 'configured' : 'failed',
+        webhookResult.ok ? null : `HTTP ${webhookResult.status}`,
+      ]
+    ).catch((e) => console.warn('[UAZAPI] could not log webhook setup:', e?.message));
+
+    connection.webhook_configured = webhookResult.ok;
+    connection.webhook_url = whUrl;
 
     res.status(201).json(connection);
   } catch (err) {
