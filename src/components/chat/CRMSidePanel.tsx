@@ -172,8 +172,8 @@ export function CRMSidePanel({
   
   const allDocs = useDocuments();
   const contactDocs = allDocs.filter(d => 
-    (contactName && d.client_name === contactName) || 
-    (contactPhone && (d.file_name?.includes(contactPhone) || d.client_name.includes(contactPhone)))
+    (contactPhone && d.client_phone === contactPhone) ||
+    (contactName && d.client_name === contactName)
   );
 
   // Inline deal creation state
@@ -1545,7 +1545,10 @@ export function CRMSidePanel({
       
       <DocumentUploadDialog 
         open={showDocDialog} 
-        onOpenChange={setShowDocDialog} 
+        onOpenChange={setShowDocDialog}
+        defaultClientName={contactName}
+        defaultClientPhone={contactPhone}
+        lockClient
       />
 
       {/* Task Dialog */}
