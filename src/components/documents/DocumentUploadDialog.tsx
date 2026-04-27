@@ -266,8 +266,15 @@ export function DocumentUploadDialog({ open, onOpenChange, defaultClientName, de
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="doc-client">Cliente</Label>
-            <Input id="doc-client" placeholder="Nome do cliente" value={client} onChange={(e) => setClient(e.target.value)} />
+            <Label htmlFor="doc-client">Cliente {lockClient && <span className="text-[10px] text-muted-foreground">(vinculado a esta conversa)</span>}</Label>
+            <Input
+              id="doc-client"
+              placeholder="Nome do cliente"
+              value={client}
+              onChange={(e) => setClient(e.target.value)}
+              disabled={lockClient && !!defaultClientName}
+              className={lockClient && defaultClientName ? "bg-muted/50" : ""}
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
