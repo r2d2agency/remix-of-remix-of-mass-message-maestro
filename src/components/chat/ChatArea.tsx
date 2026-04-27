@@ -3,7 +3,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -292,7 +291,6 @@ export function ChatArea({
   const [showShareContactDialog, setShowShareContactDialog] = useState(false);
   const [groupParticipants, setGroupParticipants] = useState<GroupParticipant[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isUserScrollingRef = useRef(false);
   const lastScrollTopRef = useRef(0);
@@ -1835,10 +1833,9 @@ export function ChatArea({
 
       {/* Messages */}
       <div className="flex-1 relative min-h-0 overflow-hidden">
-        <ScrollArea
-          ref={scrollAreaRef}
-          viewportRef={scrollContainerRef}
-          className={cn("absolute inset-0 chat-wallpaper overscroll-contain", isMobile ? "p-3" : "p-4")}
+        <div
+          ref={scrollContainerRef}
+          className={cn("absolute inset-0 chat-wallpaper overflow-y-auto overscroll-contain", isMobile ? "p-3" : "p-4")}
         >
         {hasMore && (
           <div className="flex justify-center mb-4">
@@ -2343,7 +2340,7 @@ export function ChatArea({
             <ChevronDown className="h-5 w-5" />
           </Button>
         )}
-      </ScrollArea>
+        </div>
 
       {/* Selection mode floating bar */}
       {selectionMode && (
