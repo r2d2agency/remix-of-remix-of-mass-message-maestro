@@ -1589,6 +1589,109 @@ const handleGetQRCode = async (connection: Connection) => {
           </DialogContent>
         </Dialog>
 
+        {/* Migrate Conversations Dialog */}
+        <Dialog
+          open={migrateDialogOpen}
+          onOpenChange={(open) => {
+            setMigrateDialogOpen(open);
+            if (!open) {
+              setMigrateFromConnection(null);
+              setMigrateToConnectionId('');
+              setMigrateConfirmText('');
+            }
+          }}
+        >
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <ArrowRightLeft className="h-5 w-5" />
+                Migrar conversas para outra conexão
+              </DialogTitle>
+              <DialogDescription>
+                Move todas as conversas, mensagens, contatos, atendimentos e fluxos da conexão
+                de origem para a conexão de destino. As mensagens são preservadas e conversas
+                duplicadas (mesmo contato) são mescladas.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="rounded-md border p-3 bg-muted/40 text-sm">
+                <div className="text-muted-foreground text-xs">De (origem)</div>
+                <div className="font-medium">{migrateFromConnection?.name}</div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {migrateFromConnection?.phone_number || 'sem número'} · {migrateFromConnection?.provider}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Conexão de destino</Label>
+                <Select value={migrateToConnectionId} onValueChange={setMigrateToConnectionId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a conexão de destino" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {connections
+                      .filter((c) => c.id !== migrateFromConnection?.id)
+                      .map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name} {c.phone_number ? `· ${c.phone_number}` : ''} ({c.provider})
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-xs space-y-1">
+                <div className="flex items-center gap-2 font-medium text-destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  Operação irreversível
+                </div>
+                <p>
+                  A conexão de origem ficará vazia (sem conversas). As mensagens enviadas após a
+                  migração serão recebidas pela conexão de destino. Essa ação não pode ser desfeita.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>
+                  Para confirmar, digite o nome da conexão de origem:{' '}
+                  <span className="font-mono text-foreground">{migrateFromConnection?.name}</span>
+                </Label>
+                <Input
+                  value={migrateConfirmText}
+                  onChange={(e) => setMigrateConfirmText(e.target.value)}
+                  placeholder={migrateFromConnection?.name}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setMigrateDialogOpen(false)} disabled={migrating}>
+                Cancelar
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleMigrateConversations}
+                disabled={
+                  migrating ||
+                  !migrateToConnectionId ||
+                  migrateConfirmText !== (migrateFromConnection?.name || '___')
+                }
+              >
+                {migrating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Migrando...
+                  </>
+                ) : (
+                  <>
+                    <ArrowRightLeft className="h-4 w-4 mr-2" />
+                    Migrar tudo
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* Edit Connection Dialog */}
         <Dialog 
           open={editDialogOpen} 
