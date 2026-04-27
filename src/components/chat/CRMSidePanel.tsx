@@ -79,6 +79,8 @@ import { SendEmailDialog } from "@/components/email/SendEmailDialog";
 import { EnrollSequenceDialog } from "@/components/nurturing/EnrollSequenceDialog";
 import { DealDetailDialog } from "@/components/crm/DealDetailDialog";
 import { CompanyDialog } from "@/components/crm/CompanyDialog";
+import { DocumentUploadDialog } from "@/components/documents/DocumentUploadDialog";
+import { useDocuments } from "@/hooks/use-documents-store";
 
 interface CRMSidePanelProps {
   conversationId: string;
@@ -166,6 +168,13 @@ export function CRMSidePanel({
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [showDealDetailDialog, setShowDealDetailDialog] = useState(false);
   const [showSequenceDialog, setShowSequenceDialog] = useState(false);
+  const [showDocDialog, setShowDocDialog] = useState(false);
+  
+  const allDocs = useDocuments();
+  const contactDocs = allDocs.filter(d => 
+    (contactName && d.client_name === contactName) || 
+    (contactPhone && (d.file_name?.includes(contactPhone) || d.client_name.includes(contactPhone)))
+  );
 
   // Inline deal creation state
   const [showCreateDeal, setShowCreateDeal] = useState(false);
@@ -1468,7 +1477,7 @@ export function CRMSidePanel({
                   <FileText className="h-3.5 w-3.5 text-primary" />
                   Documentos
                 </h3>
-                <Button size="sm" variant="ghost" className="h-6 text-[10px] gap-1 px-1.5">
+                <Button size="sm" variant="ghost" className="h-6 text-[10px] gap-1 px-1.5" onClick={() => setShowDocDialog(true)}>
                   <FilePlus className="h-3 w-3" />
                   Novo
                 </Button>
@@ -1476,10 +1485,27 @@ export function CRMSidePanel({
 
               {/* Docs List */}
               <div className="space-y-2">
-                <div className="text-center py-6 text-muted-foreground bg-muted/20 rounded-lg border border-dashed border-muted-foreground/30">
-                  <FileText className="h-6 w-6 mx-auto mb-1 opacity-20" />
-                  <p className="text-[10px]">Nenhum documento vinculado.</p>
-                </div>
+                {contactDocs.filter(d => d.status !== 'signed').length === 0 ? (
+                  <div className="text-center py-6 text-muted-foreground bg-muted/20 rounded-lg border border-dashed border-muted-foreground/30">
+                    <FileText className="h-6 w-6 mx-auto mb-1 opacity-20" />
+                    <p className="text-[10px]">Nenhum documento vinculado.</p>
+                  </div>
+                ) : (
+                  contactDocs.filter(d => d.status !== 'signed').map(doc => (
+                    <div key={doc.id} className="flex items-center justify-between p-2 rounded-lg border bg-card hover:bg-muted/30 transition-colors group">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-medium truncate">{doc.name}</p>
+                          <p className="text-[9px] text-muted-foreground">{format(new Date(doc.created_at), "dd/MM/yy", { locale: ptBR })}</p>
+                        </div>
+                      </div>
+                      <Button size="sm" variant="ghost" className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <ExternalLink className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))
+                )}
               </div>
 
               <div className="flex items-center justify-between pt-2">
@@ -1487,24 +1513,40 @@ export function CRMSidePanel({
                   <FileSignature className="h-3.5 w-3.5 text-primary" />
                   Assinaturas
                 </h3>
-                <Button size="sm" variant="ghost" className="h-6 text-[10px] gap-1 px-1.5">
-                  <Send className="h-3 w-3" />
-                  Solicitar
-                </Button>
               </div>
 
               {/* Signatures List */}
               <div className="space-y-2">
-                <div className="text-center py-6 text-muted-foreground bg-muted/20 rounded-lg border border-dashed border-muted-foreground/30">
-                  <FileSignature className="h-6 w-6 mx-auto mb-1 opacity-20" />
-                  <p className="text-[10px]">Nenhuma assinatura pendente.</p>
-                </div>
+                {contactDocs.filter(d => d.status === 'signed').length === 0 ? (
+                  <div className="text-center py-6 text-muted-foreground bg-muted/20 rounded-lg border border-dashed border-muted-foreground/30">
+                    <FileSignature className="h-6 w-6 mx-auto mb-1 opacity-20" />
+                    <p className="text-[10px]">Nenhuma assinatura finalizada.</p>
+                  </div>
+                ) : (
+                  contactDocs.filter(d => d.status === 'signed').map(doc => (
+                    <div key={doc.id} className="flex items-center justify-between p-2 rounded-lg border bg-green-50/30 dark:bg-green-950/10 border-green-200/50 dark:border-green-900/30 group">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileSignature className="h-3.5 w-3.5 text-green-600 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-medium truncate">{doc.name}</p>
+                          <p className="text-[9px] text-muted-foreground">Assinado em {format(new Date(doc.signed_at || doc.updated_at), "dd/MM/yy", { locale: ptBR })}</p>
+                        </div>
+                      </div>
+                      <Badge variant="outline" className="text-[8px] h-4 bg-green-100 text-green-700 dark:bg-green-900/30 border-none">OK</Badge>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </ScrollArea>
         </TabsContent>
         </div>
       </Tabs>
+      
+      <DocumentUploadDialog 
+        open={showDocDialog} 
+        onOpenChange={setShowDocDialog} 
+      />
 
       {/* Task Dialog */}
       <TaskDialog
