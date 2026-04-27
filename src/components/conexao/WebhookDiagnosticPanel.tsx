@@ -207,10 +207,38 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
   const [auditFilter, setAuditFilter] = useState<string>('all'); // 'all', 'processed', 'errors', 'skipped'
   const [auditDetail, setAuditDetail] = useState<any>(null);
 
+  const fetchUazDiagnostic = useCallback(async () => {
+    try {
+      const [st, wh, ev] = await Promise.all([
+        uazapiApi.status(connection.id).catch(() => null),
+        uazapiApi.webhookStatus(connection.id).catch((e) => ({ error: e?.message })),
+        uazapiApi.webhookEvents(connection.id).catch(() => ({ events: [] })),
+      ]);
+      if (st) setUazStatus({ status: st.status, phoneNumber: st.phoneNumber });
+      if (wh && !('error' in wh)) {
+        setUazWebhook({
+          expectedUrl: (wh as any).expectedUrl,
+          registeredUrl: (wh as any).registeredUrl,
+          enabled: (wh as any).enabled,
+          events: (wh as any).events || [],
+          matches: (wh as any).matches,
+          ok: (wh as any).ok,
+        });
+      }
+      setUazEvents((ev as any).events || []);
+    } catch (e: any) {
+      console.error('UAZAPI diagnostic error', e);
+    }
+  }, [connection.id]);
+
   const fetchDiagnostic = useCallback(async () => {
     setLoading(true);
     try {
-      if (isWapi) {
+      if (isUazapi) {
+        await fetchUazDiagnostic();
+        setDiagnostic(null);
+        setWapiDiagnostic(null);
+      } else if (isWapi) {
         // For W-API, we check status and webhook configuration
         const statusResult = await api<{
           status: string;
