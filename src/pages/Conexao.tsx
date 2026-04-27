@@ -863,7 +863,7 @@ const handleGetQRCode = async (connection: Connection) => {
                     </div>
                     <div className="flex items-center gap-1.5 p-2 rounded bg-muted/50">
                       <Badge variant="outline" className="text-[10px] px-1.5">
-                        {(connection.provider === 'wapi' || !!connection.instance_id) ? 'W-API' : 'Evolution'}
+                        {isUazapi(connection) ? 'UAZAPI' : isWapiConn(connection) ? 'W-API' : 'Evolution'}
                       </Badge>
                       <code className="text-[10px] truncate flex-1">
                         {(connection.provider === 'wapi' || !!connection.instance_id) 
