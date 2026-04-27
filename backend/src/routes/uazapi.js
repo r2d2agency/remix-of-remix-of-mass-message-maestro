@@ -105,8 +105,16 @@ async function downloadAndPersistMedia(connection, messageId, mimetypeHint) {
     const d = r.data;
     const base64 = d.fileBase64 || d.base64 || d.file || d.data || (typeof d === 'string' ? d : null);
     const mime = d.mimetype || d.mimeType || mimetypeHint;
-    if (!base64) return null;
-    return saveBase64ToUploads(base64, mime);
+    if (base64) return saveBase64ToUploads(base64, mime);
+    const downloadedItems = collectMediaItems(d);
+    for (const item of downloadedItems) {
+      if (item.mediaBase64) return saveBase64ToUploads(item.mediaBase64, item.mediaMimetype || mime);
+      if (item.mediaUrl) {
+        const cached = await cacheRemoteMediaUrl(item.mediaUrl, item.mediaMimetype || mime);
+        if (cached) return cached;
+      }
+    }
+    return null;
   } catch (err) {
     console.warn('[UAZAPI] downloadAndPersistMedia failed:', err?.message);
     return null;
@@ -150,9 +158,95 @@ function pickFirstString(...values) {
   return null;
 }
 
+function isObject(value) {
+  return value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function typeFromMime(mime) {
+  const m = String(mime || '').toLowerCase();
+  if (m.startsWith('image/')) return 'image';
+  if (m.startsWith('video/')) return 'video';
+  if (m.startsWith('audio/')) return 'audio';
+  if (m.includes('pdf') || m.includes('msword') || m.includes('vnd.') || m.includes('octet-stream')) return 'document';
+  return null;
+}
+
+function normalizeMediaType(value) {
+  const type = String(value || '').toLowerCase();
+  if (type.includes('image')) return 'image';
+  if (type.includes('video')) return 'video';
+  if (type.includes('audio') || type.includes('ptt')) return 'audio';
+  if (type.includes('document') || type.includes('file')) return 'document';
+  if (type.includes('sticker')) return 'sticker';
+  return null;
+}
+
+function isAlbumPlaceholder(value) {
+  return /^album:\s*\d+\s+/i.test(String(value || '').trim());
+}
+
+function mediaItemFromObject(obj, forcedType = null) {
+  if (!isObject(obj)) return null;
+  const mimetype = pickFirstString(obj.mimetype, obj.mimeType, obj.mediaMimetype, obj.contentType);
+  const type = forcedType || normalizeMediaType(pickFirstString(obj.messageType, obj.type, obj.mediaType)) || typeFromMime(mimetype);
+  const url = pickFirstString(obj.fileURL, obj.fileUrl, obj.mediaUrl, obj.url, obj.downloadUrl, obj.directUrl);
+  const base64 = pickFirstString(obj.fileBase64, obj.mediaBase64, obj.base64, obj.file, obj.data);
+  const messageId = pickFirstString(obj.messageid, obj.messageId, obj.id, obj.key?.id);
+  const caption = pickFirstString(obj.caption, obj.text, obj.body);
+  if (!type || (!url && !base64 && !messageId)) return null;
+  return { messageType: type, mediaUrl: url, mediaMimetype: mimetype, mediaBase64: base64, messageId, content: caption };
+}
+
+function collectMediaItems(root, maxDepth = 6) {
+  const items = [];
+  const seenObjects = new WeakSet();
+  const seenItems = new Set();
+  const mediaKeys = {
+    imageMessage: 'image', videoMessage: 'video', audioMessage: 'audio',
+    documentMessage: 'document', stickerMessage: 'sticker', pttMessage: 'audio',
+  };
+  const skipKeys = new Set(['contextInfo', 'messageContextInfo', 'quotedMessage', 'quoted', 'quotedMsg']);
+
+  const add = (item) => {
+    if (!item) return;
+    const key = [item.messageType, item.messageId || '', item.mediaUrl || '', item.mediaBase64 ? item.mediaBase64.slice(0, 48) : ''].join('|');
+    if (seenItems.has(key)) return;
+    seenItems.add(key);
+    items.push(item);
+  };
+
+  const walk = (node, depth = 0, forcedType = null) => {
+    if (!node || depth > maxDepth) return;
+    if (Array.isArray(node)) {
+      node.forEach((entry) => walk(entry, depth + 1, forcedType));
+      return;
+    }
+    if (!isObject(node) || seenObjects.has(node)) return;
+    seenObjects.add(node);
+
+    add(mediaItemFromObject(node, forcedType));
+    Object.entries(mediaKeys).forEach(([key, type]) => {
+      if (node[key]) {
+        const nested = isObject(node[key]) ? { ...node[key], messageId: node[key].messageId || node.messageId || node.id } : node[key];
+        add(mediaItemFromObject(nested, type));
+        walk(nested, depth + 1, type);
+      }
+    });
+
+    Object.entries(node).forEach(([key, value]) => {
+      if (skipKeys.has(key)) return;
+      walk(value, depth + 1, forcedType);
+    });
+  };
+
+  walk(root);
+  return items;
+}
+
 function extractUazapiMessage(payload) {
   const data = payload?.data || payload?.message || payload || {};
-  const content = data.content && typeof data.content === 'object' ? data.content : {};
+  const nestedMessage = isObject(data.message) ? data.message : {};
+  const content = isObject(data.content) ? data.content : nestedMessage;
   
   // UAZAPI often puts media info in 'data' directly or in 'data.message'
   const msgTypeRaw = pickFirstString(data.messageType, data.type, data.mediaType, content.type) || 'text';
@@ -163,12 +257,12 @@ function extractUazapiMessage(payload) {
   else if (messageType.includes('video')) messageType = 'video';
   else if (messageType.includes('document') || messageType.includes('file')) messageType = 'document';
   else if (messageType.includes('sticker')) messageType = 'sticker';
-  else if (data.imageMessage || data.videoMessage || data.audioMessage || data.documentMessage || data.stickerMessage) {
-    if (data.imageMessage) messageType = 'image';
-    else if (data.videoMessage) messageType = 'video';
-    else if (data.audioMessage) messageType = 'audio';
-    else if (data.documentMessage) messageType = 'document';
-    else if (data.stickerMessage) messageType = 'sticker';
+  else if (data.imageMessage || data.videoMessage || data.audioMessage || data.documentMessage || data.stickerMessage || nestedMessage.imageMessage || nestedMessage.videoMessage || nestedMessage.audioMessage || nestedMessage.documentMessage || nestedMessage.stickerMessage) {
+    if (data.imageMessage || nestedMessage.imageMessage) messageType = 'image';
+    else if (data.videoMessage || nestedMessage.videoMessage) messageType = 'video';
+    else if (data.audioMessage || nestedMessage.audioMessage) messageType = 'audio';
+    else if (data.documentMessage || nestedMessage.documentMessage) messageType = 'document';
+    else if (data.stickerMessage || nestedMessage.stickerMessage) messageType = 'sticker';
   } else {
     messageType = 'text';
   }
@@ -226,6 +320,20 @@ function extractUazapiMessage(payload) {
     content.fileBase64
   );
 
+  let mediaItems = collectMediaItems(data);
+  if (mediaUrl || mediaBase64) {
+    mediaItems = [{
+      messageType,
+      mediaUrl,
+      mediaMimetype,
+      mediaBase64,
+      messageId: pickFirstString(data.messageid, data.messageId, data.id, payload?.id),
+      content: text,
+    }, ...mediaItems];
+  }
+  mediaItems = mediaItems.filter((item) => ['image', 'video', 'audio', 'document', 'sticker'].includes(item.messageType));
+  if (messageType === 'text' && mediaItems.length > 0) messageType = mediaItems[0].messageType;
+
   // Fallback for caption in text messages if content is actually a caption
   const finalContent = text || (['image', 'video', 'audio', 'document', 'sticker'].includes(messageType) ? null : '');
 
@@ -242,6 +350,7 @@ function extractUazapiMessage(payload) {
     mediaUrl,
     mediaMimetype,
     mediaBase64,
+    mediaItems,
     timestamp: data.messageTimestamp || data.timestamp || payload?.timestamp || null,
   };
 }
@@ -322,28 +431,39 @@ async function saveUazapiMessage(connection, payload) {
     );
   }
 
-  // Resolve a usable media URL.
-  // 1) Persist inline base64 immediately.
-  // 2) If UAZAPI sends a remote URL, cache it locally because provider URLs may expire or require auth.
-  // 3) Else, for media types, try downloading from UAZAPI by message id.
-  let resolvedMediaUrl = null;
-  const isMediaType = ['image', 'video', 'audio', 'document', 'sticker'].includes(msg.messageType);
-  if (msg.mediaBase64) {
-    resolvedMediaUrl = saveBase64ToUploads(msg.mediaBase64, msg.mediaMimetype);
-  }
-  if (!resolvedMediaUrl && msg.mediaUrl) {
-    resolvedMediaUrl = await cacheRemoteMediaUrl(msg.mediaUrl, msg.mediaMimetype) || msg.mediaUrl;
-  }
-  if (!resolvedMediaUrl && isMediaType && msg.messageId) {
-    resolvedMediaUrl = await downloadAndPersistMedia(connection, msg.messageId, msg.mediaMimetype);
+  let mediaEntries = msg.mediaItems?.length
+    ? msg.mediaItems
+    : [{ messageType: msg.messageType, mediaUrl: msg.mediaUrl, mediaMimetype: msg.mediaMimetype, mediaBase64: msg.mediaBase64, messageId: msg.messageId, content: msg.content }];
+
+  if ((!msg.mediaItems?.length || isAlbumPlaceholder(msg.content)) && msg.messageId && connection?.uazapi_server_url && connection?.uazapi_token) {
+    const downloaded = await uaz.downloadMedia({
+      serverUrl: connection.uazapi_server_url,
+      token: connection.uazapi_token,
+      messageId: msg.messageId,
+    }).catch(() => null);
+    const downloadedItems = downloaded?.ok ? collectMediaItems(downloaded.data).filter((item) => ['image', 'video', 'audio', 'document', 'sticker'].includes(item.messageType)) : [];
+    if (downloadedItems.length > 0) mediaEntries = downloadedItems.map((item) => ({ ...item, content: isAlbumPlaceholder(msg.content) ? null : (item.content || msg.content) }));
   }
 
-  await query(
-    `INSERT INTO chat_messages (conversation_id, message_id, content, raw_text, caption, message_type, media_url, media_mimetype, from_me, sender_name, sender_phone, status, timestamp)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, COALESCE(to_timestamp($13::double precision / 1000), NOW()))
-     ON CONFLICT (message_id) WHERE message_id IS NOT NULL AND message_id NOT LIKE 'temp_%' DO NOTHING`,
-    [conversationId, msg.messageId, msg.content || null, msg.content || null, (['image','video','document'].includes(msg.messageType) || msg.content) ? msg.content || null : null, msg.messageType, resolvedMediaUrl, msg.mediaMimetype, msg.fromMe, msg.isGroup ? msg.senderName : null, msg.isGroup ? normalizePhone(msg.sender) : null, msg.fromMe ? 'sent' : 'received', Number(msg.timestamp) || null]
-  );
+  for (let i = 0; i < mediaEntries.length; i++) {
+    const entry = mediaEntries[i];
+    const isMediaType = ['image', 'video', 'audio', 'document', 'sticker'].includes(entry.messageType);
+    let resolvedMediaUrl = null;
+    if (entry.mediaBase64) resolvedMediaUrl = saveBase64ToUploads(entry.mediaBase64, entry.mediaMimetype);
+    if (!resolvedMediaUrl && entry.mediaUrl) resolvedMediaUrl = await cacheRemoteMediaUrl(entry.mediaUrl, entry.mediaMimetype) || entry.mediaUrl;
+    if (!resolvedMediaUrl && isMediaType && (entry.messageId || msg.messageId)) {
+      resolvedMediaUrl = await downloadAndPersistMedia(connection, entry.messageId || msg.messageId, entry.mediaMimetype);
+    }
+
+    const content = isAlbumPlaceholder(entry.content || msg.content) ? null : (entry.content || msg.content || null);
+    const storedMessageId = mediaEntries.length > 1 ? `${msg.messageId}_${i + 1}` : msg.messageId;
+    await query(
+      `INSERT INTO chat_messages (conversation_id, message_id, content, raw_text, caption, message_type, media_url, media_mimetype, from_me, sender_name, sender_phone, status, timestamp)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, COALESCE(to_timestamp($13::double precision / 1000), NOW()))
+       ON CONFLICT (message_id) WHERE message_id IS NOT NULL AND message_id NOT LIKE 'temp_%' DO NOTHING`,
+      [conversationId, storedMessageId, content, content, (['image','video','document'].includes(entry.messageType) || content) ? content : null, entry.messageType, resolvedMediaUrl, entry.mediaMimetype, msg.fromMe, msg.isGroup ? msg.senderName : null, msg.isGroup ? normalizePhone(msg.sender) : null, msg.fromMe ? 'sent' : 'received', Number(msg.timestamp) || null]
+    );
+  }
 
   return buildAuditOutcome('saved', null, true);
 }
