@@ -1834,11 +1834,12 @@ export function ChatArea({
 
 
       {/* Messages */}
-      <ScrollArea
-        ref={scrollAreaRef}
-        viewportRef={scrollContainerRef}
-        className={cn("flex-1 chat-wallpaper min-w-0 relative", isMobile ? "p-3" : "p-4")}
-      >
+      <div className="flex-1 relative min-h-0">
+        <ScrollArea
+          ref={scrollAreaRef}
+          viewportRef={scrollContainerRef}
+          className={cn("absolute inset-0 chat-wallpaper min-w-0", isMobile ? "p-3" : "p-4")}
+        >
         {hasMore && (
           <div className="flex justify-center mb-4">
             <Button
