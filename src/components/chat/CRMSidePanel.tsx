@@ -1604,15 +1604,25 @@ export function CRMSidePanel({
                   </div>
                 ) : (
                   contactDocs.filter(d => d.status === 'signed').map(doc => (
-                    <div key={doc.id} className="flex items-center justify-between p-2 rounded-lg border bg-green-50/30 dark:bg-green-950/10 border-green-200/50 dark:border-green-900/30 group">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <FileSignature className="h-3.5 w-3.5 text-green-600 shrink-0" />
-                        <div className="min-w-0">
-                          <p className="text-[11px] font-medium truncate">{doc.name}</p>
-                          <p className="text-[9px] text-muted-foreground">Assinado em {format(new Date(doc.signed_at || doc.updated_at), "dd/MM/yy", { locale: ptBR })}</p>
+                    <div key={doc.id} className="p-2 rounded-lg border bg-green-50/30 dark:bg-green-950/10 border-green-200/50 dark:border-green-900/30">
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="flex items-start gap-2 min-w-0 flex-1">
+                          <FileSignature className="h-3.5 w-3.5 text-green-600 shrink-0 mt-0.5" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[11px] font-medium truncate">{doc.name}</p>
+                            <p className="text-[9px] text-muted-foreground">Assinado em {format(new Date(doc.signed_at || doc.updated_at), "dd/MM/yy 'às' HH:mm", { locale: ptBR })}</p>
+                          </div>
                         </div>
+                        <Badge variant="outline" className="text-[8px] h-4 bg-green-100 text-green-700 dark:bg-green-900/30 border-none">OK</Badge>
                       </div>
-                      <Badge variant="outline" className="text-[8px] h-4 bg-green-100 text-green-700 dark:bg-green-900/30 border-none">OK</Badge>
+                      <div className="flex items-center gap-1">
+                        <Button size="sm" variant="ghost" className="h-6 text-[10px] gap-1 px-1.5 flex-1" onClick={() => handleOpenDoc(doc)} disabled={!doc.file_data_url}>
+                          <Eye className="h-3 w-3" /> Abrir
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-6 text-[10px] gap-1 px-1.5 flex-1" onClick={() => downloadDocument(doc)} disabled={!doc.file_data_url}>
+                          <Download className="h-3 w-3" /> Baixar
+                        </Button>
+                      </div>
                     </div>
                   ))
                 )}
