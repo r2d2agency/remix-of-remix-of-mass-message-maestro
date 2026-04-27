@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { Upload, Loader2, FileText, X, ClipboardPaste } from "lucide-react";
-import { addDocument } from "@/hooks/use-documents-store";
+import { addDocument, fileToDataURL } from "@/hooks/use-documents-store";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
