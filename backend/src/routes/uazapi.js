@@ -46,26 +46,67 @@ function pickFirstString(...values) {
 function extractUazapiMessage(payload) {
   const data = payload?.data || payload?.message || payload || {};
   const content = data.content && typeof data.content === 'object' ? data.content : {};
-  const messageTypeRaw = pickFirstString(data.messageType, data.type, data.mediaType, content.type) || 'text';
-  let messageType = String(messageTypeRaw).toLowerCase();
+  
+  // UAZAPI often puts media info in 'data' directly or in 'data.message'
+  // Let's try to be more aggressive in finding media details
+  const msgTypeRaw = pickFirstString(data.messageType, data.type, data.mediaType, content.type) || 'text';
+  let messageType = String(msgTypeRaw).toLowerCase();
+  
   if (messageType.includes('image')) messageType = 'image';
   else if (messageType.includes('audio') || messageType.includes('ptt')) messageType = 'audio';
   else if (messageType.includes('video')) messageType = 'video';
   else if (messageType.includes('document') || messageType.includes('file')) messageType = 'document';
   else if (messageType.includes('sticker')) messageType = 'sticker';
-  else messageType = 'text';
+  else if (data.imageMessage || data.videoMessage || data.audioMessage || data.documentMessage || data.stickerMessage) {
+    if (data.imageMessage) messageType = 'image';
+    else if (data.videoMessage) messageType = 'video';
+    else if (data.audioMessage) messageType = 'audio';
+    else if (data.documentMessage) messageType = 'document';
+    else if (data.stickerMessage) messageType = 'sticker';
+  } else {
+    messageType = 'text';
+  }
 
   const text = pickFirstString(
     data.text,
     data.body,
     data.caption,
+    data.imageMessage?.caption,
+    data.videoMessage?.caption,
+    data.documentMessage?.caption,
     content.text,
     content.caption,
     content.conversation,
     content.body
   );
-  const mediaUrl = pickFirstString(data.fileURL, data.fileUrl, data.mediaUrl, data.url, content.url, content.fileURL, content.fileUrl, content.mediaUrl);
-  const mediaMimetype = pickFirstString(data.mimetype, data.mimeType, content.mimetype, content.mimeType);
+
+  const mediaUrl = pickFirstString(
+    data.fileURL,
+    data.fileUrl,
+    data.mediaUrl,
+    data.url,
+    data.imageMessage?.url,
+    data.videoMessage?.url,
+    data.audioMessage?.url,
+    data.documentMessage?.url,
+    data.stickerMessage?.url,
+    content.url,
+    content.fileURL,
+    content.fileUrl,
+    content.mediaUrl
+  );
+
+  const mediaMimetype = pickFirstString(
+    data.mimetype,
+    data.mimeType,
+    data.imageMessage?.mimetype,
+    data.videoMessage?.mimetype,
+    data.audioMessage?.mimetype,
+    data.documentMessage?.mimetype,
+    data.stickerMessage?.mimetype,
+    content.mimetype,
+    content.mimeType
+  );
 
   return {
     data,
