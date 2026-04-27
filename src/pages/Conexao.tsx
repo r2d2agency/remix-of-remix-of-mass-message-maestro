@@ -564,7 +564,12 @@ const handleGetQRCode = async (connection: Connection) => {
   const handleClearWebhookEvents = async () => {
     if (!webhookViewerConnection) return;
     try {
-      await api(`/api/evolution/${webhookViewerConnection.id}/webhook-events`, { method: 'DELETE' });
+      if (isUazapi(webhookViewerConnection)) {
+        // Assume the same endpoint works with DELETE or we'll need to check
+        await api(`/api/uazapi/${webhookViewerConnection.id}/webhook-events`, { method: 'DELETE' });
+      } else {
+        await api(`/api/evolution/${webhookViewerConnection.id}/webhook-events`, { method: 'DELETE' });
+      }
       setWebhookEvents([]);
       toast.success('Eventos limpos');
     } catch (error: any) {
