@@ -32,12 +32,12 @@ function formatBytes(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
 }
 
-export function DocumentUploadDialog({ open, onOpenChange }: DocumentUploadDialogProps) {
+export function DocumentUploadDialog({ open, onOpenChange, defaultClientName, defaultClientPhone, lockClient }: DocumentUploadDialogProps) {
   const [file, setFile] = useState<File | null>(null);
   const [name, setName] = useState("");
   const [type, setType] = useState("outro");
   const [status, setStatus] = useState<"draft" | "in_analysis">("draft");
-  const [client, setClient] = useState("");
+  const [client, setClient] = useState(defaultClientName || "");
   const [progress, setProgress] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -45,17 +45,19 @@ export function DocumentUploadDialog({ open, onOpenChange }: DocumentUploadDialo
   const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!open) {
+    if (open) {
+      setClient(defaultClientName || "");
+    } else {
       setFile(null);
       setName("");
       setType("outro");
-      setClient("");
+      setClient(defaultClientName || "");
       setStatus("draft");
       setProgress(0);
       setUploading(false);
       setDragOver(false);
     }
-  }, [open]);
+  }, [open, defaultClientName]);
 
   const handleSetFile = (f: File | null | undefined) => {
     if (!f) return;
