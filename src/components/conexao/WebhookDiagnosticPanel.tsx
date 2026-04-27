@@ -164,15 +164,30 @@ interface Props {
 }
 
 export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
-  // Detect W-API: explicit provider OR has instance_id
-  const isWapi = connection.provider === 'wapi' || 
-    (!!connection.instance_id && !connection.instance_name) ||
-    (!!connection.instance_id && connection.instance_id.length > 0);
-  
+  // Detect provider explicitly. UAZAPI takes priority when explicitly marked.
+  const isUazapi = connection.provider === 'uazapi';
+  // W-API: explicit provider OR has instance_id (and not UAZAPI)
+  const isWapi = !isUazapi && (
+    connection.provider === 'wapi' ||
+    (!!connection.instance_id && connection.instance_id.length > 0)
+  );
+
   const [loading, setLoading] = useState(true);
   const [reconfiguring, setReconfiguring] = useState(false);
   const [diagnostic, setDiagnostic] = useState<DiagnosticResult | null>(null);
   const [wapiDiagnostic, setWapiDiagnostic] = useState<WapiDiagnosticResult | null>(null);
+
+  // UAZAPI state
+  const [uazWebhook, setUazWebhook] = useState<{
+    expectedUrl: string;
+    registeredUrl: string | null;
+    enabled: boolean | null;
+    events: string[];
+    matches: boolean;
+    ok: boolean;
+  } | null>(null);
+  const [uazEvents, setUazEvents] = useState<any[]>([]);
+  const [uazStatus, setUazStatus] = useState<{ status: string; phoneNumber?: string } | null>(null);
 
   // Evolution webhook events (persisted on backend)
   const [events, setEvents] = useState<WebhookEvent[]>([]);
