@@ -2345,7 +2345,7 @@ export function ChatArea({
 
       {/* Selection mode floating bar */}
       {selectionMode && (
-        <div className="border-t bg-card p-3 flex items-center justify-between gap-2">
+        <div className="border-t bg-card p-3 flex flex-shrink-0 items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Badge variant="secondary">{selectedMessages.length} selecionada(s)</Badge>
             <Button variant="ghost" size="sm" onClick={() => {
@@ -2369,7 +2369,7 @@ export function ChatArea({
 
       {/* Input - Show readonly message for supervisors */}
       {!selectionMode && isViewOnly ? (
-        <div className="p-4 border-t bg-muted/50">
+        <div className="p-4 border-t bg-muted/50 flex-shrink-0">
           <div className="flex items-center justify-center gap-2 text-muted-foreground py-3">
             <Users className="h-5 w-5" />
             <span className="text-sm font-medium">Modo Supervisor - Apenas visualização</span>
