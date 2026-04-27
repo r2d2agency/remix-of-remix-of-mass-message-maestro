@@ -1603,7 +1603,7 @@ router.post('/conversations/:id/messages', authenticate, async (req, res) => {
     const { content, message_type = 'text', media_url, media_mimetype, quoted_message_id } = req.body;
     const connectionIds = await getUserConnections(req.userId);
 
-    // Get conversation with connection details (including W-API fields)
+    // Get conversation with connection details (including provider-specific fields)
     const convResult = await query(
       `SELECT 
         conv.*,
@@ -1613,6 +1613,8 @@ router.post('/conversations/:id/messages', authenticate, async (req, res) => {
         conn.provider,
         conn.instance_id,
         conn.wapi_token,
+        conn.uazapi_url,
+        conn.uazapi_token,
         conn.status as connection_status
       FROM conversations conv
       JOIN connections conn ON conn.id = conv.connection_id
@@ -1626,10 +1628,11 @@ router.post('/conversations/:id/messages', authenticate, async (req, res) => {
 
     const conversation = convResult.rows[0];
 
-    // For W-API, consider connected if has instance_id and token (status may not be updated yet)
+    // For W-API/UAZAPI, consider connected if has credentials (status might be slow to update)
     const provider = whatsappProvider.detectProvider(conversation);
     const isConnected = conversation.connection_status === 'connected' || 
-      (provider === 'wapi' && conversation.instance_id && conversation.wapi_token);
+      (provider === 'wapi' && conversation.instance_id && conversation.wapi_token) ||
+      (provider === 'uazapi' && conversation.uazapi_url && conversation.uazapi_token);
 
     if (!isConnected) {
       return res.status(400).json({ error: 'Conexão não está ativa' });

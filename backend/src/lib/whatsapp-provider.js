@@ -2,6 +2,7 @@
 // Routes requests to the correct provider (Evolution API or W-API)
 
 import * as wapiProvider from './wapi-provider.js';
+import * as uazapiProvider from './uazapi-provider.js';
 import { logError, logInfo, logWarn } from '../logger.js';
 
 /**
@@ -16,6 +17,11 @@ export function detectProvider(connection) {
   if (connection.instance_id && connection.wapi_token) {
     return 'wapi';
   }
+
+  // If has uazapi_url, it's UAZAPI
+  if (connection.uazapi_url || connection.provider === 'uazapi') {
+    return 'uazapi';
+  }
   
   // Default to Evolution
   return 'evolution';
@@ -29,6 +35,13 @@ export async function checkStatus(connection) {
 
   if (provider === 'wapi') {
     return wapiProvider.checkStatus(connection.instance_id, connection.wapi_token);
+  }
+
+  if (provider === 'uazapi') {
+    return uazapiProvider.getStatus({
+      serverUrl: connection.uazapi_url,
+      token: connection.uazapi_token,
+    });
   }
 
   // Evolution API
@@ -110,6 +123,14 @@ export async function getQRCode(connection) {
     return wapiProvider.getQRCode(connection.instance_id, connection.wapi_token);
   }
 
+  if (provider === 'uazapi') {
+    const res = await uazapiProvider.connect({
+      serverUrl: connection.uazapi_url,
+      token: connection.uazapi_token,
+    });
+    return res.qrcode;
+  }
+
   // Evolution API
   try {
     const response = await fetch(
@@ -139,6 +160,14 @@ export async function disconnect(connection) {
 
   if (provider === 'wapi') {
     return wapiProvider.disconnect(connection.instance_id, connection.wapi_token);
+  }
+
+  if (provider === 'uazapi') {
+    const res = await uazapiProvider.disconnect({
+      serverUrl: connection.uazapi_url,
+      token: connection.uazapi_token,
+    });
+    return res.success;
   }
 
   // Evolution API
@@ -201,6 +230,47 @@ export async function sendMessage(connection, phone, content, messageType, media
       return { success: false, error: error.message };
     }
   }
+
+  if (provider === 'uazapi') {
+    try {
+      let result;
+      const params = {
+        serverUrl: connection.uazapi_url,
+        token: connection.uazapi_token,
+        phone,
+      };
+
+      if (messageType === 'text') {
+        result = await uazapiProvider.sendText({ ...params, text: content });
+      } else if (messageType === 'audio') {
+        result = await uazapiProvider.sendAudio({ ...params, fileUrl: mediaUrl, ptt: true });
+      } else if (messageType === 'image') {
+        result = await uazapiProvider.sendImage({ ...params, fileUrl: mediaUrl, caption: content });
+      } else if (messageType === 'video') {
+        result = await uazapiProvider.sendVideo({ ...params, fileUrl: mediaUrl, caption: content });
+      } else {
+        result = await uazapiProvider.sendDocument({ ...params, fileUrl: mediaUrl, filename: 'Document' });
+      }
+
+      logInfo('whatsapp.send_message_uazapi_result', {
+        connection_id: connection.id,
+        success: result.ok,
+        status: result.status,
+        duration_ms: Date.now() - startedAt,
+      });
+
+      return {
+        success: result.ok,
+        messageId: result.data?.key?.id || result.data?.id || result.data?.messageId,
+        error: result.ok ? null : (result.data?.error || `HTTP ${result.status}`),
+      };
+    } catch (error) {
+      logError('whatsapp.send_message_uazapi_exception', error, {
+        connection_id: connection.id,
+        duration_ms: Date.now() - startedAt,
+      });
+      return { success: false, error: error.message };
+    }
 
   // Evolution API
   try {
@@ -266,6 +336,15 @@ export async function checkNumber(connection, phone) {
 
   if (provider === 'wapi') {
     return wapiProvider.checkNumber(connection.instance_id, connection.wapi_token, phone);
+  }
+
+  if (provider === 'uazapi') {
+    const res = await uazapiProvider.checkNumber({
+      serverUrl: connection.uazapi_url,
+      token: connection.uazapi_token,
+      phones: [phone],
+    });
+    return res.results?.[0]?.exists === true;
   }
 
   // Evolution API
