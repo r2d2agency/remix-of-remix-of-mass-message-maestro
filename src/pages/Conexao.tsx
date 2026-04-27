@@ -1155,14 +1155,25 @@ const handleGetQRCode = async (connection: Connection) => {
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
-                          <AlertDialogTitle>Excluir conexão?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Esta ação não pode ser desfeita. A conexão "{connection.name}" será permanentemente excluída.
+                          <AlertDialogTitle className="text-destructive flex items-center gap-2">
+                            <FileWarning className="h-5 w-5" />
+                            EXCLUIR CONEXÃO E APAGAR TUDO?
+                          </AlertDialogTitle>
+                          <AlertDialogDescription className="space-y-3">
+                            <p className="font-bold text-foreground">
+                              ⚠️ ATENÇÃO: Esta ação é IRREVERSÍVEL.
+                            </p>
+                            <p>
+                              Ao excluir a conexão "<span className="font-semibold">{connection.name}</span>", você perderá o vínculo com todas as conversas e históricos vinculados a este número no sistema.
+                            </p>
                             {connection.status === 'connected' && (
-                              <span className="block mt-2 text-yellow-500">
-                                ⚠️ Esta conexão está ativa e será desconectada.
-                              </span>
+                              <p className="text-destructive font-medium">
+                                Esta conexão está ATIVA e será interrompida imediatamente.
+                              </p>
                             )}
+                            <p className="text-xs text-muted-foreground italic">
+                              Tem certeza que deseja prosseguir com a exclusão definitiva?
+                            </p>
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
