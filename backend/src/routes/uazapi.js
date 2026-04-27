@@ -3,8 +3,170 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import * as uaz from '../lib/uazapi-provider.js';
+import crypto from 'crypto';
 
 const router = Router();
+
+function buildAuditOutcome(processResult, processError = null, processed = true) {
+  return { processed, processResult, processError };
+}
+
+async function updateInboundAudit(auditId, outcome) {
+  if (!auditId || !outcome) return;
+  await query(
+    `UPDATE inbound_webhook_audit
+     SET processed = $1, process_result = $2, process_error = $3
+     WHERE id = $4`,
+    [outcome.processed !== false, outcome.processResult || null, outcome.processError || null, auditId]
+  ).catch(() => {});
+}
+
+function normalizePhone(value) {
+  const raw = String(value || '').replace(/@.*$/, '');
+  return raw.replace(/\D/g, '');
+}
+
+function normalizeJid(value, isGroup = false) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  if (raw.includes('@')) return raw;
+  const phone = normalizePhone(raw);
+  if (!phone) return null;
+  return isGroup ? `${phone}@g.us` : `${phone}@s.whatsapp.net`;
+}
+
+function pickFirstString(...values) {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return null;
+}
+
+function extractUazapiMessage(payload) {
+  const data = payload?.data || payload?.message || payload || {};
+  const content = data.content && typeof data.content === 'object' ? data.content : {};
+  const messageTypeRaw = pickFirstString(data.messageType, data.type, data.mediaType, content.type) || 'text';
+  let messageType = String(messageTypeRaw).toLowerCase();
+  if (messageType.includes('image')) messageType = 'image';
+  else if (messageType.includes('audio') || messageType.includes('ptt')) messageType = 'audio';
+  else if (messageType.includes('video')) messageType = 'video';
+  else if (messageType.includes('document') || messageType.includes('file')) messageType = 'document';
+  else if (messageType.includes('sticker')) messageType = 'sticker';
+  else messageType = 'text';
+
+  const text = pickFirstString(
+    data.text,
+    data.body,
+    data.caption,
+    content.text,
+    content.caption,
+    content.conversation,
+    content.body
+  );
+  const mediaUrl = pickFirstString(data.fileURL, data.fileUrl, data.mediaUrl, data.url, content.url, content.fileURL, content.fileUrl, content.mediaUrl);
+  const mediaMimetype = pickFirstString(data.mimetype, data.mimeType, content.mimetype, content.mimeType);
+
+  return {
+    data,
+    messageId: pickFirstString(data.messageid, data.messageId, data.id, payload?.id) || crypto.randomUUID(),
+    chatId: pickFirstString(data.chatid, data.chatId, data.remoteJid, data.from, data.to, payload?.chatid, payload?.chatId),
+    sender: pickFirstString(data.sender, data.sender_pn, data.sender_lid, data.owner),
+    senderName: pickFirstString(data.senderName, data.pushName, data.name),
+    fromMe: data.fromMe === true || data.wasSentByApi === true,
+    isGroup: data.isGroup === true || String(data.chatid || data.chatId || '').includes('@g.us'),
+    messageType,
+    content: text || (messageType === 'text' ? '' : `[${messageType === 'image' ? 'Imagem' : messageType === 'audio' ? 'Áudio' : messageType === 'video' ? 'Vídeo' : messageType === 'document' ? 'Documento' : 'Mídia'}]`),
+    mediaUrl,
+    mediaMimetype,
+    timestamp: data.messageTimestamp || data.timestamp || payload?.timestamp || null,
+  };
+}
+
+async function findUazapiConnection(payload, req) {
+  const possible = [
+    payload?.token,
+    payload?.instance?.token,
+    payload?.data?.token,
+    req.headers['x-token'],
+  ].filter(Boolean);
+
+  for (const token of possible) {
+    const c = await query(`SELECT * FROM connections WHERE provider = 'uazapi' AND uazapi_token = $1 LIMIT 1`, [token]);
+    if (c.rows[0]) return c.rows[0];
+  }
+
+  const instanceRef = payload?.instance?.name || payload?.instance?.id || payload?.instance || payload?.data?.instance || payload?.data?.owner || null;
+  if (instanceRef) {
+    const c = await query(
+      `SELECT * FROM connections
+       WHERE provider = 'uazapi'
+         AND (uazapi_instance_name = $1 OR phone_number = $1 OR uazapi_token = $1)
+       LIMIT 1`,
+      [String(instanceRef)]
+    );
+    if (c.rows[0]) return c.rows[0];
+  }
+
+  return null;
+}
+
+async function saveUazapiMessage(connection, payload) {
+  const msg = extractUazapiMessage(payload);
+  if (!msg.chatId) return buildAuditOutcome('skipped', 'message without chat id', false);
+  if (msg.fromMe && msg.data.wasSentByApi === true) return buildAuditOutcome('ignored', 'message sent by api ignored', true);
+
+  const remoteJid = normalizeJid(msg.chatId, msg.isGroup);
+  if (!remoteJid) return buildAuditOutcome('skipped', 'invalid chat id', false);
+
+  const cleanPhone = msg.isGroup ? null : normalizePhone(msg.chatId);
+  const contactName = msg.isGroup
+    ? (pickFirstString(msg.data.chatName, msg.data.groupName, msg.data.name) || 'Grupo')
+    : (msg.senderName || cleanPhone);
+
+  let conv = await query(`SELECT id FROM conversations WHERE connection_id = $1 AND remote_jid = $2 LIMIT 1`, [connection.id, remoteJid]);
+  let conversationId = conv.rows[0]?.id;
+
+  if (!conversationId && cleanPhone) {
+    conv = await query(
+      `SELECT id FROM conversations WHERE connection_id = $1 AND contact_phone = $2 AND COALESCE(is_group, false) = false ORDER BY last_message_at DESC LIMIT 1`,
+      [connection.id, cleanPhone]
+    );
+    conversationId = conv.rows[0]?.id;
+  }
+
+  if (!conversationId) {
+    const inserted = await query(
+      `INSERT INTO conversations (connection_id, remote_jid, contact_name, contact_phone, is_group, group_name, last_message_at, unread_count, attendance_status)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW(), $7, $8)
+       RETURNING id`,
+      [connection.id, remoteJid, contactName, cleanPhone, msg.isGroup, msg.isGroup ? contactName : null, msg.fromMe ? 0 : 1, msg.fromMe ? 'attending' : 'waiting']
+    );
+    conversationId = inserted.rows[0].id;
+  } else {
+    await query(
+      `UPDATE conversations
+       SET last_message_at = NOW(),
+           unread_count = CASE WHEN $2 THEN unread_count ELSE unread_count + 1 END,
+           contact_name = COALESCE($3, contact_name),
+           remote_jid = $4,
+           attendance_status = CASE WHEN NOT $2 AND attendance_status = 'finished' THEN 'waiting' ELSE attendance_status END,
+           accepted_at = CASE WHEN NOT $2 AND attendance_status = 'finished' THEN NULL ELSE accepted_at END,
+           accepted_by = CASE WHEN NOT $2 AND attendance_status = 'finished' THEN NULL ELSE accepted_by END,
+           updated_at = NOW()
+       WHERE id = $1`,
+      [conversationId, msg.fromMe, contactName, remoteJid]
+    );
+  }
+
+  await query(
+    `INSERT INTO chat_messages (conversation_id, message_id, content, raw_text, caption, message_type, media_url, media_mimetype, from_me, sender_name, sender_phone, status, timestamp)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, COALESCE(to_timestamp($13::double precision / 1000), NOW()))
+     ON CONFLICT (message_id) WHERE message_id IS NOT NULL AND message_id NOT LIKE 'temp_%' DO NOTHING`,
+    [conversationId, msg.messageId, msg.content || null, msg.content || null, ['image','video','document'].includes(msg.messageType) ? msg.content || null : null, msg.messageType, msg.mediaUrl, msg.mediaMimetype, msg.fromMe, msg.isGroup ? msg.senderName : null, msg.isGroup ? normalizePhone(msg.sender) : null, msg.fromMe ? 'sent' : 'received', Number(msg.timestamp) || null]
+  );
+
+  return buildAuditOutcome('saved', null, true);
+}
 
 // ----- helpers -----
 async function isSuperadmin(userId) {
@@ -67,22 +229,44 @@ router.post('/webhook', async (req, res) => {
   try {
     const payload = req.body || {};
     const eventType = payload.event || payload.EventType || payload.type || 'unknown';
-    const instanceToken = payload.token || payload.instance?.token || req.headers['x-token'];
-
-    let connectionId = null;
-    if (instanceToken) {
-      const c = await query(
-        `SELECT id FROM connections WHERE uazapi_token = $1 LIMIT 1`,
-        [instanceToken]
-      );
-      connectionId = c.rows[0]?.id || null;
-    }
+    const connection = await findUazapiConnection(payload, req);
+    const connectionId = connection?.id || null;
+    const data = payload.data || payload.message || payload;
+    const eventMsgId = data?.messageid || data?.messageId || data?.id || payload.id || null;
+    const remoteJid = data?.chatid || data?.chatId || data?.remoteJid || data?.from || data?.to || null;
+    const fromMe = data?.fromMe === true || data?.wasSentByApi === true;
+    let auditId = null;
 
     await query(
       `INSERT INTO uazapi_webhook_events (connection_id, event_type, payload, status)
        VALUES ($1, $2, $3, 'received')`,
       [connectionId, eventType, JSON.stringify(payload)]
     );
+
+    try {
+      const auditResult = await query(
+        `INSERT INTO inbound_webhook_audit (provider, connection_id, event_id, event_type, remote_jid, instance_id, from_me, payload, received_at)
+         VALUES ('uazapi', $1, $2, $3, $4, $5, $6, $7::jsonb, NOW())
+         ON CONFLICT (provider, event_id) WHERE event_id IS NOT NULL DO UPDATE SET received_at = NOW()
+         RETURNING id`,
+        [connectionId, eventMsgId, eventType, remoteJid, connection?.uazapi_instance_name || null, fromMe, JSON.stringify(payload).slice(0, 8000)]
+      );
+      auditId = auditResult.rows[0]?.id || null;
+    } catch (auditErr) {
+      console.warn('[UAZAPI webhook] Audit insert skipped:', auditErr?.message);
+    }
+
+    if (!connection) {
+      await updateInboundAudit(auditId, buildAuditOutcome('skipped', 'connection not found', false));
+      return;
+    }
+
+    if (eventType === 'messages' || eventType === 'message' || data?.messageid || data?.messageId) {
+      const outcome = await saveUazapiMessage(connection, payload);
+      await updateInboundAudit(auditId, outcome);
+    } else {
+      await updateInboundAudit(auditId, buildAuditOutcome(eventType === 'connection' ? 'saved' : 'ignored', null, true));
+    }
 
     // Update connection status when connection event arrives
     if (connectionId && eventType === 'connection') {
@@ -244,6 +428,13 @@ router.post('/instances', async (req, res) => {
       ]
     );
     const connection = ins.rows[0];
+
+    await query(
+      `INSERT INTO connection_members (connection_id, user_id, can_view, can_send, can_manage)
+       VALUES ($1, $2, true, true, true)
+       ON CONFLICT (connection_id, user_id) DO UPDATE SET can_view = true, can_send = true`,
+      [connection.id, req.userId]
+    ).catch((e) => console.warn('[UAZAPI] could not assign creator to connection:', e?.message));
 
     // 3) Configure webhook (always — infer public URL if env is missing)
     const inferredBase =
