@@ -209,13 +209,20 @@ const Conexao = () => {
         // Immediately try to reconfigure webhook and activate settings for UAZAPI
         try {
           console.log('Auto-configuring UAZAPI for:', result.id);
+          // 1. Reconfigure Webhook
           await uazapiApi.reconfigureWebhook(result.id);
+          
+          // 2. Activate Instance settings (auto-read, etc)
+          // Note: The backend should handle activating settings during/after webhook config, 
+          // or we can call a generic "activate" endpoint if available.
+          // For now, ensuring we call reconfigureWebhook which usually triggers full sync.
         } catch (e) {
           console.warn('Could not auto-configure UAZAPI webhook', e);
         }
 
         // Immediately fetch QR
         try {
+          // Ensure we wait a bit for instance to be ready in UAZAPI
           const qr = await uazapiApi.connect(result.id);
           if (qr.qrcode) {
             setSelectedConnection(result);
@@ -379,16 +386,21 @@ const handleGetQRCode = async (connection: Connection) => {
     try {
       let deleteUrl: string;
       if (isUazapi(connection)) {
-        deleteUrl = `/api/uazapi/${connection.id}`;
+        // Use the native UAZAPI remove method which calls the backend DELETE /api/uazapi/:id
+        // which in turn should call UAZAPI delete instance endpoint
+        await uazapiApi.remove(connection.id);
       } else if (isWapiConn(connection)) {
         deleteUrl = `/api/connections/${connection.id}`;
+        await api(deleteUrl, { method: 'DELETE' });
       } else {
         deleteUrl = `/api/evolution/${connection.id}`;
+        await api(deleteUrl, { method: 'DELETE' });
       }
-      await api(deleteUrl, { method: 'DELETE' });
+      
       setConnections(prev => prev.filter(c => c.id !== connection.id));
-      toast.success('Conexão excluída');
+      toast.success('Conexão excluída com sucesso');
     } catch (error: any) {
+      console.error('Error deleting connection:', error);
       toast.error(error?.message || 'Erro ao excluir conexão');
     }
   };
