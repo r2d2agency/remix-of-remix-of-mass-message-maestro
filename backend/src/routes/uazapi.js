@@ -105,8 +105,16 @@ async function downloadAndPersistMedia(connection, messageId, mimetypeHint) {
     const d = r.data;
     const base64 = d.fileBase64 || d.base64 || d.file || d.data || (typeof d === 'string' ? d : null);
     const mime = d.mimetype || d.mimeType || mimetypeHint;
-    if (!base64) return null;
-    return saveBase64ToUploads(base64, mime);
+    if (base64) return saveBase64ToUploads(base64, mime);
+    const downloadedItems = collectMediaItems(d);
+    for (const item of downloadedItems) {
+      if (item.mediaBase64) return saveBase64ToUploads(item.mediaBase64, item.mediaMimetype || mime);
+      if (item.mediaUrl) {
+        const cached = await cacheRemoteMediaUrl(item.mediaUrl, item.mediaMimetype || mime);
+        if (cached) return cached;
+      }
+    }
+    return null;
   } catch (err) {
     console.warn('[UAZAPI] downloadAndPersistMedia failed:', err?.message);
     return null;
