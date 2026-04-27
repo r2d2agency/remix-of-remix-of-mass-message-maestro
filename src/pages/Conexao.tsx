@@ -541,7 +541,12 @@ const handleGetQRCode = async (connection: Connection) => {
     setWebhookEventsLoading(true);
     setWebhookEventsError(null);
     try {
-      const result = await api<{ events: any[] }>(`/api/evolution/${connection.id}/webhook-events?limit=50`);
+      let result;
+      if (isUazapi(connection)) {
+        result = await uazapiApi.webhookEvents(connection.id);
+      } else {
+        result = await api<{ events: any[] }>(`/api/evolution/${connection.id}/webhook-events?limit=50`);
+      }
       setWebhookEvents(result.events || []);
     } catch (error: any) {
       setWebhookEventsError(error.message || 'Erro ao buscar eventos do webhook');
