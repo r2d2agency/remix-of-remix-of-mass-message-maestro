@@ -48,7 +48,6 @@ function extractUazapiMessage(payload) {
   const content = data.content && typeof data.content === 'object' ? data.content : {};
   
   // UAZAPI often puts media info in 'data' directly or in 'data.message'
-  // Let's try to be more aggressive in finding media details
   const msgTypeRaw = pickFirstString(data.messageType, data.type, data.mediaType, content.type) || 'text';
   let messageType = String(msgTypeRaw).toLowerCase();
   
@@ -108,6 +107,9 @@ function extractUazapiMessage(payload) {
     content.mimeType
   );
 
+  // Fallback for caption in text messages if content is actually a caption
+  const finalContent = text || (['image', 'video', 'audio', 'document', 'sticker'].includes(messageType) ? null : '');
+
   return {
     data,
     messageId: pickFirstString(data.messageid, data.messageId, data.id, payload?.id) || crypto.randomUUID(),
@@ -117,7 +119,7 @@ function extractUazapiMessage(payload) {
     fromMe: data.fromMe === true || data.wasSentByApi === true,
     isGroup: data.isGroup === true || String(data.chatid || data.chatId || '').includes('@g.us'),
     messageType,
-    content: text || (messageType === 'text' ? '' : `[${messageType === 'image' ? 'Imagem' : messageType === 'audio' ? 'Áudio' : messageType === 'video' ? 'Vídeo' : messageType === 'document' ? 'Documento' : 'Mídia'}]`),
+    content: finalContent,
     mediaUrl,
     mediaMimetype,
     timestamp: data.messageTimestamp || data.timestamp || payload?.timestamp || null,
@@ -204,7 +206,7 @@ async function saveUazapiMessage(connection, payload) {
     `INSERT INTO chat_messages (conversation_id, message_id, content, raw_text, caption, message_type, media_url, media_mimetype, from_me, sender_name, sender_phone, status, timestamp)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, COALESCE(to_timestamp($13::double precision / 1000), NOW()))
      ON CONFLICT (message_id) WHERE message_id IS NOT NULL AND message_id NOT LIKE 'temp_%' DO NOTHING`,
-    [conversationId, msg.messageId, msg.content || null, msg.content || null, ['image','video','document'].includes(msg.messageType) ? msg.content || null : null, msg.messageType, msg.mediaUrl, msg.mediaMimetype, msg.fromMe, msg.isGroup ? msg.senderName : null, msg.isGroup ? normalizePhone(msg.sender) : null, msg.fromMe ? 'sent' : 'received', Number(msg.timestamp) || null]
+    [conversationId, msg.messageId, msg.content || null, msg.content || null, (['image','video','document'].includes(msg.messageType) || msg.content) ? msg.content || null : null, msg.messageType, msg.mediaUrl, msg.mediaMimetype, msg.fromMe, msg.isGroup ? msg.senderName : null, msg.isGroup ? normalizePhone(msg.sender) : null, msg.fromMe ? 'sent' : 'received', Number(msg.timestamp) || null]
   );
 
   return buildAuditOutcome('saved', null, true);
