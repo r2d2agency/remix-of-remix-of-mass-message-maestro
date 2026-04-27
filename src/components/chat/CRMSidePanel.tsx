@@ -1542,6 +1542,11 @@ export function CRMSidePanel({
         </TabsContent>
         </div>
       </Tabs>
+      
+      <DocumentUploadDialog 
+        open={showDocDialog} 
+        onOpenChange={setShowDocDialog} 
+      />
 
       {/* Task Dialog */}
       <TaskDialog
