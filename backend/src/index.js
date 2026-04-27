@@ -169,6 +169,7 @@ app.use('/uploads', (req, res, next) => {
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/connections', connectionsRoutes);
+app.use('/api/connection-migration', connectionMigrationRoutes);
 app.use('/api/messages', messagesRoutes);
 app.use('/api/contacts', contactsRoutes);
 app.use('/api/campaigns', campaignsRoutes);
