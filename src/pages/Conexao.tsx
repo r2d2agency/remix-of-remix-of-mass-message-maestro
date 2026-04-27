@@ -94,7 +94,14 @@ const Conexao = () => {
   const [editWapiToken, setEditWapiToken] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
   const [diagnosticConnection, setDiagnosticConnection] = useState<Connection | null>(null);
-  
+
+  // Migrate conversations state
+  const [migrateDialogOpen, setMigrateDialogOpen] = useState(false);
+  const [migrateFromConnection, setMigrateFromConnection] = useState<Connection | null>(null);
+  const [migrateToConnectionId, setMigrateToConnectionId] = useState<string>("");
+  const [migrateConfirmText, setMigrateConfirmText] = useState("");
+  const [migrating, setMigrating] = useState(false);
+
   // Lead distribution state
   const [leadDistributionDialogOpen, setLeadDistributionDialogOpen] = useState(false);
   const [leadDistributionConnection, setLeadDistributionConnection] = useState<Connection | null>(null);
