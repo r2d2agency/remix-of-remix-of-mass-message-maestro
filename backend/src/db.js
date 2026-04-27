@@ -89,3 +89,7 @@ export async function query(text, params) {
   }
 }
 
+export async function getClient() {
+  return pool.connect();
+}
+
