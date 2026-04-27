@@ -870,7 +870,7 @@ const Chat = () => {
         ) : (
           <ResizablePanelGroup
             direction="horizontal"
-            className="flex-1 min-h-0 w-full relative h-full bg-slate-50 overflow-hidden"
+            className="flex-1 overflow-hidden min-w-0 w-full relative h-full bg-slate-50"
             onLayout={(sizes) => {
               try { localStorage.setItem('chat-panel-sizes', JSON.stringify(sizes)); } catch {}
             }}
