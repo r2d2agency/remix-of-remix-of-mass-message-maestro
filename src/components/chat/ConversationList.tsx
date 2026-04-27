@@ -532,6 +532,26 @@ export function ConversationList({
               </Button>
             )}
           </div>
+
+          {/* Connection filter (visible when more than 1 connection is available) */}
+          {connections && connections.length > 1 && (
+            <Select
+              value={filters.connection || 'all'}
+              onValueChange={(value) => onFiltersChange({ ...filters, connection: value })}
+            >
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Todas as conexões" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as conexões</SelectItem>
+                {connections.map((conn) => (
+                  <SelectItem key={conn.id} value={conn.id}>
+                    {conn.name}{conn.phone_number ? ` · ${conn.phone_number}` : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           
           {(filters.startDate || filters.endDate) && (
             <div className="flex items-center gap-2 px-2 py-1 bg-primary/5 rounded border border-primary/10">
