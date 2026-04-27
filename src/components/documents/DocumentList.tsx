@@ -31,18 +31,6 @@ import {
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
-interface Document {
-  id: string;
-  name: string;
-  client_name: string;
-  case_name?: string;
-  type: string;
-  status: 'draft' | 'in_analysis' | 'awaiting_signature' | 'signed' | 'refused' | 'expired' | 'archived';
-  created_at: string;
-  updated_at: string;
-  responsible_name: string;
-}
-
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" | "success" }> = {
   draft: { label: "Rascunho", variant: "secondary" },
   in_analysis: { label: "Em análise", variant: "outline" },
