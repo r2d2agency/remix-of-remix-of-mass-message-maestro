@@ -163,31 +163,39 @@ export async function disconnect({ serverUrl, token }) {
   return { success: r.ok, raw: r.data };
 }
 
-// Configure webhook: /instance/updateWebhook
+// Configure webhook: POST /webhook (Modo Simples — único webhook por instância)
+// Docs: https://docs.uazapi.com/endpoint/post/webhook
 export async function configureWebhook({ serverUrl, token, webhookUrl, events }) {
-  // UAZAPI accepts an array of event names, or omit for "all"
   const body = {
-    url: webhookUrl,
     enabled: true,
+    url: webhookUrl,
     events: events || [
       'messages',
       'messages_update',
       'connection',
-      'presence',
       'chats',
       'contacts',
       'groups',
-      'send_message',
+      'presence',
+      'call',
     ],
-    excludeMessages: { wasSentByApi: false, fromMe: false, isGroup: false },
+    // Recomendado pela UAZAPI: evita loops com mensagens enviadas via API
+    excludeMessages: ['wasSentByApi'],
+    addUrlEvents: false,
+    addUrlTypesMessages: false,
   };
   return uazRequest({
     serverUrl,
     token,
-    path: '/instance/updateWebhook',
+    path: '/webhook',
     method: 'POST',
     body,
   });
+}
+
+// GET /webhook — fetch current webhook configuration
+export async function getWebhook({ serverUrl, token }) {
+  return uazRequest({ serverUrl, token, path: '/webhook' });
 }
 
 // ============================================================
