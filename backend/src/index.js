@@ -7,6 +7,7 @@ import cron from 'node-cron';
 import crypto from 'crypto';
 import authRoutes from './routes/auth.js';
 import connectionsRoutes from './routes/connections.js';
+import connectionMigrationRoutes from './routes/connection-migration.js';
 import messagesRoutes from './routes/messages.js';
 import contactsRoutes from './routes/contacts.js';
 import campaignsRoutes from './routes/campaigns.js';
