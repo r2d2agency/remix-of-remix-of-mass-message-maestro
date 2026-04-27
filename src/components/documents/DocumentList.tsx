@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useDocuments, removeDocument } from "@/hooks/use-documents-store";
+import { toast } from "@/hooks/use-toast";
 import {
   Table,
   TableBody,
@@ -53,30 +54,12 @@ const statusConfig: Record<string, { label: string; variant: "default" | "second
 };
 
 export function DocumentList() {
-  // Mock data for initial UI
-  const [documents] = useState<Document[]>([
-    {
-      id: "1",
-      name: "Contrato de Honorários - João Silva",
-      client_name: "João Silva",
-      case_name: "Processo 001/2024",
-      type: "Contrato de honorários",
-      status: "awaiting_signature",
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      responsible_name: "Dr. Roberto",
-    },
-    {
-      id: "2",
-      name: "Procuração Ad Judicia",
-      client_name: "Maria Oliveira",
-      type: "Procuração",
-      status: "signed",
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      responsible_name: "Dr. Roberto",
-    }
-  ]);
+  const documents = useDocuments();
+
+  const handleDelete = (id: string, name: string) => {
+    removeDocument(id);
+    toast({ title: "Documento excluído", description: name });
+  };
 
   return (
     <div className="rounded-md border">
