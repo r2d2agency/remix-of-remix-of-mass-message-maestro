@@ -11,6 +11,39 @@ import { assignConnectionMember } from '../lib/connection-members.js';
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
 try { fs.mkdirSync(UPLOADS_DIR, { recursive: true }); } catch {}
 
+function guessMimeFromBuffer(buffer, fallback = null) {
+  if (!Buffer.isBuffer(buffer) || buffer.length < 4) return fallback;
+  const hex = buffer.subarray(0, 12).toString('hex');
+  const ascii = buffer.subarray(0, 12).toString('ascii');
+  if (hex.startsWith('ffd8ff')) return 'image/jpeg';
+  if (hex.startsWith('89504e47')) return 'image/png';
+  if (ascii.startsWith('GIF8')) return 'image/gif';
+  if (ascii.slice(0, 4) === 'RIFF' && ascii.slice(8, 12) === 'WEBP') return 'image/webp';
+  if (ascii.slice(4, 8) === 'ftyp') return fallback?.startsWith('audio/') ? fallback : 'video/mp4';
+  if (ascii.startsWith('OggS')) return fallback?.startsWith('video/') ? fallback : 'audio/ogg';
+  if (hex.startsWith('25504446')) return 'application/pdf';
+  return fallback;
+}
+
+function uploadsUrl(filename) {
+  const baseUrl = process.env.API_BASE_URL || '';
+  return `${baseUrl}/uploads/${filename}`;
+}
+
+function saveBufferToUploads(buffer, mimetype) {
+  try {
+    if (!Buffer.isBuffer(buffer) || buffer.length === 0) return null;
+    const mime = guessMimeFromBuffer(buffer, mimetype);
+    const ext = extFromMime(mime);
+    const filename = `uaz_${Date.now()}_${crypto.randomBytes(6).toString('hex')}.${ext}`;
+    fs.writeFileSync(path.join(UPLOADS_DIR, filename), buffer);
+    return uploadsUrl(filename);
+  } catch (err) {
+    console.warn('[UAZAPI] saveBufferToUploads failed:', err?.message);
+    return null;
+  }
+}
+
 function extFromMime(mime) {
   if (!mime) return 'bin';
   const m = String(mime).toLowerCase();
@@ -39,12 +72,23 @@ function saveBase64ToUploads(base64, mimetype) {
     raw = raw.replace(/\s/g, '');
     const buf = Buffer.from(raw, 'base64');
     if (!buf || buf.length === 0) return null;
-    const ext = extFromMime(mimetype);
-    const filename = `uaz_${Date.now()}_${crypto.randomBytes(6).toString('hex')}.${ext}`;
-    fs.writeFileSync(path.join(UPLOADS_DIR, filename), buf);
-    return `/uploads/${filename}`;
+    return saveBufferToUploads(buf, mimetype);
   } catch (err) {
     console.warn('[UAZAPI] saveBase64ToUploads failed:', err?.message);
+    return null;
+  }
+}
+
+async function cacheRemoteMediaUrl(url, mimetypeHint) {
+  try {
+    if (!/^https?:\/\//i.test(String(url || ''))) return null;
+    const response = await fetch(url, { signal: AbortSignal.timeout(20000) });
+    if (!response.ok) return null;
+    const contentType = response.headers.get('content-type') || mimetypeHint;
+    const buffer = Buffer.from(await response.arrayBuffer());
+    return saveBufferToUploads(buffer, contentType);
+  } catch (err) {
+    console.warn('[UAZAPI] cacheRemoteMediaUrl failed:', err?.message);
     return null;
   }
 }
@@ -279,13 +323,16 @@ async function saveUazapiMessage(connection, payload) {
   }
 
   // Resolve a usable media URL.
-  // 1) If webhook already provides a URL, use it.
-  // 2) Else if it sends base64 inline, persist locally and use /uploads URL.
+  // 1) Persist inline base64 immediately.
+  // 2) If UAZAPI sends a remote URL, cache it locally because provider URLs may expire or require auth.
   // 3) Else, for media types, try downloading from UAZAPI by message id.
-  let resolvedMediaUrl = msg.mediaUrl || null;
+  let resolvedMediaUrl = null;
   const isMediaType = ['image', 'video', 'audio', 'document', 'sticker'].includes(msg.messageType);
-  if (!resolvedMediaUrl && msg.mediaBase64) {
+  if (msg.mediaBase64) {
     resolvedMediaUrl = saveBase64ToUploads(msg.mediaBase64, msg.mediaMimetype);
+  }
+  if (!resolvedMediaUrl && msg.mediaUrl) {
+    resolvedMediaUrl = await cacheRemoteMediaUrl(msg.mediaUrl, msg.mediaMimetype) || msg.mediaUrl;
   }
   if (!resolvedMediaUrl && isMediaType && msg.messageId) {
     resolvedMediaUrl = await downloadAndPersistMedia(connection, msg.messageId, msg.mediaMimetype);
