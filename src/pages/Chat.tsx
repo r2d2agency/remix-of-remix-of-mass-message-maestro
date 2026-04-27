@@ -874,14 +874,8 @@ const Chat = () => {
               try { localStorage.setItem('chat-panel-sizes', JSON.stringify(sizes)); } catch {}
             }}
           >
-            <ResizablePanel 
-              defaultSize={(() => { try { const s = JSON.parse(localStorage.getItem('chat-panel-sizes') || ''); return s[0] ?? 25; } catch { return 25; } })()} 
-              minSize={15} 
-              maxSize={45} 
-              className="overflow-hidden min-w-0 flex flex-col h-full bg-background border-r"
-            >
-              <div className="flex-1 overflow-y-auto">
-                <ConversationList
+            <ResizablePanel defaultSize={(() => { try { const s = JSON.parse(localStorage.getItem('chat-panel-sizes') || ''); return s[0] ?? 25; } catch { return 25; } })()} minSize={15} maxSize={45} className="overflow-hidden min-w-0">
+              <ConversationList
                 conversations={conversations}
                 selectedId={selectedConversation?.id || null}
                 onSelect={handleMobileSelectConversation}
