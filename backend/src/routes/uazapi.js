@@ -4,7 +4,70 @@ import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import * as uaz from '../lib/uazapi-provider.js';
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 import { assignConnectionMember } from '../lib/connection-members.js';
+
+const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
+try { fs.mkdirSync(UPLOADS_DIR, { recursive: true }); } catch {}
+
+function extFromMime(mime) {
+  if (!mime) return 'bin';
+  const m = String(mime).toLowerCase();
+  if (m.includes('jpeg') || m.includes('jpg')) return 'jpg';
+  if (m.includes('png')) return 'png';
+  if (m.includes('webp')) return 'webp';
+  if (m.includes('gif')) return 'gif';
+  if (m.includes('mp4')) return 'mp4';
+  if (m.includes('webm')) return 'webm';
+  if (m.includes('quicktime')) return 'mov';
+  if (m.includes('ogg')) return 'ogg';
+  if (m.includes('mpeg') && m.includes('audio')) return 'mp3';
+  if (m.includes('mp3')) return 'mp3';
+  if (m.includes('wav')) return 'wav';
+  if (m.includes('aac')) return 'aac';
+  if (m.includes('m4a')) return 'm4a';
+  if (m.includes('pdf')) return 'pdf';
+  return 'bin';
+}
+
+function saveBase64ToUploads(base64, mimetype) {
+  try {
+    let raw = String(base64 || '').trim();
+    if (!raw) return null;
+    if (raw.startsWith('data:') && raw.includes(',')) raw = raw.split(',')[1];
+    raw = raw.replace(/\s/g, '');
+    const buf = Buffer.from(raw, 'base64');
+    if (!buf || buf.length === 0) return null;
+    const ext = extFromMime(mimetype);
+    const filename = `uaz_${Date.now()}_${crypto.randomBytes(6).toString('hex')}.${ext}`;
+    fs.writeFileSync(path.join(UPLOADS_DIR, filename), buf);
+    return `/uploads/${filename}`;
+  } catch (err) {
+    console.warn('[UAZAPI] saveBase64ToUploads failed:', err?.message);
+    return null;
+  }
+}
+
+async function downloadAndPersistMedia(connection, messageId, mimetypeHint) {
+  try {
+    if (!connection?.uazapi_server_url || !connection?.uazapi_token || !messageId) return null;
+    const r = await uaz.downloadMedia({
+      serverUrl: connection.uazapi_server_url,
+      token: connection.uazapi_token,
+      messageId,
+    });
+    if (!r?.ok || !r?.data) return null;
+    const d = r.data;
+    const base64 = d.fileBase64 || d.base64 || d.file || d.data || (typeof d === 'string' ? d : null);
+    const mime = d.mimetype || d.mimeType || mimetypeHint;
+    if (!base64) return null;
+    return saveBase64ToUploads(base64, mime);
+  } catch (err) {
+    console.warn('[UAZAPI] downloadAndPersistMedia failed:', err?.message);
+    return null;
+  }
+}
 
 const router = Router();
 
@@ -107,6 +170,18 @@ function extractUazapiMessage(payload) {
     content.mimeType
   );
 
+  const mediaBase64 = pickFirstString(
+    data.fileBase64,
+    data.base64,
+    data.imageMessage?.base64,
+    data.videoMessage?.base64,
+    data.audioMessage?.base64,
+    data.documentMessage?.base64,
+    data.stickerMessage?.base64,
+    content.base64,
+    content.fileBase64
+  );
+
   // Fallback for caption in text messages if content is actually a caption
   const finalContent = text || (['image', 'video', 'audio', 'document', 'sticker'].includes(messageType) ? null : '');
 
@@ -122,6 +197,7 @@ function extractUazapiMessage(payload) {
     content: finalContent,
     mediaUrl,
     mediaMimetype,
+    mediaBase64,
     timestamp: data.messageTimestamp || data.timestamp || payload?.timestamp || null,
   };
 }
@@ -202,11 +278,24 @@ async function saveUazapiMessage(connection, payload) {
     );
   }
 
+  // Resolve a usable media URL.
+  // 1) If webhook already provides a URL, use it.
+  // 2) Else if it sends base64 inline, persist locally and use /uploads URL.
+  // 3) Else, for media types, try downloading from UAZAPI by message id.
+  let resolvedMediaUrl = msg.mediaUrl || null;
+  const isMediaType = ['image', 'video', 'audio', 'document', 'sticker'].includes(msg.messageType);
+  if (!resolvedMediaUrl && msg.mediaBase64) {
+    resolvedMediaUrl = saveBase64ToUploads(msg.mediaBase64, msg.mediaMimetype);
+  }
+  if (!resolvedMediaUrl && isMediaType && msg.messageId) {
+    resolvedMediaUrl = await downloadAndPersistMedia(connection, msg.messageId, msg.mediaMimetype);
+  }
+
   await query(
     `INSERT INTO chat_messages (conversation_id, message_id, content, raw_text, caption, message_type, media_url, media_mimetype, from_me, sender_name, sender_phone, status, timestamp)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, COALESCE(to_timestamp($13::double precision / 1000), NOW()))
      ON CONFLICT (message_id) WHERE message_id IS NOT NULL AND message_id NOT LIKE 'temp_%' DO NOTHING`,
-    [conversationId, msg.messageId, msg.content || null, msg.content || null, (['image','video','document'].includes(msg.messageType) || msg.content) ? msg.content || null : null, msg.messageType, msg.mediaUrl, msg.mediaMimetype, msg.fromMe, msg.isGroup ? msg.senderName : null, msg.isGroup ? normalizePhone(msg.sender) : null, msg.fromMe ? 'sent' : 'received', Number(msg.timestamp) || null]
+    [conversationId, msg.messageId, msg.content || null, msg.content || null, (['image','video','document'].includes(msg.messageType) || msg.content) ? msg.content || null : null, msg.messageType, resolvedMediaUrl, msg.mediaMimetype, msg.fromMe, msg.isGroup ? msg.senderName : null, msg.isGroup ? normalizePhone(msg.sender) : null, msg.fromMe ? 'sent' : 'received', Number(msg.timestamp) || null]
   );
 
   return buildAuditOutcome('saved', null, true);
