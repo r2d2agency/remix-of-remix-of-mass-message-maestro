@@ -157,7 +157,8 @@ export function DocumentUploadDialog({ open, onOpenChange, defaultClientName, de
     try {
       addDocument({
         name: name.trim(),
-        client_name: client.trim() || "—",
+        client_name: client.trim() || defaultClientName || "—",
+        client_phone: defaultClientPhone || undefined,
         type: TYPE_LABELS[type] || "Outros",
         status,
         responsible_name: "Você",
