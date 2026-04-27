@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import * as wapiProvider from '../lib/wapi-provider.js';
+import { assignConnectionMember, ensureOwnConnectionMemberships } from '../lib/connection-members.js';
 
 const W_API_INTEGRATOR_URL = 'https://api.w-api.app/v1/integrator';
 
@@ -38,6 +39,9 @@ function buildConnectionAccessClause(id, userId, org) {
 router.get('/', async (req, res) => {
   try {
     const org = await getUserOrganization(req.userId);
+    await ensureOwnConnectionMemberships(req.userId).catch((e) => {
+      console.warn('[connections] could not backfill own connection membership:', e?.message);
+    });
 
     // All other roles: only see connections explicitly assigned via connection_members
     const specificResult = await query(
@@ -142,6 +146,10 @@ router.post('/', async (req, res) => {
     );
 
     const connection = result.rows[0];
+
+    await assignConnectionMember(connection.id, req.userId, { canManage: true }).catch((e) => {
+      console.warn('[connections] could not assign creator to connection:', e?.message);
+    });
 
     // Auto-configure webhooks for W-API connections
     if (provider === 'wapi') {
