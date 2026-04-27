@@ -453,20 +453,25 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
 
   useEffect(() => {
     fetchDiagnostic();
+    if (isUazapi) {
+      // UAZAPI: only its own diagnostic + events (already fetched inside fetchDiagnostic)
+      return;
+    }
     fetchAudit();
-
     if (isWapi) {
       fetchWapiEvents();
       fetchWapiSendAttempts();
     } else {
       fetchEvents();
     }
-  }, [fetchDiagnostic, fetchEvents, fetchWapiEvents, fetchWapiSendAttempts, fetchAudit, isWapi]);
+  }, [fetchDiagnostic, fetchEvents, fetchWapiEvents, fetchWapiSendAttempts, fetchAudit, isWapi, isUazapi]);
 
   // Auto-refresh every 3 seconds
   useEffect(() => {
     const interval = setInterval(() => {
-      if (isWapi) {
+      if (isUazapi) {
+        fetchUazDiagnostic();
+      } else if (isWapi) {
         fetchWapiEvents();
         fetchWapiSendAttempts();
       } else {
@@ -475,7 +480,7 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [fetchEvents, fetchWapiEvents, fetchWapiSendAttempts, isWapi]);
+  }, [fetchEvents, fetchWapiEvents, fetchWapiSendAttempts, fetchUazDiagnostic, isWapi, isUazapi]);
 
   if (loading) {
     return (
