@@ -1030,14 +1030,20 @@ const handleGetQRCode = async (connection: Connection) => {
                       </Button>
                     )}
                     
-                    {/* Webhook Diagnostic (Evolution only) */}
-                    {!(connection.provider === 'wapi' || !!connection.instance_id) && (
+                    {/* Webhook Diagnostic (Evolution & UAZAPI) */}
+                    {!isWapiConn(connection) && (
                       <Popover>
                         <PopoverTrigger asChild>
                           <Button 
                             variant="ghost" 
                             size="sm"
-                            onClick={() => handleWebhookDiagnostic(connection)}
+                            onClick={async () => {
+                              if (isUazapi(connection)) {
+                                handleOpenWebhookViewer(connection);
+                              } else {
+                                handleWebhookDiagnostic(connection);
+                              }
+                            }}
                             disabled={diagLoading === connection.id}
                           >
                             {diagLoading === connection.id ? (
