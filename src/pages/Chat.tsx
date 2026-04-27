@@ -747,10 +747,10 @@ const Chat = () => {
     <MainLayout>
       {/* Mobile: full viewport height minus safe areas; Desktop: calc with padding */}
       <div className={cn(
-        "flex flex-col rounded-lg border bg-background shadow-lg",
+        "flex flex-col rounded-lg border bg-background shadow-lg min-h-0",
         isMobile 
           ? "h-[100dvh] w-full fixed inset-0 z-30 rounded-none border-0 overflow-hidden pt-[env(safe-area-inset-top,0px)]" 
-          : "flex-1 overflow-hidden"
+          : "h-[calc(100dvh-4.5rem)] lg:h-[calc(100dvh-5rem)] xl:h-[calc(100dvh-5.5rem)] max-h-[calc(100dvh-4.5rem)] lg:max-h-[calc(100dvh-5rem)] xl:max-h-[calc(100dvh-5.5rem)] overflow-hidden"
       )}>
         {/* Tab Header - Hide on mobile when chat is open */}
         {(!isMobile || !selectedConversation) && (
@@ -869,7 +869,7 @@ const Chat = () => {
         ) : (
           <ResizablePanelGroup
             direction="horizontal"
-            className="flex-1 overflow-hidden min-w-0 w-full relative h-full bg-slate-50"
+            className="flex-1 min-h-0 overflow-hidden min-w-0 w-full relative h-full bg-background"
             onLayout={(sizes) => {
               try { localStorage.setItem('chat-panel-sizes', JSON.stringify(sizes)); } catch {}
             }}
