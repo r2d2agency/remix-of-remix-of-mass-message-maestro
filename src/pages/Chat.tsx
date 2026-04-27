@@ -874,7 +874,7 @@ const Chat = () => {
               try { localStorage.setItem('chat-panel-sizes', JSON.stringify(sizes)); } catch {}
             }}
           >
-            <ResizablePanel defaultSize={(() => { try { const s = JSON.parse(localStorage.getItem('chat-panel-sizes') || ''); return s[0] ?? 25; } catch { return 25; } })()} minSize={15} maxSize={45} className="overflow-hidden min-w-0">
+            <ResizablePanel defaultSize={(() => { try { const s = JSON.parse(localStorage.getItem('chat-panel-sizes') || ''); return s[0] ?? 25; } catch { return 25; } })()} minSize={15} maxSize={45} className="!flex !flex-col h-full min-h-0 overflow-hidden min-w-0">
               <ConversationList
                 conversations={conversations}
                 selectedId={selectedConversation?.id || null}
@@ -912,7 +912,7 @@ const Chat = () => {
 
             <ResizableHandle withHandle />
 
-            <ResizablePanel defaultSize={(() => { try { const s = JSON.parse(localStorage.getItem('chat-panel-sizes') || ''); return s[1] ?? (crmPanelOpen && selectedConversation && modulesEnabled.crm ? 50 : 75); } catch { return crmPanelOpen && selectedConversation && modulesEnabled.crm ? 50 : 75; } })()} minSize={35} className="overflow-hidden min-w-0">
+            <ResizablePanel defaultSize={(() => { try { const s = JSON.parse(localStorage.getItem('chat-panel-sizes') || ''); return s[1] ?? (crmPanelOpen && selectedConversation && modulesEnabled.crm ? 50 : 75); } catch { return crmPanelOpen && selectedConversation && modulesEnabled.crm ? 50 : 75; } })()} minSize={35} className="!flex !flex-col h-full min-h-0 overflow-hidden min-w-0">
               <ChatArea
                 conversation={selectedConversation} messages={messages} loading={loadingMessages} sending={sendingMessage}
                 tags={tags} team={team} syncingHistory={syncingHistory} isAdmin={isAdmin} userRole={userRole}
