@@ -1110,7 +1110,7 @@ export function ChatArea({
       )}
 
       {/* Main chat area */}
-      <div className="flex-1 flex flex-col h-full min-w-0 overflow-x-hidden">
+      <div className="flex-1 flex flex-col h-full min-h-0 min-w-0 overflow-hidden">
       {/* Archived Banner */}
       {conversation.is_archived && (
         <div className="flex items-center justify-center gap-2 px-4 py-2 bg-amber-500/10 border-b border-amber-500/30 text-amber-600 dark:text-amber-400">
@@ -1834,11 +1834,11 @@ export function ChatArea({
 
 
       {/* Messages */}
-      <div className="flex-1 relative min-h-0">
+      <div className="flex-1 relative min-h-0 overflow-hidden">
         <ScrollArea
           ref={scrollAreaRef}
           viewportRef={scrollContainerRef}
-          className={cn("absolute inset-0 chat-wallpaper min-w-0", isMobile ? "p-3" : "p-4")}
+          className={cn("absolute inset-0 chat-wallpaper min-w-0 overscroll-contain", isMobile ? "p-3" : "p-4")}
         >
         {hasMore && (
           <div className="flex justify-center mb-4">
