@@ -1057,7 +1057,7 @@ const handleGetQRCode = async (connection: Connection) => {
                             )}
                           </Button>
                         </PopoverTrigger>
-                        {diagResults[connection.id] && (
+                        {!isUazapi(connection) && diagResults[connection.id] && (
                           <PopoverContent className="w-80">
                             <div className="space-y-2">
                               <h4 className="font-semibold">Diagnóstico Webhook</h4>
@@ -1073,6 +1073,42 @@ const handleGetQRCode = async (connection: Connection) => {
                                   Reconfigurar Webhook
                                 </Button>
                               )}
+                            </div>
+                          </PopoverContent>
+                        )}
+                        {isUazapi(connection) && (
+                          <PopoverContent className="w-64 p-3">
+                            <div className="space-y-3">
+                              <h4 className="font-semibold text-sm">Configuração UAZAPI</h4>
+                              <p className="text-xs text-muted-foreground">
+                                Clique para abrir o monitor de eventos ou sincronizar webhooks.
+                              </p>
+                              <div className="flex flex-col gap-2">
+                                <Button 
+                                  size="sm" 
+                                  variant="outline" 
+                                  className="w-full justify-start"
+                                  onClick={() => handleOpenWebhookViewer(connection)}
+                                >
+                                  <Eye className="h-4 w-4 mr-2" />
+                                  Ver Logs (Webhooks)
+                                </Button>
+                                <Button 
+                                  size="sm" 
+                                  className="w-full justify-start"
+                                  onClick={async () => {
+                                    try {
+                                      await uazapiApi.reconfigureWebhook(connection.id);
+                                      toast.success("Webhook sincronizado com UAZAPI!");
+                                    } catch (e: any) {
+                                      toast.error("Erro ao sincronizar webhook: " + e.message);
+                                    }
+                                  }}
+                                >
+                                  <RefreshCw className="h-4 w-4 mr-2" />
+                                  Sincronizar Webhook
+                                </Button>
+                              </div>
                             </div>
                           </PopoverContent>
                         )}
