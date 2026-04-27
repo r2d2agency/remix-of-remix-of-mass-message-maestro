@@ -1,5 +1,6 @@
-import { useDocuments, removeDocument } from "@/hooks/use-documents-store";
+import { useDocuments, removeDocument, openDocument, downloadDocument, updateDocument } from "@/hooks/use-documents-store";
 import { toast } from "@/hooks/use-toast";
+import { Eye } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -111,7 +112,24 @@ export function DocumentList() {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-56">
                       <DropdownMenuLabel>Ações</DropdownMenuLabel>
-                      <DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          if (!doc.file_data_url) {
+                            toast({ title: "Arquivo indisponível", variant: "destructive" });
+                            return;
+                          }
+                          openDocument(doc as any);
+                        }}
+                      >
+                        <Eye className="mr-2 h-4 w-4" />
+                        Abrir
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          updateDocument(doc.id, { status: 'awaiting_signature' });
+                          toast({ title: "Solicitação criada", description: "Status alterado para 'Aguardando assinatura'." });
+                        }}
+                      >
                         <Send className="mr-2 h-4 w-4" />
                         Enviar para assinatura
                       </DropdownMenuItem>
@@ -120,7 +138,15 @@ export function DocumentList() {
                         Enviar pelo WhatsApp
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          if (!doc.file_data_url) {
+                            toast({ title: "Arquivo indisponível", variant: "destructive" });
+                            return;
+                          }
+                          downloadDocument(doc as any);
+                        }}
+                      >
                         <Download className="mr-2 h-4 w-4" />
                         Baixar
                       </DropdownMenuItem>
