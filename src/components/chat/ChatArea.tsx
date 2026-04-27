@@ -510,7 +510,7 @@ export function ChatArea({
     const isNearBottom = distanceFromBottom < 150;
     
     if (isNearBottom && !isUserScrollingRef.current) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
     }
   }, [messages, showSearch]);
 
@@ -1092,7 +1092,7 @@ export function ChatArea({
 
   return (
     <div 
-      className="flex-1 flex min-h-0 relative overflow-hidden"
+      className="flex-1 flex h-full min-w-0 overflow-x-hidden overflow-y-hidden relative max-w-full"
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
@@ -1100,7 +1100,7 @@ export function ChatArea({
     >
       {/* Drag overlay */}
       {isDragOver && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-primary/10 backdrop-blur-sm border-2 border-dashed border-primary pointer-events-none">
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-primary/10 backdrop-blur-sm border-2 border-dashed border-primary rounded-lg pointer-events-none animate-in fade-in duration-200">
           <div className="flex flex-col items-center gap-3 text-primary">
             <Upload className="h-12 w-12" />
             <span className="text-lg font-medium">Solte o arquivo aqui</span>
@@ -1110,7 +1110,7 @@ export function ChatArea({
       )}
 
       {/* Main chat area */}
-      <div className="flex-1 flex flex-col min-h-0 relative">
+      <div className="flex-1 flex flex-col h-full min-w-0 overflow-x-hidden">
       {/* Archived Banner */}
       {conversation.is_archived && (
         <div className="flex items-center justify-center gap-2 px-4 py-2 bg-amber-500/10 border-b border-amber-500/30 text-amber-600 dark:text-amber-400">

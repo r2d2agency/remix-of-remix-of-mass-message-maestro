@@ -798,11 +798,10 @@ const Chat = () => {
         )}
 
         {isMobile ? (
-          <div className="flex flex-1 min-h-0 w-full overflow-hidden">
+          <div className="flex flex-1 overflow-hidden min-w-0 w-full">
             {!selectedConversation && (
-              <div className="flex-1 flex flex-col min-h-0 w-full">
-                <div className="flex-1 overflow-y-auto">
-                  <ConversationList
+              <div className="w-full h-full max-w-full overflow-hidden min-w-0">
+                <ConversationList
                     conversations={conversations}
                     selectedId={selectedConversation?.id || null}
                     onSelect={handleMobileSelectConversation}
@@ -835,7 +834,6 @@ const Chat = () => {
                     hasMore={hasMoreConversations}
                     onLoadMore={() => loadConversations(true)}
                   />
-                </div>
               </div>
             )}
             {selectedConversation && (
@@ -871,19 +869,13 @@ const Chat = () => {
         ) : (
           <ResizablePanelGroup
             direction="horizontal"
-            className="flex-1 min-h-0 w-full relative h-full bg-slate-50 overflow-hidden"
+            className="flex-1 overflow-hidden min-w-0 w-full relative h-full bg-slate-50"
             onLayout={(sizes) => {
               try { localStorage.setItem('chat-panel-sizes', JSON.stringify(sizes)); } catch {}
             }}
           >
-            <ResizablePanel 
-              defaultSize={(() => { try { const s = JSON.parse(localStorage.getItem('chat-panel-sizes') || ''); return s[0] ?? 25; } catch { return 25; } })()} 
-              minSize={15} 
-              maxSize={45} 
-              className="overflow-hidden min-w-0 flex flex-col h-full bg-background border-r"
-            >
-              <div className="flex-1 overflow-y-auto">
-                <ConversationList
+            <ResizablePanel defaultSize={(() => { try { const s = JSON.parse(localStorage.getItem('chat-panel-sizes') || ''); return s[0] ?? 25; } catch { return 25; } })()} minSize={15} maxSize={45} className="overflow-hidden min-w-0">
+              <ConversationList
                 conversations={conversations}
                 selectedId={selectedConversation?.id || null}
                 onSelect={handleMobileSelectConversation}
@@ -916,16 +908,11 @@ const Chat = () => {
                 hasMore={hasMoreConversations}
                 onLoadMore={() => loadConversations(true)}
               />
-              </div>
             </ResizablePanel>
 
             <ResizableHandle withHandle />
 
-            <ResizablePanel 
-              defaultSize={(() => { try { const s = JSON.parse(localStorage.getItem('chat-panel-sizes') || ''); return s[1] ?? (crmPanelOpen && selectedConversation && modulesEnabled.crm ? 50 : 75); } catch { return crmPanelOpen && selectedConversation && modulesEnabled.crm ? 50 : 75; } })()} 
-              minSize={35} 
-              className="overflow-hidden min-w-0 flex flex-col h-full bg-slate-50"
-            >
+            <ResizablePanel defaultSize={(() => { try { const s = JSON.parse(localStorage.getItem('chat-panel-sizes') || ''); return s[1] ?? (crmPanelOpen && selectedConversation && modulesEnabled.crm ? 50 : 75); } catch { return crmPanelOpen && selectedConversation && modulesEnabled.crm ? 50 : 75; } })()} minSize={35} className="overflow-hidden min-w-0">
               <ChatArea
                 conversation={selectedConversation} messages={messages} loading={loadingMessages} sending={sendingMessage}
                 tags={tags} team={team} syncingHistory={syncingHistory} isAdmin={isAdmin} userRole={userRole}
