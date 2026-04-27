@@ -204,7 +204,16 @@ const Conexao = () => {
       if (newConnectionProvider === 'uazapi') {
         // Create instance via UAZAPI global server
         result = await uazapiApi.createInstance(newConnectionName) as any;
-        toast.success('Instância UAZAPI criada! Escaneie o QR Code para conectar.');
+        toast.success('Instância UAZAPI criada!');
+        
+        // Immediately try to reconfigure webhook and activate settings for UAZAPI
+        try {
+          console.log('Auto-configuring UAZAPI for:', result.id);
+          await uazapiApi.reconfigureWebhook(result.id);
+        } catch (e) {
+          console.warn('Could not auto-configure UAZAPI webhook', e);
+        }
+
         // Immediately fetch QR
         try {
           const qr = await uazapiApi.connect(result.id);
