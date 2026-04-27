@@ -206,27 +206,36 @@ const Conexao = () => {
         result = await uazapiApi.createInstance(newConnectionName) as any;
         toast.success('Instância UAZAPI criada!');
         
-        // Immediately try to reconfigure webhook and activate settings for UAZAPI
+        // Immediately try to configure webhook and activate settings for UAZAPI
         try {
-          console.log('Auto-configuring UAZAPI for:', result.id);
-          // 1. Reconfigure Webhook
-          await uazapiApi.reconfigureWebhook(result.id);
+          console.log('Configuring UAZAPI webhook for new instance:', result.id);
+          // 1. Configure Webhook
+          const webhookResult = await uazapiApi.reconfigureWebhook(result.id);
+          console.log('Webhook configuration result:', webhookResult);
           
-          // 2. Activate Instance settings (auto-read, etc)
-          // Note: The backend should handle activating settings during/after webhook config, 
-          // or we can call a generic "activate" endpoint if available.
-          // For now, ensuring we call reconfigureWebhook which usually triggers full sync.
+          if (webhookResult.ok) {
+            toast.success('Webhook configurado com sucesso!');
+          } else {
+            console.warn('Webhook response was not OK:', webhookResult);
+          }
         } catch (e) {
-          console.warn('Could not auto-configure UAZAPI webhook', e);
+          console.error('Failed to configure UAZAPI webhook:', e);
+          toast.error('Erro ao configurar webhook automaticamente. Você pode tentar reconfigurar nas opções da conexão.');
         }
+
+        // Wait a small moment for instance to settle before getting QR
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
         // Immediately fetch QR
         try {
-          // Ensure we wait a bit for instance to be ready in UAZAPI
           const qr = await uazapiApi.connect(result.id);
           if (qr.qrcode) {
             setSelectedConnection(result);
             setQrCode(qr.qrcode);
+            setQrCodeDialog(true);
+          } else if (qr.success) {
+            // If already connected or pairing, just show the dialog
+            setSelectedConnection(result);
             setQrCodeDialog(true);
           }
         } catch (e) {
