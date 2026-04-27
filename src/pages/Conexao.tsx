@@ -541,7 +541,12 @@ const handleGetQRCode = async (connection: Connection) => {
     setWebhookEventsLoading(true);
     setWebhookEventsError(null);
     try {
-      const result = await api<{ events: any[] }>(`/api/evolution/${connection.id}/webhook-events?limit=50`);
+      let result;
+      if (isUazapi(connection)) {
+        result = await uazapiApi.webhookEvents(connection.id);
+      } else {
+        result = await api<{ events: any[] }>(`/api/evolution/${connection.id}/webhook-events?limit=50`);
+      }
       setWebhookEvents(result.events || []);
     } catch (error: any) {
       setWebhookEventsError(error.message || 'Erro ao buscar eventos do webhook');
@@ -559,7 +564,12 @@ const handleGetQRCode = async (connection: Connection) => {
   const handleClearWebhookEvents = async () => {
     if (!webhookViewerConnection) return;
     try {
-      await api(`/api/evolution/${webhookViewerConnection.id}/webhook-events`, { method: 'DELETE' });
+      if (isUazapi(webhookViewerConnection)) {
+        // Assume the same endpoint works with DELETE or we'll need to check
+        await api(`/api/uazapi/${webhookViewerConnection.id}/webhook-events`, { method: 'DELETE' });
+      } else {
+        await api(`/api/evolution/${webhookViewerConnection.id}/webhook-events`, { method: 'DELETE' });
+      }
       setWebhookEvents([]);
       toast.success('Eventos limpos');
     } catch (error: any) {
@@ -853,7 +863,7 @@ const handleGetQRCode = async (connection: Connection) => {
                     </div>
                     <div className="flex items-center gap-1.5 p-2 rounded bg-muted/50">
                       <Badge variant="outline" className="text-[10px] px-1.5">
-                        {(connection.provider === 'wapi' || !!connection.instance_id) ? 'W-API' : 'Evolution'}
+                        {isUazapi(connection) ? 'UAZAPI' : isWapiConn(connection) ? 'W-API' : 'Evolution'}
                       </Badge>
                       <code className="text-[10px] truncate flex-1">
                         {(connection.provider === 'wapi' || !!connection.instance_id) 
@@ -1020,14 +1030,20 @@ const handleGetQRCode = async (connection: Connection) => {
                       </Button>
                     )}
                     
-                    {/* Webhook Diagnostic (Evolution only) */}
-                    {!(connection.provider === 'wapi' || !!connection.instance_id) && (
+                    {/* Webhook Diagnostic (Evolution & UAZAPI) */}
+                    {!isWapiConn(connection) && (
                       <Popover>
                         <PopoverTrigger asChild>
                           <Button 
                             variant="ghost" 
                             size="sm"
-                            onClick={() => handleWebhookDiagnostic(connection)}
+                            onClick={async () => {
+                              if (isUazapi(connection)) {
+                                handleOpenWebhookViewer(connection);
+                              } else {
+                                handleWebhookDiagnostic(connection);
+                              }
+                            }}
                             disabled={diagLoading === connection.id}
                           >
                             {diagLoading === connection.id ? (
@@ -1041,7 +1057,7 @@ const handleGetQRCode = async (connection: Connection) => {
                             )}
                           </Button>
                         </PopoverTrigger>
-                        {diagResults[connection.id] && (
+                        {!isUazapi(connection) && diagResults[connection.id] && (
                           <PopoverContent className="w-80">
                             <div className="space-y-2">
                               <h4 className="font-semibold">Diagnóstico Webhook</h4>
@@ -1057,6 +1073,42 @@ const handleGetQRCode = async (connection: Connection) => {
                                   Reconfigurar Webhook
                                 </Button>
                               )}
+                            </div>
+                          </PopoverContent>
+                        )}
+                        {isUazapi(connection) && (
+                          <PopoverContent className="w-64 p-3">
+                            <div className="space-y-3">
+                              <h4 className="font-semibold text-sm">Configuração UAZAPI</h4>
+                              <p className="text-xs text-muted-foreground">
+                                Clique para abrir o monitor de eventos ou sincronizar webhooks.
+                              </p>
+                              <div className="flex flex-col gap-2">
+                                <Button 
+                                  size="sm" 
+                                  variant="outline" 
+                                  className="w-full justify-start"
+                                  onClick={() => handleOpenWebhookViewer(connection)}
+                                >
+                                  <Eye className="h-4 w-4 mr-2" />
+                                  Ver Logs (Webhooks)
+                                </Button>
+                                <Button 
+                                  size="sm" 
+                                  className="w-full justify-start"
+                                  onClick={async () => {
+                                    try {
+                                      await uazapiApi.reconfigureWebhook(connection.id);
+                                      toast.success("Webhook sincronizado com UAZAPI!");
+                                    } catch (e: any) {
+                                      toast.error("Erro ao sincronizar webhook: " + e.message);
+                                    }
+                                  }}
+                                >
+                                  <RefreshCw className="h-4 w-4 mr-2" />
+                                  Sincronizar Webhook
+                                </Button>
+                              </div>
                             </div>
                           </PopoverContent>
                         )}
@@ -1123,7 +1175,7 @@ const handleGetQRCode = async (connection: Connection) => {
             <DialogHeader>
               <DialogTitle>Monitor do Webhook</DialogTitle>
               <DialogDescription>
-                Aqui você vê os últimos eventos que o backend recebeu da Evolution para esta instância.
+                Aqui você vê os últimos eventos que o backend recebeu da {webhookViewerConnection && isUazapi(webhookViewerConnection) ? 'UAZAPI' : 'Evolution'} para esta instância.
               </DialogDescription>
             </DialogHeader>
 
