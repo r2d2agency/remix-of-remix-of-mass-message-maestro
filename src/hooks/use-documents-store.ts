@@ -4,6 +4,7 @@ export interface StoredDocument {
   id: string;
   name: string;
   client_name: string;
+  client_phone?: string;
   case_name?: string;
   type: string;
   status: 'draft' | 'in_analysis' | 'awaiting_signature' | 'signed' | 'refused' | 'expired' | 'archived';
