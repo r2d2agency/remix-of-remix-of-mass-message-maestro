@@ -1092,7 +1092,7 @@ export function ChatArea({
 
   return (
     <div 
-      className="flex-1 flex h-full min-w-0 relative"
+      className="flex-1 flex min-h-0 relative overflow-hidden"
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
@@ -1110,7 +1110,7 @@ export function ChatArea({
       )}
 
       {/* Main chat area */}
-      <div className="flex-1 flex flex-col h-full min-w-0 relative">
+      <div className="flex-1 flex flex-col min-h-0 relative">
       {/* Archived Banner */}
       {conversation.is_archived && (
         <div className="flex items-center justify-center gap-2 px-4 py-2 bg-amber-500/10 border-b border-amber-500/30 text-amber-600 dark:text-amber-400">

@@ -798,9 +798,9 @@ const Chat = () => {
         )}
 
         {isMobile ? (
-          <div className="flex flex-1 overflow-hidden min-w-0 w-full">
+          <div className="flex flex-1 min-h-0 w-full overflow-hidden">
             {!selectedConversation && (
-              <div className="w-full h-full max-w-full overflow-hidden min-w-0 flex flex-col">
+              <div className="flex-1 flex flex-col min-h-0 w-full">
                 <div className="flex-1 overflow-y-auto">
                   <ConversationList
                     conversations={conversations}
@@ -871,7 +871,7 @@ const Chat = () => {
         ) : (
           <ResizablePanelGroup
             direction="horizontal"
-            className="flex-1 overflow-hidden min-w-0 w-full relative h-full bg-slate-50"
+            className="flex-1 min-h-0 w-full relative h-full bg-slate-50 overflow-hidden"
             onLayout={(sizes) => {
               try { localStorage.setItem('chat-panel-sizes', JSON.stringify(sizes)); } catch {}
             }}
