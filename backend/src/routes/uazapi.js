@@ -4,6 +4,7 @@ import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import * as uaz from '../lib/uazapi-provider.js';
 import crypto from 'crypto';
+import { assignConnectionMember } from '../lib/connection-members.js';
 
 const router = Router();
 
@@ -429,12 +430,8 @@ router.post('/instances', async (req, res) => {
     );
     const connection = ins.rows[0];
 
-    await query(
-      `INSERT INTO connection_members (connection_id, user_id, can_view, can_send, can_manage)
-       VALUES ($1, $2, true, true, true)
-       ON CONFLICT (connection_id, user_id) DO UPDATE SET can_view = true, can_send = true`,
-      [connection.id, req.userId]
-    ).catch((e) => console.warn('[UAZAPI] could not assign creator to connection:', e?.message));
+    await assignConnectionMember(connection.id, req.userId, { canManage: true })
+      .catch((e) => console.warn('[UAZAPI] could not assign creator to connection:', e?.message));
 
     // 3) Configure webhook (always — infer public URL if env is missing)
     const inferredBase =
