@@ -19,7 +19,7 @@ export function detectProvider(connection) {
   }
 
   // If has uazapi_url, it's UAZAPI
-  if (connection.uazapi_url || connection.provider === 'uazapi') {
+  if (connection.uazapi_server_url || connection.provider === 'uazapi') {
     return 'uazapi';
   }
   
@@ -39,7 +39,7 @@ export async function checkStatus(connection) {
 
   if (provider === 'uazapi') {
     return uazapiProvider.getStatus({
-      serverUrl: connection.uazapi_url,
+      serverUrl: connection.uazapi_server_url,
       token: connection.uazapi_token,
     });
   }
@@ -125,7 +125,7 @@ export async function getQRCode(connection) {
 
   if (provider === 'uazapi') {
     const res = await uazapiProvider.connect({
-      serverUrl: connection.uazapi_url,
+      serverUrl: connection.uazapi_server_url,
       token: connection.uazapi_token,
     });
     return res.qrcode;
@@ -164,7 +164,7 @@ export async function disconnect(connection) {
 
   if (provider === 'uazapi') {
     const res = await uazapiProvider.disconnect({
-      serverUrl: connection.uazapi_url,
+      serverUrl: connection.uazapi_server_url,
       token: connection.uazapi_token,
     });
     return res.success;
@@ -235,7 +235,7 @@ export async function sendMessage(connection, phone, content, messageType, media
     try {
       let result;
       const params = {
-        serverUrl: connection.uazapi_url,
+        serverUrl: connection.uazapi_server_url,
         token: connection.uazapi_token,
         phone,
       };
@@ -341,7 +341,7 @@ export async function checkNumber(connection, phone) {
 
   if (provider === 'uazapi') {
     const res = await uazapiProvider.checkNumber({
-      serverUrl: connection.uazapi_url,
+      serverUrl: connection.uazapi_server_url,
       token: connection.uazapi_token,
       phones: [phone],
     });
