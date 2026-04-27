@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Plus, QrCode, RefreshCw, Plug, Unplug, Trash2, Phone, Loader2, Wifi, WifiOff, Send, Settings2, AlertTriangle, CheckCircle, Eye, Activity, Radio, Users, Download, Pencil, UserCheck, Smartphone, Key, FileWarning } from "lucide-react";
+import { Plus, QrCode, RefreshCw, Plug, Unplug, Trash2, Phone, Loader2, Wifi, WifiOff, Send, Settings2, AlertTriangle, CheckCircle, Eye, Activity, Radio, Users, Download, Pencil, UserCheck, Smartphone, Key, FileWarning, ArrowRightLeft } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { api } from "@/lib/api";
 import { uazapiApi } from "@/lib/uazapi-api";
@@ -94,7 +94,14 @@ const Conexao = () => {
   const [editWapiToken, setEditWapiToken] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
   const [diagnosticConnection, setDiagnosticConnection] = useState<Connection | null>(null);
-  
+
+  // Migrate conversations state
+  const [migrateDialogOpen, setMigrateDialogOpen] = useState(false);
+  const [migrateFromConnection, setMigrateFromConnection] = useState<Connection | null>(null);
+  const [migrateToConnectionId, setMigrateToConnectionId] = useState<string>("");
+  const [migrateConfirmText, setMigrateConfirmText] = useState("");
+  const [migrating, setMigrating] = useState(false);
+
   // Lead distribution state
   const [leadDistributionDialogOpen, setLeadDistributionDialogOpen] = useState(false);
   const [leadDistributionConnection, setLeadDistributionConnection] = useState<Connection | null>(null);
@@ -564,6 +571,41 @@ const handleGetQRCode = async (connection: Connection) => {
       toast.error(error.message || 'Erro ao atualizar conexão');
     } finally {
       setSavingEdit(false);
+    }
+  };
+
+  const handleMigrateConversations = async () => {
+    if (!migrateFromConnection || !migrateToConnectionId) return;
+    if (migrateConfirmText !== migrateFromConnection.name) {
+      toast.error('Digite o nome exato da conexão de origem para confirmar');
+      return;
+    }
+    setMigrating(true);
+    try {
+      const result = await api<{
+        success: boolean;
+        summary: { merged: Record<string, number>; updated: Record<string, number>; skipped: string[] };
+      }>(`/api/connection-migration/migrate`, {
+        method: 'POST',
+        body: {
+          from_connection_id: migrateFromConnection.id,
+          to_connection_id: migrateToConnectionId,
+        },
+      });
+      const movedConvs = result.summary.updated['conversations'] || 0;
+      const mergedConvs = result.summary.merged['conversations'] || 0;
+      toast.success(
+        `Migração concluída: ${movedConvs} conversas movidas` +
+        (mergedConvs ? `, ${mergedConvs} mescladas` : '')
+      );
+      setMigrateDialogOpen(false);
+      setMigrateFromConnection(null);
+      setMigrateToConnectionId('');
+      setMigrateConfirmText('');
+    } catch (e: any) {
+      toast.error(e.message || 'Erro ao migrar conversas');
+    } finally {
+      setMigrating(false);
     }
   };
 
@@ -1154,7 +1196,24 @@ const handleGetQRCode = async (connection: Connection) => {
                     >
                       <Pencil className="h-4 w-4" />
                     </Button>
-                    
+
+                    {/* Migrate conversations button */}
+                    {connections.length > 1 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setMigrateFromConnection(connection);
+                          setMigrateToConnectionId("");
+                          setMigrateConfirmText("");
+                          setMigrateDialogOpen(true);
+                        }}
+                        title="Migrar conversas para outra conexão"
+                      >
+                        <ArrowRightLeft className="h-4 w-4" />
+                      </Button>
+                    )}
+
                     {/* Delete button - always visible */}
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
@@ -1527,6 +1586,109 @@ const handleGetQRCode = async (connection: Connection) => {
                 onClose={() => setDiagnosticPanelOpen(false)}
               />
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Migrate Conversations Dialog */}
+        <Dialog
+          open={migrateDialogOpen}
+          onOpenChange={(open) => {
+            setMigrateDialogOpen(open);
+            if (!open) {
+              setMigrateFromConnection(null);
+              setMigrateToConnectionId('');
+              setMigrateConfirmText('');
+            }
+          }}
+        >
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <ArrowRightLeft className="h-5 w-5" />
+                Migrar conversas para outra conexão
+              </DialogTitle>
+              <DialogDescription>
+                Move todas as conversas, mensagens, contatos, atendimentos e fluxos da conexão
+                de origem para a conexão de destino. As mensagens são preservadas e conversas
+                duplicadas (mesmo contato) são mescladas.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="rounded-md border p-3 bg-muted/40 text-sm">
+                <div className="text-muted-foreground text-xs">De (origem)</div>
+                <div className="font-medium">{migrateFromConnection?.name}</div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {migrateFromConnection?.phone_number || 'sem número'} · {migrateFromConnection?.provider}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Conexão de destino</Label>
+                <Select value={migrateToConnectionId} onValueChange={setMigrateToConnectionId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a conexão de destino" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {connections
+                      .filter((c) => c.id !== migrateFromConnection?.id)
+                      .map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name} {c.phone_number ? `· ${c.phone_number}` : ''} ({c.provider})
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-xs space-y-1">
+                <div className="flex items-center gap-2 font-medium text-destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  Operação irreversível
+                </div>
+                <p>
+                  A conexão de origem ficará vazia (sem conversas). As mensagens enviadas após a
+                  migração serão recebidas pela conexão de destino. Essa ação não pode ser desfeita.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>
+                  Para confirmar, digite o nome da conexão de origem:{' '}
+                  <span className="font-mono text-foreground">{migrateFromConnection?.name}</span>
+                </Label>
+                <Input
+                  value={migrateConfirmText}
+                  onChange={(e) => setMigrateConfirmText(e.target.value)}
+                  placeholder={migrateFromConnection?.name}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setMigrateDialogOpen(false)} disabled={migrating}>
+                Cancelar
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleMigrateConversations}
+                disabled={
+                  migrating ||
+                  !migrateToConnectionId ||
+                  migrateConfirmText !== (migrateFromConnection?.name || '___')
+                }
+              >
+                {migrating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Migrando...
+                  </>
+                ) : (
+                  <>
+                    <ArrowRightLeft className="h-4 w-4 mr-2" />
+                    Migrar tudo
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
 

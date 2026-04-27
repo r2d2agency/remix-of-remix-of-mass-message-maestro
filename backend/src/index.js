@@ -7,6 +7,7 @@ import cron from 'node-cron';
 import crypto from 'crypto';
 import authRoutes from './routes/auth.js';
 import connectionsRoutes from './routes/connections.js';
+import connectionMigrationRoutes from './routes/connection-migration.js';
 import messagesRoutes from './routes/messages.js';
 import contactsRoutes from './routes/contacts.js';
 import campaignsRoutes from './routes/campaigns.js';
@@ -168,6 +169,7 @@ app.use('/uploads', (req, res, next) => {
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/connections', connectionsRoutes);
+app.use('/api/connection-migration', connectionMigrationRoutes);
 app.use('/api/messages', messagesRoutes);
 app.use('/api/contacts', contactsRoutes);
 app.use('/api/campaigns', campaignsRoutes);
