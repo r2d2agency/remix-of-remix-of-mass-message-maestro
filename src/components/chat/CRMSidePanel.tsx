@@ -1460,8 +1460,8 @@ export function CRMSidePanel({
           </ScrollArea>
         </TabsContent>
 
-        <TabsContent value="docs" className="flex-1 flex flex-col overflow-hidden m-0">
-          <ScrollArea className="flex-1">
+        <TabsContent value="docs" className="absolute inset-0 m-0 flex flex-col overflow-hidden data-[state=inactive]:hidden">
+          <ScrollArea className="flex-1 min-h-0">
             <div className="p-3 space-y-6">
               <div className="flex items-center justify-between">
                 <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
@@ -1503,6 +1503,7 @@ export function CRMSidePanel({
             </div>
           </ScrollArea>
         </TabsContent>
+        </div>
       </Tabs>
 
       {/* Task Dialog */}
