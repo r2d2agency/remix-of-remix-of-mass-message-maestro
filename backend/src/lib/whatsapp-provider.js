@@ -271,6 +271,7 @@ export async function sendMessage(connection, phone, content, messageType, media
       });
       return { success: false, error: error.message };
     }
+  }
 
   // Evolution API
   try {
