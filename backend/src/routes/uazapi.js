@@ -278,11 +278,24 @@ async function saveUazapiMessage(connection, payload) {
     );
   }
 
+  // Resolve a usable media URL.
+  // 1) If webhook already provides a URL, use it.
+  // 2) Else if it sends base64 inline, persist locally and use /uploads URL.
+  // 3) Else, for media types, try downloading from UAZAPI by message id.
+  let resolvedMediaUrl = msg.mediaUrl || null;
+  const isMediaType = ['image', 'video', 'audio', 'document', 'sticker'].includes(msg.messageType);
+  if (!resolvedMediaUrl && msg.mediaBase64) {
+    resolvedMediaUrl = saveBase64ToUploads(msg.mediaBase64, msg.mediaMimetype);
+  }
+  if (!resolvedMediaUrl && isMediaType && msg.messageId) {
+    resolvedMediaUrl = await downloadAndPersistMedia(connection, msg.messageId, msg.mediaMimetype);
+  }
+
   await query(
     `INSERT INTO chat_messages (conversation_id, message_id, content, raw_text, caption, message_type, media_url, media_mimetype, from_me, sender_name, sender_phone, status, timestamp)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, COALESCE(to_timestamp($13::double precision / 1000), NOW()))
      ON CONFLICT (message_id) WHERE message_id IS NOT NULL AND message_id NOT LIKE 'temp_%' DO NOTHING`,
-    [conversationId, msg.messageId, msg.content || null, msg.content || null, (['image','video','document'].includes(msg.messageType) || msg.content) ? msg.content || null : null, msg.messageType, msg.mediaUrl, msg.mediaMimetype, msg.fromMe, msg.isGroup ? msg.senderName : null, msg.isGroup ? normalizePhone(msg.sender) : null, msg.fromMe ? 'sent' : 'received', Number(msg.timestamp) || null]
+    [conversationId, msg.messageId, msg.content || null, msg.content || null, (['image','video','document'].includes(msg.messageType) || msg.content) ? msg.content || null : null, msg.messageType, resolvedMediaUrl, msg.mediaMimetype, msg.fromMe, msg.isGroup ? msg.senderName : null, msg.isGroup ? normalizePhone(msg.sender) : null, msg.fromMe ? 'sent' : 'received', Number(msg.timestamp) || null]
   );
 
   return buildAuditOutcome('saved', null, true);
