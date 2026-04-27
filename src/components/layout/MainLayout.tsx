@@ -12,7 +12,7 @@ interface MainLayoutProps {
 
 export function MainLayout({ children }: MainLayoutProps) {
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="h-screen overflow-hidden bg-background flex flex-col">
       <Sidebar />
       <TopBar />
       
@@ -26,8 +26,8 @@ export function MainLayout({ children }: MainLayoutProps) {
       
       {/* Desktop: margin-left for collapsed sidebar + top bar, Mobile: no margin */}
       {/* Use calc to ensure content fits exactly within available space */}
-      <main className="flex-1 lg:ml-16 flex flex-col min-w-0 w-full lg:w-[calc(100vw-4rem)] box-border" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 3.5rem)' }}>
-        <div className="flex-1 p-2 lg:p-3 xl:p-4 w-full min-w-0 flex flex-col">{children}</div>
+      <main className="flex-1 min-h-0 overflow-hidden lg:ml-16 flex flex-col min-w-0 w-full lg:w-[calc(100vw-4rem)] box-border" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 3.5rem)' }}>
+        <div className="flex-1 min-h-0 overflow-hidden p-2 lg:p-3 xl:p-4 w-full min-w-0 flex flex-col">{children}</div>
       </main>
       <GroupSecretaryPopup />
     </div>
