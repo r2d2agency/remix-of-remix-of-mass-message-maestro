@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import * as uaz from '../lib/uazapi-provider.js';
+import crypto from 'crypto';
 
 const router = Router();
 
@@ -228,22 +229,44 @@ router.post('/webhook', async (req, res) => {
   try {
     const payload = req.body || {};
     const eventType = payload.event || payload.EventType || payload.type || 'unknown';
-    const instanceToken = payload.token || payload.instance?.token || req.headers['x-token'];
-
-    let connectionId = null;
-    if (instanceToken) {
-      const c = await query(
-        `SELECT id FROM connections WHERE uazapi_token = $1 LIMIT 1`,
-        [instanceToken]
-      );
-      connectionId = c.rows[0]?.id || null;
-    }
+    const connection = await findUazapiConnection(payload, req);
+    const connectionId = connection?.id || null;
+    const data = payload.data || payload.message || payload;
+    const eventMsgId = data?.messageid || data?.messageId || data?.id || payload.id || null;
+    const remoteJid = data?.chatid || data?.chatId || data?.remoteJid || data?.from || data?.to || null;
+    const fromMe = data?.fromMe === true || data?.wasSentByApi === true;
+    let auditId = null;
 
     await query(
       `INSERT INTO uazapi_webhook_events (connection_id, event_type, payload, status)
        VALUES ($1, $2, $3, 'received')`,
       [connectionId, eventType, JSON.stringify(payload)]
     );
+
+    try {
+      const auditResult = await query(
+        `INSERT INTO inbound_webhook_audit (provider, connection_id, event_id, event_type, remote_jid, instance_id, from_me, payload, received_at)
+         VALUES ('uazapi', $1, $2, $3, $4, $5, $6, $7::jsonb, NOW())
+         ON CONFLICT (provider, event_id) WHERE event_id IS NOT NULL DO UPDATE SET received_at = NOW()
+         RETURNING id`,
+        [connectionId, eventMsgId, eventType, remoteJid, connection?.uazapi_instance_name || null, fromMe, JSON.stringify(payload).slice(0, 8000)]
+      );
+      auditId = auditResult.rows[0]?.id || null;
+    } catch (auditErr) {
+      console.warn('[UAZAPI webhook] Audit insert skipped:', auditErr?.message);
+    }
+
+    if (!connection) {
+      await updateInboundAudit(auditId, buildAuditOutcome('skipped', 'connection not found', false));
+      return;
+    }
+
+    if (eventType === 'messages' || eventType === 'message' || data?.messageid || data?.messageId) {
+      const outcome = await saveUazapiMessage(connection, payload);
+      await updateInboundAudit(auditId, outcome);
+    } else {
+      await updateInboundAudit(auditId, buildAuditOutcome(eventType === 'connection' ? 'saved' : 'ignored', null, true));
+    }
 
     // Update connection status when connection event arrives
     if (connectionId && eventType === 'connection') {
