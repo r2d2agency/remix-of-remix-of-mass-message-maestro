@@ -933,13 +933,20 @@ const Chat = () => {
             {selectedConversation && modulesEnabled.crm && crmPanelOpen && (
               <>
                 <ResizableHandle withHandle />
-                <ResizablePanel defaultSize={(() => { try { const s = JSON.parse(localStorage.getItem('chat-panel-sizes') || ''); return s[2] ?? 25; } catch { return 25; } })()} minSize={15} maxSize={40} className="overflow-hidden min-w-0">
-                  <CRMSidePanel conversationId={selectedConversation.id}
-                    contactPhone={selectedConversation.remote_jid?.replace('@s.whatsapp.net', '').replace('@g.us', '') || null}
-                    contactName={selectedConversation.contact_name || selectedConversation.group_name || null}
-                    isOpen={crmPanelOpen} onToggle={() => setCrmPanelOpen(false)}
-                    chatMessages={messages.map(m => ({ id: m.id, content: m.content || '', sender: m.from_me ? 'me' : 'contact', timestamp: m.timestamp }))}
-                  />
+                <ResizablePanel 
+                  defaultSize={(() => { try { const s = JSON.parse(localStorage.getItem('chat-panel-sizes') || ''); return s[2] ?? 25; } catch { return 25; } })()} 
+                  minSize={15} 
+                  maxSize={40} 
+                  className="min-h-0"
+                >
+                  <div className="h-full">
+                    <CRMSidePanel conversationId={selectedConversation.id}
+                      contactPhone={selectedConversation.remote_jid?.replace('@s.whatsapp.net', '').replace('@g.us', '') || null}
+                      contactName={selectedConversation.contact_name || selectedConversation.group_name || null}
+                      isOpen={crmPanelOpen} onToggle={() => setCrmPanelOpen(false)}
+                      chatMessages={messages.map(m => ({ id: m.id, content: m.content || '', sender: m.from_me ? 'me' : 'contact', timestamp: m.timestamp }))}
+                    />
+                  </div>
                 </ResizablePanel>
               </>
             )}
