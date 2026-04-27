@@ -323,13 +323,16 @@ async function saveUazapiMessage(connection, payload) {
   }
 
   // Resolve a usable media URL.
-  // 1) If webhook already provides a URL, use it.
-  // 2) Else if it sends base64 inline, persist locally and use /uploads URL.
+  // 1) Persist inline base64 immediately.
+  // 2) If UAZAPI sends a remote URL, cache it locally because provider URLs may expire or require auth.
   // 3) Else, for media types, try downloading from UAZAPI by message id.
-  let resolvedMediaUrl = msg.mediaUrl || null;
+  let resolvedMediaUrl = null;
   const isMediaType = ['image', 'video', 'audio', 'document', 'sticker'].includes(msg.messageType);
-  if (!resolvedMediaUrl && msg.mediaBase64) {
+  if (msg.mediaBase64) {
     resolvedMediaUrl = saveBase64ToUploads(msg.mediaBase64, msg.mediaMimetype);
+  }
+  if (!resolvedMediaUrl && msg.mediaUrl) {
+    resolvedMediaUrl = await cacheRemoteMediaUrl(msg.mediaUrl, msg.mediaMimetype) || msg.mediaUrl;
   }
   if (!resolvedMediaUrl && isMediaType && msg.messageId) {
     resolvedMediaUrl = await downloadAndPersistMedia(connection, msg.messageId, msg.mediaMimetype);
