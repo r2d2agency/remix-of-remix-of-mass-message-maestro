@@ -937,16 +937,14 @@ const Chat = () => {
                   defaultSize={(() => { try { const s = JSON.parse(localStorage.getItem('chat-panel-sizes') || ''); return s[2] ?? 25; } catch { return 25; } })()} 
                   minSize={15} 
                   maxSize={40} 
-                  className="min-h-0"
+                  className="!flex !flex-col min-h-0 h-full overflow-hidden"
                 >
-                  <div className="h-full">
-                    <CRMSidePanel conversationId={selectedConversation.id}
-                      contactPhone={selectedConversation.remote_jid?.replace('@s.whatsapp.net', '').replace('@g.us', '') || null}
-                      contactName={selectedConversation.contact_name || selectedConversation.group_name || null}
-                      isOpen={crmPanelOpen} onToggle={() => setCrmPanelOpen(false)}
-                      chatMessages={messages.map(m => ({ id: m.id, content: m.content || '', sender: m.from_me ? 'me' : 'contact', timestamp: m.timestamp }))}
-                    />
-                  </div>
+                  <CRMSidePanel conversationId={selectedConversation.id}
+                    contactPhone={selectedConversation.remote_jid?.replace('@s.whatsapp.net', '').replace('@g.us', '') || null}
+                    contactName={selectedConversation.contact_name || selectedConversation.group_name || null}
+                    isOpen={crmPanelOpen} onToggle={() => setCrmPanelOpen(false)}
+                    chatMessages={messages.map(m => ({ id: m.id, content: m.content || '', sender: m.from_me ? 'me' : 'contact', timestamp: m.timestamp }))}
+                  />
                 </ResizablePanel>
               </>
             )}
