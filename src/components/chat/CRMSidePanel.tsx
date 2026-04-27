@@ -179,6 +179,30 @@ export function CRMSidePanel({
     (contactName && d.client_name === contactName)
   );
 
+  const handleOpenDoc = (doc: StoredDocument) => {
+    if (!doc.file_data_url) {
+      toast.error("Arquivo indisponível para visualização");
+      return;
+    }
+    if (!openDocument(doc)) {
+      toast.error("Não foi possível abrir. Verifique o bloqueio de pop-up do navegador.");
+    }
+  };
+
+  const handleRequestSignature = (doc: StoredDocument) => {
+    updateDocument(doc.id, { status: 'awaiting_signature' });
+    toast.success(`Assinatura solicitada para ${contactName || 'cliente'}`);
+  };
+
+  const handleMarkSigned = (doc: StoredDocument) => {
+    updateDocument(doc.id, { 
+      status: 'signed', 
+      signed_at: new Date().toISOString(),
+      signer_name: contactName || doc.client_name,
+    });
+    toast.success("Documento marcado como assinado");
+  };
+
   // Inline deal creation state
   const [showCreateDeal, setShowCreateDeal] = useState(false);
   const [newDealTitle, setNewDealTitle] = useState("");
