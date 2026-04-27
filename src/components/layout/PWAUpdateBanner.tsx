@@ -16,15 +16,20 @@ export function PWAUpdateBanner() {
     updateServiceWorker,
   } = useRegisterSW({
     onRegisteredSW(swUrl, registration) {
-      // Check for updates every 60 seconds
       if (registration) {
+        // Reduced frequency to once an hour or only check when specifically needed
         setInterval(() => {
-          registration.update();
-        }, 60 * 1000);
+          registration.update().catch(() => {});
+        }, 60 * 60 * 1000);
       }
     },
     onRegisterError(error) {
-      console.error('SW registration error:', error);
+      // Less intrusive logging for common browser permission/state errors
+      if (error?.name === 'InvalidStateError') {
+        console.warn('SW: InvalidStateError during registration (common on some environments)');
+      } else {
+        console.error('SW registration error:', error);
+      }
     },
   });
 
