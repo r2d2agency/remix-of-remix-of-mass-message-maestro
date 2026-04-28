@@ -175,7 +175,8 @@ export function CRMSidePanel({
   
   const contactDocs = useDocuments({
     client_phone: contactPhone || undefined,
-    client_name: contactName || undefined
+    // Comentamos client_name para filtrar prioritariamente pelo telefone, que é único
+    // client_name: contactName || undefined
   });
 
   const handleOpenDoc = (doc: StoredDocument) => {

@@ -87,8 +87,14 @@ export function useDocuments(filters?: { client_phone?: string; client_name?: st
   
   return allDocs.filter(d => {
     if (filters.deal_id && d.deal_id === filters.deal_id) return true;
-    if (filters.client_phone && d.client_phone === filters.client_phone) return true;
+    
+    // Normalize values for comparison
+    const filterPhone = filters.client_phone?.replace(/\D/g, "");
+    const docPhone = d.client_phone?.replace(/\D/g, "");
+    
+    if (filterPhone && docPhone === filterPhone) return true;
     if (filters.client_name && d.client_name === filters.client_name) return true;
+    
     return false;
   });
 }
