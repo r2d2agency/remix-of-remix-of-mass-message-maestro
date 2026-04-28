@@ -75,7 +75,7 @@ function extFromMime(mime) {
   return 'bin';
 }
 
-function saveBase64ToUploads(base64, mimetype) {
+function saveBase64ToUploads(base64, mimetype, originalName = null) {
   try {
     let raw = String(base64 || '').trim();
     if (!raw) return null;
@@ -83,28 +83,38 @@ function saveBase64ToUploads(base64, mimetype) {
     raw = raw.replace(/\s/g, '');
     const buf = Buffer.from(raw, 'base64');
     if (!buf || buf.length === 0) return null;
-    return saveBufferToUploads(buf, mimetype);
+    return saveBufferToUploads(buf, mimetype, originalName);
   } catch (err) {
     console.warn('[UAZAPI] saveBase64ToUploads failed:', err?.message);
     return null;
   }
 }
 
-async function cacheRemoteMediaUrl(url, mimetypeHint) {
+async function cacheRemoteMediaUrl(url, mimetypeHint, originalName = null) {
   try {
     if (!/^https?:\/\//i.test(String(url || ''))) return null;
     const response = await fetch(url, { signal: AbortSignal.timeout(20000) });
     if (!response.ok) return null;
     const contentType = response.headers.get('content-type') || mimetypeHint;
     const buffer = Buffer.from(await response.arrayBuffer());
-    return saveBufferToUploads(buffer, contentType);
+    
+    let fileName = originalName;
+    if (!fileName) {
+      try {
+        const urlObj = new URL(url);
+        const pathName = path.basename(urlObj.pathname);
+        if (pathName && pathName.includes('.')) fileName = pathName;
+      } catch {}
+    }
+
+    return saveBufferToUploads(buffer, contentType, fileName);
   } catch (err) {
     console.warn('[UAZAPI] cacheRemoteMediaUrl failed:', err?.message);
     return null;
   }
 }
 
-async function downloadAndPersistMedia(connection, messageId, mimetypeHint) {
+async function downloadAndPersistMedia(connection, messageId, mimetypeHint, originalName = null) {
   try {
     if (!connection?.uazapi_server_url || !connection?.uazapi_token || !messageId) return null;
     const r = await uaz.downloadMedia({
@@ -116,12 +126,13 @@ async function downloadAndPersistMedia(connection, messageId, mimetypeHint) {
     const d = r.data;
     const base64 = d.fileBase64 || d.base64 || d.file || d.data || (typeof d === 'string' ? d : null);
     const mime = d.mimetype || d.mimeType || mimetypeHint;
-    if (base64) return saveBase64ToUploads(base64, mime);
+    const fileName = d.fileName || d.filename || d.originalName || originalName;
+    if (base64) return saveBase64ToUploads(base64, mime, fileName);
     const downloadedItems = collectMediaItems(d);
     for (const item of downloadedItems) {
-      if (item.mediaBase64) return saveBase64ToUploads(item.mediaBase64, item.mediaMimetype || mime);
+      if (item.mediaBase64) return saveBase64ToUploads(item.mediaBase64, item.mediaMimetype || mime, item.fileName || fileName);
       if (item.mediaUrl) {
-        const cached = await cacheRemoteMediaUrl(item.mediaUrl, item.mediaMimetype || mime);
+        const cached = await cacheRemoteMediaUrl(item.mediaUrl, item.mediaMimetype || mime, item.fileName || fileName);
         if (cached) return cached;
       }
     }
