@@ -465,11 +465,21 @@ async function saveUazapiMessage(connection, payload) {
     const entry = mediaEntries[i];
     const isMediaType = ['image', 'video', 'audio', 'document', 'sticker'].includes(entry.messageType);
     let resolvedMediaUrl = null;
-    if (entry.mediaBase64) resolvedMediaUrl = saveBase64ToUploads(entry.mediaBase64, entry.mediaMimetype);
-    if (!resolvedMediaUrl && entry.mediaUrl) resolvedMediaUrl = await cacheRemoteMediaUrl(entry.mediaUrl, entry.mediaMimetype) || entry.mediaUrl;
+    
+    if (entry.mediaBase64) {
+      resolvedMediaUrl = saveBase64ToUploads(entry.mediaBase64, entry.mediaMimetype);
+    }
+    
+    if (!resolvedMediaUrl && entry.mediaUrl) {
+      resolvedMediaUrl = await cacheRemoteMediaUrl(entry.mediaUrl, entry.mediaMimetype);
+      if (!resolvedMediaUrl) resolvedMediaUrl = entry.mediaUrl;
+    }
+    
     if (!resolvedMediaUrl && isMediaType && (entry.messageId || msg.messageId)) {
       resolvedMediaUrl = await downloadAndPersistMedia(connection, entry.messageId || msg.messageId, entry.mediaMimetype);
     }
+
+    console.log(`[UAZAPI] Message ${msg.messageId} entry ${i}: type=${entry.messageType}, resolvedUrl=${resolvedMediaUrl ? 'YES' : 'NO'}`);
 
     const content = isAlbumPlaceholder(entry.content || msg.content) ? null : (entry.content || msg.content || null);
     const storedMessageId = mediaEntries.length > 1 ? `${msg.messageId}_${i + 1}` : msg.messageId;
