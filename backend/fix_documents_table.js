@@ -27,7 +27,6 @@ async function fixTable() {
       await query('ALTER TABLE documents ADD COLUMN deal_id UUID;');
     }
     
-    // Add deleted_at if missing for soft delete
     if (!columns.includes('deleted_at')) {
       console.log('Adding deleted_at column...');
       await query('ALTER TABLE documents ADD COLUMN deleted_at TIMESTAMP WITH TIME ZONE;');
