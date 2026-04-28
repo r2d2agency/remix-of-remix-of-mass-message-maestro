@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { api } from "@/lib/api";
 
 export interface StoredDocument {
   id: string;
@@ -14,9 +15,10 @@ export interface StoredDocument {
   file_name?: string;
   file_size?: number;
   file_type?: string;
-  file_data_url?: string; // base64 dataURL para preview/download local
+  file_data_url?: string;
   signed_at?: string;
   signer_name?: string;
+  deal_id?: string;
 }
 
 export function fileToDataURL(file: File): Promise<string> {
@@ -51,55 +53,25 @@ export function downloadDocument(doc: StoredDocument) {
   return true;
 }
 
-const STORAGE_KEY = "legal_gleego_documents_v1";
+let documents: StoredDocument[] = [];
+const listeners = new Set<() => void>();
 
-const seed: StoredDocument[] = [
-  {
-    id: "seed-1",
-    name: "Contrato de Honorários - João Silva",
-    client_name: "João Silva",
-    case_name: "Processo 001/2024",
-    type: "Contrato de honorários",
-    status: "awaiting_signature",
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    responsible_name: "Dr. Roberto",
-  },
-  {
-    id: "seed-2",
-    name: "Procuração Ad Judicia",
-    client_name: "Maria Oliveira",
-    type: "Procuração",
-    status: "signed",
-    created_at: new Date(Date.now() - 86400000 * 3).toISOString(),
-    updated_at: new Date(Date.now() - 86400000).toISOString(),
-    signed_at: new Date(Date.now() - 86400000).toISOString(),
-    signer_name: "Maria Oliveira",
-    responsible_name: "Dr. Roberto",
-  },
-];
-
-function load(): StoredDocument[] {
-  if (typeof window === "undefined") return seed;
+async function loadDocuments() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
-      return seed;
-    }
-    return JSON.parse(raw) as StoredDocument[];
-  } catch {
-    return seed;
+    const data = await api<StoredDocument[]>('/api/documents');
+    documents = data;
+    emit();
+  } catch (err) {
+    console.error('Error loading documents:', err);
   }
 }
 
-let documents: StoredDocument[] = load();
-const listeners = new Set<() => void>();
+// Initial load
+if (typeof window !== "undefined") {
+  loadDocuments();
+}
 
 function emit() {
-  if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(documents));
-  }
   listeners.forEach((l) => l());
 }
 
@@ -108,31 +80,62 @@ function subscribe(cb: () => void) {
   return () => listeners.delete(cb);
 }
 
-export function useDocuments() {
-  return useSyncExternalStore(subscribe, () => documents, () => documents);
+export function useDocuments(filters?: { client_phone?: string; client_name?: string; deal_id?: string }) {
+  const allDocs = useSyncExternalStore(subscribe, () => documents, () => documents);
+  
+  if (!filters) return allDocs;
+  
+  return allDocs.filter(d => {
+    if (filters.deal_id && d.deal_id === filters.deal_id) return true;
+    if (filters.client_phone && d.client_phone === filters.client_phone) return true;
+    if (filters.client_name && d.client_name === filters.client_name) return true;
+    return false;
+  });
 }
 
-export function addDocument(doc: Omit<StoredDocument, "id" | "created_at" | "updated_at">) {
-  const now = new Date().toISOString();
-  const newDoc: StoredDocument = {
-    ...doc,
-    id: crypto.randomUUID(),
-    created_at: now,
-    updated_at: now,
-  };
-  documents = [newDoc, ...documents];
-  emit();
-  return newDoc;
+export async function addDocument(doc: Omit<StoredDocument, "id" | "created_at" | "updated_at">) {
+  try {
+    const newDoc = await api<StoredDocument>('/api/documents', {
+      method: 'POST',
+      body: doc
+    });
+    // We can either optimistic update or just reload
+    documents = [newDoc, ...documents];
+    emit();
+    return newDoc;
+  } catch (err) {
+    console.error('Error adding document:', err);
+    throw err;
+  }
 }
 
-export function updateDocument(id: string, patch: Partial<StoredDocument>) {
-  documents = documents.map((d) =>
-    d.id === id ? { ...d, ...patch, updated_at: new Date().toISOString() } : d
-  );
-  emit();
+export async function updateDocument(id: string, patch: Partial<StoredDocument>) {
+  try {
+    const updated = await api<StoredDocument>(`/api/documents/${id}`, {
+      method: 'PATCH',
+      body: patch
+    });
+    documents = documents.map((d) => (d.id === id ? { ...d, ...updated } : d));
+    emit();
+    return updated;
+  } catch (err) {
+    console.error('Error updating document:', err);
+    throw err;
+  }
 }
 
-export function removeDocument(id: string) {
-  documents = documents.filter((d) => d.id !== id);
-  emit();
+export async function removeDocument(id: string) {
+  try {
+    await api(`/api/documents/${id}`, { method: 'DELETE' });
+    documents = documents.filter((d) => d.id !== id);
+    emit();
+    return true;
+  } catch (err) {
+    console.error('Error removing document:', err);
+    throw err;
+  }
+}
+
+export function refreshDocuments() {
+  return loadDocuments();
 }

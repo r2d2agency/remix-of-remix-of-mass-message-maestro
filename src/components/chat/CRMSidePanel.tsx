@@ -83,7 +83,7 @@ import { EnrollSequenceDialog } from "@/components/nurturing/EnrollSequenceDialo
 import { DealDetailDialog } from "@/components/crm/DealDetailDialog";
 import { CompanyDialog } from "@/components/crm/CompanyDialog";
 import { DocumentUploadDialog } from "@/components/documents/DocumentUploadDialog";
-import { useDocuments, openDocument, downloadDocument, updateDocument, StoredDocument } from "@/hooks/use-documents-store";
+import { useDocuments, openDocument, downloadDocument, updateDocument, StoredDocument, refreshDocuments } from "@/hooks/use-documents-store";
 
 interface CRMSidePanelProps {
   conversationId: string;
@@ -173,11 +173,11 @@ export function CRMSidePanel({
   const [showSequenceDialog, setShowSequenceDialog] = useState(false);
   const [showDocDialog, setShowDocDialog] = useState(false);
   
-  const allDocs = useDocuments();
-  const contactDocs = allDocs.filter(d => 
-    (contactPhone && d.client_phone === contactPhone) ||
-    (contactName && d.client_name === contactName)
-  );
+  const allDocs = useDocuments({
+    client_phone: contactPhone || undefined,
+    client_name: contactName || undefined
+  });
+  const contactDocs = allDocs;
 
   const handleOpenDoc = (doc: StoredDocument) => {
     if (!doc.file_data_url) {
@@ -240,6 +240,7 @@ export function CRMSidePanel({
     if (isOpen && conversationId) {
       loadNotes();
       loadAgents();
+      refreshDocuments();
     }
   }, [isOpen, conversationId]);
 
