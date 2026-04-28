@@ -83,7 +83,7 @@ import { EnrollSequenceDialog } from "@/components/nurturing/EnrollSequenceDialo
 import { DealDetailDialog } from "@/components/crm/DealDetailDialog";
 import { CompanyDialog } from "@/components/crm/CompanyDialog";
 import { DocumentUploadDialog } from "@/components/documents/DocumentUploadDialog";
-import { useDocuments, openDocument, downloadDocument, updateDocument, StoredDocument } from "@/hooks/use-documents-store";
+import { useDocuments, openDocument, downloadDocument, updateDocument, StoredDocument, refreshDocuments } from "@/hooks/use-documents-store";
 
 interface CRMSidePanelProps {
   conversationId: string;
@@ -240,6 +240,7 @@ export function CRMSidePanel({
     if (isOpen && conversationId) {
       loadNotes();
       loadAgents();
+      refreshDocuments();
     }
   }, [isOpen, conversationId]);
 
