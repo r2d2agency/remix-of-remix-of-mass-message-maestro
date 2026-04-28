@@ -173,11 +173,11 @@ export function CRMSidePanel({
   const [showSequenceDialog, setShowSequenceDialog] = useState(false);
   const [showDocDialog, setShowDocDialog] = useState(false);
   
-  const allDocs = useDocuments();
-  const contactDocs = allDocs.filter(d => 
-    (contactPhone && d.client_phone === contactPhone) ||
-    (contactName && d.client_name === contactName)
-  );
+  const allDocs = useDocuments({
+    client_phone: contactPhone || undefined,
+    client_name: contactName || undefined
+  });
+  const contactDocs = allDocs;
 
   const handleOpenDoc = (doc: StoredDocument) => {
     if (!doc.file_data_url) {
