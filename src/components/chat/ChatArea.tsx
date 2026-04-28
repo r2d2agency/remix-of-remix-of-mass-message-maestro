@@ -481,21 +481,23 @@ export function ChatArea({
     setSelectedMessages([]);
   }, [conversation?.id]);
 
-  // Scroll to bottom immediately when opening a conversation (initial load)
+  // Optimized auto-scroll
+  const scrollToBottomImmediate = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+  }, []);
+
   useEffect(() => {
     if (!messages.length) return;
     
-    // On initial load, scroll to bottom immediately (no animation for speed)
     if (isInitialLoadRef.current) {
-      // Use a small delay to ensure DOM is rendered
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+      // Initial load: no animation
+      requestAnimationFrame(() => {
+        scrollToBottomImmediate();
         isInitialLoadRef.current = false;
-      }, 50);
+      });
       return;
     }
     
-    // For subsequent message updates, only scroll if near bottom
     if (showSearch) return;
     
     const container = scrollContainerRef.current;
@@ -504,13 +506,11 @@ export function ChatArea({
     const { scrollTop, scrollHeight, clientHeight } = container;
     const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
     
-    // Check if near bottom to auto-scroll
-    const isNearBottom = distanceFromBottom < 150;
-    
-    if (isNearBottom && !isUserScrollingRef.current) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+    // Auto-scroll only if already near bottom
+    if (distanceFromBottom < 150 && !isUserScrollingRef.current) {
+      requestAnimationFrame(scrollToBottomImmediate);
     }
-  }, [messages, showSearch]);
+  }, [messages.length, showSearch, scrollToBottomImmediate]);
 
   // Track user scroll to detect when they're browsing history and show scroll button
   useEffect(() => {
@@ -519,34 +519,35 @@ export function ChatArea({
 
     let scrollTimeout: ReturnType<typeof setTimeout>;
 
+    let isTicking = false;
     const handleScroll = () => {
-      const { scrollTop, scrollHeight, clientHeight } = container;
-      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-      
-      // Show scroll button when user is away from bottom
-      setShowScrollButton(distanceFromBottom > 300);
-      
-      // Smart Scroll: Detect if user is manually scrolling up
-      // Increase threshold to 250px to give more room for the user to stay up
-      if (scrollTop < lastScrollTopRef.current && distanceFromBottom > 250) {
-        isUserScrollingRef.current = true;
-      }
-      
-      // If user scrolled back to bottom, resume auto-scrolling
-      if (distanceFromBottom < 100) {
-        isUserScrollingRef.current = false;
-      }
+      if (!isTicking) {
+        window.requestAnimationFrame(() => {
+          const { scrollTop, scrollHeight, clientHeight } = container;
+          const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+          
+          setShowScrollButton(distanceFromBottom > 400);
+          
+          if (scrollTop < lastScrollTopRef.current && distanceFromBottom > 250) {
+            isUserScrollingRef.current = true;
+          }
+          
+          if (distanceFromBottom < 100) {
+            isUserScrollingRef.current = false;
+          }
 
-      
-      lastScrollTopRef.current = scrollTop;
-      
-      // Reset the scrolling flag after user stops scrolling
-      clearTimeout(scrollTimeout);
-      scrollTimeout = setTimeout(() => {
-        if (distanceFromBottom < 50) {
-          isUserScrollingRef.current = false;
-        }
-      }, 150);
+          lastScrollTopRef.current = scrollTop;
+          
+          clearTimeout(scrollTimeout);
+          scrollTimeout = setTimeout(() => {
+            if (distanceFromBottom < 50) {
+              isUserScrollingRef.current = false;
+            }
+          }, 200);
+          isTicking = false;
+        });
+        isTicking = true;
+      }
     };
 
     container.addEventListener('scroll', handleScroll, { passive: true });
