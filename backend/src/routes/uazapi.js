@@ -36,7 +36,9 @@ function saveBufferToUploads(buffer, mimetype) {
     const mime = guessMimeFromBuffer(buffer, mimetype);
     const ext = extFromMime(mime);
     const filename = `uaz_${Date.now()}_${crypto.randomBytes(6).toString('hex')}.${ext}`;
-    fs.writeFileSync(path.join(UPLOADS_DIR, filename), buffer);
+    const filePath = path.join(UPLOADS_DIR, filename);
+    fs.writeFileSync(filePath, buffer);
+    console.log(`[UAZAPI] Saved buffer to ${filename} (${buffer.length} bytes, mime: ${mime})`);
     return uploadsUrl(filename);
   } catch (err) {
     console.warn('[UAZAPI] saveBufferToUploads failed:', err?.message);
