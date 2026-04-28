@@ -354,6 +354,7 @@ function extractUazapiMessage(payload) {
         mediaBase64,
         messageId: pickFirstString(data.messageid, data.messageId, data.id, payload?.id),
         content: text,
+        fileName: pickFirstString(data.fileName, data.filename, data.originalName, content.fileName, content.filename),
       }, ...mediaItems];
     }
   }
