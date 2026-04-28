@@ -1501,14 +1501,27 @@ export function CRMSidePanel({
           <ScrollArea className="flex-1 min-h-0">
             <div className="p-3 space-y-6">
               <div className="flex items-center justify-between">
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                  <FileText className="h-3.5 w-3.5 text-primary" />
-                  Documentos
-                </h3>
-                <Button size="sm" variant="ghost" className="h-6 text-[10px] gap-1 px-1.5" onClick={() => setShowDocDialog(true)}>
-                  <FilePlus className="h-3 w-3" />
-                  Novo
-                </Button>
+                <div className="flex flex-col gap-0.5">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                    <FileText className="h-3.5 w-3.5 text-primary" />
+                    Documentos
+                  </h3>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button 
+                    size="sm" 
+                    variant="ghost" 
+                    className="h-7 w-7 p-0" 
+                    onClick={() => refreshDocuments()}
+                    title="Atualizar lista"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-6 text-[10px] gap-1 px-1.5" onClick={() => setShowDocDialog(true)}>
+                    <FilePlus className="h-3 w-3" />
+                    Novo
+                  </Button>
+                </div>
               </div>
 
               {/* Docs List */}
