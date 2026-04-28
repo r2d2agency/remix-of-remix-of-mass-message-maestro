@@ -1129,6 +1129,7 @@ export function ConversationList({
           onSelectResult={onGlobalSearchSelect}
         />
       )}
+      </div>
     </div>
   );
 }
