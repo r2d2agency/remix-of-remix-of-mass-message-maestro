@@ -190,9 +190,11 @@ export function DocumentUploadDialog({ open, onOpenChange, defaultClientName, de
       <DialogContent ref={contentRef} className="sm:max-w-[560px]">
         <DialogHeader>
           <DialogTitle>Novo Documento</DialogTitle>
-          <DialogDescription>
-            Arraste um arquivo, cole com Ctrl+V ou clique para selecionar.
-          </DialogDescription>
+          <VisuallyHidden>
+            <DialogDescription>
+              Arraste um arquivo, cole com Ctrl+V ou clique para selecionar.
+            </DialogDescription>
+          </VisuallyHidden>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
