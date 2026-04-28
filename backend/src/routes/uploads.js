@@ -64,8 +64,10 @@ const storage = multer.diskStorage({
       'video/quicktime': '.mov',
     };
 
+    const cleanName = (file.originalname || 'file').replace(/[^a-zA-Z0-9.-]/g, '_');
+    const nameWithoutExt = path.parse(cleanName).name;
     const ext = originalExt || mimeToExt[mime] || '.bin';
-    const uniqueName = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${ext}`;
+    const uniqueName = `${Date.now()}-${nameWithoutExt}${ext}`;
     cb(null, uniqueName);
   }
 });
