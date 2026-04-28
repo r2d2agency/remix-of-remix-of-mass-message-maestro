@@ -35,13 +35,11 @@ router.get('/', async (req, res) => {
     let paramIndex = 2;
 
     if (client_phone) {
-      // In our current mock store, we don't have client_phone in DB yet, 
-      // but let's assume it matches contacts table if linked
-      sql += ` AND d.client_id IN (SELECT id FROM contacts WHERE phone = $${paramIndex})`;
+      sql += ` AND (d.client_phone = $${paramIndex} OR d.client_id IN (SELECT id FROM contacts WHERE phone = $${paramIndex}))`;
       params.push(client_phone);
       paramIndex++;
     } else if (client_name) {
-      sql += ` AND d.name ILIKE $${paramIndex}`;
+      sql += ` AND (d.client_name ILIKE $${paramIndex} OR d.name ILIKE $${paramIndex})`;
       params.push(`%${client_name}%`);
       paramIndex++;
     }
@@ -66,7 +64,8 @@ router.get('/', async (req, res) => {
     const mapped = result.rows.map(row => ({
       id: row.id,
       name: row.name,
-      client_name: row.client_name || '—', // Placeholder until joined with contact
+      client_name: row.client_name || '—', 
+      client_phone: row.client_phone,
       type: row.document_type,
       status: row.status,
       created_at: row.created_at,
@@ -91,13 +90,13 @@ router.post('/', async (req, res) => {
     const org = await getUserOrg(req.userId);
     if (!org) return res.status(403).json({ error: 'Sem organização vinculada' });
 
-    const { name, client_name, type, status, file_name, file_size, file_type, file_data_url, deal_id } = req.body;
+    const { name, client_name, type, status, file_name, file_size, file_type, file_data_url, deal_id, client_phone } = req.body;
 
     const result = await query(
       `INSERT INTO documents (
         organization_id, name, document_type, status, file_url, 
-        file_type, file_size, responsible_user_id, deal_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+        file_type, file_size, responsible_user_id, deal_id, client_name, client_phone
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
       [
         org.organization_id, 
         name, 
@@ -107,7 +106,9 @@ router.post('/', async (req, res) => {
         file_type, 
         file_size, 
         req.userId,
-        deal_id || null
+        deal_id || null,
+        client_name || null,
+        client_phone || null
       ]
     );
 

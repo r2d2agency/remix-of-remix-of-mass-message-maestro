@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -189,9 +190,11 @@ export function DocumentUploadDialog({ open, onOpenChange, defaultClientName, de
       <DialogContent ref={contentRef} className="sm:max-w-[560px]">
         <DialogHeader>
           <DialogTitle>Novo Documento</DialogTitle>
-          <DialogDescription>
-            Arraste um arquivo, cole com Ctrl+V ou clique para selecionar.
-          </DialogDescription>
+          <VisuallyHidden>
+            <DialogDescription>
+              Arraste um arquivo, cole com Ctrl+V ou clique para selecionar.
+            </DialogDescription>
+          </VisuallyHidden>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
