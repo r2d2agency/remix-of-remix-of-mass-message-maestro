@@ -489,16 +489,16 @@ async function saveUazapiMessage(connection, payload) {
     let resolvedMediaUrl = null;
     
     if (entry.mediaBase64) {
-      resolvedMediaUrl = saveBase64ToUploads(entry.mediaBase64, entry.mediaMimetype);
+      resolvedMediaUrl = saveBase64ToUploads(entry.mediaBase64, entry.mediaMimetype, entry.fileName);
     }
     
     if (!resolvedMediaUrl && entry.mediaUrl) {
-      resolvedMediaUrl = await cacheRemoteMediaUrl(entry.mediaUrl, entry.mediaMimetype);
+      resolvedMediaUrl = await cacheRemoteMediaUrl(entry.mediaUrl, entry.mediaMimetype, entry.fileName);
       if (!resolvedMediaUrl) resolvedMediaUrl = entry.mediaUrl;
     }
     
     if (!resolvedMediaUrl && isMediaType && (entry.messageId || msg.messageId)) {
-      resolvedMediaUrl = await downloadAndPersistMedia(connection, entry.messageId || msg.messageId, entry.mediaMimetype);
+      resolvedMediaUrl = await downloadAndPersistMedia(connection, entry.messageId || msg.messageId, entry.mediaMimetype, entry.fileName);
     }
 
     console.log(`[UAZAPI] Message ${msg.messageId} entry ${i}: type=${entry.messageType}, resolvedUrl=${resolvedMediaUrl ? 'YES' : 'NO'}`);
