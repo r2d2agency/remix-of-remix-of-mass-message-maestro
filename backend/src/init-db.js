@@ -3445,6 +3445,15 @@ CREATE TABLE IF NOT EXISTS documents (
     deleted_at TIMESTAMP WITH TIME ZONE
 );
 
+
+-- Add missing columns to documents for better linking (client name/phone)
+DO $$ BEGIN
+    ALTER TABLE documents ADD COLUMN IF NOT EXISTS client_name TEXT;
+    ALTER TABLE documents ADD COLUMN IF NOT EXISTS client_phone TEXT;
+    -- Ensure deal_id exists and is correctly typed (already in CREATE, but for existing)
+    ALTER TABLE documents ADD COLUMN IF NOT EXISTS deal_id UUID REFERENCES crm_deals(id) ON DELETE SET NULL;
+EXCEPTION WHEN duplicate_column THEN null; END $$;
+
 -- Document Versions
 CREATE TABLE IF NOT EXISTS document_versions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
