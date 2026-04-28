@@ -215,8 +215,9 @@ function mediaItemFromObject(obj, forcedType = null) {
   const base64 = pickFirstString(obj.fileBase64, obj.mediaBase64, obj.base64, obj.file, obj.data);
   const messageId = pickFirstString(obj.messageid, obj.messageId, obj.id, obj.key?.id);
   const caption = pickFirstString(obj.caption, obj.text, obj.body);
+  const fileName = pickFirstString(obj.fileName, obj.filename, obj.originalName);
   if (!type || (!url && !base64 && !messageId)) return null;
-  return { messageType: type, mediaUrl: url, mediaMimetype: mimetype, mediaBase64: base64, messageId, content: caption };
+  return { messageType: type, mediaUrl: url, mediaMimetype: mimetype, mediaBase64: base64, messageId, content: caption, fileName };
 }
 
 function collectMediaItems(root, maxDepth = 6) {
