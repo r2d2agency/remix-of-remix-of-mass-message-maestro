@@ -108,9 +108,9 @@ router.post('/', async (req, res) => {
         name, 
         type, 
         status || 'draft', 
-        file_data_url, // Expecting URL from uploads route or dataURL for now
-        file_type, 
-        file_size, 
+        file_data_url || '', // Evita erro se URL estiver vazia
+        file_type || '', 
+        file_size || 0, 
         req.userId,
         deal_id || null,
         client_name || null,
