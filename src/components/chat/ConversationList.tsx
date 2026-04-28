@@ -763,19 +763,20 @@ export function ConversationList({
       </div>
 
       {/* Conversation List */}
-      <ScrollArea className="flex-1 min-h-0 overscroll-contain">
-        {loading && conversations.length === 0 ? (
-          <div className="flex items-center justify-center p-8">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        ) : conversations.length === 0 ? (
-          <div className="flex flex-col items-center justify-center p-8 text-muted-foreground">
-            <MessageSquare className="h-12 w-12 mb-2 opacity-50" />
-            <p className="text-sm">Nenhuma conversa encontrada</p>
-          </div>
-        ) : (
-          <div className="divide-y">
-            {conversations.map((conv) => {
+      <div className="flex-1 min-h-0 relative">
+        <ScrollArea className="h-full overscroll-contain">
+          {loading && conversations.length === 0 ? (
+            <div className="flex items-center justify-center p-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : conversations.length === 0 ? (
+            <div className="flex flex-col items-center justify-center p-8 text-muted-foreground">
+              <MessageSquare className="h-12 w-12 mb-2 opacity-50" />
+              <p className="text-sm">Nenhuma conversa encontrada</p>
+            </div>
+          ) : (
+            <div className="divide-y pb-20">
+              {conversations.map((conv) => {
               // Use the actual conversation status, not the filter
               const isWaiting = conv.attendance_status === 'waiting';
               const isAttending = conv.attendance_status === 'attending';

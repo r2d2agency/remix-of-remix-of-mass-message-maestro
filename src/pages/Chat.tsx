@@ -312,11 +312,21 @@ const Chat = () => {
     loadConversationsRef.current = loadConversations;
   }, [loadConversations]);
 
+  // Use a ref to track current status to avoid excessive re-renders when only status changes
+  const lastStatusRef = useRef(filters.attendance_status);
+
   // Reload immediately when filters or activeTab change
-  // Note: loadConversations deps are now stable so this only triggers on actual filter changes
   useEffect(() => {
+    // Only clear selected conversation if the attendance status actually changed
+    // to prevent losing selection during background refreshes or filter updates
+    if (lastStatusRef.current !== filters.attendance_status) {
+      selectedIdRef.current = null;
+      setSelectedConversation(null);
+      setMessages([]);
+      lastStatusRef.current = filters.attendance_status;
+    }
+    
     loadConversations();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.search, filters.tag, filters.assigned, filters.connection, filters.archived, filters.attendance_status, filters.department, activeTab, showFavorites]);
 
   const loadTags = async () => {
