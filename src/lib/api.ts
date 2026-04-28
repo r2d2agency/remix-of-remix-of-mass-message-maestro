@@ -4,10 +4,11 @@ interface ApiOptions {
   method?: 'GET' | 'POST' | 'PATCH' | 'DELETE' | 'PUT';
   body?: unknown;
   auth?: boolean;
+  signal?: AbortSignal;
 }
 
 export const api = async <T>(endpoint: string, options: ApiOptions = {}): Promise<T> => {
-  const { method = 'GET', body, auth = true } = options;
+  const { method = 'GET', body, auth = true, signal } = options;
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -24,6 +25,7 @@ export const api = async <T>(endpoint: string, options: ApiOptions = {}): Promis
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
+    signal,
   });
 
   const contentType = response.headers.get('content-type') || '';

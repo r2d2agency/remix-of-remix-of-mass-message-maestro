@@ -142,6 +142,7 @@ export const useChat = () => {
   const [error, setError] = useState<string | null>(null);
   const alertsPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastAlertIdRef = useRef<string | null>(null);
+  const abortControllersRef = useRef<Record<string, AbortController>>({});
 
   // Alerts polling - show toast when new scheduled messages are sent
   const getAlerts = useCallback(async (): Promise<UserAlert[]> => {
@@ -226,6 +227,14 @@ export const useChat = () => {
   }): Promise<Conversation[]> => {
     setLoading(true);
     setError(null);
+
+    // Abort previous request for conversations if any
+    if (abortControllersRef.current['getConversations']) {
+      abortControllersRef.current['getConversations'].abort();
+    }
+    const controller = new AbortController();
+    abortControllersRef.current['getConversations'] = controller;
+
     try {
       const params = new URLSearchParams();
       if (filters?.search) params.append('search', filters.search);
@@ -243,14 +252,20 @@ export const useChat = () => {
       if (filters?.end_date) params.append('end_date', filters.end_date);
       
       const url = `/api/chat/conversations${params.toString() ? `?${params}` : ''}`;
-      const data = await api<Conversation[]>(url);
+      const data = await api<Conversation[]>(url, { signal: controller.signal });
       return data;
     } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        return []; // Silently ignore aborted requests
+      }
       const message = err instanceof Error ? err.message : 'Erro ao buscar conversas';
       setError(message);
       throw err;
     } finally {
-      setLoading(false);
+      if (abortControllersRef.current['getConversations'] === controller) {
+        setLoading(false);
+        delete abortControllersRef.current['getConversations'];
+      }
     }
   }, []);
 
@@ -347,13 +362,32 @@ export const useChat = () => {
     limit?: number;
     before?: string;
   }): Promise<ChatMessage[]> => {
+    // Abort previous messages request for this conversation if any
+    const requestId = `getMessages-${conversationId}`;
+    if (abortControllersRef.current[requestId]) {
+      abortControllersRef.current[requestId].abort();
+    }
+    const controller = new AbortController();
+    abortControllersRef.current[requestId] = controller;
+
     const params = new URLSearchParams();
     if (options?.limit) params.append('limit', String(options.limit));
     if (options?.before) params.append('before', options.before);
     
-    const url = `/api/chat/conversations/${conversationId}/messages${params.toString() ? `?${params}` : ''}`;
-    const data = await api<ChatMessage[]>(url);
-    return data;
+    try {
+      const url = `/api/chat/conversations/${conversationId}/messages${params.toString() ? `?${params}` : ''}`;
+      const data = await api<ChatMessage[]>(url, { signal: controller.signal });
+      return data;
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        return [];
+      }
+      throw err;
+    } finally {
+      if (abortControllersRef.current[requestId] === controller) {
+        delete abortControllersRef.current[requestId];
+      }
+    }
   }, []);
 
   const sendMessage = useCallback(async (conversationId: string, message: {

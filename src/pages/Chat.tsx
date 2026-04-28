@@ -326,6 +326,10 @@ const Chat = () => {
       lastStatusRef.current = filters.attendance_status;
     }
     
+    // Clear current conversations to show loading state immediately
+    // and make the UI feel responsive to the click
+    setConversations([]);
+    
     loadConversations();
   }, [filters.search, filters.tag, filters.assigned, filters.connection, filters.archived, filters.attendance_status, filters.department, activeTab, showFavorites]);
 
