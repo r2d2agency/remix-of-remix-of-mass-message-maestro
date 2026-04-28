@@ -30,12 +30,21 @@ function uploadsUrl(filename) {
   return `${baseUrl}/uploads/${filename}`;
 }
 
-function saveBufferToUploads(buffer, mimetype) {
+function saveBufferToUploads(buffer, mimetype, originalName = null) {
   try {
     if (!Buffer.isBuffer(buffer) || buffer.length === 0) return null;
     const mime = guessMimeFromBuffer(buffer, mimetype);
     const ext = extFromMime(mime);
-    const filename = `uaz_${Date.now()}_${crypto.randomBytes(6).toString('hex')}.${ext}`;
+    
+    let filename;
+    if (originalName) {
+      const cleanOriginal = String(originalName).replace(/[^a-zA-Z0-9.-]/g, '_');
+      const nameParts = path.parse(cleanOriginal);
+      filename = `uaz_${Date.now()}_${nameParts.name}.${ext}`;
+    } else {
+      filename = `uaz_${Date.now()}_${crypto.randomBytes(6).toString('hex')}.${ext}`;
+    }
+
     const filePath = path.join(UPLOADS_DIR, filename);
     fs.writeFileSync(filePath, buffer);
     console.log(`[UAZAPI] Saved buffer to ${filename} (${buffer.length} bytes, mime: ${mime})`);
@@ -66,7 +75,7 @@ function extFromMime(mime) {
   return 'bin';
 }
 
-function saveBase64ToUploads(base64, mimetype) {
+function saveBase64ToUploads(base64, mimetype, originalName = null) {
   try {
     let raw = String(base64 || '').trim();
     if (!raw) return null;
@@ -74,28 +83,38 @@ function saveBase64ToUploads(base64, mimetype) {
     raw = raw.replace(/\s/g, '');
     const buf = Buffer.from(raw, 'base64');
     if (!buf || buf.length === 0) return null;
-    return saveBufferToUploads(buf, mimetype);
+    return saveBufferToUploads(buf, mimetype, originalName);
   } catch (err) {
     console.warn('[UAZAPI] saveBase64ToUploads failed:', err?.message);
     return null;
   }
 }
 
-async function cacheRemoteMediaUrl(url, mimetypeHint) {
+async function cacheRemoteMediaUrl(url, mimetypeHint, originalName = null) {
   try {
     if (!/^https?:\/\//i.test(String(url || ''))) return null;
     const response = await fetch(url, { signal: AbortSignal.timeout(20000) });
     if (!response.ok) return null;
     const contentType = response.headers.get('content-type') || mimetypeHint;
     const buffer = Buffer.from(await response.arrayBuffer());
-    return saveBufferToUploads(buffer, contentType);
+    
+    let fileName = originalName;
+    if (!fileName) {
+      try {
+        const urlObj = new URL(url);
+        const pathName = path.basename(urlObj.pathname);
+        if (pathName && pathName.includes('.')) fileName = pathName;
+      } catch {}
+    }
+
+    return saveBufferToUploads(buffer, contentType, fileName);
   } catch (err) {
     console.warn('[UAZAPI] cacheRemoteMediaUrl failed:', err?.message);
     return null;
   }
 }
 
-async function downloadAndPersistMedia(connection, messageId, mimetypeHint) {
+async function downloadAndPersistMedia(connection, messageId, mimetypeHint, originalName = null) {
   try {
     if (!connection?.uazapi_server_url || !connection?.uazapi_token || !messageId) return null;
     const r = await uaz.downloadMedia({
@@ -107,12 +126,13 @@ async function downloadAndPersistMedia(connection, messageId, mimetypeHint) {
     const d = r.data;
     const base64 = d.fileBase64 || d.base64 || d.file || d.data || (typeof d === 'string' ? d : null);
     const mime = d.mimetype || d.mimeType || mimetypeHint;
-    if (base64) return saveBase64ToUploads(base64, mime);
+    const fileName = d.fileName || d.filename || d.originalName || originalName;
+    if (base64) return saveBase64ToUploads(base64, mime, fileName);
     const downloadedItems = collectMediaItems(d);
     for (const item of downloadedItems) {
-      if (item.mediaBase64) return saveBase64ToUploads(item.mediaBase64, item.mediaMimetype || mime);
+      if (item.mediaBase64) return saveBase64ToUploads(item.mediaBase64, item.mediaMimetype || mime, item.fileName || fileName);
       if (item.mediaUrl) {
-        const cached = await cacheRemoteMediaUrl(item.mediaUrl, item.mediaMimetype || mime);
+        const cached = await cacheRemoteMediaUrl(item.mediaUrl, item.mediaMimetype || mime, item.fileName || fileName);
         if (cached) return cached;
       }
     }
@@ -195,8 +215,9 @@ function mediaItemFromObject(obj, forcedType = null) {
   const base64 = pickFirstString(obj.fileBase64, obj.mediaBase64, obj.base64, obj.file, obj.data);
   const messageId = pickFirstString(obj.messageid, obj.messageId, obj.id, obj.key?.id);
   const caption = pickFirstString(obj.caption, obj.text, obj.body);
+  const fileName = pickFirstString(obj.fileName, obj.filename, obj.originalName);
   if (!type || (!url && !base64 && !messageId)) return null;
-  return { messageType: type, mediaUrl: url, mediaMimetype: mimetype, mediaBase64: base64, messageId, content: caption };
+  return { messageType: type, mediaUrl: url, mediaMimetype: mimetype, mediaBase64: base64, messageId, content: caption, fileName };
 }
 
 function collectMediaItems(root, maxDepth = 6) {
@@ -333,6 +354,7 @@ function extractUazapiMessage(payload) {
         mediaBase64,
         messageId: pickFirstString(data.messageid, data.messageId, data.id, payload?.id),
         content: text,
+        fileName: pickFirstString(data.fileName, data.filename, data.originalName, content.fileName, content.filename),
       }, ...mediaItems];
     }
   }
@@ -467,16 +489,16 @@ async function saveUazapiMessage(connection, payload) {
     let resolvedMediaUrl = null;
     
     if (entry.mediaBase64) {
-      resolvedMediaUrl = saveBase64ToUploads(entry.mediaBase64, entry.mediaMimetype);
+      resolvedMediaUrl = saveBase64ToUploads(entry.mediaBase64, entry.mediaMimetype, entry.fileName);
     }
     
     if (!resolvedMediaUrl && entry.mediaUrl) {
-      resolvedMediaUrl = await cacheRemoteMediaUrl(entry.mediaUrl, entry.mediaMimetype);
+      resolvedMediaUrl = await cacheRemoteMediaUrl(entry.mediaUrl, entry.mediaMimetype, entry.fileName);
       if (!resolvedMediaUrl) resolvedMediaUrl = entry.mediaUrl;
     }
     
     if (!resolvedMediaUrl && isMediaType && (entry.messageId || msg.messageId)) {
-      resolvedMediaUrl = await downloadAndPersistMedia(connection, entry.messageId || msg.messageId, entry.mediaMimetype);
+      resolvedMediaUrl = await downloadAndPersistMedia(connection, entry.messageId || msg.messageId, entry.mediaMimetype, entry.fileName);
     }
 
     console.log(`[UAZAPI] Message ${msg.messageId} entry ${i}: type=${entry.messageType}, resolvedUrl=${resolvedMediaUrl ? 'YES' : 'NO'}`);
