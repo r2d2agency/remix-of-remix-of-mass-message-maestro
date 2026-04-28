@@ -30,12 +30,21 @@ function uploadsUrl(filename) {
   return `${baseUrl}/uploads/${filename}`;
 }
 
-function saveBufferToUploads(buffer, mimetype) {
+function saveBufferToUploads(buffer, mimetype, originalName = null) {
   try {
     if (!Buffer.isBuffer(buffer) || buffer.length === 0) return null;
     const mime = guessMimeFromBuffer(buffer, mimetype);
     const ext = extFromMime(mime);
-    const filename = `uaz_${Date.now()}_${crypto.randomBytes(6).toString('hex')}.${ext}`;
+    
+    let filename;
+    if (originalName) {
+      const cleanOriginal = String(originalName).replace(/[^a-zA-Z0-9.-]/g, '_');
+      const nameParts = path.parse(cleanOriginal);
+      filename = `uaz_${Date.now()}_${nameParts.name}.${ext}`;
+    } else {
+      filename = `uaz_${Date.now()}_${crypto.randomBytes(6).toString('hex')}.${ext}`;
+    }
+
     const filePath = path.join(UPLOADS_DIR, filename);
     fs.writeFileSync(filePath, buffer);
     console.log(`[UAZAPI] Saved buffer to ${filename} (${buffer.length} bytes, mime: ${mime})`);
