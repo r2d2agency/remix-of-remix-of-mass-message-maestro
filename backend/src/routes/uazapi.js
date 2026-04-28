@@ -36,7 +36,9 @@ function saveBufferToUploads(buffer, mimetype) {
     const mime = guessMimeFromBuffer(buffer, mimetype);
     const ext = extFromMime(mime);
     const filename = `uaz_${Date.now()}_${crypto.randomBytes(6).toString('hex')}.${ext}`;
-    fs.writeFileSync(path.join(UPLOADS_DIR, filename), buffer);
+    const filePath = path.join(UPLOADS_DIR, filename);
+    fs.writeFileSync(filePath, buffer);
+    console.log(`[UAZAPI] Saved buffer to ${filename} (${buffer.length} bytes, mime: ${mime})`);
     return uploadsUrl(filename);
   } catch (err) {
     console.warn('[UAZAPI] saveBufferToUploads failed:', err?.message);
@@ -322,14 +324,17 @@ function extractUazapiMessage(payload) {
 
   let mediaItems = collectMediaItems(data);
   if (mediaUrl || mediaBase64) {
-    mediaItems = [{
-      messageType,
-      mediaUrl,
-      mediaMimetype,
-      mediaBase64,
-      messageId: pickFirstString(data.messageid, data.messageId, data.id, payload?.id),
-      content: text,
-    }, ...mediaItems];
+    const existing = mediaItems.find(item => item.mediaUrl === mediaUrl || (mediaBase64 && item.mediaBase64 === mediaBase64));
+    if (!existing) {
+      mediaItems = [{
+        messageType: (['image', 'video', 'audio', 'document', 'sticker'].includes(messageType) ? messageType : null) || typeFromMime(mediaMimetype) || 'image',
+        mediaUrl,
+        mediaMimetype,
+        mediaBase64,
+        messageId: pickFirstString(data.messageid, data.messageId, data.id, payload?.id),
+        content: text,
+      }, ...mediaItems];
+    }
   }
   mediaItems = mediaItems.filter((item) => ['image', 'video', 'audio', 'document', 'sticker'].includes(item.messageType));
   if (messageType === 'text' && mediaItems.length > 0) messageType = mediaItems[0].messageType;
@@ -433,27 +438,48 @@ async function saveUazapiMessage(connection, payload) {
 
   let mediaEntries = msg.mediaItems?.length
     ? msg.mediaItems
-    : [{ messageType: msg.messageType, mediaUrl: msg.mediaUrl, mediaMimetype: msg.mediaMimetype, mediaBase64: msg.mediaBase64, messageId: msg.messageId, content: msg.content }];
+    : (['image', 'video', 'audio', 'document', 'sticker'].includes(msg.messageType) 
+        ? [{ messageType: msg.messageType, mediaUrl: msg.mediaUrl, mediaMimetype: msg.mediaMimetype, mediaBase64: msg.mediaBase64, messageId: msg.messageId, content: msg.content }]
+        : []);
 
-  if ((!msg.mediaItems?.length || isAlbumPlaceholder(msg.content)) && msg.messageId && connection?.uazapi_server_url && connection?.uazapi_token) {
+  if ((mediaEntries.length === 0 || isAlbumPlaceholder(msg.content)) && msg.messageId && connection?.uazapi_server_url && connection?.uazapi_token) {
+    console.log(`[UAZAPI] Attempting to download media for message ${msg.messageId} (entries: ${mediaEntries.length})`);
     const downloaded = await uaz.downloadMedia({
       serverUrl: connection.uazapi_server_url,
       token: connection.uazapi_token,
       messageId: msg.messageId,
-    }).catch(() => null);
+    }).catch((e) => {
+      console.warn(`[UAZAPI] Download attempt failed for ${msg.messageId}:`, e.message);
+      return null;
+    });
     const downloadedItems = downloaded?.ok ? collectMediaItems(downloaded.data).filter((item) => ['image', 'video', 'audio', 'document', 'sticker'].includes(item.messageType)) : [];
-    if (downloadedItems.length > 0) mediaEntries = downloadedItems.map((item) => ({ ...item, content: isAlbumPlaceholder(msg.content) ? null : (item.content || msg.content) }));
+    if (downloadedItems.length > 0) {
+      console.log(`[UAZAPI] Downloaded ${downloadedItems.length} media items for ${msg.messageId}`);
+      mediaEntries = downloadedItems.map((item) => ({ ...item, content: isAlbumPlaceholder(msg.content) ? null : (item.content || msg.content) }));
+    } else if (downloaded?.ok) {
+       console.log(`[UAZAPI] Download for ${msg.messageId} returned OK but no media items found in payload`);
+    }
   }
 
   for (let i = 0; i < mediaEntries.length; i++) {
     const entry = mediaEntries[i];
     const isMediaType = ['image', 'video', 'audio', 'document', 'sticker'].includes(entry.messageType);
     let resolvedMediaUrl = null;
-    if (entry.mediaBase64) resolvedMediaUrl = saveBase64ToUploads(entry.mediaBase64, entry.mediaMimetype);
-    if (!resolvedMediaUrl && entry.mediaUrl) resolvedMediaUrl = await cacheRemoteMediaUrl(entry.mediaUrl, entry.mediaMimetype) || entry.mediaUrl;
+    
+    if (entry.mediaBase64) {
+      resolvedMediaUrl = saveBase64ToUploads(entry.mediaBase64, entry.mediaMimetype);
+    }
+    
+    if (!resolvedMediaUrl && entry.mediaUrl) {
+      resolvedMediaUrl = await cacheRemoteMediaUrl(entry.mediaUrl, entry.mediaMimetype);
+      if (!resolvedMediaUrl) resolvedMediaUrl = entry.mediaUrl;
+    }
+    
     if (!resolvedMediaUrl && isMediaType && (entry.messageId || msg.messageId)) {
       resolvedMediaUrl = await downloadAndPersistMedia(connection, entry.messageId || msg.messageId, entry.mediaMimetype);
     }
+
+    console.log(`[UAZAPI] Message ${msg.messageId} entry ${i}: type=${entry.messageType}, resolvedUrl=${resolvedMediaUrl ? 'YES' : 'NO'}`);
 
     const content = isAlbumPlaceholder(entry.content || msg.content) ? null : (entry.content || msg.content || null);
     const storedMessageId = mediaEntries.length > 1 ? `${msg.messageId}_${i + 1}` : msg.messageId;
