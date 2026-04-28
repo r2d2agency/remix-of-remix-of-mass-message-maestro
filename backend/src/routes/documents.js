@@ -35,8 +35,14 @@ router.get('/', async (req, res) => {
     let paramIndex = 2;
 
     if (client_phone) {
-      sql += ` AND (d.client_phone = $${paramIndex} OR d.client_id IN (SELECT id FROM contacts WHERE phone = $${paramIndex}))`;
-      params.push(client_phone);
+      // Remove non-digits for comparison if stored as digits only, or use a fuzzy match
+      const phoneDigits = client_phone.replace(/\D/g, '');
+      sql += ` AND (
+        d.client_phone = $${paramIndex} 
+        OR REPLACE(REPLACE(REPLACE(REPLACE(d.client_phone, ' ', ''), '-', ''), '(', ''), ')', '') = $${paramIndex}
+        OR d.client_id IN (SELECT id FROM contacts WHERE phone = $${paramIndex} OR REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '(', ''), ')', '') = $${paramIndex})
+      )`;
+      params.push(phoneDigits);
       paramIndex++;
     } else if (client_name) {
       sql += ` AND (d.client_name ILIKE $${paramIndex} OR d.name ILIKE $${paramIndex})`;
