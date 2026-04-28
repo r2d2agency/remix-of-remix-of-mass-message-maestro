@@ -324,14 +324,17 @@ function extractUazapiMessage(payload) {
 
   let mediaItems = collectMediaItems(data);
   if (mediaUrl || mediaBase64) {
-    mediaItems = [{
-      messageType,
-      mediaUrl,
-      mediaMimetype,
-      mediaBase64,
-      messageId: pickFirstString(data.messageid, data.messageId, data.id, payload?.id),
-      content: text,
-    }, ...mediaItems];
+    const existing = mediaItems.find(item => item.mediaUrl === mediaUrl || (mediaBase64 && item.mediaBase64 === mediaBase64));
+    if (!existing) {
+      mediaItems = [{
+        messageType: (['image', 'video', 'audio', 'document', 'sticker'].includes(messageType) ? messageType : null) || typeFromMime(mediaMimetype) || 'image',
+        mediaUrl,
+        mediaMimetype,
+        mediaBase64,
+        messageId: pickFirstString(data.messageid, data.messageId, data.id, payload?.id),
+        content: text,
+      }, ...mediaItems];
+    }
   }
   mediaItems = mediaItems.filter((item) => ['image', 'video', 'audio', 'document', 'sticker'].includes(item.messageType));
   if (messageType === 'text' && mediaItems.length > 0) messageType = mediaItems[0].messageType;
