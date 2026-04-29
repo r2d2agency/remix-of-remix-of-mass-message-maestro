@@ -1020,7 +1020,10 @@ router.post('/instances', async (req, res) => {
 
     res.status(201).json(connection);
   } catch (err) {
-    console.error('[UAZAPI] create instance', err);
+    logError('uazapi.create_instance_failed', err, {
+      name: req.body?.name,
+      user_id: req.userId
+    });
     res.status(500).json({ error: 'Erro ao criar instância UAZAPI' });
   }
 });
