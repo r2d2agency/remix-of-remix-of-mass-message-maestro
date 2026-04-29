@@ -472,37 +472,19 @@ async function saveUazapiMessage(connection, payload, req = null) {
     conversationId = conv.rows[0]?.id;
   }
 
-  // MIGRATION FALLBACK: if no conversation in current connection, look across other
-  // connections in the same organization (handles connection migration where the
-  // existing conversation still points to the old connection_id).
-  if (!conversationId && connection.organization_id) {
-    const senderLid = msg.data?.sender_lid || msg.data?.chatlid;
-    const lidJid = senderLid ? `${senderLid}@lid` : null;
-
-    conv = await query(
-      `SELECT cv.id FROM conversations cv
-         JOIN connections cn ON cn.id = cv.connection_id
-        WHERE cn.organization_id = $1 AND (cv.remote_jid = $2 OR (cv.remote_jid = $3 AND $3 IS NOT NULL))
-        ORDER BY cv.last_message_at DESC NULLS LAST LIMIT 1`,
-      [connection.organization_id, remoteJid, lidJid]
+  // 4. Try legacy/migrated conversation search (without connection_id filter)
+  if (!conversationId) {
+    const migrated = await query(
+      `SELECT id FROM conversations 
+       WHERE (remote_jid = $1 OR (contact_phone = $2 AND contact_phone IS NOT NULL)) 
+       AND is_group = $3 
+       ORDER BY last_message_at DESC LIMIT 1`,
+      [remoteJid, cleanPhone, msg.isGroup]
     );
-    conversationId = conv.rows[0]?.id;
-
-    if (!conversationId && cleanPhone) {
-      conv = await query(
-        `SELECT cv.id FROM conversations cv
-           JOIN connections cn ON cn.id = cv.connection_id
-          WHERE cn.organization_id = $1
-            AND cv.contact_phone = $2
-            AND COALESCE(cv.is_group, false) = false
-          ORDER BY cv.last_message_at DESC NULLS LAST LIMIT 1`,
-        [connection.organization_id, cleanPhone]
-      );
-      conversationId = conv.rows[0]?.id;
-    }
-
-    if (conversationId) {
-      console.log('[uazapi] Reusing migrated conversation', conversationId, 'and re-pointing to connection', connection.id);
+    
+    if (migrated.rows[0]) {
+      conversationId = migrated.rows[0].id;
+      console.log(`[UAZAPI] Linked message to migrated conversation ${conversationId}`);
     }
   }
 
