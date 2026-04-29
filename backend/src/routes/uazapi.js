@@ -897,7 +897,10 @@ router.patch('/servers/:id', requireSuperadmin, async (req, res) => {
     if (!r.rows[0]) return res.status(404).json({ error: 'Servidor não encontrado' });
     res.json(r.rows[0]);
   } catch (err) {
-    console.error('[UAZAPI] update server', err);
+    logError('uazapi.update_server_failed', err, {
+      server_id: req.params.id,
+      user_id: req.userId
+    });
     res.status(500).json({ error: 'Erro ao atualizar servidor' });
   }
 });
