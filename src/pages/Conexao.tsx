@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { TestMessageDialog } from "@/components/conexao/TestMessageDialog";
 import { WebhookDiagnosticPanel } from "@/components/conexao/WebhookDiagnosticPanel";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Eraser } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { LeadDistributionDialog } from "@/components/conexao/LeadDistributionDialog";
@@ -124,6 +125,25 @@ const Conexao = () => {
     loadIntegratorToken();
     loadUazapiInfo();
   }, []);
+
+  const [cleaningDuplicates, setCleaningDuplicates] = useState(false);
+
+  const handleCleanupDuplicates = async () => {
+    setCleaningDuplicates(true);
+    try {
+      const res = await api<{ success: boolean; message: string }>('/api/connections/cleanup-duplicates', {
+        method: 'POST'
+      });
+      if (res.success) {
+        toast.success(res.message);
+        loadConnections();
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao limpar duplicatas');
+    } finally {
+      setCleaningDuplicates(false);
+    }
+  };
 
   const loadUazapiInfo = async () => {
     try {
@@ -710,7 +730,7 @@ const handleGetQRCode = async (connection: Connection) => {
     <MainLayout>
       <div className="space-y-8">
         {/* Header */}
-        <div className="flex items-center justify-between animate-slide-up">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between animate-slide-up">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Conexões WhatsApp</h1>
             <p className="mt-1 text-muted-foreground">
@@ -718,7 +738,7 @@ const handleGetQRCode = async (connection: Connection) => {
             </p>
           </div>
           
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4">
             {/* Plan limits badge */}
             {planLimits && (
               <Badge variant="outline" className="text-sm py-1 px-3">
@@ -728,6 +748,16 @@ const handleGetQRCode = async (connection: Connection) => {
                 )}
               </Badge>
             )}
+
+            <Button 
+              variant="outline" 
+              onClick={handleCleanupDuplicates}
+              disabled={cleaningDuplicates || connections.length < 2}
+              className="flex items-center gap-2"
+            >
+              {cleaningDuplicates ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eraser className="h-4 w-4" />}
+              Limpar duplicadas
+            </Button>
 
             <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
               <DialogTrigger asChild>
