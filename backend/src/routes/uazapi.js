@@ -628,7 +628,29 @@ async function saveUazapiMessage(connection, payload) {
        SET connection_id = EXCLUDED.connection_id 
        WHERE chat_messages.connection_id IS NULL OR chat_messages.connection_id != EXCLUDED.connection_id`,
       insertVals
-    );
+    ).catch(async (err) => {
+      // If insertion fails due to duplicate message_id (race condition), it's already "saved"
+      if (err.code === '23505') return;
+      
+      // Fallback: try to link to a pending message if it was sent by us
+      if (msg.fromMe) {
+        const pending = await loadPendingMessagesForConversation(conversationId);
+        const best = pickBestPendingMessage(pending, {
+          content: msg.content,
+          timestamp: msg.timestamp,
+          messageType: msg.messageType,
+          mediaMimetype: msg.mediaMimetype
+        });
+        
+        if (best) {
+          await query(
+            `UPDATE chat_messages SET message_id = $1, status = 'sent', timestamp = COALESCE($2, timestamp) WHERE id = $3`,
+            [msg.messageId, msg.timestamp ? new Date(Number(msg.timestamp)) : null, best.id]
+          );
+        }
+      }
+      throw err;
+    });
   }
 
   // -------------------------------------------------------------------
