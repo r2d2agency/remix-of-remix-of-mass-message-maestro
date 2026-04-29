@@ -831,7 +831,9 @@ router.post('/webhook', async (req, res) => {
       await updateInboundAudit(auditId, buildAuditOutcome('ignored', `unhandled event type: ${eventType}`, true));
     }
   } catch (err) {
-    console.error('[UAZAPI webhook] Critical Error:', err);
+    logError('uazapi.webhook_critical', err, {
+      payload_preview: JSON.stringify(req.body || {}).slice(0, 500)
+    });
   }
 });
 
