@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Plus, QrCode, RefreshCw, Plug, Unplug, Trash2, Phone, Loader2, Wifi, WifiOff, Send, Settings2, AlertTriangle, CheckCircle, Eye, Activity, Radio, Users, Download, Pencil, UserCheck, Smartphone, Key, FileWarning, ArrowRightLeft } from "lucide-react";
+import { Plus, QrCode, RefreshCw, Plug, Unplug, Trash2, Phone, Loader2, Wifi, WifiOff, Send, Settings2, AlertTriangle, CheckCircle, Eye, Activity, Radio, Users, Download, Pencil, UserCheck, Smartphone, Key, FileWarning, ArrowRightLeft, Layers } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { api } from "@/lib/api";
 import { uazapiApi } from "@/lib/uazapi-api";
@@ -629,6 +629,35 @@ const handleGetQRCode = async (connection: Connection) => {
     }
   };
 
+  const handleConsolidateAllInto = async (connection: Connection) => {
+    const ok = window.confirm(
+      `Consolidar TODAS as conversas das outras conexões da sua organização nesta conexão "${connection.name}"?\n\n` +
+        `Isso move conversas, contatos e mensagens de todas as outras conexões para esta. ` +
+        `Útil quando mensagens novas continuam caindo em conexões antigas após migração. Esta ação não pode ser desfeita.`
+    );
+    if (!ok) return;
+    setMigrating(true);
+    try {
+      const result = await api<{
+        success: boolean;
+        migrated_from: { from: string; success: boolean; error?: string }[];
+      }>(`/api/connection-migration/migrate-all`, {
+        method: 'POST',
+        body: { to_connection_id: connection.id },
+      });
+      const okCount = result.migrated_from.filter((r) => r.success).length;
+      const failCount = result.migrated_from.length - okCount;
+      toast.success(
+        `Consolidação concluída: ${okCount} conexão(ões) migradas` +
+          (failCount ? `, ${failCount} com erro` : '')
+      );
+    } catch (e: any) {
+      toast.error(e.message || 'Erro ao consolidar conversas');
+    } finally {
+      setMigrating(false);
+    }
+  };
+
   const fetchWebhookEvents = useCallback(async (connection: Connection) => {
     setWebhookEventsLoading(true);
     setWebhookEventsError(null);
@@ -1229,19 +1258,30 @@ const handleGetQRCode = async (connection: Connection) => {
 
                     {/* Migrate conversations button */}
                     {connections.length > 1 && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setMigrateFromConnection(connection);
-                          setMigrateToConnectionId("");
-                          setMigrateConfirmText("");
-                          setMigrateDialogOpen(true);
-                        }}
-                        title="Migrar conversas para outra conexão"
-                      >
-                        <ArrowRightLeft className="h-4 w-4" />
-                      </Button>
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setMigrateFromConnection(connection);
+                            setMigrateToConnectionId("");
+                            setMigrateConfirmText("");
+                            setMigrateDialogOpen(true);
+                          }}
+                          title="Migrar conversas para outra conexão"
+                        >
+                          <ArrowRightLeft className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleConsolidateAllInto(connection)}
+                          disabled={migrating}
+                          title="Consolidar TODAS as conversas das outras conexões nesta"
+                        >
+                          <Layers className="h-4 w-4" />
+                        </Button>
+                      </>
                     )}
 
                     {/* Delete button - always visible */}
