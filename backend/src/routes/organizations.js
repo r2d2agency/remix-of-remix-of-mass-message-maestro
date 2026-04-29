@@ -2,6 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
+import { assignConnectionMember } from '../lib/connection-members.js';
 
 const router = Router();
 router.use(authenticate);
@@ -374,8 +375,8 @@ router.post('/:id([0-9a-fA-F-]{36})/members', async (req, res) => {
       [id, userId, role || 'agent']
     );
 
-    // Assign to connections if provided
-    if (connection_ids && Array.isArray(connection_ids) && connection_ids.length > 0) {
+    // Assign to connections if provided, including an empty list to remove all access
+    if (connection_ids !== undefined && Array.isArray(connection_ids)) {
       // First remove existing connection assignments
       await query(
         `DELETE FROM connection_members 
@@ -387,12 +388,7 @@ router.post('/:id([0-9a-fA-F-]{36})/members', async (req, res) => {
       
       // Add new connection assignments
       for (const connId of connection_ids) {
-        await query(
-          `INSERT INTO connection_members (connection_id, user_id, can_view, can_send, can_manage)
-           VALUES ($1, $2, true, true, false)
-           ON CONFLICT (connection_id, user_id) DO NOTHING`,
-          [connId, userId]
-        );
+        await assignConnectionMember(connId, userId);
       }
     }
 
@@ -475,12 +471,7 @@ router.patch('/:id/members/:userId', async (req, res) => {
         
         // Add new assignments
         for (const connId of connection_ids) {
-          await query(
-            `INSERT INTO connection_members (connection_id, user_id, can_view, can_send, can_manage)
-             VALUES ($1, $2, true, true, false)
-             ON CONFLICT (connection_id, user_id) DO NOTHING`,
-            [connId, userId]
-          );
+          await assignConnectionMember(connId, userId);
         }
       } catch (e) {
         console.log('connection_members table may not exist:', e.message);
