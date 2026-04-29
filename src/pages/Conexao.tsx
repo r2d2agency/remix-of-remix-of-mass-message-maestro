@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { TestMessageDialog } from "@/components/conexao/TestMessageDialog";
 import { WebhookDiagnosticPanel } from "@/components/conexao/WebhookDiagnosticPanel";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Eraser } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { LeadDistributionDialog } from "@/components/conexao/LeadDistributionDialog";
