@@ -496,7 +496,11 @@ async function saveUazapiMessage(connection, payload) {
       `UPDATE conversations
        SET last_message_at = NOW(),
            unread_count = CASE WHEN $2 THEN unread_count ELSE unread_count + 1 END,
-           contact_name = COALESCE($3, contact_name),
+           contact_name = CASE 
+             WHEN $3 IS NOT NULL AND $3 != '' AND (contact_name IS NULL OR contact_name = contact_phone OR contact_name = 'Grupo' OR contact_name = 'Conta Dr Luis Sbroggio') 
+             THEN $3 
+             ELSE contact_name 
+           END,
            remote_jid = $4,
            connection_id = $5,
            attendance_status = CASE WHEN NOT $2 AND attendance_status = 'finished' THEN 'waiting' ELSE attendance_status END,
