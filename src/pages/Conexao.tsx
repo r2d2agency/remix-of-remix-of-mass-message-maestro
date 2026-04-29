@@ -1258,19 +1258,30 @@ const handleGetQRCode = async (connection: Connection) => {
 
                     {/* Migrate conversations button */}
                     {connections.length > 1 && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setMigrateFromConnection(connection);
-                          setMigrateToConnectionId("");
-                          setMigrateConfirmText("");
-                          setMigrateDialogOpen(true);
-                        }}
-                        title="Migrar conversas para outra conexão"
-                      >
-                        <ArrowRightLeft className="h-4 w-4" />
-                      </Button>
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setMigrateFromConnection(connection);
+                            setMigrateToConnectionId("");
+                            setMigrateConfirmText("");
+                            setMigrateDialogOpen(true);
+                          }}
+                          title="Migrar conversas para outra conexão"
+                        >
+                          <ArrowRightLeft className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleConsolidateAllInto(connection)}
+                          disabled={migrating}
+                          title="Consolidar TODAS as conversas das outras conexões nesta"
+                        >
+                          <Layers className="h-4 w-4" />
+                        </Button>
+                      </>
                     )}
 
                     {/* Delete button - always visible */}
