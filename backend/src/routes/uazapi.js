@@ -523,11 +523,38 @@ async function saveUazapiMessage(connection, payload) {
 
     const content = isAlbumPlaceholder(entry.content || msg.content) ? null : (entry.content || msg.content || null);
     const storedMessageId = mediaEntries.length > 1 ? `${msg.messageId}_${i + 1}` : msg.messageId;
+    const hasCMConnIdCurrent = await query(
+      `SELECT 1 FROM information_schema.columns 
+       WHERE table_name = 'chat_messages' AND column_name = 'connection_id' LIMIT 1`
+    ).then(r => r.rowCount > 0).catch(() => false);
+
+    const insertCols = [
+      'conversation_id', 'message_id', 'content', 'raw_text', 'caption', 'message_type', 
+      'media_url', 'media_mimetype', 'from_me', 'sender_name', 'sender_phone', 'status', 'timestamp'
+    ];
+    const insertVals = [
+      conversationId, storedMessageId, content, content, (['image','video','document'].includes(entry.messageType) || content) ? content : null, 
+      entry.messageType, resolvedMediaUrl, entry.mediaMimetype, msg.fromMe, msg.isGroup ? msg.senderName : null, 
+      msg.isGroup ? normalizePhone(msg.sender) : null, msg.fromMe ? 'sent' : 'received', Number(msg.timestamp) || null
+    ];
+
+    if (hasCMConnIdCurrent) {
+      insertCols.push('connection_id');
+      insertVals.push(connection.id);
+    }
+
+    const placeholders = insertVals.map((_, idx) => {
+      if (idx === 12) return `COALESCE(to_timestamp($13::double precision / 1000), NOW())`;
+      return `$${idx + 1}`;
+    });
+
     await query(
-      `INSERT INTO chat_messages (conversation_id, message_id, content, raw_text, caption, message_type, media_url, media_mimetype, from_me, sender_name, sender_phone, status, timestamp)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, COALESCE(to_timestamp($13::double precision / 1000), NOW()))
-       ON CONFLICT (message_id) WHERE message_id IS NOT NULL AND message_id NOT LIKE 'temp_%' DO NOTHING`,
-      [conversationId, storedMessageId, content, content, (['image','video','document'].includes(entry.messageType) || content) ? content : null, entry.messageType, resolvedMediaUrl, entry.mediaMimetype, msg.fromMe, msg.isGroup ? msg.senderName : null, msg.isGroup ? normalizePhone(msg.sender) : null, msg.fromMe ? 'sent' : 'received', Number(msg.timestamp) || null]
+      `INSERT INTO chat_messages (${insertCols.join(', ')})
+       VALUES (${placeholders.join(', ')})
+       ON CONFLICT (message_id) WHERE message_id IS NOT NULL AND message_id NOT LIKE 'temp_%' DO UPDATE 
+       SET connection_id = EXCLUDED.connection_id 
+       WHERE chat_messages.connection_id IS NULL OR chat_messages.connection_id != EXCLUDED.connection_id`,
+      insertVals
     );
   }
 
