@@ -1388,6 +1388,48 @@ async function handleIncomingMessage(connection, payload) {
       }
     }
 
+    // MIGRATION FALLBACK: look across other connections in the same organization
+    // (handles connection migration where the existing conversation still points
+    // to the old connection_id). Re-point it to the current connection.
+    if (conversationResult.rows.length === 0 && connection.organization_id) {
+      console.log('[W-API] Trying cross-connection lookup in org:', connection.organization_id);
+      let crossOrg = await query(
+        `SELECT cv.id, cv.remote_jid, cv.contact_phone, cv.group_name
+           FROM conversations cv
+           JOIN connections cn ON cn.id = cv.connection_id
+          WHERE cn.organization_id = $1 AND cv.remote_jid = $2
+          ORDER BY cv.last_message_at DESC NULLS LAST LIMIT 1`,
+        [connection.organization_id, remoteJid]
+      );
+
+      if (crossOrg.rows.length === 0 && !isGroup && cleanPhone) {
+        crossOrg = await query(
+          `SELECT cv.id, cv.remote_jid, cv.contact_phone, cv.group_name
+             FROM conversations cv
+             JOIN connections cn ON cn.id = cv.connection_id
+            WHERE cn.organization_id = $1
+              AND cv.contact_phone = $2
+              AND COALESCE(cv.is_group, false) = false
+            ORDER BY cv.last_message_at DESC NULLS LAST LIMIT 1`,
+          [connection.organization_id, cleanPhone]
+        );
+      }
+
+      if (crossOrg.rows.length > 0) {
+        console.log('[W-API] Found migrated conversation across connections, re-pointing to current connection:', crossOrg.rows[0].id);
+        await query(
+          `UPDATE conversations
+              SET connection_id = $1,
+                  remote_jid = $2,
+                  contact_phone = COALESCE(contact_phone, $3),
+                  updated_at = NOW()
+            WHERE id = $4`,
+          [connection.id, remoteJid, cleanPhone, crossOrg.rows[0].id]
+        );
+        conversationResult = crossOrg;
+      }
+    }
+
     let conversationId;
     if (conversationResult.rows.length === 0) {
       // Create new conversation
