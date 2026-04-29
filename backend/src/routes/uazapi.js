@@ -968,17 +968,42 @@ router.get('/:connectionId/webhook-status', async (req, res) => {
   const expectedUrl = `${String(inferredBase).replace(/\/+$/, '')}/api/uazapi/webhook`;
   const r = await uaz.getWebhook({ serverUrl: c.uazapi_server_url, token: c.uazapi_token });
   const data = r.data || {};
-  // UAZAPI may return { webhook: {...} } or the object directly
-  const wh = data.webhook || data;
+
+  // UAZAPI may return:
+  //   1) { webhook: { url, enabled, events, ... } }   (Modo Simples antigo)
+  //   2) { url, enabled, events, ... }                 (objeto direto)
+  //   3) { webhooks: [ {url, enabled, events, ...}, ... ] }  (Modo Avançado)
+  //   4) [ {url, enabled, events, ...}, ... ]          (array direto)
+  let candidates = [];
+  if (Array.isArray(data)) {
+    candidates = data;
+  } else if (Array.isArray(data.webhooks)) {
+    candidates = data.webhooks;
+  } else if (data.webhook && typeof data.webhook === 'object') {
+    candidates = [data.webhook];
+  } else if (data.url || data.enabled !== undefined) {
+    candidates = [data];
+  }
+
+  // Pick the webhook that matches our expected URL, or the first enabled one
+  const normalize = (u) => String(u || '').replace(/\/+$/, '').toLowerCase();
+  const expectedNorm = normalize(expectedUrl);
+  const matched = candidates.find((w) => normalize(w?.url) === expectedNorm);
+  const enabledOne = candidates.find((w) => w?.enabled !== false && w?.url);
+  const wh = matched || enabledOne || candidates[0] || {};
+
+  const registeredUrl = wh?.url || null;
+  const enabled = wh?.enabled ?? null;
+
   res.json({
     ok: r.ok,
     status: r.status,
     expectedUrl,
-    registeredUrl: wh?.url || null,
-    enabled: wh?.enabled ?? null,
+    registeredUrl,
+    enabled,
     events: wh?.events || [],
-    excludeMessages: wh?.excludeMessages || [],
-    matches: !!wh?.url && wh.url === expectedUrl && wh?.enabled !== false,
+    excludeMessages: wh?.excludeMessages || wh?.excludedEvents || [],
+    matches: !!registeredUrl && normalize(registeredUrl) === expectedNorm && enabled !== false,
     raw: data,
   });
 });
