@@ -568,5 +568,58 @@ router.delete('/error-logs', async (req, res) => {
   }
 });
 
+// Merge duplicate conversations (same phone/JID across different connections in same org)
+router.post('/cleanup-duplicates', async (req, res) => {
+  try {
+    const org = await getUserOrganization(req.userId);
+    if (!org || !['owner', 'admin'].includes(org.role)) {
+      return res.status(403).json({ error: 'Apenas administradores podem realizar esta ação' });
+    }
+
+    // This logic finds conversations with the same remote_jid within the same organization
+    // and merges them into the most recent one (updates connection_id of old messages).
+    
+    // 1. Find groups of duplicates
+    const duplicates = await query(`
+      SELECT remote_jid, COUNT(*) as count, array_agg(id ORDER BY last_message_at DESC) as ids, array_agg(connection_id ORDER BY last_message_at DESC) as connection_ids
+      FROM conversations
+      WHERE connection_id IN (SELECT id FROM connections WHERE organization_id = $1)
+      GROUP BY remote_jid
+      HAVING COUNT(*) > 1
+    `, [org.organization_id]);
+
+    let mergedCount = 0;
+
+    for (const row of duplicates.rows) {
+      const targetId = row.ids[0]; // Most recent
+      const oldIds = row.ids.slice(1);
+      
+      // Update all messages from old conversations to point to the target conversation
+      const msgResult = await query(`
+        UPDATE chat_messages 
+        SET conversation_id = $1 
+        WHERE conversation_id = ANY($2)
+      `, [targetId, oldIds]);
+      
+      // Update tickets/attendance if any
+      await query(`UPDATE tickets SET conversation_id = $1 WHERE conversation_id = ANY($2)`, [targetId, oldIds]).catch(() => {});
+
+      // Delete the now empty old conversations
+      await query(`DELETE FROM conversations WHERE id = ANY($1)`, [oldIds]);
+      
+      mergedCount += oldIds.length;
+    }
+
+    res.json({ 
+      success: true, 
+      message: `Limpeza concluída. ${mergedCount} conversas duplicadas foram mescladas.`,
+      mergedCount 
+    });
+  } catch (error) {
+    console.error('Cleanup duplicates error:', error);
+    res.status(500).json({ error: 'Erro ao limpar duplicatas: ' + error.message });
+  }
+});
+
 export default router;
 
