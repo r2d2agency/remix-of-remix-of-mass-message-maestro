@@ -567,7 +567,7 @@ router.get('/conversations', authenticate, async (req, res) => {
         LEFT JOIN users u ON u.id = conv.assigned_to
         ${supportsAttendance ? 'LEFT JOIN users ua ON ua.id = conv.accepted_by' : ''}
         ${supportsDepartment ? 'LEFT JOIN departments d ON d.id = conv.department_id' : ''}
-        WHERE conv.connection_id = ANY($1)
+        WHERE (conv.connection_id = ANY($1) OR EXISTS (SELECT 1 FROM chat_messages cm WHERE cm.conversation_id = conv.id AND cm.connection_id = ANY($1)))
       `;
 
       const params = [connectionIds];
@@ -575,7 +575,7 @@ router.get('/conversations', authenticate, async (req, res) => {
 
       // IMPORTANT: Only show conversations with messages (unless explicitly requested)
       if (includeEmpty !== 'true') {
-        sql += ` AND EXISTS (SELECT 1 FROM chat_messages cm WHERE cm.conversation_id = conv.id)`;
+        sql += ` AND EXISTS (SELECT 1 FROM chat_messages cm WHERE cm.conversation_id = conv.id AND (cm.connection_id = ANY($1) OR conv.connection_id = ANY($1)))`;
       }
 
       // Filter by group status
