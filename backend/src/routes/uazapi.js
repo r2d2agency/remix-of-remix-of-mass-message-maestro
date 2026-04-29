@@ -695,6 +695,27 @@ async function saveUazapiMessage(connection, payload) {
         }
       }
     }
+  // 4. Update the real-time UI via Socket.IO if possible (frontend expects this for instant updates)
+  try {
+    const io = req.app.get('socketio');
+    if (io && conversationId) {
+      const msgData = {
+        conversationId,
+        message: {
+          id: msg.messageId,
+          content: msg.content,
+          messageType: msg.messageType,
+          mediaUrl: msg.mediaUrl,
+          fromMe: msg.fromMe,
+          timestamp: msg.timestamp || Date.now(),
+          status: msg.fromMe ? 'sent' : 'received'
+        }
+      };
+      io.to(`org_${connection.organization_id}`).emit('new_message', msgData);
+      io.to(`conv_${conversationId}`).emit('new_message', msgData);
+    }
+  } catch (err) {
+    console.warn('[UAZAPI] Socket emit failed:', err.message);
   }
 
   return buildAuditOutcome('saved', null, true);
