@@ -11,6 +11,8 @@ import { executeFlow, continueFlowWithInput } from '../lib/flow-executor.js';
 import { processIncomingWithAgent } from '../lib/ai-agent-processor.js';
 import { analyzeGroupMessage } from '../lib/group-secretary.js';
 import { parseComparableTimestamp, pickBestPendingMessage, summarizeHandlerOutcomes } from '../lib/message-sync.js';
+import { log, logError } from '../logger.js';
+
 
 
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
