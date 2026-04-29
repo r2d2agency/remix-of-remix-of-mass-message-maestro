@@ -781,20 +781,28 @@ router.post('/webhook', async (req, res) => {
 
   try {
     const payload = req.body || {};
-    const eventType = payload.event || payload.EventType || payload.type || 'unknown';
+    const eventType = (payload.event || payload.EventType || payload.type || 'unknown').toLowerCase();
+    
     const connection = await findUazapiConnection(payload, req);
     const connectionId = connection?.id || null;
     const data = payload.data || payload.message || payload;
-    const eventMsgId = data?.messageid || data?.messageId || data?.id || payload.id || null;
-    const remoteJid = data?.chatid || data?.chatId || data?.remoteJid || data?.from || data?.to || null;
-    const fromMe = data?.fromMe === true || data?.wasSentByApi === true;
-    let auditId = null;
-
+    
+    // Log the event for diagnostics
     await query(
       `INSERT INTO uazapi_webhook_events (connection_id, event_type, payload, status)
        VALUES ($1, $2, $3, 'received')`,
       [connectionId, eventType, JSON.stringify(payload)]
-    );
+    ).catch(() => {});
+
+    if (!connection) {
+      console.warn('[UAZAPI Webhook] Connection not found for payload:', JSON.stringify(payload).slice(0, 200));
+      return;
+    }
+
+    const eventMsgId = data?.messageid || data?.messageId || data?.id || payload.id || null;
+    const remoteJid = data?.chatid || data?.chatId || data?.remoteJid || data?.from || data?.to || null;
+    const fromMe = data?.fromMe === true || data?.wasSentByApi === true;
+    let auditId = null;
 
     try {
       const auditResult = await query(
@@ -809,39 +817,35 @@ router.post('/webhook', async (req, res) => {
       console.warn('[UAZAPI webhook] Audit insert skipped:', auditErr?.message);
     }
 
-    if (!connection) {
-      await updateInboundAudit(auditId, buildAuditOutcome('skipped', 'connection not found', false));
-      return;
-    }
-
-    if (eventType === 'messages' || eventType === 'message' || data?.messageid || data?.messageId) {
-      const outcome = await saveUazapiMessage(connection, payload);
+    // Process messages
+    if (eventType === 'messages' || eventType === 'message' || eventType === 'messages.upsert' || data?.messageid || data?.messageId) {
+      const outcome = await saveUazapiMessage(connection, payload, req);
       await updateInboundAudit(auditId, outcome);
-    } else {
-      await updateInboundAudit(auditId, buildAuditOutcome(eventType === 'connection' ? 'saved' : 'ignored', null, true));
-    }
-
-    // Update connection status when connection event arrives
-    if (connectionId && eventType === 'connection') {
-      const state = payload.instance?.status || payload.status;
-      if (state === 'connected' || state === 'open') {
+    } 
+    // Process connection status
+    else if (eventType === 'connection' || eventType === 'connection.update') {
+      const state = (payload.instance?.status || payload.status || data?.status || '').toLowerCase();
+      if (['connected', 'open', 'ready'].includes(state)) {
         await query(
           `UPDATE connections
               SET status='connected',
                   phone_number=COALESCE($2, phone_number),
                   updated_at=NOW()
             WHERE id=$1`,
-          [connectionId, payload.instance?.owner || payload.owner || null]
+          [connectionId, payload.instance?.owner || payload.owner || data?.owner || null]
         );
-      } else if (state === 'disconnected' || state === 'close') {
+      } else if (['disconnected', 'close', 'deleted', 'removed'].includes(state)) {
         await query(
           `UPDATE connections SET status='disconnected', updated_at=NOW() WHERE id=$1`,
           [connectionId]
         );
       }
+      await updateInboundAudit(auditId, buildAuditOutcome('saved', null, true));
+    } else {
+      await updateInboundAudit(auditId, buildAuditOutcome('ignored', `unhandled event type: ${eventType}`, true));
     }
   } catch (err) {
-    console.error('[UAZAPI webhook] Error:', err);
+    console.error('[UAZAPI webhook] Critical Error:', err);
   }
 });
 
