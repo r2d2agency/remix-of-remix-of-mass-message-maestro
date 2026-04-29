@@ -1330,7 +1330,7 @@ router.delete('/conversations/:id', authenticate, async (req, res) => {
   }
 });
 
-// Clean up duplicate @lid conversations (Admin only)
+// Clean up duplicate @lid conversations and handle connection migration (Admin only)
 router.post('/conversations/cleanup-duplicates', authenticate, async (req, res) => {
   try {
     // Check if user is admin/owner
@@ -1347,10 +1347,50 @@ router.post('/conversations/cleanup-duplicates', authenticate, async (req, res) 
     const connectionIds = await getUserConnections(req.userId);
     
     if (connectionIds.length === 0) {
-      return res.json({ deleted: 0, message: 'Nenhuma conexão encontrada' });
+      return res.json({ deleted: 0, merged: 0, migrated: 0, message: 'Nenhuma conexão encontrada' });
     }
 
-    // Find and delete conversations with @lid that have duplicates with @s.whatsapp.net
+    let deleted = 0;
+    let merged = 0;
+    let migrated = 0;
+
+    // 1. Handle cross-connection duplicates (same JID in different connections of same org)
+    const orgResult = await query(`SELECT organization_id FROM organization_members WHERE user_id = $1 LIMIT 1`, [req.userId]);
+    const orgId = orgResult.rows[0]?.organization_id;
+
+    if (orgId) {
+      const crossDuplicates = await query(`
+        SELECT cv.remote_jid, cv.id as current_id, old.id as old_id, old.connection_id as old_conn_id
+        FROM conversations cv
+        JOIN connections cn ON cn.id = cv.connection_id
+        JOIN conversations old ON old.remote_jid = cv.remote_jid AND old.id != cv.id
+        JOIN connections old_cn ON old_cn.id = old.connection_id
+        WHERE cn.organization_id = $1 
+          AND old_cn.organization_id = $1
+          AND cv.connection_id = ANY($2)
+          AND old.connection_id != cv.connection_id
+        ORDER BY cv.last_message_at DESC
+      `, [orgId, connectionIds]);
+
+      const handledIds = new Set();
+      for (const row of crossDuplicates.rows) {
+        if (handledIds.has(row.old_id) || handledIds.has(row.current_id)) continue;
+        
+        // Merge messages from old connection to current one
+        const updateMsgs = await query(`UPDATE chat_messages SET conversation_id = $1 WHERE conversation_id = $2`, [row.current_id, row.old_id]);
+        if (updateMsgs.rowCount > 0) merged++;
+
+        // Delete old conversation metadata
+        await query(`DELETE FROM conversation_notes WHERE conversation_id = $1`, [row.old_id]);
+        await query(`DELETE FROM conversation_tag_links WHERE conversation_id = $1`, [row.old_id]);
+        await query(`DELETE FROM chat_messages WHERE conversation_id = $1`, [row.old_id]);
+        await query(`DELETE FROM conversations WHERE id = $1`, [row.old_id]);
+        migrated++;
+        handledIds.add(row.old_id);
+      }
+    }
+
+    // 2. Handle @lid duplicates within the same connections
     const duplicates = await query(`
       WITH lid_conversations AS (
         SELECT id, contact_phone, connection_id, remote_jid,
@@ -1360,68 +1400,38 @@ router.post('/conversations/cleanup-duplicates', authenticate, async (req, res) 
           AND remote_jid LIKE '%@lid'
       ),
       normal_conversations AS (
-        SELECT contact_phone, connection_id
+        SELECT contact_phone, connection_id, id
         FROM conversations 
         WHERE connection_id = ANY($1)
           AND remote_jid LIKE '%@s.whatsapp.net'
       )
-      SELECT lc.id, lc.contact_phone, lc.remote_jid, lc.msg_count
+      SELECT lc.id as lid_id, lc.contact_phone, lc.remote_jid, lc.msg_count, nc.id as normal_id
       FROM lid_conversations lc
       INNER JOIN normal_conversations nc 
         ON lc.contact_phone = nc.contact_phone 
         AND lc.connection_id = nc.connection_id
     `, [connectionIds]);
 
-    const toDelete = duplicates.rows.filter(r => r.msg_count === 0);
-    
-    for (const conv of toDelete) {
-      await query(`DELETE FROM conversation_notes WHERE conversation_id = $1`, [conv.id]);
-      await query(`DELETE FROM conversation_tag_links WHERE conversation_id = $1`, [conv.id]);
-      await query(`DELETE FROM chat_messages WHERE conversation_id = $1`, [conv.id]);
-      await query(`DELETE FROM conversations WHERE id = $1`, [conv.id]);
-    }
-
-    // For @lid conversations that have messages but a normal duplicate exists, merge them
-    const toMerge = duplicates.rows.filter(r => r.msg_count > 0);
-    let merged = 0;
-
-    for (const lidConv of toMerge) {
-      // Find the normal conversation
-      const normalConv = await query(`
-        SELECT id FROM conversations 
-        WHERE connection_id = (SELECT connection_id FROM conversations WHERE id = $1)
-          AND contact_phone = $2
-          AND remote_jid LIKE '%@s.whatsapp.net'
-        LIMIT 1
-      `, [lidConv.id, lidConv.contact_phone]);
-
-      if (normalConv.rows.length > 0) {
-        const normalId = normalConv.rows[0].id;
-        
-        // Move messages to normal conversation
-        await query(`
-          UPDATE chat_messages SET conversation_id = $1 
-          WHERE conversation_id = $2
-        `, [normalId, lidConv.id]);
-        
-        // Move notes
-        await query(`
-          UPDATE conversation_notes SET conversation_id = $1 
-          WHERE conversation_id = $2
-        `, [normalId, lidConv.id]);
-        
-        // Delete the @lid conversation
-        await query(`DELETE FROM conversation_tag_links WHERE conversation_id = $1`, [lidConv.id]);
-        await query(`DELETE FROM conversations WHERE id = $1`, [lidConv.id]);
-        
+    for (const conv of duplicates.rows) {
+      if (conv.msg_count > 0) {
+        // Merge messages
+        await query(`UPDATE chat_messages SET conversation_id = $1 WHERE conversation_id = $2`, [conv.normal_id, conv.lid_id]);
         merged++;
       }
+      
+      // Delete @lid
+      await query(`DELETE FROM conversation_notes WHERE conversation_id = $1`, [conv.lid_id]);
+      await query(`DELETE FROM conversation_tag_links WHERE conversation_id = $1`, [conv.lid_id]);
+      await query(`DELETE FROM chat_messages WHERE conversation_id = $1`, [conv.lid_id]);
+      await query(`DELETE FROM conversations WHERE id = $1`, [conv.lid_id]);
+      deleted++;
     }
 
     res.json({ 
-      deleted: toDelete.length, 
+      deleted, 
       merged,
-      message: `${toDelete.length} conversas vazias removidas, ${merged} conversas mescladas` 
+      migrated,
+      message: `${deleted} conversas @lid removidas, ${merged} mescladas, ${migrated} migradas entre conexões` 
     });
   } catch (error) {
     console.error('Cleanup duplicates error:', error);
