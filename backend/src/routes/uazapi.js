@@ -402,8 +402,17 @@ async function findUazapiConnection(payload, req) {
     if (c.rows[0]) return c.rows[0];
   }
 
-  const instanceName = payload?.instanceName || payload?.instance?.name || payload?.instance || payload?.data?.instance || null;
+  // Also try owner (phone number) from payload
   const owner = payload?.owner || payload?.instance?.owner || payload?.data?.owner || null;
+  if (owner) {
+    const c = await query(
+      `SELECT * FROM connections WHERE provider = 'uazapi' AND (phone_number = $1 OR uazapi_instance_name = $1) LIMIT 1`,
+      [String(owner)]
+    );
+    if (c.rows[0]) return c.rows[0];
+  }
+
+  const instanceName = payload?.instanceName || payload?.instance?.name || payload?.instance || payload?.data?.instance || null;
   const instanceRef = instanceName || owner || payload?.instance?.id || null;
 
   if (instanceRef) {
