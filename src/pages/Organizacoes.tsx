@@ -332,7 +332,7 @@ export default function Organizacoes() {
       role: newMemberRole,
       name: newMemberName,
       password: newMemberPassword,
-      connection_ids: newMemberConnectionIds.length > 0 ? newMemberConnectionIds : undefined,
+      connection_ids: newMemberConnectionIds,
       department_ids: newMemberDepartmentIds.length > 0 ? newMemberDepartmentIds : undefined
     });
 
