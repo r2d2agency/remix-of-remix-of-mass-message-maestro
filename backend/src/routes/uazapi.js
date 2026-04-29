@@ -374,11 +374,11 @@ function extractUazapiMessage(payload) {
   return {
     data,
     messageId: pickFirstString(data.messageid, data.messageId, data.id, payload?.id) || crypto.randomUUID(),
-    chatId: pickFirstString(data.chatid, data.chatId, data.remoteJid, data.from, data.to, payload?.chatid, payload?.chatId),
+    chatId: pickFirstString(data.chatid, data.chatId, data.remoteJid, data.from, data.to, payload?.chatid, payload?.chatId, payload?.chat?.wa_chatid),
     sender: pickFirstString(data.sender, data.sender_pn, data.sender_lid, data.owner),
     senderName: pickFirstString(data.senderName, data.pushName, data.name),
     fromMe: data.fromMe === true || data.wasSentByApi === true,
-    isGroup: data.isGroup === true || String(data.chatid || data.chatId || '').includes('@g.us'),
+    isGroup: data.isGroup === true || payload?.chat?.wa_isGroup === true || String(data.chatid || data.chatId || payload?.chat?.wa_chatid || '').includes('@g.us'),
     messageType,
     content: finalContent,
     mediaUrl,
