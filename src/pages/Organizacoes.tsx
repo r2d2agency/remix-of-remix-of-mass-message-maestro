@@ -849,7 +849,7 @@ export default function Organizacoes() {
                                         Conexões permitidas
                                       </Label>
                                       <p className="text-xs text-muted-foreground mb-2">
-                                        Selecione as conexões que este usuário pode acessar. Se nenhuma for selecionada, ele verá todas.
+                                        Selecione as conexões que este usuário pode acessar. Para donos, todas as conexões são sempre visíveis.
                                       </p>
                                       <div className="space-y-2 border rounded-md p-3 max-h-40 overflow-y-auto">
                                         {connections.map((conn) => (
@@ -1498,8 +1498,8 @@ export default function Organizacoes() {
                     ))}
                   </div>
                 )}
-                <p className="text-xs text-destructive font-medium">
-                  ⚠️ Sem seleção = sem acesso a nenhuma conexão (exceto o dono)
+                <p className="text-xs text-muted-foreground mt-2">
+                  ⚠️ Selecione as conexões permitidas. Para donos, todas as conexões são sempre visíveis.
                 </p>
               </div>
 
