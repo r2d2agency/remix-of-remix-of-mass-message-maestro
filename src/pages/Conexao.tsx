@@ -629,6 +629,35 @@ const handleGetQRCode = async (connection: Connection) => {
     }
   };
 
+  const handleConsolidateAllInto = async (connection: Connection) => {
+    const ok = window.confirm(
+      `Consolidar TODAS as conversas das outras conexões da sua organização nesta conexão "${connection.name}"?\n\n` +
+        `Isso move conversas, contatos e mensagens de todas as outras conexões para esta. ` +
+        `Útil quando mensagens novas continuam caindo em conexões antigas após migração. Esta ação não pode ser desfeita.`
+    );
+    if (!ok) return;
+    setMigrating(true);
+    try {
+      const result = await api<{
+        success: boolean;
+        migrated_from: { from: string; success: boolean; error?: string }[];
+      }>(`/api/connection-migration/migrate-all`, {
+        method: 'POST',
+        body: { to_connection_id: connection.id },
+      });
+      const okCount = result.migrated_from.filter((r) => r.success).length;
+      const failCount = result.migrated_from.length - okCount;
+      toast.success(
+        `Consolidação concluída: ${okCount} conexão(ões) migradas` +
+          (failCount ? `, ${failCount} com erro` : '')
+      );
+    } catch (e: any) {
+      toast.error(e.message || 'Erro ao consolidar conversas');
+    } finally {
+      setMigrating(false);
+    }
+  };
+
   const fetchWebhookEvents = useCallback(async (connection: Connection) => {
     setWebhookEventsLoading(true);
     setWebhookEventsError(null);
