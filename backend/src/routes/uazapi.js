@@ -434,6 +434,37 @@ async function saveUazapiMessage(connection, payload) {
     conversationId = conv.rows[0]?.id;
   }
 
+  // MIGRATION FALLBACK: if no conversation in current connection, look across other
+  // connections in the same organization (handles connection migration where the
+  // existing conversation still points to the old connection_id).
+  if (!conversationId && connection.organization_id) {
+    conv = await query(
+      `SELECT cv.id FROM conversations cv
+         JOIN connections cn ON cn.id = cv.connection_id
+        WHERE cn.organization_id = $1 AND cv.remote_jid = $2
+        ORDER BY cv.last_message_at DESC NULLS LAST LIMIT 1`,
+      [connection.organization_id, remoteJid]
+    );
+    conversationId = conv.rows[0]?.id;
+
+    if (!conversationId && cleanPhone) {
+      conv = await query(
+        `SELECT cv.id FROM conversations cv
+           JOIN connections cn ON cn.id = cv.connection_id
+          WHERE cn.organization_id = $1
+            AND cv.contact_phone = $2
+            AND COALESCE(cv.is_group, false) = false
+          ORDER BY cv.last_message_at DESC NULLS LAST LIMIT 1`,
+        [connection.organization_id, cleanPhone]
+      );
+      conversationId = conv.rows[0]?.id;
+    }
+
+    if (conversationId) {
+      console.log('[uazapi] Reusing migrated conversation', conversationId, 'and re-pointing to connection', connection.id);
+    }
+  }
+
   if (!conversationId) {
     const inserted = await query(
       `INSERT INTO conversations (connection_id, remote_jid, contact_name, contact_phone, is_group, group_name, last_message_at, unread_count, attendance_status)
