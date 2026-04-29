@@ -423,9 +423,22 @@ async function saveUazapiMessage(connection, payload) {
     ? (pickFirstString(msg.data.chatName, msg.data.groupName, msg.data.name) || 'Grupo')
     : (msg.senderName || cleanPhone);
 
-  let conv = await query(`SELECT id FROM conversations WHERE connection_id = $1 AND remote_jid = $2 LIMIT 1`, [connection.id, remoteJid]);
-  let conversationId = conv.rows[0]?.id;
+  // Find existing conversation using LID fallback for UAZAPI
+  const senderLid = msg.data?.sender_lid || msg.data?.chatlid;
+  let conversationId = null;
 
+  // 1. Try exact remoteJid
+  let conv = await query(`SELECT id FROM conversations WHERE connection_id = $1 AND remote_jid = $2 LIMIT 1`, [connection.id, remoteJid]);
+  conversationId = conv.rows[0]?.id;
+
+  // 2. Try LID fallback
+  if (!conversationId && senderLid) {
+    const lidJid = `${senderLid}@lid`;
+    conv = await query(`SELECT id FROM conversations WHERE connection_id = $1 AND remote_jid = $2 LIMIT 1`, [connection.id, lidJid]);
+    conversationId = conv.rows[0]?.id;
+  }
+
+  // 3. Try Phone fallback
   if (!conversationId && cleanPhone) {
     conv = await query(
       `SELECT id FROM conversations WHERE connection_id = $1 AND contact_phone = $2 AND COALESCE(is_group, false) = false ORDER BY last_message_at DESC LIMIT 1`,
