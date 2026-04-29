@@ -78,17 +78,27 @@ export function useUpload() {
     console.log('[useUpload] Starting upload:', { name: file.name, type: file.type, size: file.size });
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      let isAborted = false;
       try {
         if (attempt > 0) {
           console.log(`[useUpload] Retry attempt ${attempt}/${maxRetries}`);
           setProgress(0);
-          await new Promise(r => setTimeout(r, 500 * attempt));
+          await new Promise(r => setTimeout(r, 1000 * attempt)); // Increased backoff
         }
-        const url = await doUpload(file);
+        
+        const url = await doUpload(file, () => {
+          isAborted = true;
+        });
+        
         console.log('[useUpload] Success, URL:', url);
         setIsUploading(false);
         return url;
       } catch (err) {
+        if (isAborted) {
+          console.warn('[useUpload] Upload was explicitly aborted, not retrying.');
+          break;
+        }
+        
         console.error(`[useUpload] Attempt ${attempt} failed:`, err);
         if (attempt === maxRetries) {
           setIsUploading(false);
