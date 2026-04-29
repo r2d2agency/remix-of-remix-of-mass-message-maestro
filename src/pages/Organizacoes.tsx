@@ -373,8 +373,8 @@ export default function Organizacoes() {
       permission_template_id: editMemberTemplateId,
     };
     
-    // Only include role if it's different and member is not owner
-    if (editingMember.role !== 'owner' && editMemberRole !== editingMember.role) {
+    // Include role if it's different
+    if (editMemberRole !== editingMember.role) {
       updateData.role = editMemberRole;
     }
 
@@ -849,7 +849,7 @@ export default function Organizacoes() {
                                         Conexões permitidas
                                       </Label>
                                       <p className="text-xs text-muted-foreground mb-2">
-                                        Selecione as conexões que este usuário pode acessar. Para donos, todas as conexões são sempre visíveis.
+                                        Selecione as conexões que este usuário pode acessar. Se nenhuma for selecionada, ele não verá nenhuma.
                                       </p>
                                       <div className="space-y-2 border rounded-md p-3 max-h-40 overflow-y-auto">
                                         {connections.map((conn) => (
@@ -1444,8 +1444,6 @@ export default function Organizacoes() {
               </DialogDescription>
             </DialogHeader>
             <div className="py-4 space-y-6 overflow-y-auto flex-1 pr-2">
-              {/* Role - only if not owner */}
-              {editingMember?.role !== 'owner' && (
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
                     <Shield className="h-4 w-4" />
@@ -1462,7 +1460,6 @@ export default function Organizacoes() {
                     </SelectContent>
                   </Select>
                 </div>
-              )}
 
               {/* Connections */}
               <div className="space-y-2">
@@ -1499,7 +1496,7 @@ export default function Organizacoes() {
                   </div>
                 )}
                 <p className="text-xs text-muted-foreground mt-2">
-                  ⚠️ Selecione as conexões permitidas. Para donos, todas as conexões são sempre visíveis.
+                  ⚠️ Selecione as conexões permitidas. Se nenhuma for selecionada, o usuário não verá nenhuma conversa.
                 </p>
               </div>
 
