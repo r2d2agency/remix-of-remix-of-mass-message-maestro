@@ -444,6 +444,7 @@ async function saveUazapiMessage(connection, payload) {
     conversationId = inserted.rows[0].id;
   } else {
     // Re-check and update to ensure correctly pointed to current connection if it was migrated
+    // Use a transaction or careful update to prevent losing the conversation if connection_id changes
     await query(
       `UPDATE conversations
        SET last_message_at = NOW(),
@@ -458,6 +459,21 @@ async function saveUazapiMessage(connection, payload) {
        WHERE id = $1`,
       [conversationId, msg.fromMe, contactName, remoteJid, connection.id]
     );
+  }
+
+  // Ensure any existing messages for this conversation are also correctly associated with the connection 
+  // if they aren't already, so the chat history loads correctly in the frontend filters.
+  const hasCMConnId = await query(
+    `SELECT 1 FROM information_schema.columns 
+     WHERE table_name = 'chat_messages' AND column_name = 'connection_id' LIMIT 1`
+  ).then(r => r.rowCount > 0).catch(() => false);
+
+  if (hasCMConnId) {
+    await query(
+      `UPDATE chat_messages SET connection_id = $1 
+       WHERE conversation_id = $2 AND (connection_id IS NULL OR connection_id != $1)`,
+      [connection.id, conversationId]
+    ).catch(e => console.warn('[UAZAPI] chat_messages connection_id update failed:', e.message));
   }
 
   let mediaEntries = msg.mediaItems?.length
