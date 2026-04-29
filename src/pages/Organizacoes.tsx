@@ -371,12 +371,9 @@ export default function Organizacoes() {
       connection_ids: editMemberConnectionIds,
       department_ids: editMemberDepartmentIds,
       permission_template_id: editMemberTemplateId,
+      role: editMemberRole
     };
-    
-    // Include role if it's different
-    if (editMemberRole !== editingMember.role) {
-      updateData.role = editMemberRole;
-    }
+
 
     const success = await updateMember(selectedOrg.id, editingMember.user_id, updateData);
 
