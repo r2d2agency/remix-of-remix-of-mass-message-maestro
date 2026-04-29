@@ -423,9 +423,22 @@ async function saveUazapiMessage(connection, payload) {
     ? (pickFirstString(msg.data.chatName, msg.data.groupName, msg.data.name) || 'Grupo')
     : (msg.senderName || cleanPhone);
 
-  let conv = await query(`SELECT id FROM conversations WHERE connection_id = $1 AND remote_jid = $2 LIMIT 1`, [connection.id, remoteJid]);
-  let conversationId = conv.rows[0]?.id;
+  // Find existing conversation using LID fallback for UAZAPI
+  const senderLid = msg.data?.sender_lid || msg.data?.chatlid;
+  let conversationId = null;
 
+  // 1. Try exact remoteJid
+  let conv = await query(`SELECT id FROM conversations WHERE connection_id = $1 AND remote_jid = $2 LIMIT 1`, [connection.id, remoteJid]);
+  conversationId = conv.rows[0]?.id;
+
+  // 2. Try LID fallback
+  if (!conversationId && senderLid) {
+    const lidJid = `${senderLid}@lid`;
+    conv = await query(`SELECT id FROM conversations WHERE connection_id = $1 AND remote_jid = $2 LIMIT 1`, [connection.id, lidJid]);
+    conversationId = conv.rows[0]?.id;
+  }
+
+  // 3. Try Phone fallback
   if (!conversationId && cleanPhone) {
     conv = await query(
       `SELECT id FROM conversations WHERE connection_id = $1 AND contact_phone = $2 AND COALESCE(is_group, false) = false ORDER BY last_message_at DESC LIMIT 1`,
@@ -438,12 +451,15 @@ async function saveUazapiMessage(connection, payload) {
   // connections in the same organization (handles connection migration where the
   // existing conversation still points to the old connection_id).
   if (!conversationId && connection.organization_id) {
+    const senderLid = msg.data?.sender_lid || msg.data?.chatlid;
+    const lidJid = senderLid ? `${senderLid}@lid` : null;
+
     conv = await query(
       `SELECT cv.id FROM conversations cv
          JOIN connections cn ON cn.id = cv.connection_id
-        WHERE cn.organization_id = $1 AND cv.remote_jid = $2
+        WHERE cn.organization_id = $1 AND (cv.remote_jid = $2 OR (cv.remote_jid = $3 AND $3 IS NOT NULL))
         ORDER BY cv.last_message_at DESC NULLS LAST LIMIT 1`,
-      [connection.organization_id, remoteJid]
+      [connection.organization_id, remoteJid, lidJid]
     );
     conversationId = conv.rows[0]?.id;
 
