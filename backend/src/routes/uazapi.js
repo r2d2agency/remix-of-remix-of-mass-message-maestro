@@ -7,6 +7,11 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { assignConnectionMember } from '../lib/connection-members.js';
+import { executeFlow, continueFlowWithInput } from '../lib/flow-executor.js';
+import { processIncomingWithAgent } from '../lib/ai-agent-processor.js';
+import { analyzeGroupMessage } from '../lib/group-secretary.js';
+import { parseComparableTimestamp, pickBestPendingMessage, summarizeHandlerOutcomes } from '../lib/message-sync.js';
+
 
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
 try { fs.mkdirSync(UPLOADS_DIR, { recursive: true }); } catch {}
@@ -410,6 +415,23 @@ async function findUazapiConnection(payload, req) {
   return null;
 }
 
+async function loadPendingMessagesForConversation(conversationId) {
+  if (!conversationId) return [];
+  const result = await query(
+    `SELECT id, message_id, content, message_type, media_mimetype, quoted_message_id, timestamp
+     FROM chat_messages
+     WHERE conversation_id = $1
+       AND from_me = true
+       AND status = 'pending'
+       AND message_id LIKE 'temp_%'
+       AND timestamp > NOW() - INTERVAL '10 minutes'
+     ORDER BY timestamp DESC
+     LIMIT 20`,
+    [conversationId]
+  );
+  return result.rows;
+}
+
 async function saveUazapiMessage(connection, payload) {
   const msg = extractUazapiMessage(payload);
   if (!msg.chatId) return buildAuditOutcome('skipped', 'message without chat id', false);
@@ -606,7 +628,70 @@ async function saveUazapiMessage(connection, payload) {
        SET connection_id = EXCLUDED.connection_id 
        WHERE chat_messages.connection_id IS NULL OR chat_messages.connection_id != EXCLUDED.connection_id`,
       insertVals
-    );
+    ).catch(async (err) => {
+      // If insertion fails due to duplicate message_id (race condition), it's already "saved"
+      if (err.code === '23505') return;
+      
+      // Fallback: try to link to a pending message if it was sent by us
+      if (msg.fromMe) {
+        const pending = await loadPendingMessagesForConversation(conversationId);
+        const best = pickBestPendingMessage(pending, {
+          content: msg.content,
+          timestamp: msg.timestamp,
+          messageType: msg.messageType,
+          mediaMimetype: msg.mediaMimetype
+        });
+        
+        if (best) {
+          await query(
+            `UPDATE chat_messages SET message_id = $1, status = 'sent', timestamp = COALESCE($2, timestamp) WHERE id = $3`,
+            [msg.messageId, msg.timestamp ? new Date(Number(msg.timestamp)) : null, best.id]
+          );
+        }
+      }
+      throw err;
+    });
+  }
+
+  // -------------------------------------------------------------------
+  // POST-PROCESSING: Flows, AI Agents, Group Secretary, Notifications
+  // -------------------------------------------------------------------
+  if (conversationId && !msg.fromMe) {
+    const convoResult = await query(`SELECT * FROM conversations WHERE id = $1`, [conversationId]);
+    const convo = convoResult.rows[0];
+
+    if (convo) {
+      // 1. Group Secretary (if group)
+      if (convo.is_group) {
+        await analyzeGroupMessage(connection, convo, {
+          id: msg.messageId,
+          content: msg.content,
+          sender_name: msg.senderName,
+          sender_phone: msg.sender,
+        }).catch(err => console.warn('[UAZAPI] Group secretary error:', err.message));
+      }
+
+      // 2. Flow Executor / AI Agent (only if individual or specifically enabled)
+      const shouldProcessAuto = !convo.is_group || connection.process_groups_auto === true;
+      
+      if (shouldProcessAuto && convo.attendance_status !== 'attending') {
+        // Try to continue flow
+        const flowProcessed = await continueFlowWithInput(connection, convo, msg.content)
+          .catch(err => {
+            console.warn('[UAZAPI] Flow continue error:', err.message);
+            return false;
+          });
+
+        // If no flow was continued, try AI Agent
+        if (!flowProcessed) {
+          await processIncomingWithAgent(connection, convo, {
+            id: msg.messageId,
+            content: msg.content,
+            messageType: msg.messageType,
+          }).catch(err => console.warn('[UAZAPI] AI Agent error:', err.message));
+        }
+      }
+    }
   }
 
   return buildAuditOutcome('saved', null, true);
