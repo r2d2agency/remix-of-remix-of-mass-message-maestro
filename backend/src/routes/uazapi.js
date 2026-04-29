@@ -677,9 +677,11 @@ async function saveUazapiMessage(connection, payload, req = null) {
         }
       }
     }
+  }
+
   // 4. Update the real-time UI via Socket.IO if possible (frontend expects this for instant updates)
   try {
-    const io = req.app.get('socketio');
+    const io = req?.app?.get('socketio');
     if (io && conversationId) {
       const msgData = {
         conversationId,
