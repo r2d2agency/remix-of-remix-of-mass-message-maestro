@@ -126,6 +126,25 @@ const Conexao = () => {
     loadUazapiInfo();
   }, []);
 
+  const [cleaningDuplicates, setCleaningDuplicates] = useState(false);
+
+  const handleCleanupDuplicates = async () => {
+    setCleaningDuplicates(true);
+    try {
+      const res = await api<{ success: boolean; message: string }>('/api/connections/cleanup-duplicates', {
+        method: 'POST'
+      });
+      if (res.success) {
+        toast.success(res.message);
+        loadConnections();
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao limpar duplicatas');
+    } finally {
+      setCleaningDuplicates(false);
+    }
+  };
+
   const loadUazapiInfo = async () => {
     try {
       const info = await uazapiApi.serverInfo();
