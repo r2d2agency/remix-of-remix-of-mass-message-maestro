@@ -451,12 +451,15 @@ async function saveUazapiMessage(connection, payload) {
   // connections in the same organization (handles connection migration where the
   // existing conversation still points to the old connection_id).
   if (!conversationId && connection.organization_id) {
+    const senderLid = msg.data?.sender_lid || msg.data?.chatlid;
+    const lidJid = senderLid ? `${senderLid}@lid` : null;
+
     conv = await query(
       `SELECT cv.id FROM conversations cv
          JOIN connections cn ON cn.id = cv.connection_id
-        WHERE cn.organization_id = $1 AND cv.remote_jid = $2
+        WHERE cn.organization_id = $1 AND (cv.remote_jid = $2 OR (cv.remote_jid = $3 AND $3 IS NOT NULL))
         ORDER BY cv.last_message_at DESC NULLS LAST LIMIT 1`,
-      [connection.organization_id, remoteJid]
+      [connection.organization_id, remoteJid, lidJid]
     );
     conversationId = conv.rows[0]?.id;
 
