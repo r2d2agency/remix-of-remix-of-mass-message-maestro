@@ -528,6 +528,16 @@ async function saveUazapiMessage(connection, payload, req = null) {
        WHERE id = $1`,
       [conversationId, msg.fromMe, contactName, remoteJid, connection.id]
     );
+
+    // Se o contato foi migrado de outra conexão, precisamos garantir que ele esteja vinculado à conexão atual
+    // para que apareça na lista de chats.
+    if (connection.id) {
+      await query(
+        `UPDATE conversations SET connection_id = $1 WHERE id = $2 AND (connection_id IS NULL OR connection_id != $1)`,
+        [connection.id, conversationId]
+      ).catch(e => console.warn('[UAZAPI] Legacy connection fix failed:', e.message));
+    }
+
   }
 
   // Ensure any existing messages for this conversation are also correctly associated with the connection 
