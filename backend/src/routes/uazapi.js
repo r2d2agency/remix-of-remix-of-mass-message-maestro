@@ -1045,7 +1045,10 @@ router.get('/:connectionId/status', async (req, res) => {
     );
     res.json({ ...r, provider: 'uazapi' });
   } catch (err) {
-    console.error('[UAZAPI] status error', err);
+    logError('uazapi.status_failed', err, {
+      connection_id: req.params.connectionId,
+      user_id: req.userId
+    });
     res.json({ status: 'disconnected', provider: 'uazapi', error: err?.message || 'status_error' });
   }
 });
