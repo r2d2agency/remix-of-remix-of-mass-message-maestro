@@ -851,12 +851,20 @@ export function ChatArea({
           await onSendMessage(content, type, url, undefined, file.type);
         } else {
           console.error('[Upload] Upload returned null/empty URL');
-          toast.error(`Falha no upload de ${file.name}`);
+          // No toast here as the hook already handles the failure and we throw the error below
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('[Upload] Error:', error);
-        const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-        toast.error(`Erro ao enviar ${file.name}: ${errorMessage}`);
+        // Only show error toast if it's NOT an "abort" or "cancel" which usually happens on network switches or quick actions
+        const isAbortError = error?.message?.toLowerCase().includes('abort') || 
+                            error?.message?.toLowerCase().includes('cancelado');
+        
+        if (!isAbortError) {
+          const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+          toast.error(`Erro ao enviar ${file.name}: ${errorMessage}`);
+        } else {
+          console.warn('[Upload] Silent failure for abort error:', file.name);
+        }
       } finally {
         if (preview) URL.revokeObjectURL(preview);
       }

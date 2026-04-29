@@ -16,7 +16,7 @@ export function useUpload() {
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);
 
-  const doUpload = useCallback((file: File): Promise<string> => {
+  const doUpload = useCallback((file: File, onAbort?: () => void): Promise<string> => {
     return new Promise((resolve, reject) => {
       const formData = new FormData();
       formData.append('file', file);
@@ -38,12 +38,13 @@ export function useUpload() {
             setProgress(100);
             resolve(result.file.url);
           } catch (e) {
-            reject(new Error('Erro ao processar resposta'));
+            console.error('[useUpload] Parse error:', e, xhr.responseText);
+            reject(new Error('Erro ao processar resposta do servidor'));
           }
         } else {
           try {
             const error = JSON.parse(xhr.responseText);
-            reject(new Error(error.error || 'Erro ao fazer upload'));
+            reject(new Error(error.error || `Erro no servidor (${xhr.status})`));
           } catch {
             reject(new Error(`Erro ao fazer upload (${xhr.status})`));
           }
@@ -51,11 +52,14 @@ export function useUpload() {
       });
 
       xhr.addEventListener('error', () => {
-        reject(new Error('Erro de conexão'));
+        console.error('[useUpload] XHR Connection Error');
+        reject(new Error('Erro de conexão com o servidor'));
       });
 
       xhr.addEventListener('abort', () => {
-        reject(new Error('Upload cancelado'));
+        console.warn('[useUpload] XHR Upload Aborted');
+        if (onAbort) onAbort();
+        reject(new Error('Upload cancelado ou interrompido'));
       });
 
       const uploadUrl = `${API_URL}/api/uploads`;
@@ -74,17 +78,27 @@ export function useUpload() {
     console.log('[useUpload] Starting upload:', { name: file.name, type: file.type, size: file.size });
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      let isAborted = false;
       try {
         if (attempt > 0) {
           console.log(`[useUpload] Retry attempt ${attempt}/${maxRetries}`);
           setProgress(0);
-          await new Promise(r => setTimeout(r, 500 * attempt));
+          await new Promise(r => setTimeout(r, 1000 * attempt)); // Increased backoff
         }
-        const url = await doUpload(file);
+        
+        const url = await doUpload(file, () => {
+          isAborted = true;
+        });
+        
         console.log('[useUpload] Success, URL:', url);
         setIsUploading(false);
         return url;
       } catch (err) {
+        if (isAborted) {
+          console.warn('[useUpload] Upload was explicitly aborted, not retrying.');
+          break;
+        }
+        
         console.error(`[useUpload] Attempt ${attempt} failed:`, err);
         if (attempt === maxRetries) {
           setIsUploading(false);
