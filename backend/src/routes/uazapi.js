@@ -435,7 +435,7 @@ async function loadPendingMessagesForConversation(conversationId) {
   return result.rows;
 }
 
-async function saveUazapiMessage(connection, payload) {
+async function saveUazapiMessage(connection, payload, req = null) {
   const msg = extractUazapiMessage(payload);
   if (!msg.chatId) return buildAuditOutcome('skipped', 'message without chat id', false);
   if (msg.fromMe && msg.data.wasSentByApi === true) return buildAuditOutcome('ignored', 'message sent by api ignored', true);
