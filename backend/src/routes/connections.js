@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import * as wapiProvider from '../lib/wapi-provider.js';
-import { assignConnectionMember, ensureOwnConnectionMemberships } from '../lib/connection-members.js';
+import { assignConnectionMember } from '../lib/connection-members.js';
 
 const W_API_INTEGRATOR_URL = 'https://api.w-api.app/v1/integrator';
 
@@ -25,7 +25,7 @@ async function getUserOrganization(userId) {
 function buildConnectionAccessClause(id, userId, org) {
   if (org) {
     return {
-      where: `id = $1 AND (organization_id = $2 OR id IN (SELECT connection_id FROM connection_members WHERE user_id = $3))`,
+      where: `id = $1 AND organization_id = $2 AND id IN (SELECT connection_id FROM connection_members WHERE user_id = $3)`,
       params: [id, org.organization_id, userId]
     };
   }
@@ -39,11 +39,8 @@ function buildConnectionAccessClause(id, userId, org) {
 router.get('/', async (req, res) => {
   try {
     const org = await getUserOrganization(req.userId);
-    await ensureOwnConnectionMemberships(req.userId).catch((e) => {
-      console.warn('[connections] could not backfill own connection membership:', e?.message);
-    });
 
-    // All other roles: only see connections explicitly assigned via connection_members
+    // All organization roles (including owner/admin) only see connections explicitly assigned via connection_members
     const specificResult = await query(
       `SELECT DISTINCT cm.connection_id FROM connection_members cm WHERE cm.user_id = $1`,
       [req.userId]
@@ -71,20 +68,8 @@ router.get('/', async (req, res) => {
       return res.json(result.rows);
     }
 
-    // No assignments: owners/admins see all org connections; everyone else nothing
+    // No assignments in an organization means no visible connections for every role
     if (org) {
-      if (['owner', 'admin'].includes(org.role)) {
-        const result = await query(
-          `SELECT c.*, u.name as created_by_name,
-           ${providerExpr.replace(/c\.provider/g, 'c.provider').replace(/c\.uazapi_token/g, 'c.uazapi_token').replace(/c\.instance_id/g, 'c.instance_id').replace(/c\.wapi_token/g, 'c.wapi_token')} as provider
-           FROM connections c
-           LEFT JOIN users u ON c.user_id = u.id
-           WHERE c.organization_id = $1
-           ORDER BY c.created_at DESC`,
-          [org.organization_id]
-        );
-        return res.json(result.rows);
-      }
       return res.json([]);
     }
 
