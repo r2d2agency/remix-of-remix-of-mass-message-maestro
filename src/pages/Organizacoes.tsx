@@ -940,7 +940,7 @@ export default function Organizacoes() {
                                     </TableCell>
                                     <TableCell>
                                       {assignedConns.length === 0 ? (
-                                        <span className="text-muted-foreground text-sm">Todas</span>
+                                        <Badge variant="outline" className="text-xs text-muted-foreground border-dashed">Nenhuma</Badge>
                                       ) : (
                                         <div className="flex flex-wrap gap-1">
                                           {assignedConns.slice(0, 2).map((c) => (
