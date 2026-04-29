@@ -506,7 +506,7 @@ async function saveUazapiMessage(connection, payload, req = null) {
        SET last_message_at = NOW(),
            unread_count = CASE WHEN $2 THEN unread_count ELSE unread_count + 1 END,
            contact_name = CASE 
-             WHEN $3 IS NOT NULL AND $3 != '' AND (contact_name IS NULL OR contact_name = contact_phone OR contact_name = 'Grupo' OR contact_name = 'Conta Dr Luis Sbroggio') 
+             WHEN $3 IS NOT NULL AND $3 != '' AND (contact_name IS NULL OR contact_name = contact_phone OR contact_name = 'Grupo' OR contact_name = 'Conta Dr Luis Sbroggio' OR contact_name = 'Luis Sbroggio Pro') 
              THEN $3 
              ELSE contact_name 
            END,
