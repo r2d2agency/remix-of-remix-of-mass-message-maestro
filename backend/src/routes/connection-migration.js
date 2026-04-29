@@ -189,4 +189,154 @@ router.post('/migrate', async (req, res) => {
   }
 });
 
+// ============================================================================
+// DIAGNOSTIC: list all connections in the user's org with conversation counts
+// and latest activity. Helps the user spot conversations stuck on an old
+// connection after a previous migration.
+// ============================================================================
+router.get('/diagnostic', async (req, res) => {
+  const org = await getUserOrg(req.userId);
+  if (!org) return res.status(403).json({ error: 'Usuário sem organização' });
+
+  try {
+    const r = await query(
+      `SELECT c.id, c.name, c.provider, c.status, c.phone_number,
+              c.uazapi_instance_name, c.created_at,
+              (SELECT COUNT(*) FROM conversations cv WHERE cv.connection_id = c.id) AS conversation_count,
+              (SELECT COUNT(*) FROM conversations cv WHERE cv.connection_id = c.id
+                 AND cv.last_message_at > NOW() - INTERVAL '24 hours') AS recent_conversations,
+              (SELECT MAX(cv.last_message_at) FROM conversations cv WHERE cv.connection_id = c.id) AS last_message_at
+         FROM connections c
+        WHERE c.organization_id = $1
+        ORDER BY last_message_at DESC NULLS LAST`,
+      [org.organization_id]
+    );
+    res.json({ connections: r.rows });
+  } catch (err) {
+    console.error('[migration/diagnostic] error', err);
+    res.status(500).json({ error: 'Falha ao listar conexões', detail: err.message });
+  }
+});
+
+// ============================================================================
+// MIGRATE-ALL: consolidate every other connection in the org into a single
+// destination. Useful when conversations got fragmented across multiple
+// connections and you want everything visible under the active one.
+// ============================================================================
+router.post('/migrate-all', async (req, res) => {
+  const { to_connection_id, only_provider } = req.body || {};
+  if (!to_connection_id) {
+    return res.status(400).json({ error: 'to_connection_id é obrigatório' });
+  }
+
+  const org = await getUserOrg(req.userId);
+  if (!org) return res.status(403).json({ error: 'Usuário sem organização' });
+  if (!['owner', 'admin'].includes(org.role)) {
+    return res.status(403).json({ error: 'Apenas owner/admin podem migrar conversas' });
+  }
+
+  const dst = await query(
+    `SELECT id, name, organization_id, provider FROM connections WHERE id = $1 LIMIT 1`,
+    [to_connection_id]
+  );
+  if (!dst.rows[0]) return res.status(404).json({ error: 'Conexão de destino não encontrada' });
+  if (dst.rows[0].organization_id !== org.organization_id) {
+    return res.status(403).json({ error: 'Conexão de destino não pertence à sua organização' });
+  }
+
+  // Find all other connections in the same org (optionally filtered by provider)
+  const params = [org.organization_id, to_connection_id];
+  let extraSql = '';
+  if (only_provider) {
+    params.push(only_provider);
+    extraSql = ` AND provider = $${params.length}`;
+  }
+  const sources = await query(
+    `SELECT id, name, provider FROM connections
+       WHERE organization_id = $1 AND id <> $2 ${extraSql}
+       ORDER BY created_at ASC`,
+    params
+  );
+
+  const results = [];
+  for (const src of sources.rows) {
+    const client = await getClient();
+    try {
+      await client.query('BEGIN');
+
+      // 1) Merge tables with unique constraints
+      for (const spec of MERGE_TABLES) {
+        if (!(await tableExists(client, spec.table))) continue;
+        const keyJoin = spec.keys.map((k) => `s.${k} = d.${k}`).join(' AND ');
+
+        const dupes = await client.query(
+          `SELECT s.id AS src_id, d.id AS dst_id
+             FROM ${spec.table} s
+             JOIN ${spec.table} d
+               ON d.connection_id = $2 AND ${keyJoin}
+            WHERE s.connection_id = $1`,
+          [src.id, to_connection_id]
+        );
+        for (const row of dupes.rows) {
+          for (const child of spec.pkChildren) {
+            if (!(await tableExists(client, child.table))) continue;
+            await client.query(
+              `UPDATE ${child.table} SET ${child.fk} = $1 WHERE ${child.fk} = $2`,
+              [row.dst_id, row.src_id]
+            );
+          }
+          await client.query(`DELETE FROM ${spec.table} WHERE id = $1`, [row.src_id]);
+        }
+
+        await client.query(
+          `UPDATE ${spec.table} SET connection_id = $2 WHERE connection_id = $1`,
+          [src.id, to_connection_id]
+        );
+
+        if (spec.table === 'conversations') {
+          const hasMsgConnId = await columnExists(client, 'chat_messages', 'connection_id');
+          if (hasMsgConnId) {
+            await client.query(
+              `UPDATE chat_messages SET connection_id = $2
+                 WHERE conversation_id IN (SELECT id FROM conversations WHERE connection_id = $2)`,
+              [src.id, to_connection_id]
+            );
+          }
+        }
+      }
+
+      // 2) Update all other tables that have a connection_id column
+      const others = await client.query(
+        `SELECT table_name FROM information_schema.columns
+          WHERE table_schema='public' AND column_name='connection_id'
+            AND table_name NOT IN (${MERGE_TABLES.map((_, i) => `$${i + 1}`).join(',')})`,
+        MERGE_TABLES.map((s) => s.table)
+      );
+      for (const { table_name } of others.rows) {
+        try {
+          await client.query(
+            `UPDATE ${table_name} SET connection_id = $2 WHERE connection_id = $1`,
+            [src.id, to_connection_id]
+          );
+        } catch (_) { /* skip tables with conflicting unique keys */ }
+      }
+
+      await client.query('COMMIT');
+      results.push({ from: src.name, from_id: src.id, success: true });
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      console.error(`[migration/migrate-all] error for ${src.id}`, err);
+      results.push({ from: src.name, from_id: src.id, success: false, error: err.message });
+    } finally {
+      client.release();
+    }
+  }
+
+  res.json({
+    success: true,
+    to: { id: dst.rows[0].id, name: dst.rows[0].name },
+    migrated_from: results,
+  });
+});
+
 export default router;
