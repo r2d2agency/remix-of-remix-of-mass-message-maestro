@@ -563,8 +563,8 @@ router.get('/conversations', authenticate, async (req, res) => {
              WHERE ctl.conversation_id = conv.id
             ), '[]'::json
           ) as tags,
-          (SELECT content FROM chat_messages WHERE conversation_id = conv.id ORDER BY timestamp DESC LIMIT 1) as last_message,
-          (SELECT message_type FROM chat_messages WHERE conversation_id = conv.id ORDER BY timestamp DESC LIMIT 1) as last_message_type
+          (SELECT content FROM chat_messages WHERE conversation_id = conv.id ORDER BY timestamp DESC, id DESC LIMIT 1) as last_message,
+          (SELECT message_type FROM chat_messages WHERE conversation_id = conv.id ORDER BY timestamp DESC, id DESC LIMIT 1) as last_message_type
         FROM conversations conv
         JOIN connections conn ON conn.id = conv.connection_id
         LEFT JOIN users u ON u.id = conv.assigned_to
@@ -1597,7 +1597,7 @@ router.get('/conversations/:id/messages', authenticate, async (req, res) => {
       paramIndex++;
     }
 
-    sql += ` ORDER BY m.timestamp DESC LIMIT $${paramIndex}`;
+    sql += ` ORDER BY m.timestamp DESC, m.id DESC LIMIT $${paramIndex}`;
     params.push(parseInt(limit));
 
     const result = await query(sql, params);
