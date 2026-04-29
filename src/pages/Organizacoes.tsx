@@ -371,12 +371,9 @@ export default function Organizacoes() {
       connection_ids: editMemberConnectionIds,
       department_ids: editMemberDepartmentIds,
       permission_template_id: editMemberTemplateId,
+      role: editMemberRole
     };
-    
-    // Include role if it's different
-    if (editMemberRole !== editingMember.role) {
-      updateData.role = editMemberRole;
-    }
+
 
     const success = await updateMember(selectedOrg.id, editingMember.user_id, updateData);
 
@@ -943,7 +940,7 @@ export default function Organizacoes() {
                                     </TableCell>
                                     <TableCell>
                                       {assignedConns.length === 0 ? (
-                                        <span className="text-muted-foreground text-sm">Todas</span>
+                                        <Badge variant="outline" className="text-xs text-muted-foreground border-dashed">Nenhuma</Badge>
                                       ) : (
                                         <div className="flex flex-wrap gap-1">
                                           {assignedConns.slice(0, 2).map((c) => (
@@ -1460,6 +1457,7 @@ export default function Organizacoes() {
                     </SelectContent>
                   </Select>
                 </div>
+
 
               {/* Connections */}
               <div className="space-y-2">
