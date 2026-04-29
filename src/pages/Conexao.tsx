@@ -730,7 +730,7 @@ const handleGetQRCode = async (connection: Connection) => {
     <MainLayout>
       <div className="space-y-8">
         {/* Header */}
-        <div className="flex items-center justify-between animate-slide-up">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between animate-slide-up">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Conexões WhatsApp</h1>
             <p className="mt-1 text-muted-foreground">
@@ -738,7 +738,7 @@ const handleGetQRCode = async (connection: Connection) => {
             </p>
           </div>
           
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4">
             {/* Plan limits badge */}
             {planLimits && (
               <Badge variant="outline" className="text-sm py-1 px-3">
@@ -748,6 +748,16 @@ const handleGetQRCode = async (connection: Connection) => {
                 )}
               </Badge>
             )}
+
+            <Button 
+              variant="outline" 
+              onClick={handleCleanupDuplicates}
+              disabled={cleaningDuplicates || connections.length < 2}
+              className="flex items-center gap-2"
+            >
+              {cleaningDuplicates ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eraser className="h-4 w-4" />}
+              Limpar duplicadas
+            </Button>
 
             <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
               <DialogTrigger asChild>
