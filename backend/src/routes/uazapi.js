@@ -443,18 +443,20 @@ async function saveUazapiMessage(connection, payload) {
     );
     conversationId = inserted.rows[0].id;
   } else {
+    // Re-check and update to ensure correctly pointed to current connection if it was migrated
     await query(
       `UPDATE conversations
        SET last_message_at = NOW(),
            unread_count = CASE WHEN $2 THEN unread_count ELSE unread_count + 1 END,
            contact_name = COALESCE($3, contact_name),
            remote_jid = $4,
+           connection_id = $5,
            attendance_status = CASE WHEN NOT $2 AND attendance_status = 'finished' THEN 'waiting' ELSE attendance_status END,
            accepted_at = CASE WHEN NOT $2 AND attendance_status = 'finished' THEN NULL ELSE accepted_at END,
            accepted_by = CASE WHEN NOT $2 AND attendance_status = 'finished' THEN NULL ELSE accepted_by END,
            updated_at = NOW()
        WHERE id = $1`,
-      [conversationId, msg.fromMe, contactName, remoteJid]
+      [conversationId, msg.fromMe, contactName, remoteJid, connection.id]
     );
   }
 

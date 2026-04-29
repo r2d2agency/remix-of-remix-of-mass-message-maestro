@@ -122,6 +122,18 @@ router.post('/migrate', async (req, res) => {
         [from_connection_id, to_connection_id]
       );
       summary.updated[spec.table] = upd.rowCount;
+
+      // Special case for chat_messages: ensure messages are correctly linked to the new connection
+      if (spec.table === 'conversations') {
+        const hasMsgConnId = await columnExists(client, 'chat_messages', 'connection_id');
+        if (hasMsgConnId) {
+          await client.query(
+            `UPDATE chat_messages SET connection_id = $2 
+             WHERE conversation_id IN (SELECT id FROM conversations WHERE connection_id = $2)`,
+            [from_connection_id, to_connection_id]
+          );
+        }
+      }
     }
 
     // 2) Discover ALL OTHER tables with a connection_id column and update them
