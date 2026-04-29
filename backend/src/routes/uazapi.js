@@ -11,6 +11,8 @@ import { executeFlow, continueFlowWithInput } from '../lib/flow-executor.js';
 import { processIncomingWithAgent } from '../lib/ai-agent-processor.js';
 import { analyzeGroupMessage } from '../lib/group-secretary.js';
 import { parseComparableTimestamp, pickBestPendingMessage, summarizeHandlerOutcomes } from '../lib/message-sync.js';
+import { log, logError } from '../logger.js';
+
 
 
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
@@ -504,7 +506,7 @@ async function saveUazapiMessage(connection, payload, req = null) {
        SET last_message_at = NOW(),
            unread_count = CASE WHEN $2 THEN unread_count ELSE unread_count + 1 END,
            contact_name = CASE 
-             WHEN $3 IS NOT NULL AND $3 != '' AND (contact_name IS NULL OR contact_name = contact_phone OR contact_name = 'Grupo' OR contact_name = 'Conta Dr Luis Sbroggio') 
+             WHEN $3 IS NOT NULL AND $3 != '' AND (contact_name IS NULL OR contact_name = contact_phone OR contact_name = 'Grupo' OR contact_name = 'Conta Dr Luis Sbroggio' OR contact_name = 'Luis Sbroggio Pro') 
              THEN $3 
              ELSE contact_name 
            END,
@@ -829,7 +831,9 @@ router.post('/webhook', async (req, res) => {
       await updateInboundAudit(auditId, buildAuditOutcome('ignored', `unhandled event type: ${eventType}`, true));
     }
   } catch (err) {
-    console.error('[UAZAPI webhook] Critical Error:', err);
+    logError('uazapi.webhook_critical', err, {
+      payload_preview: JSON.stringify(req.body || {}).slice(0, 500)
+    });
   }
 });
 
@@ -863,7 +867,10 @@ router.post('/servers', requireSuperadmin, async (req, res) => {
     );
     res.status(201).json(r.rows[0]);
   } catch (err) {
-    console.error('[UAZAPI] create server', err);
+    logError('uazapi.create_server_failed', err, {
+      name: req.body?.name,
+      user_id: req.userId
+    });
     res.status(500).json({ error: 'Erro ao criar servidor UAZAPI' });
   }
 });
@@ -890,7 +897,10 @@ router.patch('/servers/:id', requireSuperadmin, async (req, res) => {
     if (!r.rows[0]) return res.status(404).json({ error: 'Servidor não encontrado' });
     res.json(r.rows[0]);
   } catch (err) {
-    console.error('[UAZAPI] update server', err);
+    logError('uazapi.update_server_failed', err, {
+      server_id: req.params.id,
+      user_id: req.userId
+    });
     res.status(500).json({ error: 'Erro ao atualizar servidor' });
   }
 });
@@ -1016,7 +1026,10 @@ router.post('/instances', async (req, res) => {
 
     res.status(201).json(connection);
   } catch (err) {
-    console.error('[UAZAPI] create instance', err);
+    logError('uazapi.create_instance_failed', err, {
+      name: req.body?.name,
+      user_id: req.userId
+    });
     res.status(500).json({ error: 'Erro ao criar instância UAZAPI' });
   }
 });
@@ -1038,7 +1051,10 @@ router.get('/:connectionId/status', async (req, res) => {
     );
     res.json({ ...r, provider: 'uazapi' });
   } catch (err) {
-    console.error('[UAZAPI] status error', err);
+    logError('uazapi.status_failed', err, {
+      connection_id: req.params.connectionId,
+      user_id: req.userId
+    });
     res.json({ status: 'disconnected', provider: 'uazapi', error: err?.message || 'status_error' });
   }
 });
