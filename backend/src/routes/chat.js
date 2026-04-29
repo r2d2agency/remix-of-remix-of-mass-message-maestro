@@ -536,6 +536,9 @@ router.get('/conversations', authenticate, async (req, res) => {
     const userDepartmentIds = userDeptsResult.rows.map(r => r.department_id);
     const isSupervisorInAnyDept = userDeptsResult.rows.some(r => r.role === 'supervisor');
 
+    const chatMessageColumns = await getChatMessagesColumns();
+    const hasMessageConnectionId = chatMessageColumns.has('connection_id');
+
     // Determine which department(s) to filter by
     let filterDepartmentIds = null;
     if (department === 'my') {
@@ -567,7 +570,9 @@ router.get('/conversations', authenticate, async (req, res) => {
         LEFT JOIN users u ON u.id = conv.assigned_to
         ${supportsAttendance ? 'LEFT JOIN users ua ON ua.id = conv.accepted_by' : ''}
         ${supportsDepartment ? 'LEFT JOIN departments d ON d.id = conv.department_id' : ''}
-        WHERE (conv.connection_id = ANY($1) OR EXISTS (SELECT 1 FROM chat_messages cm WHERE cm.conversation_id = conv.id AND cm.connection_id = ANY($1)))
+        WHERE ${hasMessageConnectionId
+          ? `(conv.connection_id = ANY($1) OR EXISTS (SELECT 1 FROM chat_messages cm WHERE cm.conversation_id = conv.id AND cm.connection_id = ANY($1)))`
+          : `conv.connection_id = ANY($1)`}
       `;
 
       const params = [connectionIds];
@@ -575,7 +580,9 @@ router.get('/conversations', authenticate, async (req, res) => {
 
       // IMPORTANT: Only show conversations with messages (unless explicitly requested)
       if (includeEmpty !== 'true') {
-        sql += ` AND EXISTS (SELECT 1 FROM chat_messages cm WHERE cm.conversation_id = conv.id AND (cm.connection_id = ANY($1) OR conv.connection_id = ANY($1)))`;
+        sql += hasMessageConnectionId
+          ? ` AND EXISTS (SELECT 1 FROM chat_messages cm WHERE cm.conversation_id = conv.id AND (cm.connection_id = ANY($1) OR conv.connection_id = ANY($1)))`
+          : ` AND EXISTS (SELECT 1 FROM chat_messages cm WHERE cm.conversation_id = conv.id)`;
       }
 
       // Filter by group status
@@ -594,7 +601,9 @@ router.get('/conversations', authenticate, async (req, res) => {
 
       // Filter by connection
       if (connection && connection !== 'all') {
-        sql += ` AND conv.connection_id = $${paramIndex}`;
+        sql += hasMessageConnectionId
+          ? ` AND (conv.connection_id = $${paramIndex} OR EXISTS (SELECT 1 FROM chat_messages cm_filter WHERE cm_filter.conversation_id = conv.id AND cm_filter.connection_id = $${paramIndex}))`
+          : ` AND conv.connection_id = $${paramIndex}`;
         params.push(connection);
         paramIndex++;
       }
