@@ -400,7 +400,10 @@ async function findUazapiConnection(payload, req) {
     if (c.rows[0]) return c.rows[0];
   }
 
-  const instanceRef = payload?.instance?.name || payload?.instance?.id || payload?.instance || payload?.data?.instance || payload?.data?.owner || null;
+  const instanceName = payload?.instanceName || payload?.instance?.name || payload?.instance || payload?.data?.instance || null;
+  const owner = payload?.owner || payload?.instance?.owner || payload?.data?.owner || null;
+  const instanceRef = instanceName || owner || payload?.instance?.id || null;
+
   if (instanceRef) {
     const c = await query(
       `SELECT * FROM connections
@@ -432,7 +435,7 @@ async function loadPendingMessagesForConversation(conversationId) {
   return result.rows;
 }
 
-async function saveUazapiMessage(connection, payload) {
+async function saveUazapiMessage(connection, payload, req = null) {
   const msg = extractUazapiMessage(payload);
   if (!msg.chatId) return buildAuditOutcome('skipped', 'message without chat id', false);
   if (msg.fromMe && msg.data.wasSentByApi === true) return buildAuditOutcome('ignored', 'message sent by api ignored', true);
@@ -469,37 +472,19 @@ async function saveUazapiMessage(connection, payload) {
     conversationId = conv.rows[0]?.id;
   }
 
-  // MIGRATION FALLBACK: if no conversation in current connection, look across other
-  // connections in the same organization (handles connection migration where the
-  // existing conversation still points to the old connection_id).
-  if (!conversationId && connection.organization_id) {
-    const senderLid = msg.data?.sender_lid || msg.data?.chatlid;
-    const lidJid = senderLid ? `${senderLid}@lid` : null;
-
-    conv = await query(
-      `SELECT cv.id FROM conversations cv
-         JOIN connections cn ON cn.id = cv.connection_id
-        WHERE cn.organization_id = $1 AND (cv.remote_jid = $2 OR (cv.remote_jid = $3 AND $3 IS NOT NULL))
-        ORDER BY cv.last_message_at DESC NULLS LAST LIMIT 1`,
-      [connection.organization_id, remoteJid, lidJid]
+  // 4. Try legacy/migrated conversation search (without connection_id filter)
+  if (!conversationId) {
+    const migrated = await query(
+      `SELECT id FROM conversations 
+       WHERE (remote_jid = $1 OR (contact_phone = $2 AND contact_phone IS NOT NULL)) 
+       AND is_group = $3 
+       ORDER BY last_message_at DESC LIMIT 1`,
+      [remoteJid, cleanPhone, msg.isGroup]
     );
-    conversationId = conv.rows[0]?.id;
-
-    if (!conversationId && cleanPhone) {
-      conv = await query(
-        `SELECT cv.id FROM conversations cv
-           JOIN connections cn ON cn.id = cv.connection_id
-          WHERE cn.organization_id = $1
-            AND cv.contact_phone = $2
-            AND COALESCE(cv.is_group, false) = false
-          ORDER BY cv.last_message_at DESC NULLS LAST LIMIT 1`,
-        [connection.organization_id, cleanPhone]
-      );
-      conversationId = conv.rows[0]?.id;
-    }
-
-    if (conversationId) {
-      console.log('[uazapi] Reusing migrated conversation', conversationId, 'and re-pointing to connection', connection.id);
+    
+    if (migrated.rows[0]) {
+      conversationId = migrated.rows[0].id;
+      console.log(`[UAZAPI] Linked message to migrated conversation ${conversationId}`);
     }
   }
 
@@ -692,6 +677,27 @@ async function saveUazapiMessage(connection, payload) {
         }
       }
     }
+  // 4. Update the real-time UI via Socket.IO if possible (frontend expects this for instant updates)
+  try {
+    const io = req.app.get('socketio');
+    if (io && conversationId) {
+      const msgData = {
+        conversationId,
+        message: {
+          id: msg.messageId,
+          content: msg.content,
+          messageType: msg.messageType,
+          mediaUrl: msg.mediaUrl,
+          fromMe: msg.fromMe,
+          timestamp: msg.timestamp || Date.now(),
+          status: msg.fromMe ? 'sent' : 'received'
+        }
+      };
+      io.to(`org_${connection.organization_id}`).emit('new_message', msgData);
+      io.to(`conv_${conversationId}`).emit('new_message', msgData);
+    }
+  } catch (err) {
+    console.warn('[UAZAPI] Socket emit failed:', err.message);
   }
 
   return buildAuditOutcome('saved', null, true);
@@ -757,20 +763,28 @@ router.post('/webhook', async (req, res) => {
 
   try {
     const payload = req.body || {};
-    const eventType = payload.event || payload.EventType || payload.type || 'unknown';
+    const eventType = (payload.event || payload.EventType || payload.type || 'unknown').toLowerCase();
+    
     const connection = await findUazapiConnection(payload, req);
     const connectionId = connection?.id || null;
     const data = payload.data || payload.message || payload;
-    const eventMsgId = data?.messageid || data?.messageId || data?.id || payload.id || null;
-    const remoteJid = data?.chatid || data?.chatId || data?.remoteJid || data?.from || data?.to || null;
-    const fromMe = data?.fromMe === true || data?.wasSentByApi === true;
-    let auditId = null;
-
+    
+    // Log the event for diagnostics
     await query(
       `INSERT INTO uazapi_webhook_events (connection_id, event_type, payload, status)
        VALUES ($1, $2, $3, 'received')`,
       [connectionId, eventType, JSON.stringify(payload)]
-    );
+    ).catch(() => {});
+
+    if (!connection) {
+      console.warn('[UAZAPI Webhook] Connection not found for payload:', JSON.stringify(payload).slice(0, 200));
+      return;
+    }
+
+    const eventMsgId = data?.messageid || data?.messageId || data?.id || payload.id || null;
+    const remoteJid = data?.chatid || data?.chatId || data?.remoteJid || data?.from || data?.to || null;
+    const fromMe = data?.fromMe === true || data?.wasSentByApi === true;
+    let auditId = null;
 
     try {
       const auditResult = await query(
@@ -785,39 +799,35 @@ router.post('/webhook', async (req, res) => {
       console.warn('[UAZAPI webhook] Audit insert skipped:', auditErr?.message);
     }
 
-    if (!connection) {
-      await updateInboundAudit(auditId, buildAuditOutcome('skipped', 'connection not found', false));
-      return;
-    }
-
-    if (eventType === 'messages' || eventType === 'message' || data?.messageid || data?.messageId) {
-      const outcome = await saveUazapiMessage(connection, payload);
+    // Process messages
+    if (eventType === 'messages' || eventType === 'message' || eventType === 'messages.upsert' || data?.messageid || data?.messageId) {
+      const outcome = await saveUazapiMessage(connection, payload, req);
       await updateInboundAudit(auditId, outcome);
-    } else {
-      await updateInboundAudit(auditId, buildAuditOutcome(eventType === 'connection' ? 'saved' : 'ignored', null, true));
-    }
-
-    // Update connection status when connection event arrives
-    if (connectionId && eventType === 'connection') {
-      const state = payload.instance?.status || payload.status;
-      if (state === 'connected' || state === 'open') {
+    } 
+    // Process connection status
+    else if (eventType === 'connection' || eventType === 'connection.update') {
+      const state = (payload.instance?.status || payload.status || data?.status || '').toLowerCase();
+      if (['connected', 'open', 'ready'].includes(state)) {
         await query(
           `UPDATE connections
               SET status='connected',
                   phone_number=COALESCE($2, phone_number),
                   updated_at=NOW()
             WHERE id=$1`,
-          [connectionId, payload.instance?.owner || payload.owner || null]
+          [connectionId, payload.instance?.owner || payload.owner || data?.owner || null]
         );
-      } else if (state === 'disconnected' || state === 'close') {
+      } else if (['disconnected', 'close', 'deleted', 'removed'].includes(state)) {
         await query(
           `UPDATE connections SET status='disconnected', updated_at=NOW() WHERE id=$1`,
           [connectionId]
         );
       }
+      await updateInboundAudit(auditId, buildAuditOutcome('saved', null, true));
+    } else {
+      await updateInboundAudit(auditId, buildAuditOutcome('ignored', `unhandled event type: ${eventType}`, true));
     }
   } catch (err) {
-    console.error('[UAZAPI webhook] Error:', err);
+    console.error('[UAZAPI webhook] Critical Error:', err);
   }
 });
 
