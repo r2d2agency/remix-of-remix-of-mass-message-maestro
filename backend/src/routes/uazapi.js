@@ -867,7 +867,10 @@ router.post('/servers', requireSuperadmin, async (req, res) => {
     );
     res.status(201).json(r.rows[0]);
   } catch (err) {
-    console.error('[UAZAPI] create server', err);
+    logError('uazapi.create_server_failed', err, {
+      name: req.body?.name,
+      user_id: req.userId
+    });
     res.status(500).json({ error: 'Erro ao criar servidor UAZAPI' });
   }
 });
