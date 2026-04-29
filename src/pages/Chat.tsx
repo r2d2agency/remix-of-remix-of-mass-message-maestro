@@ -165,12 +165,11 @@ const Chat = () => {
     }
   };
 
-  // Auto-refresh conversations every 15 seconds (backup - events handle immediate updates)
-  // Increased from 8s to 15s to reduce flickering
+  // Auto-refresh conversations every 8 seconds (backup - events handle immediate updates)
   useEffect(() => {
     const interval = setInterval(() => {
       loadConversationsRef.current();
-    }, 15000);
+    }, 8000);
     return () => clearInterval(interval);
   }, []);
 
