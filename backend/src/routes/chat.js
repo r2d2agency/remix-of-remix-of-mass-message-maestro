@@ -1566,8 +1566,7 @@ router.get('/conversations/:id/messages', authenticate, async (req, res) => {
       WHERE m.conversation_id = $1
     `;
 
-    // Security check: ensure the conversation belongs to a connection the user can see
-    const connectionIds = await getUserConnections(req.userId);
+    // Security: ensure conversation belongs to one of the user's connections (or has any message linked to them)
     sql += ` AND EXISTS (SELECT 1 FROM conversations c WHERE c.id = m.conversation_id AND c.connection_id = ANY($2)) `;
     
     const params = [id, connectionIds];
