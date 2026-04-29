@@ -400,7 +400,10 @@ async function findUazapiConnection(payload, req) {
     if (c.rows[0]) return c.rows[0];
   }
 
-  const instanceRef = payload?.instance?.name || payload?.instance?.id || payload?.instance || payload?.data?.instance || payload?.data?.owner || null;
+  const instanceName = payload?.instanceName || payload?.instance?.name || payload?.instance || payload?.data?.instance || null;
+  const owner = payload?.owner || payload?.instance?.owner || payload?.data?.owner || null;
+  const instanceRef = instanceName || owner || payload?.instance?.id || null;
+
   if (instanceRef) {
     const c = await query(
       `SELECT * FROM connections
