@@ -1565,8 +1565,13 @@ router.get('/conversations/:id/messages', authenticate, async (req, res) => {
     sql += `
       WHERE m.conversation_id = $1
     `;
-    const params = [id];
-    let paramIndex = 2;
+
+    // Security check: ensure the conversation belongs to a connection the user can see
+    const connectionIds = await getUserConnections(req.userId);
+    sql += ` AND EXISTS (SELECT 1 FROM conversations c WHERE c.id = m.conversation_id AND c.connection_id = ANY($2)) `;
+    
+    const params = [id, connectionIds];
+    let paramIndex = 3;
 
     if (before) {
       sql += ` AND m.timestamp < $${paramIndex}`;
