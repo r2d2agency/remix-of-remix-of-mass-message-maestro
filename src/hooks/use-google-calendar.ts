@@ -31,10 +31,19 @@ export interface GoogleCalendarEvent {
   start: { dateTime: string; timeZone: string };
   end: { dateTime: string; timeZone: string };
   htmlLink?: string;
+  meetLink?: string; // Add this
   calendarId?: string;
   calendarName?: string;
   calendarColor?: string;
 }
+
+export interface SyncResult {
+  created: number;
+  updated: number;
+  cancelled: number;
+  failed: number;
+}
+
 
 // Get connection status
 export function useGoogleCalendarStatus() {
@@ -254,3 +263,33 @@ export function useGoogleCalendarEvents(timeMin?: string, timeMax?: string) {
     staleTime: 2 * 60 * 1000,
   });
 }
+
+// Sync events from Google
+export function useSyncGoogleCalendar() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async () => {
+      return api<SyncResult & { success: boolean }>("/api/google-calendar/sync", {
+        method: "POST",
+      });
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["google-calendar-status"] });
+      queryClient.invalidateQueries({ queryKey: ["google-calendar-events"] });
+      toast({
+        title: "Sincronização concluída",
+        description: `Criados: ${data.created}, Atualizados: ${data.updated}, Cancelados: ${data.cancelled}`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro na sincronização",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+}
+

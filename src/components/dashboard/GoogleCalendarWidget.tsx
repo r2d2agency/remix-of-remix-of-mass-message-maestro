@@ -3,8 +3,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useGoogleCalendarStatus, useGoogleCalendarEvents, GoogleCalendarEvent } from "@/hooks/use-google-calendar";
-import { Calendar, Clock, Video, ExternalLink, MapPin, Loader2 } from "lucide-react";
+import { useGoogleCalendarStatus, useGoogleCalendarEvents, useSyncGoogleCalendar, GoogleCalendarEvent } from "@/hooks/use-google-calendar";
+import { Calendar, Clock, Video, ExternalLink, MapPin, Loader2, RefreshCcw } from "lucide-react";
+
 import { format, parseISO, isToday, isTomorrow, differenceInMinutes, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -91,6 +92,8 @@ function EventItem({ event }: { event: GoogleCalendarEvent }) {
 
 export function GoogleCalendarWidget() {
   const { data: status, isLoading: statusLoading } = useGoogleCalendarStatus();
+  const { mutate: sync, isPending: isSyncing } = useSyncGoogleCalendar();
+
 
   // Fetch next 7 days of events
   const dateRange = useMemo(() => {
@@ -145,17 +148,35 @@ export function GoogleCalendarWidget() {
               <Calendar className="h-5 w-5 text-primary" />
               Google Calendar
             </CardTitle>
-            <CardDescription>
-              Próximos 7 dias • {status.email}
+            <CardDescription className="flex items-center gap-1">
+              Próximos 7 dias
+              {status.lastSync && (
+                <span className="text-[10px] opacity-70 ml-1">
+                   • {format(new Date(status.lastSync), "HH:mm")}
+                </span>
+              )}
             </CardDescription>
           </div>
-          {totalEvents > 0 && (
-            <Badge variant="secondary" className="text-xs">
-              {totalEvents} evento{totalEvents !== 1 ? "s" : ""}
-            </Badge>
-          )}
+          <div className="flex items-center gap-1">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-8 w-8 text-muted-foreground"
+              onClick={() => sync()}
+              disabled={isSyncing}
+              title="Sincronizar agora"
+            >
+              <RefreshCcw className={cn("h-4 w-4", isSyncing && "animate-spin")} />
+            </Button>
+            {totalEvents > 0 && (
+              <Badge variant="secondary" className="text-xs h-6 px-1.5">
+                {totalEvents}
+              </Badge>
+            )}
+          </div>
         </div>
       </CardHeader>
+
       <CardContent>
         {isLoading ? (
           <div className="flex justify-center py-6">

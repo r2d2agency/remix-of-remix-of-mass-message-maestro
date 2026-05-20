@@ -23,6 +23,8 @@ import { AASPConfigPanel } from "@/components/settings/AASPConfigPanel";
 import { CNPJConfigPanel } from "@/components/settings/CNPJConfigPanel";
 import { LeadGleegoConfigPanel } from "@/components/settings/LeadGleegoConfigPanel";
 import { ThemeCustomizationPanel } from "@/components/settings/ThemeCustomizationPanel";
+import { GoogleCalendarSettings } from "@/components/settings/GoogleCalendarSettings";
+
 
 const Configuracoes = () => {
   const { user } = useAuth();
@@ -666,7 +668,9 @@ const Configuracoes = () => {
           <TabsContent value="integracoes" className="mt-6 space-y-6">
             <CNPJConfigPanel />
             <LeadGleegoConfigPanel />
+            <GoogleCalendarSettings />
           </TabsContent>
+
 
           {/* AASP Settings Tab */}
           <TabsContent value="aasp" className="mt-6">

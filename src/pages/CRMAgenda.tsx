@@ -9,7 +9,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { TaskDialog } from "@/components/crm/TaskDialog";
 import { useCRMTasks, useCRMTaskMutations, CRMTask } from "@/hooks/use-crm";
 import { useAllTaskCards, TaskCard } from "@/hooks/use-task-boards";
-import { useGoogleCalendarStatus, useGoogleCalendarEvents, GoogleCalendarEvent } from "@/hooks/use-google-calendar";
+import { useGoogleCalendarStatus, useGoogleCalendarEvents, useSyncGoogleCalendar, GoogleCalendarEvent } from "@/hooks/use-google-calendar";
 import { 
   Plus, 
   ChevronLeft, 
@@ -24,7 +24,8 @@ import {
   Building2,
   Kanban,
   Video,
-  ExternalLink
+  ExternalLink,
+  RefreshCcw
 } from "lucide-react";
 import { 
   format, 
@@ -91,6 +92,8 @@ export default function CRMAgenda() {
 
   // Fetch Google Calendar status and events
   const { data: googleStatus } = useGoogleCalendarStatus();
+  const { mutate: sync, isPending: isSyncing } = useSyncGoogleCalendar();
+
   
   // Calculate date range for Google Calendar events based on view
   const googleDateRange = useMemo(() => {
@@ -285,10 +288,18 @@ export default function CRMAgenda() {
                 {getViewTitle()}
               </span>
 
+              {googleStatus?.connected && (
+                <Button variant="outline" size="sm" onClick={() => sync()} disabled={isSyncing}>
+                  <RefreshCcw className={cn("h-4 w-4 mr-2", isSyncing && "animate-spin")} />
+                  Sincronizar
+                </Button>
+              )}
+
               <Button onClick={() => handleNewTask()}>
                 <Plus className="h-4 w-4 mr-2" />
                 Novo Compromisso
               </Button>
+
             </div>
           </div>
         </div>
