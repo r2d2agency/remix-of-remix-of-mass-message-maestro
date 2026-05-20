@@ -3,8 +3,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useGoogleCalendarStatus, useGoogleCalendarEvents, GoogleCalendarEvent } from "@/hooks/use-google-calendar";
-import { Calendar, Clock, Video, ExternalLink, MapPin, Loader2 } from "lucide-react";
+import { useGoogleCalendarStatus, useGoogleCalendarEvents, useSyncGoogleCalendar, GoogleCalendarEvent } from "@/hooks/use-google-calendar";
+import { Calendar, Clock, Video, ExternalLink, MapPin, Loader2, RefreshCcw } from "lucide-react";
+
 import { format, parseISO, isToday, isTomorrow, differenceInMinutes, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
