@@ -89,12 +89,32 @@ CREATE TABLE IF NOT EXISTS google_calendar_events (
 -- ============================================
 
 CREATE INDEX IF NOT EXISTS idx_google_oauth_user ON google_oauth_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_google_oauth_org ON google_oauth_tokens(organization_id);
 CREATE INDEX IF NOT EXISTS idx_google_oauth_active ON google_oauth_tokens(is_active);
 CREATE INDEX IF NOT EXISTS idx_google_calendar_events_user ON google_calendar_events(user_id);
+CREATE INDEX IF NOT EXISTS idx_google_calendar_events_org ON google_calendar_events(organization_id);
 CREATE INDEX IF NOT EXISTS idx_google_calendar_events_task ON google_calendar_events(crm_task_id);
 CREATE INDEX IF NOT EXISTS idx_google_calendar_events_deal ON google_calendar_events(crm_deal_id);
 CREATE INDEX IF NOT EXISTS idx_google_calendar_events_google_id ON google_calendar_events(google_event_id);
 CREATE INDEX IF NOT EXISTS idx_google_calendar_events_start ON google_calendar_events(event_start);
+
+CREATE TABLE IF NOT EXISTS google_calendar_sync_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+    organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+    sync_type VARCHAR(50) DEFAULT 'manual',
+    status VARCHAR(30) NOT NULL DEFAULT 'running',
+    started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    finished_at TIMESTAMP WITH TIME ZONE,
+    events_created INTEGER DEFAULT 0,
+    events_updated INTEGER DEFAULT 0,
+    events_cancelled INTEGER DEFAULT 0,
+    events_failed INTEGER DEFAULT 0,
+    error_message TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_google_calendar_sync_logs_user ON google_calendar_sync_logs(user_id, started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_google_calendar_sync_logs_org ON google_calendar_sync_logs(organization_id, started_at DESC);
 
 -- ============================================
 -- TRIGGERS
