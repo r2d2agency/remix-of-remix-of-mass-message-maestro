@@ -304,10 +304,12 @@ router.get('/status', async (req, res) => {
 
 router.post('/sync', async (req, res) => {
   try {
+    logInfo(`Manual sync requested for user ${req.userId}`);
     const result = await syncUserCalendars(req.userId, 'manual');
     res.json({ success: true, ...result });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    logError(`Manual sync failed for user ${req.userId}:`, error);
+    res.status(500).json({ error: error.message || 'Erro interno na sincronização' });
   }
 });
 
