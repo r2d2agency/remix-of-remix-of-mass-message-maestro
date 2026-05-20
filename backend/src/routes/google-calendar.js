@@ -190,19 +190,21 @@ function normalizeEvent(event, userId, calendarId) {
 // ============================================
 
 async function syncUserCalendars(userId, syncType = 'manual') {
-  const userResult = await query(`SELECT tenant_id FROM google_oauth_tokens WHERE user_id = $1`, [userId]);
-  const tenantId = userResult.rows[0]?.tenant_id || null;
-
-  const logIdResult = await query(
-    `INSERT INTO google_calendar_sync_logs (user_id, tenant_id, sync_type, status, started_at) VALUES ($1, $2, $3, 'running', NOW()) RETURNING id`,
-    [userId, tenantId, syncType]
-  );
-  const logId = logIdResult.rows[0].id;
-
+  let logId = null;
+  let tenantId = null;
   try {
+    const userResult = await query(`SELECT tenant_id FROM google_oauth_tokens WHERE user_id = $1`, [userId]);
+    tenantId = userResult.rows[0]?.tenant_id || null;
+
+    const logIdResult = await query(
+      `INSERT INTO google_calendar_sync_logs (user_id, tenant_id, sync_type, status, started_at) VALUES ($1, $2, $3, 'running', NOW()) RETURNING id`,
+      [userId, tenantId, syncType]
+    );
+    logId = logIdResult.rows[0].id;
+
     const accessToken = await getValidAccessToken(userId);
-    const tokenResult = await query(`SELECT selected_calendars, sync_tokens, tenant_id FROM google_oauth_tokens WHERE user_id = $1`, [userId]);
-    const { selected_calendars: selected, sync_tokens: tokens = {}, tenant_id } = tokenResult.rows[0];
+    const tokenResult = await query(`SELECT selected_calendars, sync_tokens FROM google_oauth_tokens WHERE user_id = $1`, [userId]);
+    const { selected_calendars: selected, sync_tokens: tokens = {} } = tokenResult.rows[0];
     
     // Get actual list from Google to ensure valid IDs
     const listRes = await fetch(`${GOOGLE_CALENDAR_API}/users/me/calendarList`, {
