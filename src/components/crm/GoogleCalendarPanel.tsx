@@ -12,9 +12,10 @@ import {
   useGoogleCalendars,
   useSaveSelectedCalendars,
   useSaveDefaultCalendar,
+  useSyncGoogleCalendar,
   GoogleCalendar
 } from "@/hooks/use-google-calendar";
-import { Calendar, CheckCircle, XCircle, Loader2, ExternalLink, AlertCircle, Star } from "lucide-react";
+import { Calendar, CheckCircle, XCircle, Loader2, ExternalLink, AlertCircle, Star, RefreshCw, Clock } from "lucide-react";
 import { toast } from "sonner";
 
 export function GoogleCalendarPanel() {
@@ -25,6 +26,7 @@ export function GoogleCalendarPanel() {
   const { data: calendars, isLoading: calendarsLoading } = useGoogleCalendars();
   const saveSelectedMutation = useSaveSelectedCalendars();
   const saveDefaultMutation = useSaveDefaultCalendar();
+  const syncMutation = useSyncGoogleCalendar();
 
   // Handle OAuth callback messages
   useEffect(() => {
