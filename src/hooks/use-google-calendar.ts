@@ -302,6 +302,7 @@ export function useSyncGoogleCalendar() {
       });
     },
     onError: (error: Error) => {
+      queryClient.invalidateQueries({ queryKey: ["google-calendar-status"] });
       toast({
         title: "Erro na sincronização",
         description: error.message,
