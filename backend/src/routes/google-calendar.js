@@ -194,7 +194,7 @@ async function syncUserCalendars(userId, syncType = 'manual') {
   let logId = null;
   let tenantId = null;
   try {
-    const userResult = await query(`SELECT tenant_id FROM google_oauth_tokens WHERE user_id = $1`, [userId]);
+    const userResult = await query(`SELECT tenant_id FROM users WHERE id = $1`, [userId]);
     tenantId = userResult.rows[0]?.tenant_id || null;
 
     const logIdResult = await query(
