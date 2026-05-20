@@ -289,7 +289,13 @@ async function syncUserCalendars(userId, syncType = 'manual') {
     return { created, updated, cancelled, failed };
   } catch (error) {
     logError('Sync process failed:', error);
-    await query(`UPDATE google_calendar_sync_logs SET status = 'failed', finished_at = NOW(), error_message = $1 WHERE id = $2`, [error.message, logId]);
+    if (logId) {
+      try {
+        await query(`UPDATE google_calendar_sync_logs SET status = 'failed', finished_at = NOW(), error_message = $1 WHERE id = $2`, [error.message, logId]);
+      } catch (logErr) {
+        logError('Failed to update sync log with error:', logErr);
+      }
+    }
     throw error;
   }
 }
