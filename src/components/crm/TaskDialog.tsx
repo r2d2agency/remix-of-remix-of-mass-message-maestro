@@ -205,7 +205,9 @@ export function TaskDialog({ task, dealId, companyId, contactPhone, contactName,
           addMeet: true,
           attendees: allAttendees,
           dealId,
+          calendarId: googleStatus?.defaultCalendarId || undefined,
         });
+
 
         toast.success("Reunião criada com Google Meet!", {
           description: result.meetLink ? "Link do Meet gerado" : "Evento criado no calendário",
