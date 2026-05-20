@@ -535,9 +535,10 @@ router.post('/sync-task/:taskId', async (req, res) => {
 
 router.post('/events-with-meet', async (req, res) => {
   try {
-    const { title, description, startDateTime, endDateTime, addMeet, attendees = [], dealId } = req.body;
+    const { title, description, startDateTime, endDateTime, addMeet, attendees = [], dealId, calendarId: reqCalId } = req.body;
     const accessToken = await getValidAccessToken(req.userId);
-    const calendarId = await getDefaultCalendarId(req.userId);
+    const calendarId = reqCalId || await getDefaultCalendarId(req.userId);
+
 
     const event = {
       summary: title,
