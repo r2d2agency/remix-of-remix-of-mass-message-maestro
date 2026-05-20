@@ -334,12 +334,41 @@ router.get('/status', async (req, res) => {
     const result = await query(`SELECT * FROM google_oauth_tokens WHERE user_id = $1`, [req.userId]);
     if (!result.rows[0]) return res.json({ connected: false });
     const token = result.rows[0];
+    let syncHistory = { lastSuccess: null, lastFailure: null, latest: null };
+    try {
+      const logsResult = await query(
+        `SELECT status, started_at, finished_at, error_message, events_created, events_updated, events_cancelled, events_failed
+         FROM google_calendar_sync_logs
+         WHERE user_id = $1
+         ORDER BY started_at DESC
+         LIMIT 20`,
+        [req.userId]
+      );
+      syncHistory.latest = logsResult.rows[0] || null;
+      syncHistory.lastSuccess = logsResult.rows.find((row) => row.status === 'success') || null;
+      syncHistory.lastFailure = logsResult.rows.find((row) => row.status === 'failed') || null;
+    } catch (historyError) {
+      logError('Error loading Google Calendar sync history:', historyError);
+    }
+
     res.json({
       connected: token.is_active,
       email: token.google_email,
       name: token.google_name,
       lastSync: token.last_sync_at,
       lastError: token.last_error,
+      lastSuccessAt: syncHistory.lastSuccess?.finished_at || token.last_sync_at || null,
+      lastFailureAt: syncHistory.lastFailure?.finished_at || null,
+      lastFailureMessage: syncHistory.lastFailure?.error_message || token.last_error || null,
+      latestSyncStatus: syncHistory.latest?.status || null,
+      latestSyncStartedAt: syncHistory.latest?.started_at || null,
+      latestSyncFinishedAt: syncHistory.latest?.finished_at || null,
+      latestSyncStats: syncHistory.latest ? {
+        created: syncHistory.latest.events_created || 0,
+        updated: syncHistory.latest.events_updated || 0,
+        cancelled: syncHistory.latest.events_cancelled || 0,
+        failed: syncHistory.latest.events_failed || 0,
+      } : null,
       tokenExpired: new Date(token.expires_at) < new Date(),
       defaultCalendarId: token.default_calendar_id || null,
     });
