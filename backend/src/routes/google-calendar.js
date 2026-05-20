@@ -92,8 +92,8 @@ router.get('/callback', async (req, res) => {
 
     await query(
       `INSERT INTO google_oauth_tokens 
-       (user_id, access_token, refresh_token, token_type, expires_at, scope, google_email, google_name)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       (user_id, access_token, refresh_token, token_type, expires_at, scope, google_email, google_name, tenant_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, (SELECT tenant_id FROM users WHERE id = $1))
        ON CONFLICT (user_id) DO UPDATE SET
          access_token = EXCLUDED.access_token,
          refresh_token = COALESCE(EXCLUDED.refresh_token, google_oauth_tokens.refresh_token),
