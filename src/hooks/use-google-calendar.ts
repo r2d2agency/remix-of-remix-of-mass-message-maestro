@@ -108,12 +108,16 @@ export function useSyncTaskToGoogle() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: async (taskId: string) => {
+    mutationFn: async ({ taskId, calendarId }: { taskId: string; calendarId?: string }) => {
       return api<{ success: boolean; eventId: string; htmlLink: string }>(
         `/api/google-calendar/sync-task/${taskId}`,
-        { method: "POST" }
+        { 
+          method: "POST",
+          body: { calendarId }
+        }
       );
     },
+
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["google-calendar-status"] });
       queryClient.invalidateQueries({ queryKey: ["crm-tasks"] });
