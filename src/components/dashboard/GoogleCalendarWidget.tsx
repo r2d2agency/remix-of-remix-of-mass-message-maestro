@@ -148,17 +148,35 @@ export function GoogleCalendarWidget() {
               <Calendar className="h-5 w-5 text-primary" />
               Google Calendar
             </CardTitle>
-            <CardDescription>
-              Próximos 7 dias • {status.email}
+            <CardDescription className="flex items-center gap-1">
+              Próximos 7 dias
+              {status.lastSync && (
+                <span className="text-[10px] opacity-70 ml-1">
+                   • {format(new Date(status.lastSync), "HH:mm")}
+                </span>
+              )}
             </CardDescription>
           </div>
-          {totalEvents > 0 && (
-            <Badge variant="secondary" className="text-xs">
-              {totalEvents} evento{totalEvents !== 1 ? "s" : ""}
-            </Badge>
-          )}
+          <div className="flex items-center gap-1">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-8 w-8 text-muted-foreground"
+              onClick={() => sync()}
+              disabled={isSyncing}
+              title="Sincronizar agora"
+            >
+              <RefreshCcw className={cn("h-4 w-4", isSyncing && "animate-spin")} />
+            </Button>
+            {totalEvents > 0 && (
+              <Badge variant="secondary" className="text-xs h-6 px-1.5">
+                {totalEvents}
+              </Badge>
+            )}
+          </div>
         </div>
       </CardHeader>
+
       <CardContent>
         {isLoading ? (
           <div className="flex justify-center py-6">
