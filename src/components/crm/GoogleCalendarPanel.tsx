@@ -132,6 +132,8 @@ export function GoogleCalendarPanel() {
               </div>
             )}
 
+            <SyncStatusPanel status={status} onSync={() => syncMutation.mutate()} isSyncing={syncMutation.isPending} />
+
             {/* Calendar selector */}
             <div className="rounded-lg border p-4 space-y-3">
               <h4 className="font-medium text-sm">Agendas a exibir no CRM</h4>
@@ -192,13 +194,6 @@ export function GoogleCalendarPanel() {
                   </SelectContent>
                 </Select>
               </div>
-            )}
-
-            {/* Last sync info */}
-            {status.lastSync && (
-              <p className="text-xs text-muted-foreground">
-                Última sincronização: {new Date(status.lastSync).toLocaleString("pt-BR")}
-              </p>
             )}
 
             {/* Usage info */}
