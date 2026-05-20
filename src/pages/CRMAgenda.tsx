@@ -11,7 +11,6 @@ import { useCRMTasks, useCRMTaskMutations, CRMTask } from "@/hooks/use-crm";
 import { useAllTaskCards, TaskCard } from "@/hooks/use-task-boards";
 import { useGoogleCalendarStatus, useGoogleCalendarEvents, useSyncGoogleCalendar, GoogleCalendarEvent } from "@/hooks/use-google-calendar";
 import { 
-
   Plus, 
   ChevronLeft, 
   ChevronRight, 
@@ -25,7 +24,8 @@ import {
   Building2,
   Kanban,
   Video,
-  ExternalLink
+  ExternalLink,
+  RefreshCcw
 } from "lucide-react";
 import { 
   format, 
