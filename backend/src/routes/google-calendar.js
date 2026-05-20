@@ -185,9 +185,12 @@ function normalizeEvent(event, userId, calendarId) {
 // ============================================
 
 async function syncUserCalendars(userId, syncType = 'manual') {
+  const userResult = await query(`SELECT tenant_id FROM google_oauth_tokens WHERE user_id = $1`, [userId]);
+  const tenantId = userResult.rows[0]?.tenant_id || null;
+
   const logIdResult = await query(
-    `INSERT INTO google_calendar_sync_logs (user_id, sync_type, status, started_at) VALUES ($1, $2, 'running', NOW()) RETURNING id`,
-    [userId, syncType]
+    `INSERT INTO google_calendar_sync_logs (user_id, tenant_id, sync_type, status, started_at) VALUES ($1, $2, $3, 'running', NOW()) RETURNING id`,
+    [userId, tenantId, syncType]
   );
   const logId = logIdResult.rows[0].id;
 
