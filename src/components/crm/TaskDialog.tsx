@@ -60,12 +60,14 @@ function useCreateMeetingWithMeet() {
       addMeet: boolean;
       attendees: string[];
       dealId?: string;
+      calendarId?: string;
     }) => {
       return api<{ success: boolean; eventId: string; htmlLink: string; meetLink?: string }>(
         "/api/google-calendar/events-with-meet",
         { method: "POST", body: data }
       );
     },
+
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["google-calendar-status"] });
       queryClient.invalidateQueries({ queryKey: ["google-calendar-events"] });
@@ -205,7 +207,9 @@ export function TaskDialog({ task, dealId, companyId, contactPhone, contactName,
           addMeet: true,
           attendees: allAttendees,
           dealId,
+          calendarId: googleStatus?.defaultCalendarId || undefined,
         });
+
 
         toast.success("Reunião criada com Google Meet!", {
           description: result.meetLink ? "Link do Meet gerado" : "Evento criado no calendário",

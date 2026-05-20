@@ -484,12 +484,14 @@ router.delete('/events/:eventId', async (req, res) => {
 router.post('/sync-task/:taskId', async (req, res) => {
   try {
     const { taskId } = req.params;
+    const { calendarId: reqCalId } = req.body;
     const taskResult = await query(`SELECT t.*, d.id as deal_id FROM crm_tasks t LEFT JOIN crm_deals d ON d.id = t.deal_id WHERE t.id = $1`, [taskId]);
     if (!taskResult.rows[0]) return res.status(404).json({ error: 'Tarefa não encontrada' });
     const task = taskResult.rows[0];
-
+ 
     const accessToken = await getValidAccessToken(req.userId);
-    const calendarId = await getDefaultCalendarId(req.userId);
+    const calendarId = reqCalId || await getDefaultCalendarId(req.userId);
+
     const existingSync = await query(`SELECT google_event_id FROM google_calendar_events WHERE user_id = $1 AND crm_task_id = $2`, [req.userId, taskId]);
 
     const startDate = new Date(task.due_date);
@@ -535,9 +537,10 @@ router.post('/sync-task/:taskId', async (req, res) => {
 
 router.post('/events-with-meet', async (req, res) => {
   try {
-    const { title, description, startDateTime, endDateTime, addMeet, attendees = [], dealId } = req.body;
+    const { title, description, startDateTime, endDateTime, addMeet, attendees = [], dealId, calendarId: reqCalId } = req.body;
     const accessToken = await getValidAccessToken(req.userId);
-    const calendarId = await getDefaultCalendarId(req.userId);
+    const calendarId = reqCalId || await getDefaultCalendarId(req.userId);
+
 
     const event = {
       summary: title,
