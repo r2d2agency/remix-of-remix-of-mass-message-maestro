@@ -333,7 +333,7 @@ router.get('/calendars', async (req, res) => {
       headers: { Authorization: `Bearer ${accessToken}` }
     });
     const data = await response.json();
-    if (!response.ok) throw new Error(data.error?.message);
+    if (!response.ok) throw new Error(data.error?.message || 'Failed to fetch calendar list');
 
     const prefResult = await query(`SELECT selected_calendars FROM google_oauth_tokens WHERE user_id = $1`, [req.userId]);
     const selected = prefResult.rows[0]?.selected_calendars || null;
@@ -350,6 +350,7 @@ router.get('/calendars', async (req, res) => {
     }));
     res.json(calendars);
   } catch (error) {
+    logError('Error fetching calendars:', error);
     res.json([]);
   }
 });
