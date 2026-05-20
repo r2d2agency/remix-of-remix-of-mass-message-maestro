@@ -92,6 +92,8 @@ function EventItem({ event }: { event: GoogleCalendarEvent }) {
 
 export function GoogleCalendarWidget() {
   const { data: status, isLoading: statusLoading } = useGoogleCalendarStatus();
+  const { mutate: sync, isPending: isSyncing } = useSyncGoogleCalendar();
+
 
   // Fetch next 7 days of events
   const dateRange = useMemo(() => {
