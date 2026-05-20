@@ -146,12 +146,14 @@ export function useCreateGoogleEvent() {
       location?: string;
       taskId?: string;
       dealId?: string;
+      calendarId?: string;
     }) => {
       return api<{ success: boolean; eventId: string; htmlLink: string }>(
         "/api/google-calendar/events",
         { method: "POST", body: event }
       );
     },
+
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["google-calendar-status"] });
       toast({
