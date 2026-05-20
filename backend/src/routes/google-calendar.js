@@ -405,6 +405,8 @@ router.post('/events', async (req, res) => {
     const { title, description, startDateTime, endDateTime, location, taskId, dealId, calendarId: reqCalId } = req.body;
     const accessToken = await getValidAccessToken(req.userId);
     const calendarId = reqCalId || await getDefaultCalendarId(req.userId);
+    const tokenResult = await query(`SELECT tenant_id FROM google_oauth_tokens WHERE user_id = $1`, [req.userId]);
+    const tenantId = tokenResult.rows[0]?.tenant_id || null;
 
     const event = {
       summary: title,
@@ -425,13 +427,14 @@ router.post('/events', async (req, res) => {
     const n = normalizeEvent(eventData, req.userId, calendarId);
     await query(
       `INSERT INTO google_calendar_events 
-       (user_id, google_calendar_id, google_event_id, crm_task_id, crm_deal_id, event_summary, description, location, event_start, event_end, timezone, status, html_link, meet_link, created_by_legal_gleego, source)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, true, 'crm')`,
-      [req.userId, calendarId, eventData.id, taskId || null, dealId || null, n.summary, n.description, n.location, n.start_datetime, n.end_datetime, n.timezone, n.status, n.html_link, n.meet_link]
+       (user_id, tenant_id, google_calendar_id, google_event_id, crm_task_id, crm_deal_id, event_summary, description, location, event_start, event_end, timezone, status, html_link, meet_link, created_by_legal_gleego, source)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, true, 'crm')`,
+      [req.userId, tenantId, calendarId, eventData.id, taskId || null, dealId || null, n.summary, n.description, n.location, n.start_datetime, n.end_datetime, n.timezone, n.status, n.html_link, n.meet_link]
     );
 
     res.json({ success: true, eventId: eventData.id, htmlLink: eventData.htmlLink });
   } catch (error) {
+    logError('Error creating event:', error);
     res.status(500).json({ error: error.message });
   }
 });
