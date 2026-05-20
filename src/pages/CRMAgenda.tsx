@@ -288,10 +288,18 @@ export default function CRMAgenda() {
                 {getViewTitle()}
               </span>
 
+              {googleStatus?.connected && (
+                <Button variant="outline" size="sm" onClick={() => sync()} disabled={isSyncing}>
+                  <RefreshCcw className={cn("h-4 w-4 mr-2", isSyncing && "animate-spin")} />
+                  Sincronizar
+                </Button>
+              )}
+
               <Button onClick={() => handleNewTask()}>
                 <Plus className="h-4 w-4 mr-2" />
                 Novo Compromisso
               </Button>
+
             </div>
           </div>
         </div>
