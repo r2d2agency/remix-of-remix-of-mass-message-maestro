@@ -237,24 +237,29 @@ async function syncUserCalendars(userId, syncType = 'manual') {
             cancelled++;
           } else {
             const n = normalizeEvent(item, userId, cal.id);
-            const res = await query(
-              `INSERT INTO google_calendar_events 
-               (user_id, google_calendar_id, google_event_id, event_summary, description, location, event_start, event_end, timezone, status, html_link, meet_link, attendees_json, reminders_json, google_created_at, google_updated_at, synced_at)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-               ON CONFLICT (user_id, google_event_id) DO UPDATE SET
-                 event_summary = EXCLUDED.event_summary,
-                 description = EXCLUDED.description,
-                 location = EXCLUDED.location,
-                 event_start = EXCLUDED.event_start,
-                 event_end = EXCLUDED.event_end,
-                 status = EXCLUDED.status,
-                 meet_link = EXCLUDED.meet_link,
-                 google_updated_at = EXCLUDED.google_updated_at,
-                 synced_at = NOW()
-               RETURNING (xmax = 0) as inserted`,
-              [n.user_id, n.google_calendar_id, n.google_event_id, n.summary, n.description, n.location, n.start_datetime, n.end_datetime, n.timezone, n.status, n.html_link, n.meet_link, n.attendees_json, n.reminders_json, n.google_created_at, n.google_updated_at, n.synced_at]
-            );
-            if (res.rows[0].inserted) created++; else updated++;
+            try {
+              const res = await query(
+                `INSERT INTO google_calendar_events 
+                 (user_id, tenant_id, google_calendar_id, google_event_id, event_summary, description, location, event_start, event_end, timezone, status, html_link, meet_link, attendees_json, reminders_json, google_created_at, google_updated_at, synced_at)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+                 ON CONFLICT (user_id, google_event_id) DO UPDATE SET
+                   event_summary = EXCLUDED.event_summary,
+                   description = EXCLUDED.description,
+                   location = EXCLUDED.location,
+                   event_start = EXCLUDED.event_start,
+                   event_end = EXCLUDED.event_end,
+                   status = EXCLUDED.status,
+                   meet_link = EXCLUDED.meet_link,
+                   google_updated_at = EXCLUDED.google_updated_at,
+                   synced_at = NOW()
+                 RETURNING (xmax = 0) as inserted`,
+                [n.user_id, tenantId, n.google_calendar_id, n.google_event_id, n.summary, n.description, n.location, n.start_datetime, n.end_datetime, n.timezone, n.status, n.html_link, n.meet_link, n.attendees_json, n.reminders_json, n.google_created_at, n.google_updated_at, n.synced_at]
+              );
+              if (res.rows[0].inserted) created++; else updated++;
+            } catch (dbErr) {
+              logError(`DB sync failed for event ${item.id}`, dbErr);
+              failed++;
+            }
           }
         }
         if (eventsData.nextSyncToken) nextSyncTokens[cal.id] = eventsData.nextSyncToken;
