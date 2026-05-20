@@ -92,8 +92,8 @@ router.get('/callback', async (req, res) => {
 
     await query(
       `INSERT INTO google_oauth_tokens 
-       (user_id, access_token, refresh_token, token_type, expires_at, scope, google_email, google_name)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       (user_id, access_token, refresh_token, token_type, expires_at, scope, google_email, google_name, tenant_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, (SELECT tenant_id FROM users WHERE id = $1))
        ON CONFLICT (user_id) DO UPDATE SET
          access_token = EXCLUDED.access_token,
          refresh_token = COALESCE(EXCLUDED.refresh_token, google_oauth_tokens.refresh_token),
@@ -151,8 +151,13 @@ async function getValidAccessToken(userId) {
 }
 
 async function getDefaultCalendarId(userId) {
-  const result = await query(`SELECT default_calendar_id FROM google_oauth_tokens WHERE user_id = $1`, [userId]);
-  return result.rows[0]?.default_calendar_id || 'primary';
+  try {
+    const result = await query(`SELECT default_calendar_id FROM google_oauth_tokens WHERE user_id = $1`, [userId]);
+    return result.rows[0]?.default_calendar_id || 'primary';
+  } catch (err) {
+    logError('Error getting default calendar id:', err);
+    return 'primary';
+  }
 }
 
 function normalizeEvent(event, userId, calendarId) {
@@ -185,16 +190,19 @@ function normalizeEvent(event, userId, calendarId) {
 // ============================================
 
 async function syncUserCalendars(userId, syncType = 'manual') {
+  const userResult = await query(`SELECT tenant_id FROM google_oauth_tokens WHERE user_id = $1`, [userId]);
+  const tenantId = userResult.rows[0]?.tenant_id || null;
+
   const logIdResult = await query(
-    `INSERT INTO google_calendar_sync_logs (user_id, sync_type, status, started_at) VALUES ($1, $2, 'running', NOW()) RETURNING id`,
-    [userId, syncType]
+    `INSERT INTO google_calendar_sync_logs (user_id, tenant_id, sync_type, status, started_at) VALUES ($1, $2, $3, 'running', NOW()) RETURNING id`,
+    [userId, tenantId, syncType]
   );
   const logId = logIdResult.rows[0].id;
 
   try {
     const accessToken = await getValidAccessToken(userId);
-    const tokenResult = await query(`SELECT selected_calendars, sync_tokens FROM google_oauth_tokens WHERE user_id = $1`, [userId]);
-    const { selected_calendars: selected, sync_tokens: tokens = {} } = tokenResult.rows[0];
+    const tokenResult = await query(`SELECT selected_calendars, sync_tokens, tenant_id FROM google_oauth_tokens WHERE user_id = $1`, [userId]);
+    const { selected_calendars: selected, sync_tokens: tokens = {}, tenant_id } = tokenResult.rows[0];
     
     // Get actual list from Google to ensure valid IDs
     const listRes = await fetch(`${GOOGLE_CALENDAR_API}/users/me/calendarList`, {
@@ -234,24 +242,29 @@ async function syncUserCalendars(userId, syncType = 'manual') {
             cancelled++;
           } else {
             const n = normalizeEvent(item, userId, cal.id);
-            const res = await query(
-              `INSERT INTO google_calendar_events 
-               (user_id, google_calendar_id, google_event_id, event_summary, description, location, event_start, event_end, timezone, status, html_link, meet_link, attendees_json, reminders_json, google_created_at, google_updated_at, synced_at)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-               ON CONFLICT (user_id, google_event_id) DO UPDATE SET
-                 event_summary = EXCLUDED.event_summary,
-                 description = EXCLUDED.description,
-                 location = EXCLUDED.location,
-                 event_start = EXCLUDED.event_start,
-                 event_end = EXCLUDED.event_end,
-                 status = EXCLUDED.status,
-                 meet_link = EXCLUDED.meet_link,
-                 google_updated_at = EXCLUDED.google_updated_at,
-                 synced_at = NOW()
-               RETURNING (xmax = 0) as inserted`,
-              [n.user_id, n.google_calendar_id, n.google_event_id, n.summary, n.description, n.location, n.start_datetime, n.end_datetime, n.timezone, n.status, n.html_link, n.meet_link, n.attendees_json, n.reminders_json, n.google_created_at, n.google_updated_at, n.synced_at]
-            );
-            if (res.rows[0].inserted) created++; else updated++;
+            try {
+              const res = await query(
+                `INSERT INTO google_calendar_events 
+                 (user_id, tenant_id, google_calendar_id, google_event_id, event_summary, description, location, event_start, event_end, timezone, status, html_link, meet_link, attendees_json, reminders_json, google_created_at, google_updated_at, synced_at)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+                 ON CONFLICT (user_id, google_event_id) DO UPDATE SET
+                   event_summary = EXCLUDED.event_summary,
+                   description = EXCLUDED.description,
+                   location = EXCLUDED.location,
+                   event_start = EXCLUDED.event_start,
+                   event_end = EXCLUDED.event_end,
+                   status = EXCLUDED.status,
+                   meet_link = EXCLUDED.meet_link,
+                   google_updated_at = EXCLUDED.google_updated_at,
+                   synced_at = NOW()
+                 RETURNING (xmax = 0) as inserted`,
+                [n.user_id, tenantId, n.google_calendar_id, n.google_event_id, n.summary, n.description, n.location, n.start_datetime, n.end_datetime, n.timezone, n.status, n.html_link, n.meet_link, n.attendees_json, n.reminders_json, n.google_created_at, n.google_updated_at, n.synced_at]
+              );
+              if (res.rows[0].inserted) created++; else updated++;
+            } catch (dbErr) {
+              logError(`DB sync failed for event ${item.id}`, dbErr);
+              failed++;
+            }
           }
         }
         if (eventsData.nextSyncToken) nextSyncTokens[cal.id] = eventsData.nextSyncToken;
@@ -304,10 +317,12 @@ router.get('/status', async (req, res) => {
 
 router.post('/sync', async (req, res) => {
   try {
+    logInfo(`Manual sync requested for user ${req.userId}`);
     const result = await syncUserCalendars(req.userId, 'manual');
     res.json({ success: true, ...result });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    logError(`Manual sync failed for user ${req.userId}:`, error);
+    res.status(500).json({ error: error.message || 'Erro interno na sincronização' });
   }
 });
 
@@ -318,7 +333,7 @@ router.get('/calendars', async (req, res) => {
       headers: { Authorization: `Bearer ${accessToken}` }
     });
     const data = await response.json();
-    if (!response.ok) throw new Error(data.error?.message);
+    if (!response.ok) throw new Error(data.error?.message || 'Failed to fetch calendar list');
 
     const prefResult = await query(`SELECT selected_calendars FROM google_oauth_tokens WHERE user_id = $1`, [req.userId]);
     const selected = prefResult.rows[0]?.selected_calendars || null;
@@ -335,6 +350,7 @@ router.get('/calendars', async (req, res) => {
     }));
     res.json(calendars);
   } catch (error) {
+    logError('Error fetching calendars:', error);
     res.json([]);
   }
 });
@@ -379,13 +395,14 @@ router.get('/events', async (req, res) => {
       summary: r.event_summary,
       description: r.description,
       location: r.location,
-      start: { dateTime: r.event_start, timeZone: r.timezone },
-      end: { dateTime: r.event_end, timeZone: r.timezone },
+      start: { dateTime: r.event_start, timeZone: r.timezone || 'America/Sao_Paulo' },
+      end: { dateTime: r.event_end, timeZone: r.timezone || 'America/Sao_Paulo' },
       htmlLink: r.html_link,
       meetLink: r.meet_link,
       calendarId: r.google_calendar_id
     })));
   } catch (error) {
+    logError('Error fetching events:', error);
     res.json([]);
   }
 });
@@ -395,6 +412,8 @@ router.post('/events', async (req, res) => {
     const { title, description, startDateTime, endDateTime, location, taskId, dealId, calendarId: reqCalId } = req.body;
     const accessToken = await getValidAccessToken(req.userId);
     const calendarId = reqCalId || await getDefaultCalendarId(req.userId);
+    const tokenResult = await query(`SELECT tenant_id FROM google_oauth_tokens WHERE user_id = $1`, [req.userId]);
+    const tenantId = tokenResult.rows[0]?.tenant_id || null;
 
     const event = {
       summary: title,
@@ -415,13 +434,14 @@ router.post('/events', async (req, res) => {
     const n = normalizeEvent(eventData, req.userId, calendarId);
     await query(
       `INSERT INTO google_calendar_events 
-       (user_id, google_calendar_id, google_event_id, crm_task_id, crm_deal_id, event_summary, description, location, event_start, event_end, timezone, status, html_link, meet_link, created_by_legal_gleego, source)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, true, 'crm')`,
-      [req.userId, calendarId, eventData.id, taskId || null, dealId || null, n.summary, n.description, n.location, n.start_datetime, n.end_datetime, n.timezone, n.status, n.html_link, n.meet_link]
+       (user_id, tenant_id, google_calendar_id, google_event_id, crm_task_id, crm_deal_id, event_summary, description, location, event_start, event_end, timezone, status, html_link, meet_link, created_by_legal_gleego, source)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, true, 'crm')`,
+      [req.userId, tenantId, calendarId, eventData.id, taskId || null, dealId || null, n.summary, n.description, n.location, n.start_datetime, n.end_datetime, n.timezone, n.status, n.html_link, n.meet_link]
     );
 
     res.json({ success: true, eventId: eventData.id, htmlLink: eventData.htmlLink });
   } catch (error) {
+    logError('Error creating event:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -540,7 +560,8 @@ router.post('/events-with-meet', async (req, res) => {
     const { title, description, startDateTime, endDateTime, addMeet, attendees = [], dealId, calendarId: reqCalId } = req.body;
     const accessToken = await getValidAccessToken(req.userId);
     const calendarId = reqCalId || await getDefaultCalendarId(req.userId);
-
+    const tokenResult = await query(`SELECT tenant_id FROM google_oauth_tokens WHERE user_id = $1`, [req.userId]);
+    const tenantId = tokenResult.rows[0]?.tenant_id || null;
 
     const event = {
       summary: title,
@@ -569,13 +590,14 @@ router.post('/events-with-meet', async (req, res) => {
     const meetLink = eventData.conferenceData?.entryPoints?.find(ep => ep.entryPointType === 'video')?.uri || null;
     await query(
       `INSERT INTO google_calendar_events 
-       (user_id, crm_deal_id, google_event_id, google_calendar_id, event_summary, event_start, event_end, meet_link, created_by_legal_gleego)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true)`,
-      [req.userId, dealId || null, eventData.id, calendarId, title, startDateTime, endDateTime, meetLink]
+       (user_id, tenant_id, crm_deal_id, google_event_id, google_calendar_id, event_summary, event_start, event_end, meet_link, created_by_legal_gleego)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true)`,
+      [req.userId, tenantId, dealId || null, eventData.id, calendarId, title, startDateTime, endDateTime, meetLink]
     );
 
     res.json({ success: true, eventId: eventData.id, htmlLink: eventData.htmlLink, meetLink });
   } catch (error) {
+    logError('Error creating event with meet:', error);
     res.status(500).json({ error: error.message });
   }
 });
