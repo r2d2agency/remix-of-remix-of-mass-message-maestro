@@ -60,12 +60,14 @@ function useCreateMeetingWithMeet() {
       addMeet: boolean;
       attendees: string[];
       dealId?: string;
+      calendarId?: string;
     }) => {
       return api<{ success: boolean; eventId: string; htmlLink: string; meetLink?: string }>(
         "/api/google-calendar/events-with-meet",
         { method: "POST", body: data }
       );
     },
+
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["google-calendar-status"] });
       queryClient.invalidateQueries({ queryKey: ["google-calendar-events"] });
