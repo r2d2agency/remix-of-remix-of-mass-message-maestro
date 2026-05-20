@@ -23,7 +23,8 @@ import { AASPConfigPanel } from "@/components/settings/AASPConfigPanel";
 import { CNPJConfigPanel } from "@/components/settings/CNPJConfigPanel";
 import { LeadGleegoConfigPanel } from "@/components/settings/LeadGleegoConfigPanel";
 import { ThemeCustomizationPanel } from "@/components/settings/ThemeCustomizationPanel";
-import { GoogleCalendarSettings } from "@/components/settings/GoogleCalendarSettings";
+import { Link } from "react-router-dom";
+import { Calendar, ArrowRight } from "lucide-react";
 
 
 const Configuracoes = () => {
@@ -668,7 +669,25 @@ const Configuracoes = () => {
           <TabsContent value="integracoes" className="mt-6 space-y-6">
             <CNPJConfigPanel />
             <LeadGleegoConfigPanel />
-            <GoogleCalendarSettings />
+            <Card className="animate-fade-in shadow-card border-dashed">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5 text-primary" />
+                  Google Calendar
+                </CardTitle>
+                <CardDescription>
+                  A conexão e sincronização do Google Calendar foi centralizada no CRM.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button asChild variant="outline">
+                  <Link to="/crm/configuracoes?tab=integracoes">
+                    Abrir no CRM
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
           </TabsContent>
 
 
