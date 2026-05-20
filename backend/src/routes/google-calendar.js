@@ -193,8 +193,8 @@ async function syncUserCalendars(userId, syncType = 'manual') {
 
   try {
     const accessToken = await getValidAccessToken(userId);
-    const tokenResult = await query(`SELECT selected_calendars, sync_tokens FROM google_oauth_tokens WHERE user_id = $1`, [userId]);
-    const { selected_calendars: selected, sync_tokens: tokens = {} } = tokenResult.rows[0];
+    const tokenResult = await query(`SELECT selected_calendars, sync_tokens, tenant_id FROM google_oauth_tokens WHERE user_id = $1`, [userId]);
+    const { selected_calendars: selected, sync_tokens: tokens = {}, tenant_id } = tokenResult.rows[0];
     
     // Get actual list from Google to ensure valid IDs
     const listRes = await fetch(`${GOOGLE_CALENDAR_API}/users/me/calendarList`, {
