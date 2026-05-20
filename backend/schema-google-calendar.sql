@@ -113,6 +113,32 @@ CREATE TABLE IF NOT EXISTS google_calendar_sync_logs (
     error_message TEXT
 );
 
+ALTER TABLE google_oauth_tokens ADD COLUMN IF NOT EXISTS organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE;
+ALTER TABLE google_oauth_tokens ADD COLUMN IF NOT EXISTS selected_calendars JSONB DEFAULT NULL;
+ALTER TABLE google_oauth_tokens ADD COLUMN IF NOT EXISTS default_calendar_id VARCHAR(255) DEFAULT NULL;
+ALTER TABLE google_oauth_tokens ADD COLUMN IF NOT EXISTS sync_tokens JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE google_calendar_events ADD COLUMN IF NOT EXISTS organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE;
+ALTER TABLE google_calendar_events ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE google_calendar_events ADD COLUMN IF NOT EXISTS location TEXT;
+ALTER TABLE google_calendar_events ADD COLUMN IF NOT EXISTS timezone VARCHAR(100) DEFAULT 'America/Sao_Paulo';
+ALTER TABLE google_calendar_events ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'confirmed';
+ALTER TABLE google_calendar_events ADD COLUMN IF NOT EXISTS html_link TEXT;
+ALTER TABLE google_calendar_events ADD COLUMN IF NOT EXISTS attendees_json JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE google_calendar_events ADD COLUMN IF NOT EXISTS reminders_json JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE google_calendar_events ADD COLUMN IF NOT EXISTS google_created_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE google_calendar_events ADD COLUMN IF NOT EXISTS google_updated_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE google_calendar_events ADD COLUMN IF NOT EXISTS synced_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+ALTER TABLE google_calendar_events ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE google_calendar_events ADD COLUMN IF NOT EXISTS created_by_legal_gleego BOOLEAN DEFAULT false;
+ALTER TABLE google_calendar_events ADD COLUMN IF NOT EXISTS source VARCHAR(50) DEFAULT 'google';
+ALTER TABLE google_calendar_sync_logs ADD COLUMN IF NOT EXISTS organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE;
+ALTER TABLE google_calendar_sync_logs ADD COLUMN IF NOT EXISTS sync_type VARCHAR(50) DEFAULT 'manual';
+ALTER TABLE google_calendar_sync_logs ADD COLUMN IF NOT EXISTS events_created INTEGER DEFAULT 0;
+ALTER TABLE google_calendar_sync_logs ADD COLUMN IF NOT EXISTS events_updated INTEGER DEFAULT 0;
+ALTER TABLE google_calendar_sync_logs ADD COLUMN IF NOT EXISTS events_cancelled INTEGER DEFAULT 0;
+ALTER TABLE google_calendar_sync_logs ADD COLUMN IF NOT EXISTS events_failed INTEGER DEFAULT 0;
+ALTER TABLE google_calendar_sync_logs ADD COLUMN IF NOT EXISTS error_message TEXT;
+
 CREATE INDEX IF NOT EXISTS idx_google_calendar_sync_logs_user ON google_calendar_sync_logs(user_id, started_at DESC);
 CREATE INDEX IF NOT EXISTS idx_google_calendar_sync_logs_org ON google_calendar_sync_logs(organization_id, started_at DESC);
 
