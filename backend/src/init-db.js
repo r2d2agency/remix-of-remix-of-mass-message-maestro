@@ -2183,6 +2183,18 @@ CREATE TABLE IF NOT EXISTS google_calendar_sync_logs (
     error_message TEXT
 );
 
+DO $$ BEGIN
+    ALTER TABLE google_calendar_sync_logs ADD COLUMN IF NOT EXISTS organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE;
+    ALTER TABLE google_calendar_sync_logs ADD COLUMN IF NOT EXISTS sync_type VARCHAR(50) DEFAULT 'manual';
+    ALTER TABLE google_calendar_sync_logs ADD COLUMN IF NOT EXISTS events_created INTEGER DEFAULT 0;
+    ALTER TABLE google_calendar_sync_logs ADD COLUMN IF NOT EXISTS events_updated INTEGER DEFAULT 0;
+    ALTER TABLE google_calendar_sync_logs ADD COLUMN IF NOT EXISTS events_cancelled INTEGER DEFAULT 0;
+    ALTER TABLE google_calendar_sync_logs ADD COLUMN IF NOT EXISTS events_failed INTEGER DEFAULT 0;
+    ALTER TABLE google_calendar_sync_logs ADD COLUMN IF NOT EXISTS error_message TEXT;
+EXCEPTION
+    WHEN duplicate_column THEN null;
+END $$;
+
 -- Add unique constraint on google_event_id if not exists
 DO $$ BEGIN
     IF NOT EXISTS (
