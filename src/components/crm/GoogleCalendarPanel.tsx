@@ -252,6 +252,82 @@ export function GoogleCalendarPanel() {
   );
 }
 
+function SyncStatusPanel({ status, onSync, isSyncing }: { status: GoogleCalendarStatus; onSync: () => void; isSyncing: boolean }) {
+  const referenceDate = status.lastSuccessAt || status.lastSync || status.latestSyncFinishedAt || status.latestSyncStartedAt || null;
+  const latestStats = status.latestSyncStats;
+
+  return (
+    <div className="rounded-lg border p-4 space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <Clock className="h-4 w-4 text-primary" />
+            <h4 className="font-medium text-sm">Status da sincronização</h4>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            A sincronização manual do Google Calendar agora fica centralizada aqui no CRM.
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={onSync} disabled={isSyncing || status.tokenExpired}>
+          <RefreshCw className={`h-4 w-4 mr-2 ${isSyncing ? "animate-spin" : ""}`} />
+          Sincronizar agora
+        </Button>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <SyncMetric label="Último sucesso" value={formatDateTime(status.lastSuccessAt || status.lastSync)} tone="success" />
+        <SyncMetric label="Última falha" value={formatDateTime(status.lastFailureAt)} tone={status.lastFailureAt ? "danger" : "muted"} />
+        <SyncMetric label="Tempo desde o último sync" value={formatRelativeSync(referenceDate)} tone="muted" />
+      </div>
+
+      {latestStats && (
+        <p className="text-xs text-muted-foreground">
+          Última execução: {latestStats.created} criados, {latestStats.updated} atualizados, {latestStats.cancelled} cancelados, {latestStats.failed} falhas.
+        </p>
+      )}
+
+      {(status.lastFailureMessage || status.lastError) && (
+        <div className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+          <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+          <span className="break-words">{status.lastFailureMessage || status.lastError}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SyncMetric({ label, value, tone }: { label: string; value: string; tone: "success" | "danger" | "muted" }) {
+  const iconClass = tone === "danger" ? "text-destructive" : tone === "success" ? "text-primary" : "text-muted-foreground";
+
+  return (
+    <div className="rounded-md bg-muted/40 p-3">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        {tone === "danger" ? <XCircle className={`h-3.5 w-3.5 ${iconClass}`} /> : <CheckCircle className={`h-3.5 w-3.5 ${iconClass}`} />}
+        {label}
+      </div>
+      <p className="mt-1 text-sm font-medium break-words">{value}</p>
+    </div>
+  );
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return "Nunca";
+  return new Date(value).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+}
+
+function formatRelativeSync(value?: string | null) {
+  if (!value) return "Sem sincronização";
+  const diffMs = Date.now() - new Date(value).getTime();
+  if (diffMs < 0) return "Agora";
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return "Agora";
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} h`;
+  const days = Math.floor(hours / 24);
+  return `${days} dia${days > 1 ? "s" : ""}`;
+}
+
 function CalendarItem({ calendar, onToggle, disabled }: { calendar: GoogleCalendar; onToggle: () => void; disabled: boolean }) {
   return (
     <label className="flex items-center gap-3 p-2 rounded-md hover:bg-muted/50 cursor-pointer transition-colors">
