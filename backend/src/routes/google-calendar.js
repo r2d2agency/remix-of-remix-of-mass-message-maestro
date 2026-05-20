@@ -101,6 +101,7 @@ router.get('/callback', async (req, res) => {
          scope = EXCLUDED.scope,
          google_email = EXCLUDED.google_email,
          google_name = EXCLUDED.google_name,
+         tenant_id = COALESCE(google_oauth_tokens.tenant_id, EXCLUDED.tenant_id),
          is_active = true,
          last_error = NULL,
          updated_at = NOW()`,
