@@ -553,7 +553,8 @@ router.post('/events-with-meet', async (req, res) => {
     const { title, description, startDateTime, endDateTime, addMeet, attendees = [], dealId, calendarId: reqCalId } = req.body;
     const accessToken = await getValidAccessToken(req.userId);
     const calendarId = reqCalId || await getDefaultCalendarId(req.userId);
-
+    const tokenResult = await query(`SELECT tenant_id FROM google_oauth_tokens WHERE user_id = $1`, [req.userId]);
+    const tenantId = tokenResult.rows[0]?.tenant_id || null;
 
     const event = {
       summary: title,
@@ -582,13 +583,14 @@ router.post('/events-with-meet', async (req, res) => {
     const meetLink = eventData.conferenceData?.entryPoints?.find(ep => ep.entryPointType === 'video')?.uri || null;
     await query(
       `INSERT INTO google_calendar_events 
-       (user_id, crm_deal_id, google_event_id, google_calendar_id, event_summary, event_start, event_end, meet_link, created_by_legal_gleego)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true)`,
-      [req.userId, dealId || null, eventData.id, calendarId, title, startDateTime, endDateTime, meetLink]
+       (user_id, tenant_id, crm_deal_id, google_event_id, google_calendar_id, event_summary, event_start, event_end, meet_link, created_by_legal_gleego)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true)`,
+      [req.userId, tenantId, dealId || null, eventData.id, calendarId, title, startDateTime, endDateTime, meetLink]
     );
 
     res.json({ success: true, eventId: eventData.id, htmlLink: eventData.htmlLink, meetLink });
   } catch (error) {
+    logError('Error creating event with meet:', error);
     res.status(500).json({ error: error.message });
   }
 });
