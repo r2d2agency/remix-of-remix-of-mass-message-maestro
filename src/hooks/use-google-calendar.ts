@@ -31,10 +31,19 @@ export interface GoogleCalendarEvent {
   start: { dateTime: string; timeZone: string };
   end: { dateTime: string; timeZone: string };
   htmlLink?: string;
+  meetLink?: string; // Add this
   calendarId?: string;
   calendarName?: string;
   calendarColor?: string;
 }
+
+export interface SyncResult {
+  created: number;
+  updated: number;
+  cancelled: number;
+  failed: number;
+}
+
 
 // Get connection status
 export function useGoogleCalendarStatus() {
