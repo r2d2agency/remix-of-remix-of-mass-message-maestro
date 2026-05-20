@@ -90,10 +90,12 @@ router.get('/callback', async (req, res) => {
     const userInfo = await userInfoResponse.json();
     const expiresAt = new Date(Date.now() + (tokenData.expires_in * 1000));
 
+    const organizationId = await getUserOrganizationId(userId);
+
     await query(
       `INSERT INTO google_oauth_tokens 
-       (user_id, access_token, refresh_token, token_type, expires_at, scope, google_email, google_name, tenant_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, (SELECT tenant_id FROM users WHERE id = $1))
+       (user_id, organization_id, access_token, refresh_token, token_type, expires_at, scope, google_email, google_name)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        ON CONFLICT (user_id) DO UPDATE SET
          access_token = EXCLUDED.access_token,
          refresh_token = COALESCE(EXCLUDED.refresh_token, google_oauth_tokens.refresh_token),
@@ -101,11 +103,11 @@ router.get('/callback', async (req, res) => {
          scope = EXCLUDED.scope,
          google_email = EXCLUDED.google_email,
          google_name = EXCLUDED.google_name,
-         tenant_id = COALESCE(google_oauth_tokens.tenant_id, EXCLUDED.tenant_id),
+          organization_id = COALESCE(google_oauth_tokens.organization_id, EXCLUDED.organization_id),
          is_active = true,
          last_error = NULL,
          updated_at = NOW()`,
-      [userId, tokenData.access_token, tokenData.refresh_token, tokenData.token_type,
+      [userId, organizationId, tokenData.access_token, tokenData.refresh_token, tokenData.token_type,
        expiresAt, tokenData.scope, userInfo.email, userInfo.name]
     );
 
@@ -161,6 +163,24 @@ async function getDefaultCalendarId(userId) {
   }
 }
 
+async function getUserOrganizationId(userId) {
+  const result = await query(
+    `SELECT organization_id
+     FROM organization_members
+     WHERE user_id = $1 AND COALESCE(is_active, true) = true
+     ORDER BY CASE role
+       WHEN 'owner' THEN 1
+       WHEN 'admin' THEN 2
+       WHEN 'manager' THEN 3
+       WHEN 'agent' THEN 4
+       ELSE 5
+     END
+     LIMIT 1`,
+    [userId]
+  );
+  return result.rows[0]?.organization_id || null;
+}
+
 function normalizeEvent(event, userId, calendarId) {
   const start = event.start?.dateTime || event.start?.date;
   const end = event.end?.dateTime || event.end?.date;
@@ -192,14 +212,13 @@ function normalizeEvent(event, userId, calendarId) {
 
 async function syncUserCalendars(userId, syncType = 'manual') {
   let logId = null;
-  let tenantId = null;
+  let organizationId = null;
   try {
-    const userResult = await query(`SELECT tenant_id FROM users WHERE id = $1`, [userId]);
-    tenantId = userResult.rows[0]?.tenant_id || null;
+    organizationId = await getUserOrganizationId(userId);
 
     const logIdResult = await query(
-      `INSERT INTO google_calendar_sync_logs (user_id, tenant_id, sync_type, status, started_at) VALUES ($1, $2, $3, 'running', NOW()) RETURNING id`,
-      [userId, tenantId, syncType]
+      `INSERT INTO google_calendar_sync_logs (user_id, organization_id, sync_type, status, started_at) VALUES ($1, $2, $3, 'running', NOW()) RETURNING id`,
+      [userId, organizationId, syncType]
     );
     logId = logIdResult.rows[0].id;
 
@@ -248,7 +267,7 @@ async function syncUserCalendars(userId, syncType = 'manual') {
             try {
               const res = await query(
                 `INSERT INTO google_calendar_events 
-                 (user_id, tenant_id, google_calendar_id, google_event_id, event_summary, description, location, event_start, event_end, timezone, status, html_link, meet_link, attendees_json, reminders_json, google_created_at, google_updated_at, synced_at)
+                 (user_id, organization_id, google_calendar_id, google_event_id, event_summary, description, location, event_start, event_end, timezone, status, html_link, meet_link, attendees_json, reminders_json, google_created_at, google_updated_at, synced_at)
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
                  ON CONFLICT (user_id, google_event_id) DO UPDATE SET
                    event_summary = EXCLUDED.event_summary,
@@ -261,7 +280,7 @@ async function syncUserCalendars(userId, syncType = 'manual') {
                    google_updated_at = EXCLUDED.google_updated_at,
                    synced_at = NOW()
                  RETURNING (xmax = 0) as inserted`,
-                [n.user_id, tenantId, n.google_calendar_id, n.google_event_id, n.summary, n.description, n.location, n.start_datetime, n.end_datetime, n.timezone, n.status, n.html_link, n.meet_link, n.attendees_json, n.reminders_json, n.google_created_at, n.google_updated_at, n.synced_at]
+                [n.user_id, organizationId, n.google_calendar_id, n.google_event_id, n.summary, n.description, n.location, n.start_datetime, n.end_datetime, n.timezone, n.status, n.html_link, n.meet_link, n.attendees_json, n.reminders_json, n.google_created_at, n.google_updated_at, n.synced_at]
               );
               if (res.rows[0].inserted) created++; else updated++;
             } catch (dbErr) {
