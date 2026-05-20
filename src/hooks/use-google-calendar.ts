@@ -19,6 +19,18 @@ export interface GoogleCalendarStatus {
   name?: string;
   lastSync?: string;
   lastError?: string;
+  lastSuccessAt?: string | null;
+  lastFailureAt?: string | null;
+  lastFailureMessage?: string | null;
+  latestSyncStatus?: "running" | "success" | "failed" | string | null;
+  latestSyncStartedAt?: string | null;
+  latestSyncFinishedAt?: string | null;
+  latestSyncStats?: {
+    created: number;
+    updated: number;
+    cancelled: number;
+    failed: number;
+  } | null;
   tokenExpired?: boolean;
   defaultCalendarId?: string | null;
 }
@@ -290,6 +302,7 @@ export function useSyncGoogleCalendar() {
       });
     },
     onError: (error: Error) => {
+      queryClient.invalidateQueries({ queryKey: ["google-calendar-status"] });
       toast({
         title: "Erro na sincronização",
         description: error.message,
