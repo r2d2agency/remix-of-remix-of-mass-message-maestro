@@ -24,56 +24,42 @@ const SCOPES = [
   'https://www.googleapis.com/auth/userinfo.profile',
 ].join(' ');
 
-// Store state tokens temporarily (in production, use Redis or DB)
+// Store state tokens temporarily
 const stateTokens = new Map();
 
 // ============================================
 // OAUTH FLOW
 // ============================================
 
-// Get auth URL - initiate OAuth flow
 router.get('/auth-url', authenticate, async (req, res) => {
   try {
     if (!GOOGLE_CLIENT_ID) {
       return res.status(500).json({ error: 'Google OAuth not configured' });
     }
-
-    // Generate state token to prevent CSRF
     const state = crypto.randomBytes(32).toString('hex');
-    stateTokens.set(state, { userId: req.userId, expires: Date.now() + 600000 }); // 10 min
-
+    stateTokens.set(state, { userId: req.userId, expires: Date.now() + 600000 });
     const params = new URLSearchParams({
       client_id: GOOGLE_CLIENT_ID,
       redirect_uri: GOOGLE_REDIRECT_URI,
       response_type: 'code',
       scope: SCOPES,
-      access_type: 'offline', // Get refresh token
-      prompt: 'consent', // Always show consent screen to get refresh token
+      access_type: 'offline',
+      prompt: 'consent',
       state,
     });
-
-    const authUrl = `${GOOGLE_AUTH_URL}?${params.toString()}`;
-    res.json({ url: authUrl });
+    res.json({ url: `${GOOGLE_AUTH_URL}?${params.toString()}` });
   } catch (error) {
     logError('Error generating auth URL:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// OAuth callback - exchange code for tokens
 router.get('/callback', async (req, res) => {
   try {
     const { code, state, error: oauthError } = req.query;
+    if (oauthError) return res.redirect(`${FRONTEND_URL}/crm/configuracoes?google_error=${encodeURIComponent(oauthError)}`);
+    if (!code || !state) return res.redirect(`${FRONTEND_URL}/crm/configuracoes?google_error=missing_params`);
 
-    if (oauthError) {
-      return res.redirect(`${FRONTEND_URL}/crm/configuracoes?google_error=${encodeURIComponent(oauthError)}`);
-    }
-
-    if (!code || !state) {
-      return res.redirect(`${FRONTEND_URL}/crm/configuracoes?google_error=missing_params`);
-    }
-
-    // Validate state token
     const stateData = stateTokens.get(state);
     if (!stateData || stateData.expires < Date.now()) {
       stateTokens.delete(state);
@@ -83,7 +69,6 @@ router.get('/callback', async (req, res) => {
     const userId = stateData.userId;
     stateTokens.delete(state);
 
-    // Exchange code for tokens
     const tokenResponse = await fetch(GOOGLE_TOKEN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -97,22 +82,14 @@ router.get('/callback', async (req, res) => {
     });
 
     const tokenData = await tokenResponse.json();
+    if (!tokenResponse.ok) return res.redirect(`${FRONTEND_URL}/crm/configuracoes?google_error=${encodeURIComponent(tokenData.error || 'token_exchange_failed')}`);
 
-    if (!tokenResponse.ok) {
-      logError('Token exchange failed:', tokenData);
-      return res.redirect(`${FRONTEND_URL}/crm/configuracoes?google_error=${encodeURIComponent(tokenData.error || 'token_exchange_failed')}`);
-    }
-
-    // Get user info
     const userInfoResponse = await fetch(GOOGLE_USERINFO_URL, {
       headers: { Authorization: `Bearer ${tokenData.access_token}` },
     });
     const userInfo = await userInfoResponse.json();
-
-    // Calculate expiration
     const expiresAt = new Date(Date.now() + (tokenData.expires_in * 1000));
 
-    // Save tokens
     await query(
       `INSERT INTO google_oauth_tokens 
        (user_id, access_token, refresh_token, token_type, expires_at, scope, google_email, google_name)
@@ -139,24 +116,177 @@ router.get('/callback', async (req, res) => {
   }
 });
 
-// ============================================
-// AUTHENTICATED ROUTES
-// ============================================
 router.use(authenticate);
 
-// Get connection status
-router.get('/status', async (req, res) => {
-  try {
-    // Use SELECT * to avoid errors if columns don't exist yet
-    const result = await query(
-      `SELECT * FROM google_oauth_tokens WHERE user_id = $1`,
-      [req.userId]
-    );
+// ============================================
+// HELPERS
+// ============================================
 
-    if (!result.rows[0]) {
-      return res.json({ connected: false });
+async function getValidAccessToken(userId) {
+  const result = await query(`SELECT * FROM google_oauth_tokens WHERE user_id = $1 AND is_active = true`, [userId]);
+  if (!result.rows[0]) throw new Error('Google Calendar não conectado');
+  let token = result.rows[0];
+
+  if (new Date(token.expires_at) <= new Date(Date.now() + 300000)) {
+    const refreshResponse = await fetch(GOOGLE_TOKEN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: GOOGLE_CLIENT_ID,
+        client_secret: GOOGLE_CLIENT_SECRET,
+        refresh_token: token.refresh_token,
+        grant_type: 'refresh_token',
+      }),
+    });
+    const refreshData = await refreshResponse.json();
+    if (!refreshResponse.ok) {
+      await query(`UPDATE google_oauth_tokens SET is_active = false, last_error = $1 WHERE user_id = $2`, [refreshData.error || 'refresh_failed', userId]);
+      throw new Error('Falha ao renovar token. Reconecte sua conta Google.');
+    }
+    const newExpiresAt = new Date(Date.now() + (refreshData.expires_in * 1000));
+    await query(`UPDATE google_oauth_tokens SET access_token = $1, expires_at = $2, last_error = NULL, updated_at = NOW() WHERE user_id = $3`, [refreshData.access_token, newExpiresAt, userId]);
+    token.access_token = refreshData.access_token;
+  }
+  return token.access_token;
+}
+
+async function getDefaultCalendarId(userId) {
+  const result = await query(`SELECT default_calendar_id FROM google_oauth_tokens WHERE user_id = $1`, [userId]);
+  return result.rows[0]?.default_calendar_id || 'primary';
+}
+
+function normalizeEvent(event, userId, calendarId) {
+  const start = event.start?.dateTime || event.start?.date;
+  const end = event.end?.dateTime || event.end?.date;
+  
+  return {
+    user_id: userId,
+    google_calendar_id: calendarId,
+    google_event_id: event.id,
+    summary: event.summary || '',
+    description: event.description || '',
+    location: event.location || '',
+    start_datetime: start,
+    end_datetime: end,
+    timezone: event.start?.timeZone || 'America/Sao_Paulo',
+    status: event.status || 'confirmed',
+    html_link: event.htmlLink,
+    meet_link: event.conferenceData?.entryPoints?.find(ep => ep.entryPointType === 'video')?.uri || null,
+    attendees_json: JSON.stringify(event.attendees || []),
+    reminders_json: JSON.stringify(event.reminders || {}),
+    google_created_at: event.created,
+    google_updated_at: event.updated,
+    synced_at: new Date().toISOString()
+  };
+}
+
+// ============================================
+// SYNC LOGIC
+// ============================================
+
+async function syncUserCalendars(userId, syncType = 'manual') {
+  const logIdResult = await query(
+    `INSERT INTO google_calendar_sync_logs (user_id, sync_type, status, started_at) VALUES ($1, $2, 'running', NOW()) RETURNING id`,
+    [userId, syncType]
+  );
+  const logId = logIdResult.rows[0].id;
+
+  try {
+    const accessToken = await getValidAccessToken(userId);
+    const tokenResult = await query(`SELECT selected_calendars, sync_tokens FROM google_oauth_tokens WHERE user_id = $1`, [userId]);
+    const { selected_calendars: selected, sync_tokens: tokens = {} } = tokenResult.rows[0];
+    
+    // Get actual list from Google to ensure valid IDs
+    const listRes = await fetch(`${GOOGLE_CALENDAR_API}/users/me/calendarList`, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    const listData = await listRes.json();
+    if (!listRes.ok) throw new Error(listData.error?.message || 'Failed to fetch calendar list');
+
+    let calendarsToSync = listData.items.filter(c => c.accessRole !== 'freeBusyReader');
+    if (Array.isArray(selected) && selected.length > 0) {
+      calendarsToSync = calendarsToSync.filter(c => selected.includes(c.id));
     }
 
+    let created = 0, updated = 0, cancelled = 0, failed = 0;
+    const nextSyncTokens = { ...tokens };
+
+    for (const cal of calendarsToSync) {
+      const params = new URLSearchParams({ singleEvents: 'true' });
+      if (tokens[cal.id]) params.append('syncToken', tokens[cal.id]);
+      else params.append('timeMin', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
+
+      try {
+        const eventsRes = await fetch(`${GOOGLE_CALENDAR_API}/calendars/${encodeURIComponent(cal.id)}/events?${params.toString()}`, {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        const eventsData = await eventsRes.json();
+        
+        if (eventsRes.status === 410) { // Token invalid, full sync needed
+          delete nextSyncTokens[cal.id];
+          continue; // Will retry on next pass or we could recursive call
+        }
+        if (!eventsRes.ok) { failed++; continue; }
+
+        for (const item of (eventsData.items || [])) {
+          if (item.status === 'cancelled') {
+            await query(`UPDATE google_calendar_events SET status = 'cancelled', deleted_at = NOW() WHERE user_id = $1 AND google_event_id = $2`, [userId, item.id]);
+            cancelled++;
+          } else {
+            const n = normalizeEvent(item, userId, cal.id);
+            const res = await query(
+              `INSERT INTO google_calendar_events 
+               (user_id, google_calendar_id, google_event_id, event_summary, description, location, event_start, event_end, timezone, status, html_link, meet_link, attendees_json, reminders_json, google_created_at, google_updated_at, synced_at)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+               ON CONFLICT (user_id, google_event_id) DO UPDATE SET
+                 event_summary = EXCLUDED.event_summary,
+                 description = EXCLUDED.description,
+                 location = EXCLUDED.location,
+                 event_start = EXCLUDED.event_start,
+                 event_end = EXCLUDED.event_end,
+                 status = EXCLUDED.status,
+                 meet_link = EXCLUDED.meet_link,
+                 google_updated_at = EXCLUDED.google_updated_at,
+                 synced_at = NOW()
+               RETURNING (xmax = 0) as inserted`,
+              [n.user_id, n.google_calendar_id, n.google_event_id, n.summary, n.description, n.location, n.start_datetime, n.end_datetime, n.timezone, n.status, n.html_link, n.meet_link, n.attendees_json, n.reminders_json, n.google_created_at, n.google_updated_at, n.synced_at]
+            );
+            if (res.rows[0].inserted) created++; else updated++;
+          }
+        }
+        if (eventsData.nextSyncToken) nextSyncTokens[cal.id] = eventsData.nextSyncToken;
+      } catch (err) {
+        logError(`Sync failed for calendar ${cal.id}`, err);
+        failed++;
+      }
+    }
+
+    await query(
+      `UPDATE google_oauth_tokens SET sync_tokens = $1, last_sync_at = NOW(), last_error = NULL WHERE user_id = $2`,
+      [JSON.stringify(nextSyncTokens), userId]
+    );
+
+    await query(
+      `UPDATE google_calendar_sync_logs SET status = 'success', finished_at = NOW(), events_created = $1, events_updated = $2, events_cancelled = $3, events_failed = $4 WHERE id = $5`,
+      [created, updated, cancelled, failed, logId]
+    );
+
+    return { created, updated, cancelled, failed };
+  } catch (error) {
+    logError('Sync process failed:', error);
+    await query(`UPDATE google_calendar_sync_logs SET status = 'failed', finished_at = NOW(), error_message = $1 WHERE id = $2`, [error.message, logId]);
+    throw error;
+  }
+}
+
+// ============================================
+// ROUTES
+// ============================================
+
+router.get('/status', async (req, res) => {
+  try {
+    const result = await query(`SELECT * FROM google_oauth_tokens WHERE user_id = $1`, [req.userId]);
+    if (!result.rows[0]) return res.json({ connected: false });
     const token = result.rows[0];
     res.json({
       connected: token.is_active,
@@ -168,465 +298,30 @@ router.get('/status', async (req, res) => {
       defaultCalendarId: token.default_calendar_id || null,
     });
   } catch (error) {
-    logError('Error fetching Google status:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// Disconnect Google account
-router.delete('/disconnect', async (req, res) => {
+router.post('/sync', async (req, res) => {
   try {
-    await query(
-      `UPDATE google_oauth_tokens SET is_active = false WHERE user_id = $1`,
-      [req.userId]
-    );
-
-    res.json({ success: true });
+    const result = await syncUserCalendars(req.userId, 'manual');
+    res.json({ success: true, ...result });
   } catch (error) {
-    logError('Error disconnecting Google:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// ============================================
-// HELPER: Get valid access token
-// ============================================
-async function getValidAccessToken(userId) {
-  const result = await query(
-    `SELECT * FROM google_oauth_tokens WHERE user_id = $1 AND is_active = true`,
-    [userId]
-  );
-
-  if (!result.rows[0]) {
-    throw new Error('Google Calendar não conectado');
-  }
-
-  let token = result.rows[0];
-
-  // Check if token is expired or about to expire (5 min buffer)
-  if (new Date(token.expires_at) <= new Date(Date.now() + 300000)) {
-    // Refresh the token
-    const refreshResponse = await fetch(GOOGLE_TOKEN_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: GOOGLE_CLIENT_ID,
-        client_secret: GOOGLE_CLIENT_SECRET,
-        refresh_token: token.refresh_token,
-        grant_type: 'refresh_token',
-      }),
-    });
-
-    const refreshData = await refreshResponse.json();
-
-    if (!refreshResponse.ok) {
-      // Mark token as inactive
-      await query(
-        `UPDATE google_oauth_tokens SET is_active = false, last_error = $1 WHERE user_id = $2`,
-        [refreshData.error || 'refresh_failed', userId]
-      );
-      throw new Error('Falha ao renovar token. Reconecte sua conta Google.');
-    }
-
-    const newExpiresAt = new Date(Date.now() + (refreshData.expires_in * 1000));
-
-    await query(
-      `UPDATE google_oauth_tokens SET 
-         access_token = $1, expires_at = $2, last_error = NULL, updated_at = NOW()
-       WHERE user_id = $3`,
-      [refreshData.access_token, newExpiresAt, userId]
-    );
-
-    token.access_token = refreshData.access_token;
-  }
-
-  return token.access_token;
-}
-
-// ============================================
-// HELPER: Get default calendar ID for creating events
-// ============================================
-async function getDefaultCalendarId(userId) {
-  try {
-    const result = await query(
-      `SELECT default_calendar_id FROM google_oauth_tokens WHERE user_id = $1`,
-      [userId]
-    );
-    return result.rows[0]?.default_calendar_id || 'primary';
-  } catch (err) {
-    logError('default_calendar_id column may not exist yet:', err);
-    return 'primary';
-  }
-}
-
-// ============================================
-// CALENDAR OPERATIONS
-// ============================================
-
-// Create event in Google Calendar
-router.post('/events', async (req, res) => {
-  try {
-    const { title, description, startDateTime, endDateTime, location, taskId, dealId, calendarId: requestCalendarId } = req.body;
-
-    if (!title || !startDateTime || !endDateTime) {
-      return res.status(400).json({ error: 'Título, data de início e fim são obrigatórios' });
-    }
-
-    const accessToken = await getValidAccessToken(req.userId);
-    const calendarId = requestCalendarId || await getDefaultCalendarId(req.userId);
-
-    const event = {
-      summary: title,
-      description: description || '',
-      location: location || '',
-      start: {
-        dateTime: startDateTime,
-        timeZone: 'America/Sao_Paulo',
-      },
-      end: {
-        dateTime: endDateTime,
-        timeZone: 'America/Sao_Paulo',
-      },
-      reminders: {
-        useDefault: true,
-      },
-    };
-
-    const response = await fetch(`${GOOGLE_CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(event),
-    });
-
-    const eventData = await response.json();
-
-    if (!response.ok) {
-      logError('Google Calendar API error:', eventData);
-      throw new Error(eventData.error?.message || 'Erro ao criar evento');
-    }
-
-    // Save mapping if task or deal provided
-    if (taskId) {
-      await query(
-        `INSERT INTO google_calendar_events 
-         (user_id, crm_task_id, crm_deal_id, google_event_id, google_calendar_id)
-         VALUES ($1, $2, $3, $4, $5)
-         ON CONFLICT (user_id, crm_task_id) DO UPDATE SET
-           google_event_id = EXCLUDED.google_event_id,
-           sync_status = 'synced',
-           last_synced_at = NOW()`,
-        [req.userId, taskId, dealId || null, eventData.id, calendarId]
-      );
-    }
-
-    // Update last sync
-    await query(
-      `UPDATE google_oauth_tokens SET last_sync_at = NOW() WHERE user_id = $1`,
-      [req.userId]
-    );
-
-    res.json({ success: true, eventId: eventData.id, htmlLink: eventData.htmlLink });
-  } catch (error) {
-    logError('Error creating Google Calendar event:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Update event in Google Calendar
-router.put('/events/:eventId', async (req, res) => {
-  try {
-    const { eventId } = req.params;
-    const { title, description, startDateTime, endDateTime, location } = req.body;
-
-    const accessToken = await getValidAccessToken(req.userId);
-
-    const event = {
-      summary: title,
-      description: description || '',
-      location: location || '',
-      start: {
-        dateTime: startDateTime,
-        timeZone: 'America/Sao_Paulo',
-      },
-      end: {
-        dateTime: endDateTime,
-        timeZone: 'America/Sao_Paulo',
-      },
-    };
-
-    const defaultCalId = await getDefaultCalendarId(req.userId);
-    const response = await fetch(`${GOOGLE_CALENDAR_API}/calendars/${encodeURIComponent(defaultCalId)}/events/${eventId}`, {
-      method: 'PUT',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(event),
-    });
-
-    const eventData = await response.json();
-
-    if (!response.ok) {
-      throw new Error(eventData.error?.message || 'Erro ao atualizar evento');
-    }
-
-    res.json({ success: true, eventId: eventData.id });
-  } catch (error) {
-    logError('Error updating Google Calendar event:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Delete event from Google Calendar
-router.delete('/events/:eventId', async (req, res) => {
-  try {
-    const { eventId } = req.params;
-
-    const accessToken = await getValidAccessToken(req.userId);
-
-    const defaultCalId = await getDefaultCalendarId(req.userId);
-    const response = await fetch(`${GOOGLE_CALENDAR_API}/calendars/${encodeURIComponent(defaultCalId)}/events/${eventId}`, {
-      method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    });
-
-    if (!response.ok && response.status !== 404) {
-      const errorData = await response.json();
-      throw new Error(errorData.error?.message || 'Erro ao deletar evento');
-    }
-
-    // Remove mapping
-    await query(
-      `DELETE FROM google_calendar_events WHERE user_id = $1 AND google_event_id = $2`,
-      [req.userId, eventId]
-    );
-
-    res.json({ success: true });
-  } catch (error) {
-    logError('Error deleting Google Calendar event:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Sync task to Google Calendar
-router.post('/sync-task/:taskId', async (req, res) => {
-  try {
-    const { taskId } = req.params;
-
-    // Get task details
-    const taskResult = await query(
-      `SELECT t.*, d.title as deal_title, d.id as deal_id
-       FROM crm_tasks t
-       LEFT JOIN crm_deals d ON d.id = t.deal_id
-       WHERE t.id = $1`,
-      [taskId]
-    );
-
-    if (!taskResult.rows[0]) {
-      return res.status(404).json({ error: 'Tarefa não encontrada' });
-    }
-
-    const task = taskResult.rows[0];
-    const accessToken = await getValidAccessToken(req.userId);
-
-    // Check if already synced
-    const existingSync = await query(
-      `SELECT google_event_id FROM google_calendar_events WHERE user_id = $1 AND crm_task_id = $2`,
-      [req.userId, taskId]
-    );
-
-    const startDate = new Date(task.due_date);
-    const endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // 1 hour duration
-
-    const event = {
-      summary: task.title,
-      description: task.description || (task.deal_title ? `Negociação: ${task.deal_title}` : ''),
-      start: {
-        dateTime: startDate.toISOString(),
-        timeZone: 'America/Sao_Paulo',
-      },
-      end: {
-        dateTime: endDate.toISOString(),
-        timeZone: 'America/Sao_Paulo',
-      },
-    };
-
-    let response;
-    let method = 'POST';
-    const defaultCalId = await getDefaultCalendarId(req.userId);
-    let url = `${GOOGLE_CALENDAR_API}/calendars/${encodeURIComponent(defaultCalId)}/events`;
-
-    if (existingSync.rows[0]) {
-      // Update existing event
-      method = 'PUT';
-      url = `${url}/${existingSync.rows[0].google_event_id}`;
-    }
-
-    response = await fetch(url, {
-      method,
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(event),
-    });
-
-    const eventData = await response.json();
-
-    if (!response.ok) {
-      throw new Error(eventData.error?.message || 'Erro ao sincronizar');
-    }
-
-    // Save/update mapping
-    await query(
-      `INSERT INTO google_calendar_events 
-       (user_id, crm_task_id, crm_deal_id, google_event_id, google_calendar_id, event_summary, event_start, event_end, sync_status, last_synced_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'synced', NOW())
-       ON CONFLICT (user_id, crm_task_id) DO UPDATE SET
-         google_event_id = EXCLUDED.google_event_id,
-         google_calendar_id = EXCLUDED.google_calendar_id,
-         event_summary = EXCLUDED.event_summary,
-         event_start = EXCLUDED.event_start,
-         event_end = EXCLUDED.event_end,
-         sync_status = 'synced',
-         last_synced_at = NOW()`,
-      [req.userId, taskId, task.deal_id, eventData.id, defaultCalId, task.title, startDate.toISOString(), endDate.toISOString()]
-    );
-
-    await query(
-      `UPDATE google_oauth_tokens SET last_sync_at = NOW() WHERE user_id = $1`,
-      [req.userId]
-    );
-
-    res.json({ success: true, eventId: eventData.id, htmlLink: eventData.htmlLink });
-  } catch (error) {
-    logError('Error syncing task to Google Calendar:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Debug endpoint - check Google Calendar configuration
-router.get('/debug', async (req, res) => {
-  try {
-    const checks = {
-      clientIdSet: !!GOOGLE_CLIENT_ID,
-      clientSecretSet: !!GOOGLE_CLIENT_SECRET,
-      redirectUri: GOOGLE_REDIRECT_URI,
-    };
-
-    // Check if user has token in DB
-    try {
-      const tokenResult = await query(
-        `SELECT user_id, google_email, is_active, expires_at, last_error,
-                (refresh_token IS NOT NULL) as has_refresh_token
-         FROM google_oauth_tokens WHERE user_id = $1`,
-        [req.userId]
-      );
-      if (tokenResult.rows[0]) {
-        const t = tokenResult.rows[0];
-        checks.token = {
-          email: t.google_email,
-          isActive: t.is_active,
-          expiresAt: t.expires_at,
-          expired: new Date(t.expires_at) < new Date(),
-          hasRefreshToken: t.has_refresh_token,
-          lastError: t.last_error,
-        };
-      } else {
-        checks.token = null;
-      }
-    } catch (dbErr) {
-      checks.tokenError = dbErr.message;
-    }
-
-    // Try to get a valid access token
-    try {
-      const accessToken = await getValidAccessToken(req.userId);
-      checks.accessTokenValid = true;
-      checks.accessTokenLength = accessToken?.length || 0;
-
-      // Try to call Google Calendar API
-      const response = await fetch(`${GOOGLE_CALENDAR_API}/users/me/calendarList`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      const data = await response.json();
-      checks.googleApiStatus = response.status;
-      checks.googleApiOk = response.ok;
-      if (!response.ok) {
-        checks.googleApiError = data.error;
-      } else {
-        checks.calendarsCount = (data.items || []).length;
-        checks.calendarNames = (data.items || []).map(c => c.summary);
-      }
-    } catch (tokenErr) {
-      checks.accessTokenValid = false;
-      checks.accessTokenError = tokenErr.message;
-    }
-
-    res.json(checks);
-  } catch (error) {
-    res.json({ error: error.message, stack: error.stack });
-  }
-});
-
-// List user's calendars
 router.get('/calendars', async (req, res) => {
   try {
-    let accessToken;
-    try {
-      accessToken = await getValidAccessToken(req.userId);
-    } catch (tokenErr) {
-      logInfo('google.calendars.no_token', { userId: req.userId, error: tokenErr.message });
-      return res.json([]);
-    }
+    const accessToken = await getValidAccessToken(req.userId);
+    const response = await fetch(`${GOOGLE_CALENDAR_API}/users/me/calendarList`, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error?.message);
 
-    logInfo('google.calendars.fetching', { userId: req.userId });
-
-    let response;
-    try {
-      response = await fetch(`${GOOGLE_CALENDAR_API}/users/me/calendarList`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-    } catch (fetchErr) {
-      logError('google.calendars.fetch_failed', fetchErr);
-      return res.json([]);
-    }
-
-    let data;
-    try {
-      data = await response.json();
-    } catch (parseErr) {
-      logError('google.calendars.parse_failed', parseErr);
-      return res.json([]);
-    }
-
-    if (!response.ok) {
-      logError('google.calendars.api_error', null, { status: response.status, error: data.error });
-      if (response.status === 401) {
-        await query(
-          `UPDATE google_oauth_tokens SET is_active = false, last_error = 'token_revoked' WHERE user_id = $1`,
-          [req.userId]
-        ).catch(() => {});
-      }
-      return res.json([]);
-    }
-
-    // Get user's selected calendars preference
-    let selectedCalendars = null;
-    try {
-      const prefResult = await query(
-        `SELECT selected_calendars FROM google_oauth_tokens WHERE user_id = $1`,
-        [req.userId]
-      );
-      selectedCalendars = prefResult.rows[0]?.selected_calendars || null;
-    } catch (_e) {
-      // Column may not exist yet
-    }
+    const prefResult = await query(`SELECT selected_calendars FROM google_oauth_tokens WHERE user_id = $1`, [req.userId]);
+    const selected = prefResult.rows[0]?.selected_calendars || null;
 
     const calendars = (data.items || []).map(cal => ({
       id: cal.id,
@@ -636,340 +331,257 @@ router.get('/calendars', async (req, res) => {
       backgroundColor: cal.backgroundColor,
       foregroundColor: cal.foregroundColor,
       accessRole: cal.accessRole,
-      selected: selectedCalendars === null ? true : (Array.isArray(selectedCalendars) ? selectedCalendars.includes(cal.id) : true),
+      selected: selected === null ? true : (Array.isArray(selected) ? selected.includes(cal.id) : true),
     }));
-
-    logInfo('google.calendars.success', { userId: req.userId, count: calendars.length });
     res.json(calendars);
   } catch (error) {
-    logError('google.calendars.unexpected', error);
     res.json([]);
   }
 });
 
-// Save selected calendars preference
 router.put('/calendars/selected', async (req, res) => {
   try {
-    const { calendarIds } = req.body; // array of calendar IDs or null for all
-
-    await query(
-      `UPDATE google_oauth_tokens SET selected_calendars = $1, updated_at = NOW() WHERE user_id = $2`,
-      [calendarIds ? JSON.stringify(calendarIds) : null, req.userId]
-    );
-
+    await query(`UPDATE google_oauth_tokens SET selected_calendars = $1, updated_at = NOW() WHERE user_id = $2`, [JSON.stringify(req.body.calendarIds || []), req.userId]);
     res.json({ success: true });
   } catch (error) {
-    logError('Error saving calendar preferences:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// Save default calendar for creating events
 router.put('/calendars/default', async (req, res) => {
   try {
-    const { calendarId } = req.body; // calendar ID or null for primary
-
-    await query(
-      `UPDATE google_oauth_tokens SET default_calendar_id = $1, updated_at = NOW() WHERE user_id = $2`,
-      [calendarId || null, req.userId]
-    );
-
+    await query(`UPDATE google_oauth_tokens SET default_calendar_id = $1, updated_at = NOW() WHERE user_id = $2`, [req.body.calendarId || null, req.userId]);
     res.json({ success: true });
   } catch (error) {
-    logError('Error saving default calendar:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// List user's calendar events (from selected calendars)
 router.get('/events', async (req, res) => {
   try {
-    const { timeMin, timeMax, maxResults = 50 } = req.query;
+    const { timeMin, timeMax } = req.query;
+    let sql = `SELECT * FROM google_calendar_events WHERE user_id = $1 AND status != 'cancelled' AND deleted_at IS NULL`;
+    const params = [req.userId];
 
-    let accessToken;
-    try {
-      accessToken = await getValidAccessToken(req.userId);
-    } catch {
-      return res.json([]); // Not connected – return empty list
+    if (timeMin) {
+      params.push(timeMin);
+      sql += ` AND event_start >= $${params.length}`;
     }
-
-    // Get user's selected calendars preference (defensive)
-    let selectedCalendars = null;
-    try {
-      const prefResult = await query(
-        `SELECT selected_calendars FROM google_oauth_tokens WHERE user_id = $1`,
-        [req.userId]
-      );
-      selectedCalendars = prefResult.rows[0]?.selected_calendars || null;
-    } catch (prefErr) {
-      logError('selected_calendars column may not exist yet:', prefErr);
+    if (timeMax) {
+      params.push(timeMax);
+      sql += ` AND event_start <= $${params.length}`;
     }
+    sql += ` ORDER BY event_start ASC`;
 
-    // Get user's calendar list
-    const calListResponse = await fetch(`${GOOGLE_CALENDAR_API}/users/me/calendarList`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-
-    const calListData = await calListResponse.json();
-    if (!calListResponse.ok) {
-      logError('Google calendarList API error in /events:', { status: calListResponse.status, error: calListData.error });
-      return res.json([]);
-    }
-
-    // Filter calendars based on user preference
-    let calendars = (calListData.items || []).filter(cal => 
-      cal.accessRole !== 'freeBusyReader'
-    );
-
-    if (Array.isArray(selectedCalendars) && selectedCalendars.length > 0) {
-      calendars = calendars.filter(cal => selectedCalendars.includes(cal.id));
-    }
-
-    // Fetch events from selected calendars in parallel
-    const allEventsPromises = calendars.map(async (cal) => {
-      const params = new URLSearchParams({
-        maxResults: String(maxResults),
-        singleEvents: 'true',
-        orderBy: 'startTime',
-      });
-
-      if (timeMin) params.append('timeMin', timeMin);
-      if (timeMax) params.append('timeMax', timeMax);
-
-      try {
-        const response = await fetch(
-          `${GOOGLE_CALENDAR_API}/calendars/${encodeURIComponent(cal.id)}/events?${params.toString()}`,
-          { headers: { Authorization: `Bearer ${accessToken}` } }
-        );
-
-        const data = await response.json();
-        if (!response.ok) {
-          logError(`Error fetching events from calendar ${cal.id}:`, data);
-          return [];
-        }
-
-        return (data.items || []).map(event => ({
-          ...event,
-          calendarId: cal.id,
-          calendarName: cal.summary,
-          calendarColor: cal.backgroundColor,
-        }));
-      } catch (err) {
-        logError(`Failed to fetch calendar ${cal.id}:`, err);
-        return [];
-      }
-    });
-
-    const allEventsArrays = await Promise.all(allEventsPromises);
-    const allEvents = allEventsArrays.flat();
-
-    allEvents.sort((a, b) => {
-      const aTime = a.start?.dateTime || a.start?.date || '';
-      const bTime = b.start?.dateTime || b.start?.date || '';
-      return aTime.localeCompare(bTime);
-    });
-
-    res.json(allEvents);
+    const result = await query(sql, params);
+    res.json(result.rows.map(r => ({
+      id: r.google_event_id,
+      summary: r.event_summary,
+      description: r.description,
+      location: r.location,
+      start: { dateTime: r.event_start, timeZone: r.timezone },
+      end: { dateTime: r.event_end, timeZone: r.timezone },
+      htmlLink: r.html_link,
+      meetLink: r.meet_link,
+      calendarId: r.google_calendar_id
+    })));
   } catch (error) {
-    logError('Error fetching Google Calendar events:', error);
-    res.json([]); // Never return 500 – return empty list as fallback
+    res.json([]);
   }
 });
 
-// ============================================
-// CREATE EVENT WITH GOOGLE MEET AND ATTENDEES
-// ============================================
-router.post('/events-with-meet', async (req, res) => {
+router.post('/events', async (req, res) => {
   try {
-    const { title, description, startDateTime, endDateTime, addMeet, attendees = [], dealId } = req.body;
-
-    if (!title || !startDateTime || !endDateTime) {
-      return res.status(400).json({ error: 'Título, data de início e fim são obrigatórios' });
-    }
-
+    const { title, description, startDateTime, endDateTime, location, taskId, dealId, calendarId: reqCalId } = req.body;
     const accessToken = await getValidAccessToken(req.userId);
-
-    // Build enhanced description with deal context if provided
-    let enhancedDescription = description || '';
-    let dealInfo = null;
-    
-    if (dealId) {
-      // Fetch deal details with company and contacts
-      const dealResult = await query(
-        `SELECT d.id, d.title, d.value, c.name as company_name, c.phone as company_phone,
-          (SELECT string_agg(ct.name || COALESCE(' (' || dc.role || ')', ''), ', ')
-           FROM crm_deal_contacts dc
-           JOIN contacts ct ON ct.id = dc.contact_id
-           WHERE dc.deal_id = d.id) as contact_names
-         FROM crm_deals d
-         LEFT JOIN crm_companies c ON c.id = d.company_id
-         WHERE d.id = $1`,
-        [dealId]
-      );
-      
-      if (dealResult.rows[0]) {
-        dealInfo = dealResult.rows[0];
-        
-        // Build context section for the description
-        const contextParts = [];
-        contextParts.push('📋 Negociação: ' + dealInfo.title);
-        if (dealInfo.company_name && dealInfo.company_name !== 'Sem empresa') {
-          contextParts.push('🏢 Empresa: ' + dealInfo.company_name);
-        }
-        if (dealInfo.contact_names) {
-          contextParts.push('👤 Contatos: ' + dealInfo.contact_names);
-        }
-        if (dealInfo.value) {
-          const formattedValue = new Intl.NumberFormat('pt-BR', {
-            style: 'currency',
-            currency: 'BRL',
-            minimumFractionDigits: 0,
-          }).format(Number(dealInfo.value) || 0);
-          contextParts.push('💰 Valor: ' + formattedValue);
-        }
-        
-        const contextBlock = '─────────────────\n' + contextParts.join('\n') + '\n─────────────────';
-        
-        // Prepend context to description
-        enhancedDescription = contextBlock + (enhancedDescription ? '\n\n' + enhancedDescription : '');
-      }
-    }
+    const calendarId = reqCalId || await getDefaultCalendarId(req.userId);
 
     const event = {
       summary: title,
-      description: enhancedDescription,
-      start: {
-        dateTime: startDateTime,
-        timeZone: 'America/Sao_Paulo',
-      },
-      end: {
-        dateTime: endDateTime,
-        timeZone: 'America/Sao_Paulo',
-      },
-      reminders: {
-        useDefault: true,
-      },
+      description: description || '',
+      location: location || '',
+      start: { dateTime: startDateTime, timeZone: 'America/Sao_Paulo' },
+      end: { dateTime: endDateTime, timeZone: 'America/Sao_Paulo' },
     };
 
-    // Add Google Meet conference
-    if (addMeet) {
-      event.conferenceData = {
-        createRequest: {
-          requestId: crypto.randomUUID(),
-          conferenceSolutionKey: { type: 'hangoutsMeet' },
-        },
-      };
-    }
-
-    // Add attendees
-    if (Array.isArray(attendees) && attendees.length > 0) {
-      event.attendees = attendees.map(email => ({
-        email,
-        responseStatus: 'needsAction',
-      }));
-      event.guestsCanModify = false;
-      event.guestsCanInviteOthers = false;
-      event.guestsCanSeeOtherGuests = true;
-    }
-
-    // Build URL with conferenceDataVersion if adding Meet
-    const defaultCalId = await getDefaultCalendarId(req.userId);
-    let url = `${GOOGLE_CALENDAR_API}/calendars/${encodeURIComponent(defaultCalId)}/events`;
-    if (addMeet) {
-      url += '?conferenceDataVersion=1&sendUpdates=all';
-    } else if (attendees.length > 0) {
-      url += '?sendUpdates=all';
-    }
-
-    const response = await fetch(url, {
+    const response = await fetch(`${GOOGLE_CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events`, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(event),
     });
-
     const eventData = await response.json();
+    if (!response.ok) throw new Error(eventData.error?.message || 'Erro ao criar evento');
 
-    if (!response.ok) {
-      logError('Google Calendar API error:', eventData);
-      throw new Error(eventData.error?.message || 'Erro ao criar evento');
-    }
-
-    // Extract Meet link if created
-    const meetLink = eventData.conferenceData?.entryPoints?.find(
-      ep => ep.entryPointType === 'video'
-    )?.uri || null;
-
-    // Save mapping if deal provided
-    if (dealId) {
-      await query(
-        `INSERT INTO google_calendar_events 
-         (user_id, crm_deal_id, google_event_id, google_calendar_id, event_summary, event_start, event_end, meet_link)
-         VALUES ($1, $2, $3, 'primary', $4, $5, $6, $7)
-         ON CONFLICT (user_id, google_event_id) DO UPDATE SET
-           crm_deal_id = EXCLUDED.crm_deal_id,
-           event_summary = EXCLUDED.event_summary,
-           event_start = EXCLUDED.event_start,
-           event_end = EXCLUDED.event_end,
-           meet_link = EXCLUDED.meet_link,
-           sync_status = 'synced',
-           last_synced_at = NOW()`,
-        [req.userId, dealId, eventData.id, title, startDateTime, endDateTime, meetLink]
-      );
-      
-      // Update deal's last_activity_at
-      await query(
-        `UPDATE crm_deals SET last_activity_at = NOW() WHERE id = $1`,
-        [dealId]
-      );
-    }
-
-    // Update last sync
+    const n = normalizeEvent(eventData, req.userId, calendarId);
     await query(
-      `UPDATE google_oauth_tokens SET last_sync_at = NOW() WHERE user_id = $1`,
-      [req.userId]
+      `INSERT INTO google_calendar_events 
+       (user_id, google_calendar_id, google_event_id, crm_task_id, crm_deal_id, event_summary, description, location, event_start, event_end, timezone, status, html_link, meet_link, created_by_legal_gleego, source)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, true, 'crm')`,
+      [req.userId, calendarId, eventData.id, taskId || null, dealId || null, n.summary, n.description, n.location, n.start_datetime, n.end_datetime, n.timezone, n.status, n.html_link, n.meet_link]
     );
 
-    logInfo(`Meeting created with Meet=${!!meetLink} for user ${req.userId}${dealId ? ` linked to deal ${dealId}` : ''}`);
-
-    res.json({ 
-      success: true, 
-      eventId: eventData.id, 
-      htmlLink: eventData.htmlLink,
-      meetLink: meetLink || null,
-    });
+    res.json({ success: true, eventId: eventData.id, htmlLink: eventData.htmlLink });
   } catch (error) {
-    logError('Error creating meeting with Meet:', error, {
-      userId: req.userId,
-      title: req.body.title,
-      dealId: req.body.dealId
-    });
-    res.status(500).json({ error: error.message || 'Erro interno ao agendar reunião' });
+    res.status(500).json({ error: error.message });
   }
 });
 
-// Get scheduled meetings for a deal
-router.get('/deal-meetings/:dealId', async (req, res) => {
+router.put('/events/:eventId', async (req, res) => {
   try {
-    const { dealId } = req.params;
-    
-    // Get all upcoming meetings linked to this deal
-    const result = await query(
-      `SELECT gce.*, u.name as created_by_name
-       FROM google_calendar_events gce
-       LEFT JOIN users u ON u.id = gce.user_id
-       WHERE gce.crm_deal_id = $1 
-         AND gce.event_start > NOW()
-         AND gce.sync_status = 'synced'
-       ORDER BY gce.event_start ASC`,
-      [dealId]
+    const { eventId } = req.params;
+    const { title, description, startDateTime, endDateTime, location } = req.body;
+    const accessToken = await getValidAccessToken(req.userId);
+    const calResult = await query(`SELECT google_calendar_id FROM google_calendar_events WHERE user_id = $1 AND google_event_id = $2`, [req.userId, eventId]);
+    const calendarId = calResult.rows[0]?.google_calendar_id || 'primary';
+
+    const event = {
+      summary: title,
+      description: description || '',
+      location: location || '',
+      start: { dateTime: startDateTime, timeZone: 'America/Sao_Paulo' },
+      end: { dateTime: endDateTime, timeZone: 'America/Sao_Paulo' },
+    };
+
+    const response = await fetch(`${GOOGLE_CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events/${eventId}`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(event),
+    });
+    const eventData = await response.json();
+    if (!response.ok) throw new Error(eventData.error?.message || 'Erro ao atualizar');
+
+    await query(
+      `UPDATE google_calendar_events SET event_summary = $1, description = $2, location = $3, event_start = $4, event_end = $5, synced_at = NOW() WHERE user_id = $6 AND google_event_id = $7`,
+      [title, description, location, startDateTime, endDateTime, req.userId, eventId]
     );
-    
-    res.json(result.rows);
+
+    res.json({ success: true, eventId: eventData.id });
   } catch (error) {
-    logError('Error fetching deal meetings:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.delete('/events/:eventId', async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const accessToken = await getValidAccessToken(req.userId);
+    const calResult = await query(`SELECT google_calendar_id FROM google_calendar_events WHERE user_id = $1 AND google_event_id = $2`, [req.userId, eventId]);
+    const calendarId = calResult.rows[0]?.google_calendar_id || 'primary';
+
+    const response = await fetch(`${GOOGLE_CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events/${eventId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!response.ok && response.status !== 404) throw new Error('Erro ao deletar');
+
+    await query(`UPDATE google_calendar_events SET status = 'cancelled', deleted_at = NOW() WHERE user_id = $1 AND google_event_id = $2`, [req.userId, eventId]);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/sync-task/:taskId', async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const taskResult = await query(`SELECT t.*, d.id as deal_id FROM crm_tasks t LEFT JOIN crm_deals d ON d.id = t.deal_id WHERE t.id = $1`, [taskId]);
+    if (!taskResult.rows[0]) return res.status(404).json({ error: 'Tarefa não encontrada' });
+    const task = taskResult.rows[0];
+
+    const accessToken = await getValidAccessToken(req.userId);
+    const calendarId = await getDefaultCalendarId(req.userId);
+    const existingSync = await query(`SELECT google_event_id FROM google_calendar_events WHERE user_id = $1 AND crm_task_id = $2`, [req.userId, taskId]);
+
+    const startDate = new Date(task.due_date);
+    const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
+    const event = {
+      summary: task.title,
+      description: task.description || '',
+      start: { dateTime: startDate.toISOString(), timeZone: 'America/Sao_Paulo' },
+      end: { dateTime: endDate.toISOString(), timeZone: 'America/Sao_Paulo' },
+    };
+
+    let method = 'POST', url = `${GOOGLE_CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events`;
+    if (existingSync.rows[0]) {
+      method = 'PUT';
+      url += `/${existingSync.rows[0].google_event_id}`;
+    }
+
+    const response = await fetch(url, {
+      method,
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(event),
+    });
+    const eventData = await response.json();
+    if (!response.ok) throw new Error(eventData.error?.message || 'Erro ao sincronizar');
+
+    await query(
+      `INSERT INTO google_calendar_events 
+       (user_id, crm_task_id, crm_deal_id, google_event_id, google_calendar_id, event_summary, event_start, event_end, status, created_by_legal_gleego)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'confirmed', true)
+       ON CONFLICT (user_id, google_event_id) DO UPDATE SET
+         event_summary = EXCLUDED.event_summary,
+         event_start = EXCLUDED.event_start,
+         event_end = EXCLUDED.event_end,
+         synced_at = NOW()`,
+      [req.userId, taskId, task.deal_id, eventData.id, calendarId, task.title, startDate.toISOString(), endDate.toISOString()]
+    );
+
+    res.json({ success: true, eventId: eventData.id, htmlLink: eventData.htmlLink });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/events-with-meet', async (req, res) => {
+  try {
+    const { title, description, startDateTime, endDateTime, addMeet, attendees = [], dealId } = req.body;
+    const accessToken = await getValidAccessToken(req.userId);
+    const calendarId = await getDefaultCalendarId(req.userId);
+
+    const event = {
+      summary: title,
+      description: description || '',
+      start: { dateTime: startDateTime, timeZone: 'America/Sao_Paulo' },
+      end: { dateTime: endDateTime, timeZone: 'America/Sao_Paulo' },
+      reminders: { useDefault: true },
+    };
+
+    if (addMeet) {
+      event.conferenceData = { createRequest: { requestId: crypto.randomUUID(), conferenceSolutionKey: { type: 'hangoutsMeet' } } };
+    }
+    if (attendees.length > 0) {
+      event.attendees = attendees.map(email => ({ email, responseStatus: 'needsAction' }));
+    }
+
+    let url = `${GOOGLE_CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events?conferenceDataVersion=1&sendUpdates=all`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(event),
+    });
+    const eventData = await response.json();
+    if (!response.ok) throw new Error(eventData.error?.message || 'Erro ao criar');
+
+    const meetLink = eventData.conferenceData?.entryPoints?.find(ep => ep.entryPointType === 'video')?.uri || null;
+    await query(
+      `INSERT INTO google_calendar_events 
+       (user_id, crm_deal_id, google_event_id, google_calendar_id, event_summary, event_start, event_end, meet_link, created_by_legal_gleego)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true)`,
+      [req.userId, dealId || null, eventData.id, calendarId, title, startDateTime, endDateTime, meetLink]
+    );
+
+    res.json({ success: true, eventId: eventData.id, htmlLink: eventData.htmlLink, meetLink });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.delete('/disconnect', async (req, res) => {
+  try {
+    await query(`UPDATE google_oauth_tokens SET is_active = false WHERE user_id = $1`, [req.userId]);
+    res.json({ success: true });
+  } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
