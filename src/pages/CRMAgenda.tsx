@@ -92,6 +92,8 @@ export default function CRMAgenda() {
 
   // Fetch Google Calendar status and events
   const { data: googleStatus } = useGoogleCalendarStatus();
+  const { mutate: sync, isPending: isSyncing } = useSyncGoogleCalendar();
+
   
   // Calculate date range for Google Calendar events based on view
   const googleDateRange = useMemo(() => {
