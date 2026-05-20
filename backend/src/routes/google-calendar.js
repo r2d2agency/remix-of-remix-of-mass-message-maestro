@@ -309,6 +309,11 @@ async function syncUserCalendars(userId, syncType = 'manual') {
     return { created, updated, cancelled, failed };
   } catch (error) {
     logError('Sync process failed:', error);
+    try {
+      await query(`UPDATE google_oauth_tokens SET last_error = $1, updated_at = NOW() WHERE user_id = $2`, [error.message || 'Erro na sincronização', userId]);
+    } catch (tokenErr) {
+      logError('Failed to update Google token error:', tokenErr);
+    }
     if (logId) {
       try {
         await query(`UPDATE google_calendar_sync_logs SET status = 'failed', finished_at = NOW(), error_message = $1 WHERE id = $2`, [error.message, logId]);
