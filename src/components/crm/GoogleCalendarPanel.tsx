@@ -13,7 +13,8 @@ import {
   useSaveSelectedCalendars,
   useSaveDefaultCalendar,
   useSyncGoogleCalendar,
-  GoogleCalendar
+  GoogleCalendar,
+  GoogleCalendarStatus
 } from "@/hooks/use-google-calendar";
 import { Calendar, CheckCircle, XCircle, Loader2, ExternalLink, AlertCircle, Star, RefreshCw, Clock } from "lucide-react";
 import { toast } from "sonner";
