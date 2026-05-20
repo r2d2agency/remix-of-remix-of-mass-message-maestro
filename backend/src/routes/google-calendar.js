@@ -394,13 +394,14 @@ router.get('/events', async (req, res) => {
       summary: r.event_summary,
       description: r.description,
       location: r.location,
-      start: { dateTime: r.event_start, timeZone: r.timezone },
-      end: { dateTime: r.event_end, timeZone: r.timezone },
+      start: { dateTime: r.event_start, timeZone: r.timezone || 'America/Sao_Paulo' },
+      end: { dateTime: r.event_end, timeZone: r.timezone || 'America/Sao_Paulo' },
       htmlLink: r.html_link,
       meetLink: r.meet_link,
       calendarId: r.google_calendar_id
     })));
   } catch (error) {
+    logError('Error fetching events:', error);
     res.json([]);
   }
 });
