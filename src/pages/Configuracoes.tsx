@@ -23,6 +23,8 @@ import { AASPConfigPanel } from "@/components/settings/AASPConfigPanel";
 import { CNPJConfigPanel } from "@/components/settings/CNPJConfigPanel";
 import { LeadGleegoConfigPanel } from "@/components/settings/LeadGleegoConfigPanel";
 import { ThemeCustomizationPanel } from "@/components/settings/ThemeCustomizationPanel";
+import { GoogleCalendarSettings } from "@/components/settings/GoogleCalendarSettings";
+
 
 const Configuracoes = () => {
   const { user } = useAuth();
