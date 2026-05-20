@@ -8,6 +8,7 @@
 CREATE TABLE IF NOT EXISTS google_oauth_tokens (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL UNIQUE,
+    organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
     
     -- Token data
     access_token TEXT NOT NULL,
@@ -29,6 +30,7 @@ CREATE TABLE IF NOT EXISTS google_oauth_tokens (
     is_active BOOLEAN DEFAULT true,
     last_sync_at TIMESTAMP WITH TIME ZONE,
     last_error TEXT,
+    sync_tokens JSONB DEFAULT '{}'::jsonb,
     
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -42,6 +44,7 @@ CREATE TABLE IF NOT EXISTS google_oauth_tokens (
 CREATE TABLE IF NOT EXISTS google_calendar_events (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+    organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
     
     -- CRM reference (task or deal)
     crm_task_id UUID REFERENCES crm_tasks(id) ON DELETE CASCADE,
@@ -53,9 +56,22 @@ CREATE TABLE IF NOT EXISTS google_calendar_events (
     
     -- Event details (cached for display)
     event_summary VARCHAR(500),
+    description TEXT,
+    location TEXT,
     event_start TIMESTAMP WITH TIME ZONE,
     event_end TIMESTAMP WITH TIME ZONE,
+    timezone VARCHAR(100) DEFAULT 'America/Sao_Paulo',
+    status VARCHAR(50) DEFAULT 'confirmed',
+    html_link TEXT,
     meet_link VARCHAR(500),
+    attendees_json JSONB DEFAULT '[]'::jsonb,
+    reminders_json JSONB DEFAULT '{}'::jsonb,
+    google_created_at TIMESTAMP WITH TIME ZONE,
+    google_updated_at TIMESTAMP WITH TIME ZONE,
+    synced_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    deleted_at TIMESTAMP WITH TIME ZONE,
+    created_by_legal_gleego BOOLEAN DEFAULT false,
+    source VARCHAR(50) DEFAULT 'google',
     
     -- Sync status
     sync_status VARCHAR(20) DEFAULT 'synced', -- synced, pending_update, pending_delete, error
