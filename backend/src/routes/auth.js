@@ -131,14 +131,6 @@ router.post('/register', async (req, res) => {
       [orgId, user.id]
     );
 
-    // Generate token
-    const tokenOrgId = orgRoleResult.rows[0]?.organization_id || null;
-    const token = jwt.sign(
-      { userId: user.id, email: user.email, organizationId: tokenOrgId },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-
     // Fetch role and modules like login does, so the frontend has full context
     const orgRoleResult = await query(
       `SELECT om.role, o.id as organization_id, o.modules_enabled
@@ -163,12 +155,19 @@ router.post('/register', async (req, res) => {
       scheduled_messages: true, chatbots: true, chat: true, crm: true
     };
 
+    // Generate token
+    const token = jwt.sign(
+      { userId: user.id, email: user.email, organizationId },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
     res.status(201).json({ 
       user: {
         id: user.id,
         email: user.email,
         name: user.name,
-        role,
+        role: role,
         organization_id: organizationId,
         modules_enabled: finalModules,
       }, 
