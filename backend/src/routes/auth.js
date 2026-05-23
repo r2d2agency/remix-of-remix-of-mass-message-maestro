@@ -157,17 +157,12 @@ router.post('/register', async (req, res) => {
 
     // Generate token
     const token = jwt.sign(
+    // Generate token
+    const token = jwt.sign(
       { userId: user.id, email: user.email, organizationId },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
-
-    const role = orgRoleResult.rows[0]?.role || null;
-    const organizationId = orgRoleResult.rows[0]?.organization_id || null;
-    const finalModules = orgRoleResult.rows[0]?.modules_enabled || {
-      campaigns: true, billing: true, groups: true,
-      scheduled_messages: true, chatbots: true, chat: true, crm: true
-    };
 
     res.status(201).json({ 
       user: {
