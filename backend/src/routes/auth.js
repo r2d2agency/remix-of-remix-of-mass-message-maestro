@@ -174,7 +174,7 @@ router.post('/register', async (req, res) => {
         id: user.id,
         email: user.email,
         name: user.name,
-        role,
+        role: role,
         organization_id: organizationId,
         modules_enabled: finalModules,
       }, 
