@@ -402,30 +402,34 @@ function extractUazapiMessage(payload) {
 }
 
 async function findUazapiConnection(payload, req) {
-  const possible = [
+  const possibleTokens = [
     payload?.token,
     payload?.instance?.token,
     payload?.data?.token,
+    payload?.instanceToken,
+    payload?.instance_token,
     req.headers['x-token'],
+    req.headers['token'],
   ].filter(Boolean);
 
-  for (const token of possible) {
+  for (const token of possibleTokens) {
     const c = await query(`SELECT * FROM connections WHERE provider = 'uazapi' AND uazapi_token = $1 LIMIT 1`, [token]);
     if (c.rows[0]) return c.rows[0];
   }
 
   // Also try owner (phone number) from payload
-  const owner = payload?.owner || payload?.instance?.owner || payload?.data?.owner || null;
+  const owner = payload?.owner || payload?.instance?.owner || payload?.data?.owner || payload?.data?.sender || null;
   if (owner) {
+    const phone = normalizePhone(owner);
     const c = await query(
       `SELECT * FROM connections WHERE provider = 'uazapi' AND (phone_number = $1 OR uazapi_instance_name = $1) LIMIT 1`,
-      [String(owner)]
+      [String(phone)]
     );
     if (c.rows[0]) return c.rows[0];
   }
 
-  const instanceName = payload?.instanceName || payload?.instance?.name || payload?.instance || payload?.data?.instance || null;
-  const instanceRef = instanceName || owner || payload?.instance?.id || null;
+  const instanceName = payload?.instanceName || payload?.instance?.name || payload?.instance || payload?.data?.instance || payload?.instance_name || null;
+  const instanceRef = instanceName || (typeof payload?.instance === 'string' ? payload.instance : null);
 
   if (instanceRef) {
     const c = await query(
