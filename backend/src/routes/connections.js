@@ -9,24 +9,32 @@ const W_API_INTEGRATOR_URL = 'https://api.w-api.app/v1/integrator';
 const router = Router();
 router.use(authenticate);
 
-// Helper to get user's organization
-async function getUserOrganization(userId) {
+// Helper to get user's organization and superadmin status
+async function getUserInfo(userId) {
   const result = await query(
-    `SELECT om.organization_id, om.role 
-     FROM organization_members om 
-     WHERE om.user_id = $1 
+    `SELECT om.organization_id, om.role, u.is_superadmin 
+     FROM users u
+     LEFT JOIN organization_members om ON om.user_id = u.id 
+     WHERE u.id = $1 
      LIMIT 1`,
     [userId]
   );
-  return result.rows[0] || null;
+  return result.rows[0] || { is_superadmin: false };
 }
 
 // Helper to build a WHERE clause that includes connection_members access
-function buildConnectionAccessClause(id, userId, org) {
-  if (org) {
+function buildConnectionAccessClause(id, userId, userInfo) {
+  if (userInfo.is_superadmin) {
     return {
-      where: `id = $1 AND organization_id = $2 AND id IN (SELECT connection_id FROM connection_members WHERE user_id = $3)`,
-      params: [id, org.organization_id, userId]
+      where: `id = $1`,
+      params: [id]
+    };
+  }
+  
+  if (userInfo.organization_id) {
+    return {
+      where: `id = $1 AND (organization_id = $2 OR id IN (SELECT connection_id FROM connection_members WHERE user_id = $3))`,
+      params: [id, userInfo.organization_id, userId]
     };
   }
   return {
