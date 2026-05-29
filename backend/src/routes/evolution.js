@@ -773,29 +773,38 @@ router.post('/:connectionId/restart', authenticate, async (req, res) => {
 router.delete('/:connectionId', authenticate, async (req, res) => {
   try {
     const { connectionId } = req.params;
+    const { force } = req.query;
 
-    // Get user's organization for org-level access
-    const orgResult = await query(
-      `SELECT om.organization_id, om.role FROM organization_members om WHERE om.user_id = $1 LIMIT 1`,
+    // Get user info including is_superadmin
+    const userResult = await query(
+      `SELECT u.is_superadmin, om.organization_id, om.role 
+       FROM users u 
+       LEFT JOIN organization_members om ON om.user_id = u.id 
+       WHERE u.id = $1 LIMIT 1`,
       [req.userId]
     );
-    const org = orgResult.rows[0] || null;
+    const userInfo = userResult.rows[0] || { is_superadmin: false };
 
-    // Allow delete if user owns connection OR belongs to same org (admin/owner/manager)
+    // Allow delete if user owns connection, belongs to same org (admin/owner/manager), or is superadmin
     let connResult;
-    if (org && ['owner', 'admin', 'manager'].includes(org.role)) {
+    if (userInfo.is_superadmin) {
+      connResult = await query('SELECT * FROM connections WHERE id = $1', [connectionId]);
+    } else if (userInfo.organization_id && ['owner', 'admin', 'manager'].includes(userInfo.role)) {
       connResult = await query(
-        'SELECT * FROM connections WHERE id = $1 AND organization_id = $2',
-        [connectionId, org.organization_id]
+        'SELECT * FROM connections WHERE id = $1 AND (organization_id = $2 OR id IN (SELECT connection_id FROM connection_members WHERE user_id = $3))',
+        [connectionId, userInfo.organization_id, req.userId]
       );
     } else {
       connResult = await query(
-        'SELECT * FROM connections WHERE id = $1 AND user_id = $2',
+        'SELECT * FROM connections WHERE id = $1 AND (user_id = $2 OR id IN (SELECT connection_id FROM connection_members WHERE user_id = $2))',
         [connectionId, req.userId]
       );
     }
 
     if (connResult.rows.length === 0) {
+      if (force === 'true' || force === true) {
+        return res.json({ success: true, message: 'Conexão já não existia, continuando limpeza' });
+      }
       return res.status(404).json({ error: 'Conexão não encontrada' });
     }
 
@@ -803,7 +812,9 @@ router.delete('/:connectionId', authenticate, async (req, res) => {
 
     // Delete instance from Evolution
     try {
-      await evolutionRequest(`/instance/delete/${connection.instance_name}`, 'DELETE');
+      if (connection.instance_name) {
+        await evolutionRequest(`/instance/delete/${connection.instance_name}`, 'DELETE');
+      }
     } catch (e) {
       console.log('Instance may not exist on Evolution:', e.message);
     }
