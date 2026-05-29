@@ -189,7 +189,13 @@ const Chat = () => {
       
       // Also refresh messages if a conversation is selected
       if (selectedConversation) {
-        getMessages(selectedConversation.id).then(setMessages).catch(console.error);
+        getMessages(selectedConversation.id).then(setMessages).catch((err) => {
+          if (err?.status === 404) {
+            console.warn('Conversation not found during event refresh, ignoring.');
+          } else {
+            console.error(err);
+          }
+        });
       }
     });
 
@@ -214,8 +220,13 @@ const Chat = () => {
       try {
         const msgs = await getMessages(selectedConversation.id);
         setMessages(msgs);
-      } catch (error) {
-        console.error('Error refreshing messages:', error);
+      } catch (error: any) {
+        if (error?.status === 404) {
+          // Conversation disappeared, maybe deleted or just not found
+          console.warn('Conversation not found during refresh');
+        } else {
+          console.error('Error refreshing messages:', error);
+        }
       }
     }, 3000);
 

@@ -1188,6 +1188,57 @@ router.post('/conversations/:id/reopen', authenticate, async (req, res) => {
   }
 });
 
+// Sync group name from provider (UAZAPI, W-API, Evolution)
+router.post('/conversations/:id/sync-group-name', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const connectionIds = await getUserConnections(req.userId);
+
+    const convResult = await query(
+      `SELECT c.id, c.connection_id, c.remote_jid, conn.provider, conn.instance_id, conn.wapi_token, 
+       conn.uazapi_token, conn.uazapi_server_url, conn.instance_name, conn.api_url, conn.api_key
+       FROM conversations c
+       JOIN connections conn ON conn.id = c.connection_id
+       WHERE c.id = $1 AND c.connection_id = ANY($2)`,
+      [id, connectionIds]
+    );
+
+    if (convResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Conversa não encontrada' });
+    }
+
+    const conv = convResult.rows[0];
+    let groupName = null;
+
+    if (conv.provider === 'uazapi' || conv.uazapi_token) {
+      const groups = await uaz.listGroups({
+        serverUrl: conv.uazapi_server_url,
+        token: conv.uazapi_token
+      });
+      if (groups.ok && Array.isArray(groups.data)) {
+        const target = groups.data.find(g => g.id === conv.remote_jid || g.jid === conv.remote_jid);
+        if (target) groupName = target.name || target.subject;
+      }
+    } else if (conv.provider === 'wapi' || conv.wapi_token) {
+      const result = await wapiProvider.syncGroupName(conv.instance_id, conv.wapi_token, id);
+      if (result.success) groupName = result.group_name;
+    } else {
+      // Evolution API doesn't have a direct "sync one group" helper in our lib yet, 
+      // but we could implement it if needed.
+    }
+
+    if (groupName) {
+      await query(`UPDATE conversations SET group_name = $1 WHERE id = $2`, [groupName, id]);
+      return res.json({ success: true, group_name: groupName });
+    }
+
+    res.json({ success: false, message: 'Não foi possível obter o nome do grupo do provedor' });
+  } catch (error) {
+    console.error('Sync group name error:', error);
+    res.status(500).json({ error: 'Erro ao sincronizar nome do grupo' });
+  }
+});
+
 // Update conversation department
 router.patch('/conversations/:id/department', authenticate, async (req, res) => {
   try {

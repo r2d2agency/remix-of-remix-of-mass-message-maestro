@@ -597,6 +597,66 @@ router.get('/error-logs', async (req, res) => {
   }
 });
 
+// Sync all group names for a connection
+router.post('/:id/sync-groups', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userInfo = await getUserInfo(req.userId);
+    const { where, params } = buildConnectionAccessClause(id, req.userId, userInfo);
+
+    const checkResult = await query(
+      `SELECT *, 
+       CASE
+         WHEN provider IS NOT NULL AND provider <> '' THEN provider
+         WHEN uazapi_token IS NOT NULL THEN 'uazapi'
+         WHEN instance_id IS NOT NULL AND wapi_token IS NOT NULL THEN 'wapi'
+         ELSE 'evolution'
+       END as derived_provider 
+       FROM connections WHERE ${where}`,
+      params
+    );
+
+    const connection = checkResult.rows[0];
+    if (!connection) return res.status(404).json({ error: 'Conexão não encontrada' });
+
+    const provider = connection.derived_provider;
+    let updated = 0;
+    let total = 0;
+
+    if (provider === 'uazapi') {
+      const groups = await uaz.listGroups({
+        serverUrl: connection.uazapi_server_url,
+        token: connection.uazapi_token
+      });
+      
+      if (groups.ok && Array.isArray(groups.data)) {
+        total = groups.data.length;
+        for (const group of groups.data) {
+          const jid = group.id || group.jid;
+          const name = group.name || group.subject;
+          if (jid && name) {
+            const updateResult = await query(
+              `UPDATE conversations SET group_name = $1, updated_at = NOW() 
+               WHERE connection_id = $2 AND remote_jid = $3 AND (group_name IS NULL OR group_name = '')`,
+              [name, id, jid]
+            );
+            updated += updateResult.rowCount;
+          }
+        }
+      }
+    } else if (provider === 'wapi') {
+      const result = await wapiProvider.syncAllGroups(connection.instance_id, connection.wapi_token, id);
+      updated = result.updated || 0;
+      total = result.total || 0;
+    }
+
+    res.json({ success: true, updated, total });
+  } catch (error) {
+    console.error('Sync groups error:', error);
+    res.status(500).json({ error: 'Erro ao sincronizar grupos' });
+  }
+});
+
 // Generic chat sync route that routes to the correct provider
 router.post('/:id/sync-chat', async (req, res) => {
   try {
