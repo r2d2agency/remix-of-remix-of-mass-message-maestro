@@ -233,7 +233,7 @@ router.delete('/:id', async (req, res) => {
 
     // First check if connection exists with access
     const checkResult = await query(
-      `SELECT id, provider, instance_id, wapi_token FROM connections WHERE ${whereClause}`,
+      `SELECT id, provider, instance_id, wapi_token, uazapi_token FROM connections WHERE ${whereClause}`,
       params
     );
 
