@@ -174,8 +174,20 @@ function normalizePhone(value) {
 function normalizeJid(value, isGroup = false) {
   const raw = String(value || '').trim();
   if (!raw) return null;
-  if (raw.includes('@')) return raw;
-  const phone = normalizePhone(raw);
+  
+  let clean = raw;
+  if (raw.includes('@')) {
+    const [id, suffix] = raw.split('@');
+    if (suffix === 'g.us') return raw; // Group JID
+    if (suffix === 'c.us' || suffix === 's.whatsapp.net' || suffix === 'whatsapp.net') {
+      clean = id;
+    } else {
+      // For other suffixes (lid, etc), return as is
+      return raw;
+    }
+  }
+  
+  const phone = normalizePhone(clean);
   if (!phone) return null;
   return isGroup ? `${phone}@g.us` : `${phone}@s.whatsapp.net`;
 }
@@ -390,30 +402,34 @@ function extractUazapiMessage(payload) {
 }
 
 async function findUazapiConnection(payload, req) {
-  const possible = [
+  const possibleTokens = [
     payload?.token,
     payload?.instance?.token,
     payload?.data?.token,
+    payload?.instanceToken,
+    payload?.instance_token,
     req.headers['x-token'],
+    req.headers['token'],
   ].filter(Boolean);
 
-  for (const token of possible) {
+  for (const token of possibleTokens) {
     const c = await query(`SELECT * FROM connections WHERE provider = 'uazapi' AND uazapi_token = $1 LIMIT 1`, [token]);
     if (c.rows[0]) return c.rows[0];
   }
 
   // Also try owner (phone number) from payload
-  const owner = payload?.owner || payload?.instance?.owner || payload?.data?.owner || null;
+  const owner = payload?.owner || payload?.instance?.owner || payload?.data?.owner || payload?.data?.sender || null;
   if (owner) {
+    const phone = normalizePhone(owner);
     const c = await query(
       `SELECT * FROM connections WHERE provider = 'uazapi' AND (phone_number = $1 OR uazapi_instance_name = $1) LIMIT 1`,
-      [String(owner)]
+      [String(phone)]
     );
     if (c.rows[0]) return c.rows[0];
   }
 
-  const instanceName = payload?.instanceName || payload?.instance?.name || payload?.instance || payload?.data?.instance || null;
-  const instanceRef = instanceName || owner || payload?.instance?.id || null;
+  const instanceName = payload?.instanceName || payload?.instance?.name || payload?.instance || payload?.data?.instance || payload?.instance_name || null;
+  const instanceRef = instanceName || (typeof payload?.instance === 'string' ? payload.instance : null);
 
   if (instanceRef) {
     const c = await query(
@@ -614,7 +630,7 @@ async function saveUazapiMessage(connection, payload, req = null) {
     const insertVals = [
       conversationId, storedMessageId, content, content, (['image','video','document'].includes(entry.messageType) || content) ? content : null, 
       entry.messageType, resolvedMediaUrl, entry.mediaMimetype, msg.fromMe, msg.isGroup ? msg.senderName : null, 
-      msg.isGroup ? normalizePhone(msg.sender) : null, msg.fromMe ? 'sent' : 'received', Number(msg.timestamp) || null
+      msg.isGroup ? normalizePhone(msg.sender) : null, msg.fromMe ? 'sent' : 'received', Number(msg.timestamp) || (Date.now() / 1000)
     ];
 
     if (hasCMConnIdCurrent) {
@@ -716,7 +732,14 @@ async function saveUazapiMessage(connection, payload, req = null) {
           status: msg.fromMe ? 'sent' : 'received'
         }
       };
-      io.to(`org_${connection.organization_id}`).emit('new_message', msgData);
+
+      if (connection.organization_id) {
+        io.to(`org_${connection.organization_id}`).emit('new_message', msgData);
+      } else if (connection.user_id) {
+        // Fallback for connections without explicit organization_id but with user_id
+        io.to(`user_${connection.user_id}`).emit('new_message', msgData);
+      }
+      
       io.to(`conv_${conversationId}`).emit('new_message', msgData);
     }
   } catch (err) {
@@ -793,14 +816,18 @@ router.post('/webhook', async (req, res) => {
     const data = payload.data || payload.message || payload;
     
     // Log the event for diagnostics
-    await query(
-      `INSERT INTO uazapi_webhook_events (connection_id, event_type, payload, status)
-       VALUES ($1, $2, $3, 'received')`,
-      [connectionId, eventType, JSON.stringify(payload)]
-    ).catch(() => {});
+    if (eventType !== 'unknown' || Object.keys(payload).length > 0) {
+      console.log(`[UAZAPI Webhook] Event: ${eventType}, Connection Found: ${connectionId ? 'YES (' + connectionId + ')' : 'NO'}`);
+      
+      await query(
+        `INSERT INTO uazapi_webhook_events (connection_id, event_type, payload, status)
+         VALUES ($1, $2, $3, 'received')`,
+        [connectionId, eventType, JSON.stringify(payload)]
+      ).catch(() => {});
+    }
 
     if (!connection) {
-      console.warn('[UAZAPI Webhook] Connection not found for payload:', JSON.stringify(payload).slice(0, 200));
+      console.warn('[UAZAPI Webhook] Connection not found for payload keys:', Object.keys(payload).join(', '));
       return;
     }
 
@@ -850,6 +877,7 @@ router.post('/webhook', async (req, res) => {
       await updateInboundAudit(auditId, buildAuditOutcome('ignored', `unhandled event type: ${eventType}`, true));
     }
   } catch (err) {
+    console.error('[UAZAPI Webhook Critical Error]', err);
     logError('uazapi.webhook_critical', err, {
       payload_preview: JSON.stringify(req.body || {}).slice(0, 500)
     });
