@@ -7,6 +7,43 @@ function normalizePhone(value) {
   return raw.replace(/\D/g, '');
 }
 
+export async function getWebhookStatus({ serverUrl, token }) {
+  try {
+    const r = await uaz.getWebhook({ serverUrl, token });
+    const data = r.data || {};
+    
+    let candidates = [];
+    if (Array.isArray(data)) {
+      candidates = data;
+    } else if (Array.isArray(data.webhooks)) {
+      candidates = data.webhooks;
+    } else if (data.webhook && typeof data.webhook === 'object') {
+      candidates = [data.webhook];
+    } else if (data.url || data.enabled !== undefined) {
+      candidates = [data];
+    }
+
+    const baseUrl = process.env.API_BASE_URL;
+    const normalize = (u) => String(u || '').replace(/\/+$/, '').toLowerCase();
+    const expectedNorm = baseUrl ? normalize(`${baseUrl}/api/uazapi/webhook`) : '';
+    
+    const wh = candidates.find((w) => normalize(w?.url) === expectedNorm) || candidates[0] || {};
+    
+    return {
+      ok: r.ok,
+      enabled: wh.enabled !== false,
+      matches: expectedNorm ? normalize(wh.url) === expectedNorm : true,
+      url: wh.url
+    };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+export async function reconfigureWebhook({ serverUrl, token, url }) {
+  return uaz.configureWebhook({ serverUrl, token, webhookUrl: url });
+}
+
 export async function checkUazapiWebhooks() {
   try {
     const connections = await query(
