@@ -630,7 +630,7 @@ async function saveUazapiMessage(connection, payload, req = null) {
     const insertVals = [
       conversationId, storedMessageId, content, content, (['image','video','document'].includes(entry.messageType) || content) ? content : null, 
       entry.messageType, resolvedMediaUrl, entry.mediaMimetype, msg.fromMe, msg.isGroup ? msg.senderName : null, 
-      msg.isGroup ? normalizePhone(msg.sender) : null, msg.fromMe ? 'sent' : 'received', Number(msg.timestamp) || null
+      msg.isGroup ? normalizePhone(msg.sender) : null, msg.fromMe ? 'sent' : 'received', Number(msg.timestamp) || (Date.now() / 1000)
     ];
 
     if (hasCMConnIdCurrent) {
