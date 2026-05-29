@@ -809,14 +809,18 @@ router.post('/webhook', async (req, res) => {
     const data = payload.data || payload.message || payload;
     
     // Log the event for diagnostics
-    await query(
-      `INSERT INTO uazapi_webhook_events (connection_id, event_type, payload, status)
-       VALUES ($1, $2, $3, 'received')`,
-      [connectionId, eventType, JSON.stringify(payload)]
-    ).catch(() => {});
+    if (eventType !== 'unknown' || Object.keys(payload).length > 0) {
+      console.log(`[UAZAPI Webhook] Event: ${eventType}, Connection Found: ${connectionId ? 'YES (' + connectionId + ')' : 'NO'}`);
+      
+      await query(
+        `INSERT INTO uazapi_webhook_events (connection_id, event_type, payload, status)
+         VALUES ($1, $2, $3, 'received')`,
+        [connectionId, eventType, JSON.stringify(payload)]
+      ).catch(() => {});
+    }
 
     if (!connection) {
-      console.warn('[UAZAPI Webhook] Connection not found for payload:', JSON.stringify(payload).slice(0, 200));
+      console.warn('[UAZAPI Webhook] Connection not found for payload keys:', Object.keys(payload).join(', '));
       return;
     }
 
@@ -866,6 +870,7 @@ router.post('/webhook', async (req, res) => {
       await updateInboundAudit(auditId, buildAuditOutcome('ignored', `unhandled event type: ${eventType}`, true));
     }
   } catch (err) {
+    console.error('[UAZAPI Webhook Critical Error]', err);
     logError('uazapi.webhook_critical', err, {
       payload_preview: JSON.stringify(req.body || {}).slice(0, 500)
     });
