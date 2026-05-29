@@ -430,6 +430,7 @@ const handleGetQRCode = async (connection: Connection) => {
   };
 
   const handleDelete = async (connection: Connection) => {
+    const loadingToast = toast.loading("Excluindo conexão e limpando dados...");
     try {
       // Try provider-specific delete first (to clean up remote instance),
       // but ignore errors and always fall back to the generic connections
@@ -438,22 +439,25 @@ const handleGetQRCode = async (connection: Connection) => {
         if (isUazapi(connection)) {
           await uazapiApi.remove(connection.id);
         } else if (!isWapiConn(connection)) {
-          await api(`/api/evolution/${connection.id}`, { method: 'DELETE' });
+          // Use force=true for evolution to ignore 404s from remote
+          await api(`/api/evolution/${connection.id}?force=true`, { method: 'DELETE' });
         }
       } catch (providerErr: any) {
         console.warn('[delete] provider delete failed, falling back:', providerErr?.message);
       }
 
       // Generic cleanup (removes connection_members, chat_contacts, alerts, logs, etc.)
-      await api(`/api/connections/${connection.id}`, { method: 'DELETE' }).catch((e) => {
+      // Always use force=true to ensure deep cleanup even if record is partially missing
+      await api(`/api/connections/${connection.id}?force=true`, { method: 'DELETE' }).catch((e) => {
+        // If it's still a 404 despite force=true, we ignore it as the goal was to remove it anyway
         if (!/404|não encontrada/i.test(String(e?.message || ''))) throw e;
       });
 
       setConnections(prev => prev.filter(c => c.id !== connection.id));
-      toast.success('Conexão excluída com sucesso');
+      toast.success('Conexão e todos os dados vinculados foram excluídos com sucesso', { id: loadingToast });
     } catch (error: any) {
       console.error('Error deleting connection:', error);
-      toast.error(error?.message || 'Erro ao excluir conexão');
+      toast.error(error?.message || 'Erro ao excluir conexão', { id: loadingToast });
     }
   };
 
