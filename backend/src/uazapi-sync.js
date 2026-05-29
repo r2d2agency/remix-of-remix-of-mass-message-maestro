@@ -1,7 +1,48 @@
 import { query } from './db.js';
 import { logInfo, logError } from './logger.js';
 import * as uaz from './lib/uazapi-provider.js';
-import { normalizePhone } from './routes/uazapi.js';
+
+function normalizePhone(value) {
+  const raw = String(value || '').replace(/@.*$/, '');
+  return raw.replace(/\D/g, '');
+}
+
+async function getWebhookStatus({ serverUrl, token }) {
+  try {
+    const r = await uaz.getWebhook({ serverUrl, token });
+    const data = r.data || {};
+    
+    let candidates = [];
+    if (Array.isArray(data)) {
+      candidates = data;
+    } else if (Array.isArray(data.webhooks)) {
+      candidates = data.webhooks;
+    } else if (data.webhook && typeof data.webhook === 'object') {
+      candidates = [data.webhook];
+    } else if (data.url || data.enabled !== undefined) {
+      candidates = [data];
+    }
+
+    const baseUrl = process.env.API_BASE_URL;
+    const normalize = (u) => String(u || '').replace(/\/+$/, '').toLowerCase();
+    const expectedNorm = baseUrl ? normalize(`${baseUrl}/api/uazapi/webhook`) : '';
+    
+    const wh = candidates.find((w) => normalize(w?.url) === expectedNorm) || candidates[0] || {};
+    
+    return {
+      ok: r.ok,
+      enabled: wh.enabled !== false,
+      matches: expectedNorm ? normalize(wh.url) === expectedNorm : true,
+      url: wh.url
+    };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+async function reconfigureWebhook({ serverUrl, token, url }) {
+  return uaz.configureWebhook({ serverUrl, token, webhookUrl: url });
+}
 
 export async function checkUazapiWebhooks() {
   try {
@@ -15,7 +56,7 @@ export async function checkUazapiWebhooks() {
       logInfo('uazapi.webhook_check', { connection_id: conn.id, name: conn.name });
       
       try {
-        const status = await uaz.getWebhookStatus({
+        const status = await getWebhookStatus({
           serverUrl: conn.uazapi_server_url,
           token: conn.uazapi_token
         });
@@ -29,7 +70,7 @@ export async function checkUazapiWebhooks() {
           const baseUrl = process.env.API_BASE_URL;
           if (baseUrl) {
             const webhookUrl = `${baseUrl}/api/uazapi/webhook`;
-            await uaz.reconfigureWebhook({
+            await reconfigureWebhook({
               serverUrl: conn.uazapi_server_url,
               token: conn.uazapi_token,
               url: webhookUrl
