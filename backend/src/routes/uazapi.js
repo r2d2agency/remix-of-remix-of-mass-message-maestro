@@ -732,7 +732,14 @@ async function saveUazapiMessage(connection, payload, req = null) {
           status: msg.fromMe ? 'sent' : 'received'
         }
       };
-      io.to(`org_${connection.organization_id}`).emit('new_message', msgData);
+
+      if (connection.organization_id) {
+        io.to(`org_${connection.organization_id}`).emit('new_message', msgData);
+      } else if (connection.user_id) {
+        // Fallback for connections without explicit organization_id but with user_id
+        io.to(`user_${connection.user_id}`).emit('new_message', msgData);
+      }
+      
       io.to(`conv_${conversationId}`).emit('new_message', msgData);
     }
   } catch (err) {
