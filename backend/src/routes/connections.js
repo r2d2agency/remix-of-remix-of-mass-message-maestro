@@ -9,24 +9,32 @@ const W_API_INTEGRATOR_URL = 'https://api.w-api.app/v1/integrator';
 const router = Router();
 router.use(authenticate);
 
-// Helper to get user's organization
-async function getUserOrganization(userId) {
+// Helper to get user's organization and superadmin status
+async function getUserInfo(userId) {
   const result = await query(
-    `SELECT om.organization_id, om.role 
-     FROM organization_members om 
-     WHERE om.user_id = $1 
+    `SELECT om.organization_id, om.role, u.is_superadmin 
+     FROM users u
+     LEFT JOIN organization_members om ON om.user_id = u.id 
+     WHERE u.id = $1 
      LIMIT 1`,
     [userId]
   );
-  return result.rows[0] || null;
+  return result.rows[0] || { is_superadmin: false };
 }
 
 // Helper to build a WHERE clause that includes connection_members access
-function buildConnectionAccessClause(id, userId, org) {
-  if (org) {
+function buildConnectionAccessClause(id, userId, userInfo) {
+  if (userInfo.is_superadmin) {
     return {
-      where: `id = $1 AND organization_id = $2 AND id IN (SELECT connection_id FROM connection_members WHERE user_id = $3)`,
-      params: [id, org.organization_id, userId]
+      where: `id = $1`,
+      params: [id]
+    };
+  }
+  
+  if (userInfo.organization_id) {
+    return {
+      where: `id = $1 AND (organization_id = $2 OR id IN (SELECT connection_id FROM connection_members WHERE user_id = $3))`,
+      params: [id, userInfo.organization_id, userId]
     };
   }
   return {
@@ -35,17 +43,12 @@ function buildConnectionAccessClause(id, userId, org) {
   };
 }
 
-// List connections (ALL users only see assigned connections via connection_members)
+// List connections
 router.get('/', async (req, res) => {
   try {
-    const org = await getUserOrganization(req.userId);
+    const userInfo = await getUserInfo(req.userId);
+    const isSuperadmin = userInfo.is_superadmin;
 
-    // All organization roles (including owner/admin) only see connections explicitly assigned via connection_members
-    const specificResult = await query(
-      `SELECT DISTINCT cm.connection_id FROM connection_members cm WHERE cm.user_id = $1`,
-      [req.userId]
-    );
-    
     // Build provider-derivation expression that preserves 'uazapi'
     const providerExpr = `CASE
        WHEN c.provider IS NOT NULL AND c.provider <> '' THEN c.provider
@@ -54,32 +57,47 @@ router.get('/', async (req, res) => {
        ELSE 'evolution'
      END`;
 
-    if (specificResult.rows.length > 0) {
-      const connIds = specificResult.rows.map(r => r.connection_id);
-      const result = await query(
+    let result;
+    if (isSuperadmin) {
+      // Superadmin sees everything
+      result = await query(
         `SELECT c.*, u.name as created_by_name,
          ${providerExpr} as provider
          FROM connections c
          LEFT JOIN users u ON c.user_id = u.id
-         WHERE c.id = ANY($1)
-         ORDER BY c.created_at DESC`,
-        [connIds]
+         ORDER BY c.created_at DESC`
       );
-      return res.json(result.rows);
+    } else {
+      // Regular users only see assigned connections via connection_members
+      const specificResult = await query(
+        `SELECT DISTINCT cm.connection_id FROM connection_members cm WHERE cm.user_id = $1`,
+        [req.userId]
+      );
+      
+      if (specificResult.rows.length > 0) {
+        const connIds = specificResult.rows.map(r => r.connection_id);
+        result = await query(
+          `SELECT c.*, u.name as created_by_name,
+           ${providerExpr} as provider
+           FROM connections c
+           LEFT JOIN users u ON c.user_id = u.id
+           WHERE c.id = ANY($1)
+           ORDER BY c.created_at DESC`,
+          [connIds]
+        );
+      } else if (userInfo.organization_id) {
+        // Fallback for organization members: they see nothing unless assigned
+        return res.json([]);
+      } else {
+        // Fallback: user without organization sees only their own
+        result = await query(
+          `SELECT c.*,
+           ${providerExpr} as provider
+           FROM connections c WHERE c.user_id = $1 ORDER BY c.created_at DESC`,
+          [req.userId]
+        );
+      }
     }
-
-    // No assignments in an organization means no visible connections for every role
-    if (org) {
-      return res.json([]);
-    }
-
-    // Fallback: user without organization sees only their own
-    const result = await query(
-      `SELECT c.*,
-       ${providerExpr} as provider
-       FROM connections c WHERE c.user_id = $1 ORDER BY c.created_at DESC`,
-      [req.userId]
-    );
     
     res.json(result.rows);
   } catch (error) {
@@ -112,14 +130,14 @@ router.post('/', async (req, res) => {
       }
     }
 
-    const org = await getUserOrganization(req.userId);
+    const userInfo = await getUserInfo(req.userId);
 
     const result = await query(
       `INSERT INTO connections (user_id, organization_id, provider, api_url, api_key, instance_name, instance_id, wapi_token, name)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
       [
         req.userId, 
-        org?.organization_id || null, 
+        userInfo?.organization_id || null, 
         provider,
         api_url || null, 
         api_key || null, 
@@ -174,7 +192,7 @@ router.patch('/:id', async (req, res) => {
       show_groups
     } = req.body;
 
-    const org = await getUserOrganization(req.userId);
+    const userInfo = await getUserInfo(req.userId);
 
     // Allow update if user owns the connection, belongs to same organization, OR is assigned via connection_members
     let whereClause = 'id = $10 AND (user_id = $11 OR id IN (SELECT connection_id FROM connection_members WHERE user_id = $11))';
@@ -182,7 +200,7 @@ router.patch('/:id', async (req, res) => {
 
     if (org) {
       whereClause = 'id = $10 AND (organization_id = $11 OR id IN (SELECT connection_id FROM connection_members WHERE user_id = $12))';
-      params = [provider, api_url, api_key, instance_name, instance_id, wapi_token, name, status, show_groups, id, org.organization_id, req.userId];
+      params = [provider, api_url, api_key, instance_name, instance_id, wapi_token, name, status, show_groups, id, userInfo.organization_id, req.userId];
     }
 
     const result = await query(
@@ -217,60 +235,81 @@ router.patch('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { force } = req.query; // ?force=true to skip external API calls
+    const force = req.query.force === 'true' || req.query.force === true;
 
-    const org = await getUserOrganization(req.userId);
+    const userInfo = await getUserInfo(req.userId);
+    const isSuperadmin = userInfo.is_superadmin;
 
-    // Allow delete if user owns the connection, belongs to same organization (with permission),
-    // OR is assigned via connection_members
-    let whereClause = 'id = $1 AND (user_id = $2 OR id IN (SELECT connection_id FROM connection_members WHERE user_id = $2))';
-    let params = [id, req.userId];
-
-    if (org && ['owner', 'admin', 'manager'].includes(org.role)) {
-      whereClause = 'id = $1 AND organization_id = $2';
-      params = [id, org.organization_id];
-    }
+    // Build access check
+    const { where, params } = buildConnectionAccessClause(id, req.userId, userInfo);
 
     // First check if connection exists with access
     const checkResult = await query(
-      `SELECT id, provider, instance_id, wapi_token, uazapi_token FROM connections WHERE ${whereClause}`,
+      `SELECT id, provider, instance_id, wapi_token, uazapi_token, instance_name FROM connections WHERE ${where}`,
       params
     );
 
-    if (checkResult.rows.length === 0) {
+    const connection = checkResult.rows[0];
+
+    if (!connection && !force) {
       return res.status(404).json({ error: 'Conexão não encontrada' });
     }
+    
+    // If not superadmin and connection doesn't exist, we can't force delete an unknown ID
+    if (!connection && force && !isSuperadmin) {
+      return res.status(404).json({ error: 'Conexão não encontrada ou permissão insuficiente para limpeza forçada' });
+    }
 
-    // Clean up dependent tables
+    // Provider-specific cleanup if it still exists in DB
+    if (connection && !force) {
+      try {
+        if (connection.provider === 'wapi' && connection.instance_id && connection.wapi_token) {
+          // No specific cleanup for W-API yet, but could add logout here
+        } else if (connection.provider === 'evolution' && connection.instance_name) {
+          // Evolution cleanup usually handled by its own route, but we could add safety here
+        }
+      } catch (providerError) {
+        console.warn('[connections] provider cleanup failed:', providerError?.message);
+      }
+    }
+
+    // Deep cleanup queries (order matters for FKs if not cascade)
+    // Most tables have ON DELETE CASCADE, but we do these for safety and for tables without it
+    // especially important when force=true and the connection record is already gone (cascade won't trigger)
     const cleanupQueries = [
-      `DELETE FROM connection_members WHERE connection_id = $1`,
-      `DELETE FROM chat_contacts WHERE connection_id = $1`,
-      `DELETE FROM uazapi_webhook_events WHERE connection_id = $1`,
-      `DELETE FROM connection_error_logs WHERE connection_id = $1`,
-      `DELETE FROM user_alerts WHERE metadata->>'connection_id' = $1::text`
+      // Direct connection related
+      { sql: `DELETE FROM connection_members WHERE connection_id = $1`, params: [id] },
+      { sql: `DELETE FROM connection_error_logs WHERE connection_id = $1`, params: [id] },
+      { sql: `DELETE FROM uazapi_webhook_events WHERE connection_id = $1`, params: [id] },
+      
+      // Chat related (should be cascaded but being explicit for "zerado" request and force mode)
+      { sql: `DELETE FROM chat_messages WHERE conversation_id IN (SELECT id FROM conversations WHERE connection_id = $1)`, params: [id] },
+      { sql: `DELETE FROM conversation_tag_links WHERE conversation_id IN (SELECT id FROM conversations WHERE connection_id = $1)`, params: [id] },
+      { sql: `DELETE FROM conversations WHERE connection_id = $1`, params: [id] },
+      { sql: `DELETE FROM chat_contacts WHERE connection_id = $1`, params: [id] },
+      
+      // Contact Lists (cascades to contacts)
+      { sql: `DELETE FROM contact_lists WHERE connection_id = $1`, params: [id] },
+      
+      // Automation & Other
+      { sql: `DELETE FROM user_alerts WHERE metadata->>'connection_id' = $1::text`, params: [id] },
+      { sql: `DELETE FROM inbound_webhook_audit WHERE metadata->>'connection_id' = $1::text`, params: [id] },
+      { sql: `UPDATE campaigns SET connection_id = NULL WHERE connection_id = $1`, params: [id] },
+      { sql: `DELETE FROM whatsapp_sessions WHERE connection_id = $1`, params: [id] }
     ];
 
     for (const q of cleanupQueries) {
-      await query(q, [id]).catch(e => console.warn(`[connections] cleanup query failed: ${q}`, e?.message));
+      await query(q.sql, q.params).catch(e => 
+        console.warn(`[connections] cleanup query failed: ${q.sql.substring(0, 50)}...`, e?.message)
+      );
     }
 
-    // Delete the connection from DB
-    const result = await query(
-      `DELETE FROM connections WHERE id = $1 RETURNING id`,
-      [id]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Conexão não encontrada' });
+    // Delete the connection from DB (if it exists)
+    if (connection) {
+      await query(`DELETE FROM connections WHERE id = $1`, [id]);
     }
 
-    // Log the deletion (to a general audit table or just ignore if it's the connection log itself)
-    // Since we just deleted connection_error_logs for this ID, we skip inserting here to avoid FK issues
-    // or insert to a global audit table if available.
-    
-    res.json({ success: true });
-
-    res.json({ success: true });
+    res.json({ success: true, message: 'Conexão e todos os dados vinculados foram excluídos com sucesso' });
   } catch (error) {
     console.error('Delete connection error:', error);
     res.status(500).json({ error: 'Erro ao deletar conexão' });
@@ -281,9 +320,9 @@ router.delete('/:id', async (req, res) => {
 router.post('/:id/configure-webhooks', async (req, res) => {
   try {
     const { id } = req.params;
-    const org = await getUserOrganization(req.userId);
+    const userInfo = await getUserInfo(req.userId);
 
-    const { where, params } = buildConnectionAccessClause(id, req.userId, org);
+    const { where, params } = buildConnectionAccessClause(id, req.userId, userInfo);
 
     const connResult = await query(
       `SELECT * FROM connections WHERE ${where}`,
@@ -341,9 +380,9 @@ router.post('/:id/pairing-code', async (req, res) => {
       return res.status(400).json({ error: 'Número de telefone é obrigatório' });
     }
 
-    const org = await getUserOrganization(req.userId);
+    const userInfo = await getUserInfo(req.userId);
 
-    const { where, params } = buildConnectionAccessClause(id, req.userId, org);
+    const { where, params } = buildConnectionAccessClause(id, req.userId, userInfo);
 
     const connResult = await query(
       `SELECT * FROM connections WHERE ${where}`,
@@ -428,7 +467,7 @@ router.post('/wapi-integrator/create-instance', async (req, res) => {
     const { instanceName } = req.body;
     if (!instanceName) return res.status(400).json({ error: 'Nome da instância é obrigatório' });
 
-    const org = await getUserOrganization(req.userId);
+    const userInfo = await getUserInfo(req.userId);
     if (!org) return res.status(404).json({ error: 'Organização não encontrada' });
 
     // Get global integrator token from system_settings
@@ -473,7 +512,7 @@ router.post('/wapi-integrator/create-instance', async (req, res) => {
     const connResult = await query(
       `INSERT INTO connections (user_id, organization_id, provider, instance_id, wapi_token, name)
        VALUES ($1, $2, 'wapi', $3, $4, $5) RETURNING *`,
-      [req.userId, org.organization_id, instanceId, instanceToken, instanceName]
+      [req.userId, userInfo.organization_id, instanceId, instanceToken, instanceName]
     );
 
     const connection = connResult.rows[0];
@@ -501,7 +540,7 @@ router.post('/wapi-integrator/create-instance', async (req, res) => {
 // List W-API instances via Integrator API
 router.get('/wapi-integrator/instances', async (req, res) => {
   try {
-    const org = await getUserOrganization(req.userId);
+    const userInfo = await getUserInfo(req.userId);
     if (!org) return res.status(404).json({ error: 'Organização não encontrada' });
 
     const tokenResult = await query(
@@ -532,14 +571,14 @@ router.get('/wapi-integrator/instances', async (req, res) => {
 // Connection error logs (diagnostics)
 router.get('/error-logs', async (req, res) => {
   try {
-    const org = await getUserOrganization(req.userId);
-    if (!org || !['owner', 'admin'].includes(org.role)) {
+    const userInfo = await getUserInfo(req.userId);
+    if (!org || !['owner', 'admin'].includes(userInfo.role)) {
       return res.status(403).json({ error: 'Sem permissão' });
     }
 
     const { connection_id, limit = '50' } = req.query;
     let filter = 'organization_id = $1';
-    const params = [org.organization_id];
+    const params = [userInfo.organization_id];
 
     if (connection_id) {
       filter += ' AND connection_id = $2';
@@ -561,14 +600,14 @@ router.get('/error-logs', async (req, res) => {
 // Clear old connection error logs
 router.delete('/error-logs', async (req, res) => {
   try {
-    const org = await getUserOrganization(req.userId);
-    if (!org || !['owner', 'admin'].includes(org.role)) {
+    const userInfo = await getUserInfo(req.userId);
+    if (!org || !['owner', 'admin'].includes(userInfo.role)) {
       return res.status(403).json({ error: 'Sem permissão' });
     }
 
     await query(
       `DELETE FROM connection_error_logs WHERE organization_id = $1 AND created_at < NOW() - INTERVAL '7 days'`,
-      [org.organization_id]
+      [userInfo.organization_id]
     );
 
     res.json({ success: true });
@@ -580,8 +619,8 @@ router.delete('/error-logs', async (req, res) => {
 // Merge duplicate conversations (same phone/JID across different connections in same org)
 router.post('/cleanup-duplicates', async (req, res) => {
   try {
-    const org = await getUserOrganization(req.userId);
-    if (!org || !['owner', 'admin'].includes(org.role)) {
+    const userInfo = await getUserInfo(req.userId);
+    if (!org || !['owner', 'admin'].includes(userInfo.role)) {
       return res.status(403).json({ error: 'Apenas administradores podem realizar esta ação' });
     }
 
@@ -595,7 +634,7 @@ router.post('/cleanup-duplicates', async (req, res) => {
       WHERE connection_id IN (SELECT id FROM connections WHERE organization_id = $1)
       GROUP BY remote_jid
       HAVING COUNT(*) > 1
-    `, [org.organization_id]);
+    `, [userInfo.organization_id]);
 
     let mergedCount = 0;
 
