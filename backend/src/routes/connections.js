@@ -130,14 +130,14 @@ router.post('/', async (req, res) => {
       }
     }
 
-    const org = await getUserOrganization(req.userId);
+    const userInfo = await getUserInfo(req.userId);
 
     const result = await query(
       `INSERT INTO connections (user_id, organization_id, provider, api_url, api_key, instance_name, instance_id, wapi_token, name)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
       [
         req.userId, 
-        org?.organization_id || null, 
+        userInfo?.organization_id || null, 
         provider,
         api_url || null, 
         api_key || null, 
@@ -192,7 +192,7 @@ router.patch('/:id', async (req, res) => {
       show_groups
     } = req.body;
 
-    const org = await getUserOrganization(req.userId);
+    const userInfo = await getUserInfo(req.userId);
 
     // Allow update if user owns the connection, belongs to same organization, OR is assigned via connection_members
     let whereClause = 'id = $10 AND (user_id = $11 OR id IN (SELECT connection_id FROM connection_members WHERE user_id = $11))';
@@ -200,7 +200,7 @@ router.patch('/:id', async (req, res) => {
 
     if (org) {
       whereClause = 'id = $10 AND (organization_id = $11 OR id IN (SELECT connection_id FROM connection_members WHERE user_id = $12))';
-      params = [provider, api_url, api_key, instance_name, instance_id, wapi_token, name, status, show_groups, id, org.organization_id, req.userId];
+      params = [provider, api_url, api_key, instance_name, instance_id, wapi_token, name, status, show_groups, id, userInfo.organization_id, req.userId];
     }
 
     const result = await query(
@@ -315,9 +315,9 @@ router.delete('/:id', async (req, res) => {
 router.post('/:id/configure-webhooks', async (req, res) => {
   try {
     const { id } = req.params;
-    const org = await getUserOrganization(req.userId);
+    const userInfo = await getUserInfo(req.userId);
 
-    const { where, params } = buildConnectionAccessClause(id, req.userId, org);
+    const { where, params } = buildConnectionAccessClause(id, req.userId, userInfo);
 
     const connResult = await query(
       `SELECT * FROM connections WHERE ${where}`,
@@ -375,9 +375,9 @@ router.post('/:id/pairing-code', async (req, res) => {
       return res.status(400).json({ error: 'Número de telefone é obrigatório' });
     }
 
-    const org = await getUserOrganization(req.userId);
+    const userInfo = await getUserInfo(req.userId);
 
-    const { where, params } = buildConnectionAccessClause(id, req.userId, org);
+    const { where, params } = buildConnectionAccessClause(id, req.userId, userInfo);
 
     const connResult = await query(
       `SELECT * FROM connections WHERE ${where}`,
@@ -462,7 +462,7 @@ router.post('/wapi-integrator/create-instance', async (req, res) => {
     const { instanceName } = req.body;
     if (!instanceName) return res.status(400).json({ error: 'Nome da instância é obrigatório' });
 
-    const org = await getUserOrganization(req.userId);
+    const userInfo = await getUserInfo(req.userId);
     if (!org) return res.status(404).json({ error: 'Organização não encontrada' });
 
     // Get global integrator token from system_settings
@@ -507,7 +507,7 @@ router.post('/wapi-integrator/create-instance', async (req, res) => {
     const connResult = await query(
       `INSERT INTO connections (user_id, organization_id, provider, instance_id, wapi_token, name)
        VALUES ($1, $2, 'wapi', $3, $4, $5) RETURNING *`,
-      [req.userId, org.organization_id, instanceId, instanceToken, instanceName]
+      [req.userId, userInfo.organization_id, instanceId, instanceToken, instanceName]
     );
 
     const connection = connResult.rows[0];
@@ -535,7 +535,7 @@ router.post('/wapi-integrator/create-instance', async (req, res) => {
 // List W-API instances via Integrator API
 router.get('/wapi-integrator/instances', async (req, res) => {
   try {
-    const org = await getUserOrganization(req.userId);
+    const userInfo = await getUserInfo(req.userId);
     if (!org) return res.status(404).json({ error: 'Organização não encontrada' });
 
     const tokenResult = await query(
@@ -566,14 +566,14 @@ router.get('/wapi-integrator/instances', async (req, res) => {
 // Connection error logs (diagnostics)
 router.get('/error-logs', async (req, res) => {
   try {
-    const org = await getUserOrganization(req.userId);
-    if (!org || !['owner', 'admin'].includes(org.role)) {
+    const userInfo = await getUserInfo(req.userId);
+    if (!org || !['owner', 'admin'].includes(userInfo.role)) {
       return res.status(403).json({ error: 'Sem permissão' });
     }
 
     const { connection_id, limit = '50' } = req.query;
     let filter = 'organization_id = $1';
-    const params = [org.organization_id];
+    const params = [userInfo.organization_id];
 
     if (connection_id) {
       filter += ' AND connection_id = $2';
@@ -595,14 +595,14 @@ router.get('/error-logs', async (req, res) => {
 // Clear old connection error logs
 router.delete('/error-logs', async (req, res) => {
   try {
-    const org = await getUserOrganization(req.userId);
-    if (!org || !['owner', 'admin'].includes(org.role)) {
+    const userInfo = await getUserInfo(req.userId);
+    if (!org || !['owner', 'admin'].includes(userInfo.role)) {
       return res.status(403).json({ error: 'Sem permissão' });
     }
 
     await query(
       `DELETE FROM connection_error_logs WHERE organization_id = $1 AND created_at < NOW() - INTERVAL '7 days'`,
-      [org.organization_id]
+      [userInfo.organization_id]
     );
 
     res.json({ success: true });
@@ -614,8 +614,8 @@ router.delete('/error-logs', async (req, res) => {
 // Merge duplicate conversations (same phone/JID across different connections in same org)
 router.post('/cleanup-duplicates', async (req, res) => {
   try {
-    const org = await getUserOrganization(req.userId);
-    if (!org || !['owner', 'admin'].includes(org.role)) {
+    const userInfo = await getUserInfo(req.userId);
+    if (!org || !['owner', 'admin'].includes(userInfo.role)) {
       return res.status(403).json({ error: 'Apenas administradores podem realizar esta ação' });
     }
 
@@ -629,7 +629,7 @@ router.post('/cleanup-duplicates', async (req, res) => {
       WHERE connection_id IN (SELECT id FROM connections WHERE organization_id = $1)
       GROUP BY remote_jid
       HAVING COUNT(*) > 1
-    `, [org.organization_id]);
+    `, [userInfo.organization_id]);
 
     let mergedCount = 0;
 
