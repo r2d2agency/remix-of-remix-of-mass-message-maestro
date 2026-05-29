@@ -425,5 +425,12 @@ initDatabase().then((ok) => {
       timezone: 'America/Sao_Paulo'
     });
     console.log('🎙️ Meeting audio cleanup started - checks every 15 minutes');
+
+    // Run UAZAPI webhook health check on startup and then every 30 minutes
+    checkUazapiWebhooks().catch(err => console.error('Error in initial UAZAPI webhook check:', err));
+    cron.schedule('*/30 * * * *', async () => {
+      console.log('🔍 [CRON] UAZAPI webhook check triggered');
+      await checkUazapiWebhooks();
+    });
   });
 });
