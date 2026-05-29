@@ -404,34 +404,6 @@ export const useChat = () => {
     return data;
   }, []);
 
-  // Sync group name from provider (UAZAPI or W-API)
-  const syncGroupName = useCallback(async (connectionId: string, conversationId: string): Promise<{ success: boolean; group_name?: string }> => {
-    try {
-      const data = await api<{ success: boolean; group_name?: string }>(
-        `/api/chat/conversations/${conversationId}/sync-group-name`,
-        { method: 'POST' }
-      );
-      return data;
-    } catch (err) {
-      console.error('Error syncing group name:', err);
-      return { success: false };
-    }
-  }, []);
-
-  // Sync all group names for a connection
-  const syncAllGroupNames = useCallback(async (connectionId: string): Promise<{ total: number; updated: number }> => {
-    try {
-      const data = await api<{ total: number; updated: number }>(
-        `/api/connections/${connectionId}/sync-groups`,
-        { method: 'POST' }
-      );
-      return data;
-    } catch (err) {
-      console.error('Error syncing all group names:', err);
-      return { total: 0, updated: 0 };
-    }
-  }, []);
-
   // Tags
   const getTags = useCallback(async (): Promise<ConversationTag[]> => {
     const data = await api<ConversationTag[]>('/api/chat/tags');
@@ -585,10 +557,10 @@ export const useChat = () => {
     return data.count;
   }, []);
 
-  // Sync group name from W-API
+  // Sync group name from W-API or UAZAPI
   const syncGroupName = useCallback(async (connectionId: string, conversationId: string): Promise<{ success: boolean; group_name?: string }> => {
     try {
-      const data = await api<{ success: boolean; group_name?: string }>(`/api/wapi/${connectionId}/sync-group-name/${conversationId}`, {
+      const data = await api<{ success: boolean; group_name?: string }>(`/api/chat/conversations/${conversationId}/sync-group-name`, {
         method: 'POST',
       });
       return data;
@@ -598,10 +570,10 @@ export const useChat = () => {
     }
   }, []);
 
-  // Sync all group names from W-API for a connection
+  // Sync all group names for a connection
   const syncAllGroupNames = useCallback(async (connectionId: string): Promise<{ success: boolean; updated?: number; total?: number; message?: string }> => {
     try {
-      const data = await api<{ success: boolean; updated?: number; total?: number; message?: string }>(`/api/wapi/${connectionId}/sync-all-groups`, {
+      const data = await api<{ success: boolean; updated?: number; total?: number; message?: string }>(`/api/connections/${connectionId}/sync-groups`, {
         method: 'POST',
       });
       return data;
