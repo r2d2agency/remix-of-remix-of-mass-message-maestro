@@ -241,10 +241,20 @@ router.delete('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Conexão não encontrada' });
     }
 
-    // Clean up connection_members first
-    await query(`DELETE FROM connection_members WHERE connection_id = $1`, [id]).catch(() => {});
+    // Clean up dependent tables
+    const cleanupQueries = [
+      `DELETE FROM connection_members WHERE connection_id = $1`,
+      `DELETE FROM chat_contacts WHERE connection_id = $1`,
+      `DELETE FROM uazapi_webhook_events WHERE connection_id = $1`,
+      `DELETE FROM connection_error_logs WHERE connection_id = $1`,
+      `DELETE FROM user_alerts WHERE metadata->>'connection_id' = $1::text`
+    ];
 
-    // Delete the connection from DB (even if external API call fails)
+    for (const q of cleanupQueries) {
+      await query(q, [id]).catch(e => console.warn(`[connections] cleanup query failed: ${q}`, e?.message));
+    }
+
+    // Delete the connection from DB
     const result = await query(
       `DELETE FROM connections WHERE id = $1 RETURNING id`,
       [id]
