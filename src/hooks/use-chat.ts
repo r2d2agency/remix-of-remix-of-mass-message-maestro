@@ -448,9 +448,6 @@ export const useChat = () => {
     days?: number;
   }): Promise<{ imported: number; skipped?: number; total?: number; message?: string }> => {
     // Determine provider and call appropriate sync endpoint
-    // We can check connection by calling getConnections or just try a generic endpoint if it exists
-    // For now, let's keep it calling evolution but handle it in backend if needed
-    // or better: let's make it generic
     const data = await api<{ imported: number; skipped?: number; total?: number; message?: string }>(
       `/api/connections/${params.connectionId}/sync-chat`,
       {
