@@ -275,22 +275,27 @@ router.delete('/:id', async (req, res) => {
 
     // Deep cleanup queries (order matters for FKs if not cascade)
     // Most tables have ON DELETE CASCADE, but we do these for safety and for tables without it
+    // especially important when force=true and the connection record is already gone (cascade won't trigger)
     const cleanupQueries = [
       // Direct connection related
       { sql: `DELETE FROM connection_members WHERE connection_id = $1`, params: [id] },
       { sql: `DELETE FROM connection_error_logs WHERE connection_id = $1`, params: [id] },
       { sql: `DELETE FROM uazapi_webhook_events WHERE connection_id = $1`, params: [id] },
       
-      // Chat related (should be cascaded but being explicit for "zerado" request)
+      // Chat related (should be cascaded but being explicit for "zerado" request and force mode)
       { sql: `DELETE FROM chat_messages WHERE conversation_id IN (SELECT id FROM conversations WHERE connection_id = $1)`, params: [id] },
       { sql: `DELETE FROM conversation_tag_links WHERE conversation_id IN (SELECT id FROM conversations WHERE connection_id = $1)`, params: [id] },
       { sql: `DELETE FROM conversations WHERE connection_id = $1`, params: [id] },
       { sql: `DELETE FROM chat_contacts WHERE connection_id = $1`, params: [id] },
       
+      // Contact Lists (cascades to contacts)
+      { sql: `DELETE FROM contact_lists WHERE connection_id = $1`, params: [id] },
+      
       // Automation & Other
       { sql: `DELETE FROM user_alerts WHERE metadata->>'connection_id' = $1::text`, params: [id] },
       { sql: `DELETE FROM inbound_webhook_audit WHERE metadata->>'connection_id' = $1::text`, params: [id] },
-      { sql: `UPDATE campaigns SET connection_id = NULL WHERE connection_id = $1`, params: [id] }
+      { sql: `UPDATE campaigns SET connection_id = NULL WHERE connection_id = $1`, params: [id] },
+      { sql: `DELETE FROM whatsapp_sessions WHERE connection_id = $1`, params: [id] }
     ];
 
     for (const q of cleanupQueries) {
