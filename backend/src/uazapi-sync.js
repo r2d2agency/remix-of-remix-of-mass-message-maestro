@@ -1,7 +1,11 @@
 import { query } from './db.js';
 import { logInfo, logError } from './logger.js';
 import * as uaz from './lib/uazapi-provider.js';
-export { normalizePhone } from './routes/uazapi.js';
+
+function normalizePhone(value) {
+  const raw = String(value || '').replace(/@.*$/, '');
+  return raw.replace(/\D/g, '');
+}
 
 export async function checkUazapiWebhooks() {
   try {
