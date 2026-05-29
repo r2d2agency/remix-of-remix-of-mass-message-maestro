@@ -43,17 +43,12 @@ function buildConnectionAccessClause(id, userId, userInfo) {
   };
 }
 
-// List connections (ALL users only see assigned connections via connection_members)
+// List connections
 router.get('/', async (req, res) => {
   try {
-    const org = await getUserOrganization(req.userId);
+    const userInfo = await getUserInfo(req.userId);
+    const isSuperadmin = userInfo.is_superadmin;
 
-    // All organization roles (including owner/admin) only see connections explicitly assigned via connection_members
-    const specificResult = await query(
-      `SELECT DISTINCT cm.connection_id FROM connection_members cm WHERE cm.user_id = $1`,
-      [req.userId]
-    );
-    
     // Build provider-derivation expression that preserves 'uazapi'
     const providerExpr = `CASE
        WHEN c.provider IS NOT NULL AND c.provider <> '' THEN c.provider
@@ -62,32 +57,47 @@ router.get('/', async (req, res) => {
        ELSE 'evolution'
      END`;
 
-    if (specificResult.rows.length > 0) {
-      const connIds = specificResult.rows.map(r => r.connection_id);
-      const result = await query(
+    let result;
+    if (isSuperadmin) {
+      // Superadmin sees everything
+      result = await query(
         `SELECT c.*, u.name as created_by_name,
          ${providerExpr} as provider
          FROM connections c
          LEFT JOIN users u ON c.user_id = u.id
-         WHERE c.id = ANY($1)
-         ORDER BY c.created_at DESC`,
-        [connIds]
+         ORDER BY c.created_at DESC`
       );
-      return res.json(result.rows);
+    } else {
+      // Regular users only see assigned connections via connection_members
+      const specificResult = await query(
+        `SELECT DISTINCT cm.connection_id FROM connection_members cm WHERE cm.user_id = $1`,
+        [req.userId]
+      );
+      
+      if (specificResult.rows.length > 0) {
+        const connIds = specificResult.rows.map(r => r.connection_id);
+        result = await query(
+          `SELECT c.*, u.name as created_by_name,
+           ${providerExpr} as provider
+           FROM connections c
+           LEFT JOIN users u ON c.user_id = u.id
+           WHERE c.id = ANY($1)
+           ORDER BY c.created_at DESC`,
+          [connIds]
+        );
+      } else if (userInfo.organization_id) {
+        // Fallback for organization members: they see nothing unless assigned
+        return res.json([]);
+      } else {
+        // Fallback: user without organization sees only their own
+        result = await query(
+          `SELECT c.*,
+           ${providerExpr} as provider
+           FROM connections c WHERE c.user_id = $1 ORDER BY c.created_at DESC`,
+          [req.userId]
+        );
+      }
     }
-
-    // No assignments in an organization means no visible connections for every role
-    if (org) {
-      return res.json([]);
-    }
-
-    // Fallback: user without organization sees only their own
-    const result = await query(
-      `SELECT c.*,
-       ${providerExpr} as provider
-       FROM connections c WHERE c.user_id = $1 ORDER BY c.created_at DESC`,
-      [req.userId]
-    );
     
     res.json(result.rows);
   } catch (error) {
