@@ -47,6 +47,7 @@ import meetingsRoutes from './routes/meetings.js';
 import meetingAuditRoutes, { cleanupExpiredAudio } from './routes/meeting-audit.js';
 import uazapiRoutes from './routes/uazapi.js';
 import documentsRoutes from './routes/documents.js';
+import { checkUazapiWebhooks } from './uazapi-sync.js';
 
 import { initDatabase } from './init-db.js';
 import { executeNotifications } from './scheduler.js';
@@ -61,7 +62,7 @@ import { executeSecretaryFollowups } from './secretary-followup-scheduler.js';
 import { executeSecretaryDigest } from './secretary-digest-scheduler.js';
 import { executeAASPSync } from './aasp-scheduler.js';
 import { requestContext } from './request-context.js';
-import { log, logError } from './logger.js';
+import { log, logError, logInfo } from './logger.js';
 
 dotenv.config();
 
@@ -425,5 +426,12 @@ initDatabase().then((ok) => {
       timezone: 'America/Sao_Paulo'
     });
     console.log('🎙️ Meeting audio cleanup started - checks every 15 minutes');
+
+    // Run UAZAPI webhook health check on startup and then every 30 minutes
+    checkUazapiWebhooks().catch(err => console.error('Error in initial UAZAPI webhook check:', err));
+    cron.schedule('*/30 * * * *', async () => {
+      console.log('🔍 [CRON] UAZAPI webhook check triggered');
+      await checkUazapiWebhooks();
+    });
   });
 });
