@@ -447,8 +447,9 @@ export const useChat = () => {
     remoteJid: string;
     days?: number;
   }): Promise<{ imported: number; skipped?: number; total?: number; message?: string }> => {
+    // Determine provider and call appropriate sync endpoint
     const data = await api<{ imported: number; skipped?: number; total?: number; message?: string }>(
-      `/api/evolution/${params.connectionId}/sync-chat`,
+      `/api/connections/${params.connectionId}/sync-chat`,
       {
         method: 'POST',
         body: {
@@ -553,10 +554,10 @@ export const useChat = () => {
     return data.count;
   }, []);
 
-  // Sync group name from W-API
+  // Sync group name from W-API or UAZAPI
   const syncGroupName = useCallback(async (connectionId: string, conversationId: string): Promise<{ success: boolean; group_name?: string }> => {
     try {
-      const data = await api<{ success: boolean; group_name?: string }>(`/api/wapi/${connectionId}/sync-group-name/${conversationId}`, {
+      const data = await api<{ success: boolean; group_name?: string }>(`/api/chat/conversations/${conversationId}/sync-group-name`, {
         method: 'POST',
       });
       return data;
@@ -566,10 +567,10 @@ export const useChat = () => {
     }
   }, []);
 
-  // Sync all group names from W-API for a connection
+  // Sync all group names for a connection
   const syncAllGroupNames = useCallback(async (connectionId: string): Promise<{ success: boolean; updated?: number; total?: number; message?: string }> => {
     try {
-      const data = await api<{ success: boolean; updated?: number; total?: number; message?: string }>(`/api/wapi/${connectionId}/sync-all-groups`, {
+      const data = await api<{ success: boolean; updated?: number; total?: number; message?: string }>(`/api/connections/${connectionId}/sync-groups`, {
         method: 'POST',
       });
       return data;

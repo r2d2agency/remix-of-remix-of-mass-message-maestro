@@ -189,7 +189,13 @@ const Chat = () => {
       
       // Also refresh messages if a conversation is selected
       if (selectedConversation) {
-        getMessages(selectedConversation.id).then(setMessages).catch(console.error);
+        getMessages(selectedConversation.id).then(setMessages).catch((err) => {
+          if (err?.status === 404) {
+            console.warn('Conversation not found during event refresh, ignoring.');
+          } else {
+            console.error(err);
+          }
+        });
       }
     });
 
@@ -214,8 +220,13 @@ const Chat = () => {
       try {
         const msgs = await getMessages(selectedConversation.id);
         setMessages(msgs);
-      } catch (error) {
-        console.error('Error refreshing messages:', error);
+      } catch (error: any) {
+        if (error?.status === 404) {
+          // Conversation disappeared, maybe deleted or just not found
+          console.warn('Conversation not found during refresh');
+        } else {
+          console.error('Error refreshing messages:', error);
+        }
       }
     }, 3000);
 
@@ -724,12 +735,12 @@ const Chat = () => {
   const handleSyncAllGroups = async () => {
     setSyncingGroups(true);
     try {
-      // Get all W-API connections
-      const wapiConnections = connections.filter(c => c.status === 'connected');
+      // Get all connected connections
+      const activeConnections = connections.filter(c => c.status === 'connected');
       let totalUpdated = 0;
       let totalGroups = 0;
 
-      for (const conn of wapiConnections) {
+      for (const conn of activeConnections) {
         try {
           const result = await syncAllGroupNames(conn.id);
           if (result.success) {
