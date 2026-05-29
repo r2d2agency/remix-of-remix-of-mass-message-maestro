@@ -1,7 +1,7 @@
-import { query } from '../db.js';
-import { logInfo, logError } from '../logger.js';
-import * as uaz from '../lib/uazapi-provider.js';
-import { normalizePhone } from '../routes/uazapi.js';
+import { query } from './db.js';
+import { logInfo, logError } from './logger.js';
+import * as uaz from './lib/uazapi-provider.js';
+import { normalizePhone } from './routes/uazapi.js';
 
 export async function checkUazapiWebhooks() {
   try {
