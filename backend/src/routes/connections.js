@@ -106,9 +106,9 @@ router.post('/', async (req, res) => {
       if (!instance_id || !wapi_token) {
         return res.status(400).json({ error: 'Instance ID e Token são obrigatórios para W-API' });
       }
-    } else {
+    } else if (provider === 'evolution') {
       if (!api_url || !api_key || !instance_name) {
-        return res.status(400).json({ error: 'URL, API Key e nome da instância são obrigatórios' });
+        return res.status(400).json({ error: 'URL, API Key e nome da instância são obrigatórios para Evolution' });
       }
     }
 
@@ -233,7 +233,7 @@ router.delete('/:id', async (req, res) => {
 
     // First check if connection exists with access
     const checkResult = await query(
-      `SELECT id, provider, instance_id, wapi_token FROM connections WHERE ${whereClause}`,
+      `SELECT id, provider, instance_id, wapi_token, uazapi_token FROM connections WHERE ${whereClause}`,
       params
     );
 
@@ -241,10 +241,20 @@ router.delete('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Conexão não encontrada' });
     }
 
-    // Clean up connection_members first
-    await query(`DELETE FROM connection_members WHERE connection_id = $1`, [id]).catch(() => {});
+    // Clean up dependent tables
+    const cleanupQueries = [
+      `DELETE FROM connection_members WHERE connection_id = $1`,
+      `DELETE FROM chat_contacts WHERE connection_id = $1`,
+      `DELETE FROM uazapi_webhook_events WHERE connection_id = $1`,
+      `DELETE FROM connection_error_logs WHERE connection_id = $1`,
+      `DELETE FROM user_alerts WHERE metadata->>'connection_id' = $1::text`
+    ];
 
-    // Delete the connection from DB (even if external API call fails)
+    for (const q of cleanupQueries) {
+      await query(q, [id]).catch(e => console.warn(`[connections] cleanup query failed: ${q}`, e?.message));
+    }
+
+    // Delete the connection from DB
     const result = await query(
       `DELETE FROM connections WHERE id = $1 RETURNING id`,
       [id]
@@ -254,12 +264,11 @@ router.delete('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Conexão não encontrada' });
     }
 
-    // Log the deletion
-    await query(
-      `INSERT INTO connection_error_logs (connection_id, organization_id, event_type, details, created_at)
-       VALUES ($1, $2, 'connection_deleted', $3, NOW())`,
-      [id, org?.organization_id || null, JSON.stringify({ deleted_by: req.userId, force: !!force })]
-    ).catch(() => {}); // Don't fail if log table doesn't exist yet
+    // Log the deletion (to a general audit table or just ignore if it's the connection log itself)
+    // Since we just deleted connection_error_logs for this ID, we skip inserting here to avoid FK issues
+    // or insert to a global audit table if available.
+    
+    res.json({ success: true });
 
     res.json({ success: true });
   } catch (error) {
