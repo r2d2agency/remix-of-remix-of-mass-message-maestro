@@ -735,12 +735,12 @@ const Chat = () => {
   const handleSyncAllGroups = async () => {
     setSyncingGroups(true);
     try {
-      // Get all W-API connections
-      const wapiConnections = connections.filter(c => c.status === 'connected');
+      // Get all connected connections
+      const activeConnections = connections.filter(c => c.status === 'connected');
       let totalUpdated = 0;
       let totalGroups = 0;
 
-      for (const conn of wapiConnections) {
+      for (const conn of activeConnections) {
         try {
           const result = await syncAllGroupNames(conn.id);
           if (result.success) {

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import * as wapiProvider from '../lib/wapi-provider.js';
+import * as uaz from '../lib/uazapi-provider.js';
 import { assignConnectionMember } from '../lib/connection-members.js';
 
 const W_API_INTEGRATOR_URL = 'https://api.w-api.app/v1/integrator';

@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import * as whatsappProvider from '../lib/whatsapp-provider.js';
+import * as wapiProvider from '../lib/wapi-provider.js';
+import * as uaz from '../lib/uazapi-provider.js';
 import { startAgentSession, stopAgentSession, getActiveAgentSession, pauseSessionForHumanReply, setHumanTakeover } from '../lib/ai-agent-processor.js';
 
 const router = Router();
