@@ -174,8 +174,20 @@ function normalizePhone(value) {
 function normalizeJid(value, isGroup = false) {
   const raw = String(value || '').trim();
   if (!raw) return null;
-  if (raw.includes('@')) return raw;
-  const phone = normalizePhone(raw);
+  
+  let clean = raw;
+  if (raw.includes('@')) {
+    const [id, suffix] = raw.split('@');
+    if (suffix === 'g.us') return raw; // Group JID
+    if (suffix === 'c.us' || suffix === 's.whatsapp.net' || suffix === 'whatsapp.net') {
+      clean = id;
+    } else {
+      // For other suffixes (lid, etc), return as is
+      return raw;
+    }
+  }
+  
+  const phone = normalizePhone(clean);
   if (!phone) return null;
   return isGroup ? `${phone}@g.us` : `${phone}@s.whatsapp.net`;
 }
