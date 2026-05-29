@@ -118,13 +118,24 @@ const Conexao = () => {
   const [errorLogsLoading, setErrorLogsLoading] = useState(false);
   // W-API Integrator token state (read-only, managed by superadmin)
   const [hasIntegratorToken, setHasIntegratorToken] = useState(false);
+  const [isSuperadmin, setIsSuperadmin] = useState(false);
 
   useEffect(() => {
     loadConnections();
     loadPlanLimits();
     loadIntegratorToken();
     loadUazapiInfo();
+    checkSuperadmin();
   }, []);
+
+  const checkSuperadmin = async () => {
+    try {
+      const data = await api<{ isSuperadmin: boolean }>('/api/admin/check');
+      setIsSuperadmin(data.isSuperadmin);
+    } catch (error) {
+      console.error('Error checking superadmin:', error);
+    }
+  };
 
   const [cleaningDuplicates, setCleaningDuplicates] = useState(false);
 
