@@ -235,7 +235,7 @@ router.patch('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { force } = req.query; // ?force=true to skip external API calls or force cleanup if record missing
+    const force = req.query.force === 'true' || req.query.force === true;
 
     const userInfo = await getUserInfo(req.userId);
     const isSuperadmin = userInfo.is_superadmin;
