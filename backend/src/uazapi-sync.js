@@ -7,7 +7,7 @@ function normalizePhone(value) {
   return raw.replace(/\D/g, '');
 }
 
-export async function getWebhookStatus({ serverUrl, token }) {
+async function getWebhookStatus({ serverUrl, token }) {
   try {
     const r = await uaz.getWebhook({ serverUrl, token });
     const data = r.data || {};
@@ -40,7 +40,7 @@ export async function getWebhookStatus({ serverUrl, token }) {
   }
 }
 
-export async function reconfigureWebhook({ serverUrl, token, url }) {
+async function reconfigureWebhook({ serverUrl, token, url }) {
   return uaz.configureWebhook({ serverUrl, token, webhookUrl: url });
 }
 
@@ -56,7 +56,7 @@ export async function checkUazapiWebhooks() {
       logInfo('uazapi.webhook_check', { connection_id: conn.id, name: conn.name });
       
       try {
-        const status = await uaz.getWebhookStatus({
+        const status = await getWebhookStatus({
           serverUrl: conn.uazapi_server_url,
           token: conn.uazapi_token
         });
@@ -70,7 +70,7 @@ export async function checkUazapiWebhooks() {
           const baseUrl = process.env.API_BASE_URL;
           if (baseUrl) {
             const webhookUrl = `${baseUrl}/api/uazapi/webhook`;
-            await uaz.reconfigureWebhook({
+            await reconfigureWebhook({
               serverUrl: conn.uazapi_server_url,
               token: conn.uazapi_token,
               url: webhookUrl
