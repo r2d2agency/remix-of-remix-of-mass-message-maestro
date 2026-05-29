@@ -264,12 +264,11 @@ router.delete('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Conexão não encontrada' });
     }
 
-    // Log the deletion
-    await query(
-      `INSERT INTO connection_error_logs (connection_id, organization_id, event_type, details, created_at)
-       VALUES ($1, $2, 'connection_deleted', $3, NOW())`,
-      [id, org?.organization_id || null, JSON.stringify({ deleted_by: req.userId, force: !!force })]
-    ).catch(() => {}); // Don't fail if log table doesn't exist yet
+    // Log the deletion (to a general audit table or just ignore if it's the connection log itself)
+    // Since we just deleted connection_error_logs for this ID, we skip inserting here to avoid FK issues
+    // or insert to a global audit table if available.
+    
+    res.json({ success: true });
 
     res.json({ success: true });
   } catch (error) {
