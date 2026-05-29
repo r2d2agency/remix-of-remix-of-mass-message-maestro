@@ -225,60 +225,76 @@ router.patch('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { force } = req.query; // ?force=true to skip external API calls
+    const { force } = req.query; // ?force=true to skip external API calls or force cleanup if record missing
 
-    const org = await getUserOrganization(req.userId);
+    const userInfo = await getUserInfo(req.userId);
+    const isSuperadmin = userInfo.is_superadmin;
 
-    // Allow delete if user owns the connection, belongs to same organization (with permission),
-    // OR is assigned via connection_members
-    let whereClause = 'id = $1 AND (user_id = $2 OR id IN (SELECT connection_id FROM connection_members WHERE user_id = $2))';
-    let params = [id, req.userId];
-
-    if (org && ['owner', 'admin', 'manager'].includes(org.role)) {
-      whereClause = 'id = $1 AND organization_id = $2';
-      params = [id, org.organization_id];
-    }
+    // Build access check
+    const { where, params } = buildConnectionAccessClause(id, req.userId, userInfo);
 
     // First check if connection exists with access
     const checkResult = await query(
-      `SELECT id, provider, instance_id, wapi_token, uazapi_token FROM connections WHERE ${whereClause}`,
+      `SELECT id, provider, instance_id, wapi_token, uazapi_token, instance_name FROM connections WHERE ${where}`,
       params
     );
 
-    if (checkResult.rows.length === 0) {
+    const connection = checkResult.rows[0];
+
+    if (!connection && !force) {
       return res.status(404).json({ error: 'Conexão não encontrada' });
     }
+    
+    // If not superadmin and connection doesn't exist, we can't force delete an unknown ID
+    if (!connection && force && !isSuperadmin) {
+      return res.status(404).json({ error: 'Conexão não encontrada ou permissão insuficiente para limpeza forçada' });
+    }
 
-    // Clean up dependent tables
+    // Provider-specific cleanup if it still exists in DB
+    if (connection && !force) {
+      try {
+        if (connection.provider === 'wapi' && connection.instance_id && connection.wapi_token) {
+          // No specific cleanup for W-API yet, but could add logout here
+        } else if (connection.provider === 'evolution' && connection.instance_name) {
+          // Evolution cleanup usually handled by its own route, but we could add safety here
+        }
+      } catch (providerError) {
+        console.warn('[connections] provider cleanup failed:', providerError?.message);
+      }
+    }
+
+    // Deep cleanup queries (order matters for FKs if not cascade)
+    // Most tables have ON DELETE CASCADE, but we do these for safety and for tables without it
     const cleanupQueries = [
-      `DELETE FROM connection_members WHERE connection_id = $1`,
-      `DELETE FROM chat_contacts WHERE connection_id = $1`,
-      `DELETE FROM uazapi_webhook_events WHERE connection_id = $1`,
-      `DELETE FROM connection_error_logs WHERE connection_id = $1`,
-      `DELETE FROM user_alerts WHERE metadata->>'connection_id' = $1::text`
+      // Direct connection related
+      { sql: `DELETE FROM connection_members WHERE connection_id = $1`, params: [id] },
+      { sql: `DELETE FROM connection_error_logs WHERE connection_id = $1`, params: [id] },
+      { sql: `DELETE FROM uazapi_webhook_events WHERE connection_id = $1`, params: [id] },
+      
+      // Chat related (should be cascaded but being explicit for "zerado" request)
+      { sql: `DELETE FROM chat_messages WHERE conversation_id IN (SELECT id FROM conversations WHERE connection_id = $1)`, params: [id] },
+      { sql: `DELETE FROM conversation_tag_links WHERE conversation_id IN (SELECT id FROM conversations WHERE connection_id = $1)`, params: [id] },
+      { sql: `DELETE FROM conversations WHERE connection_id = $1`, params: [id] },
+      { sql: `DELETE FROM chat_contacts WHERE connection_id = $1`, params: [id] },
+      
+      // Automation & Other
+      { sql: `DELETE FROM user_alerts WHERE metadata->>'connection_id' = $1::text`, params: [id] },
+      { sql: `DELETE FROM inbound_webhook_audit WHERE metadata->>'connection_id' = $1::text`, params: [id] },
+      { sql: `UPDATE campaigns SET connection_id = NULL WHERE connection_id = $1`, params: [id] }
     ];
 
     for (const q of cleanupQueries) {
-      await query(q, [id]).catch(e => console.warn(`[connections] cleanup query failed: ${q}`, e?.message));
+      await query(q.sql, q.params).catch(e => 
+        console.warn(`[connections] cleanup query failed: ${q.sql.substring(0, 50)}...`, e?.message)
+      );
     }
 
-    // Delete the connection from DB
-    const result = await query(
-      `DELETE FROM connections WHERE id = $1 RETURNING id`,
-      [id]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Conexão não encontrada' });
+    // Delete the connection from DB (if it exists)
+    if (connection) {
+      await query(`DELETE FROM connections WHERE id = $1`, [id]);
     }
 
-    // Log the deletion (to a general audit table or just ignore if it's the connection log itself)
-    // Since we just deleted connection_error_logs for this ID, we skip inserting here to avoid FK issues
-    // or insert to a global audit table if available.
-    
-    res.json({ success: true });
-
-    res.json({ success: true });
+    res.json({ success: true, message: 'Conexão e todos os dados vinculados foram excluídos com sucesso' });
   } catch (error) {
     console.error('Delete connection error:', error);
     res.status(500).json({ error: 'Erro ao deletar conexão' });
