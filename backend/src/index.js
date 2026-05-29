@@ -47,6 +47,7 @@ import meetingsRoutes from './routes/meetings.js';
 import meetingAuditRoutes, { cleanupExpiredAudio } from './routes/meeting-audit.js';
 import uazapiRoutes from './routes/uazapi.js';
 import documentsRoutes from './routes/documents.js';
+import { checkUazapiWebhooks } from './uazapi-sync.js';
 
 import { initDatabase } from './init-db.js';
 import { executeNotifications } from './scheduler.js';
@@ -61,7 +62,7 @@ import { executeSecretaryFollowups } from './secretary-followup-scheduler.js';
 import { executeSecretaryDigest } from './secretary-digest-scheduler.js';
 import { executeAASPSync } from './aasp-scheduler.js';
 import { requestContext } from './request-context.js';
-import { log, logError } from './logger.js';
+import { log, logError, logInfo } from './logger.js';
 
 dotenv.config();
 
