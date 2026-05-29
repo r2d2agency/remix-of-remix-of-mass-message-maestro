@@ -281,6 +281,8 @@ export function ChatArea({
   const [selectedDeal, setSelectedDeal] = useState<CRMDeal | null>(null);
   const [showSummaryPanel, setShowSummaryPanel] = useState(false);
   const [showCallDialog, setShowCallDialog] = useState(false);
+  const [showSyncDialog, setShowSyncDialog] = useState(false);
+  const [syncDays, setSyncDays] = useState(7);
   const [showSignatureDialog, setShowSignatureDialog] = useState(false);
 
   const [savingCall, setSavingCall] = useState(false);
@@ -1681,6 +1683,12 @@ export function ChatArea({
                     <Trash2 className="h-4 w-4 mr-2" />
                     Excluir conversa
                   </DropdownMenuItem>
+                  {onSyncHistory && (
+                    <DropdownMenuItem onClick={() => setShowSyncDialog(true)}>
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Sincronizar histórico
+                    </DropdownMenuItem>
+                  )}
                 </>
               )}
             </DropdownMenuContent>
@@ -3273,6 +3281,58 @@ export function ChatArea({
           toast.success("Contato compartilhado!");
         }}
       />
+      {/* Sync History Dialog */}
+      <Dialog open={showSyncDialog} onOpenChange={setShowSyncDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Sincronizar histórico</DialogTitle>
+            <DialogDescription>
+              Escolha quantos dias de histórico deseja sincronizar do WhatsApp para este chat.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="sync-days" className="mb-2 block">Dias para sincronizar</Label>
+            <Select 
+              value={String(syncDays)} 
+              onValueChange={(v) => setSyncDays(parseInt(v))}
+            >
+              <SelectTrigger id="sync-days">
+                <SelectValue placeholder="Selecione os dias" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">1 dia</SelectItem>
+                <SelectItem value="3">3 dias</SelectItem>
+                <SelectItem value="7">7 dias</SelectItem>
+                <SelectItem value="15">15 dias</SelectItem>
+                <SelectItem value="30">30 dias</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowSyncDialog(false)} disabled={syncingHistory}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={async () => {
+                if (onSyncHistory) {
+                  await onSyncHistory(syncDays);
+                  setShowSyncDialog(false);
+                }
+              }} 
+              disabled={syncingHistory}
+            >
+              {syncingHistory ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Sincronizando...
+                </>
+              ) : (
+                'Sincronizar'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
