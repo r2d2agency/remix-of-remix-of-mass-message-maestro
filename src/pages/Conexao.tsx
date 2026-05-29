@@ -420,19 +420,24 @@ const handleGetQRCode = async (connection: Connection) => {
 
   const handleDelete = async (connection: Connection) => {
     try {
-      let deleteUrl: string;
-      if (isUazapi(connection)) {
-        // Use the native UAZAPI remove method which calls the backend DELETE /api/uazapi/:id
-        // which in turn should call UAZAPI delete instance endpoint
-        await uazapiApi.remove(connection.id);
-      } else if (isWapiConn(connection)) {
-        deleteUrl = `/api/connections/${connection.id}`;
-        await api(deleteUrl, { method: 'DELETE' });
-      } else {
-        deleteUrl = `/api/evolution/${connection.id}`;
-        await api(deleteUrl, { method: 'DELETE' });
+      // Try provider-specific delete first (to clean up remote instance),
+      // but ignore errors and always fall back to the generic connections
+      // delete so orphaned DB rows can still be removed.
+      try {
+        if (isUazapi(connection)) {
+          await uazapiApi.remove(connection.id);
+        } else if (!isWapiConn(connection)) {
+          await api(`/api/evolution/${connection.id}`, { method: 'DELETE' });
+        }
+      } catch (providerErr: any) {
+        console.warn('[delete] provider delete failed, falling back:', providerErr?.message);
       }
-      
+
+      // Generic cleanup (removes connection_members, chat_contacts, alerts, logs, etc.)
+      await api(`/api/connections/${connection.id}`, { method: 'DELETE' }).catch((e) => {
+        if (!/404|não encontrada/i.test(String(e?.message || ''))) throw e;
+      });
+
       setConnections(prev => prev.filter(c => c.id !== connection.id));
       toast.success('Conexão excluída com sucesso');
     } catch (error: any) {
