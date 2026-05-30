@@ -50,23 +50,34 @@ router.get('/', async (req, res) => {
     const userInfo = await getUserInfo(req.userId);
     const isSuperadmin = userInfo.is_superadmin;
 
-    // Build provider-derivation expression that preserves 'uazapi'
+    // Build provider-derivation expression that prioritizes specific tokens
     const providerExpr = `CASE
-       WHEN c.provider IS NOT NULL AND c.provider <> '' THEN c.provider
        WHEN c.uazapi_token IS NOT NULL THEN 'uazapi'
        WHEN c.instance_id IS NOT NULL AND c.wapi_token IS NOT NULL THEN 'wapi'
+       WHEN c.provider IS NOT NULL AND c.provider <> '' THEN c.provider
        ELSE 'evolution'
      END`;
 
     let result;
-    if (isSuperadmin) {
-      // Superadmin sees everything
+    if (isSuperadmin && req.query.all === 'true') {
+      // Superadmin explicitly asked to see everything
       result = await query(
         `SELECT c.*, u.name as created_by_name,
          ${providerExpr} as provider
          FROM connections c
          LEFT JOIN users u ON c.user_id = u.id
          ORDER BY c.created_at DESC`
+      );
+    } else if (isSuperadmin) {
+      // Superadmin seeing their own by default
+      result = await query(
+        `SELECT c.*, u.name as created_by_name,
+         ${providerExpr} as provider
+         FROM connections c
+         LEFT JOIN users u ON c.user_id = u.id
+         WHERE c.user_id = $1 OR c.organization_id IN (SELECT organization_id FROM organization_members WHERE user_id = $1)
+         ORDER BY c.created_at DESC`,
+        [req.userId]
       );
     } else {
       // Regular users only see assigned connections via connection_members
@@ -195,13 +206,25 @@ router.patch('/:id', async (req, res) => {
 
     const userInfo = await getUserInfo(req.userId);
 
-    // Allow update if user owns the connection, belongs to same organization, OR is assigned via connection_members
-    let whereClause = 'id = $10 AND (user_id = $11 OR id IN (SELECT connection_id FROM connection_members WHERE user_id = $11))';
-    let params = [provider, api_url, api_key, instance_name, instance_id, wapi_token, name, status, show_groups, id, req.userId];
-
-    if (org) {
-      whereClause = 'id = $10 AND (organization_id = $11 OR id IN (SELECT connection_id FROM connection_members WHERE user_id = $12))';
-      params = [provider, api_url, api_key, instance_name, instance_id, wapi_token, name, status, show_groups, id, userInfo.organization_id, req.userId];
+    // Build access check
+    const { where, params: accessParams } = buildConnectionAccessClause(id, req.userId, userInfo);
+    
+    // The params for the UPDATE query: first 9 are fields, 10 is the ID (from where clause)
+    // buildConnectionAccessClause returns 'id = $1' (superadmin) or more complex
+    // We need to adapt it because our UPDATE has 9 field parameters already.
+    
+    // Let's manually build it to be safer with parameter indices
+    let updateWhere;
+    let queryParams = [provider, api_url, api_key, instance_name, instance_id, wapi_token, name, status, show_groups, id];
+    
+    if (userInfo.is_superadmin) {
+      updateWhere = 'id = $10';
+    } else if (userInfo.organization_id) {
+      updateWhere = 'id = $10 AND (organization_id = $11 OR id IN (SELECT connection_id FROM connection_members WHERE user_id = $12))';
+      queryParams.push(userInfo.organization_id, req.userId);
+    } else {
+      updateWhere = 'id = $10 AND (user_id = $11 OR id IN (SELECT connection_id FROM connection_members WHERE user_id = $11))';
+      queryParams.push(req.userId);
     }
 
     const result = await query(
@@ -215,10 +238,10 @@ router.patch('/:id', async (req, res) => {
            name = COALESCE($7, name),
            status = COALESCE($8, status),
            show_groups = COALESCE($9, show_groups),
-           updated_at = NOW()
-       WHERE ${whereClause}
+            updated_at = NOW()
+       WHERE ${updateWhere}
        RETURNING *`,
-      params
+      queryParams
     );
 
     if (result.rows.length === 0) {
