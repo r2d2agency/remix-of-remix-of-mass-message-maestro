@@ -50,23 +50,34 @@ router.get('/', async (req, res) => {
     const userInfo = await getUserInfo(req.userId);
     const isSuperadmin = userInfo.is_superadmin;
 
-    // Build provider-derivation expression that preserves 'uazapi'
+    // Build provider-derivation expression that prioritizes specific tokens
     const providerExpr = `CASE
-       WHEN c.provider IS NOT NULL AND c.provider <> '' THEN c.provider
        WHEN c.uazapi_token IS NOT NULL THEN 'uazapi'
        WHEN c.instance_id IS NOT NULL AND c.wapi_token IS NOT NULL THEN 'wapi'
+       WHEN c.provider IS NOT NULL AND c.provider <> '' THEN c.provider
        ELSE 'evolution'
      END`;
 
     let result;
-    if (isSuperadmin) {
-      // Superadmin sees everything
+    if (isSuperadmin && req.query.all === 'true') {
+      // Superadmin explicitly asked to see everything
       result = await query(
         `SELECT c.*, u.name as created_by_name,
          ${providerExpr} as provider
          FROM connections c
          LEFT JOIN users u ON c.user_id = u.id
          ORDER BY c.created_at DESC`
+      );
+    } else if (isSuperadmin) {
+      // Superadmin seeing their own by default
+      result = await query(
+        `SELECT c.*, u.name as created_by_name,
+         ${providerExpr} as provider
+         FROM connections c
+         LEFT JOIN users u ON c.user_id = u.id
+         WHERE c.user_id = $1 OR c.organization_id IN (SELECT organization_id FROM organization_members WHERE user_id = $1)
+         ORDER BY c.created_at DESC`,
+        [req.userId]
       );
     } else {
       // Regular users only see assigned connections via connection_members
