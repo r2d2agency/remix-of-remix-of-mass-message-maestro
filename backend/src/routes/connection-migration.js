@@ -219,6 +219,89 @@ router.get('/diagnostic', async (req, res) => {
 });
 
 // ============================================================================
+// REPAIR-DUPLICATES: Scan the entire organization and merge conversations
+// with the same phone number into the most recent one.
+// ============================================================================
+router.post('/repair-duplicates', async (req, res) => {
+  const org = await getUserOrg(req.userId);
+  if (!org) return res.status(403).json({ error: 'Usuário sem organização' });
+  if (!['owner', 'admin'].includes(org.role)) {
+    return res.status(403).json({ error: 'Apenas owner/admin podem reparar duplicatas' });
+  }
+
+  try {
+    const connectionsResult = await query(
+      `SELECT id FROM connections WHERE organization_id = $1`,
+      [org.organization_id]
+    );
+    const connectionIds = connectionsResult.rows.map(c => c.id);
+
+    if (connectionIds.length === 0) {
+      return res.json({ success: true, message: 'Nenhuma conexão para processar' });
+    }
+
+    const dupes = await query(`
+      SELECT contact_phone, COUNT(*)
+      FROM conversations
+      WHERE connection_id = ANY($1) 
+        AND contact_phone IS NOT NULL 
+        AND contact_phone != ''
+        AND is_group = false
+      GROUP BY contact_phone
+      HAVING COUNT(*) > 1
+    `, [connectionIds]);
+
+    let mergedCount = 0;
+    let deletedCount = 0;
+
+    for (const dupe of dupes.rows) {
+      const convs = await query(`
+        SELECT id, connection_id, last_message_at, remote_jid
+        FROM conversations
+        WHERE connection_id = ANY($1) AND contact_phone = $2 AND is_group = false
+        ORDER BY last_message_at DESC NULLS LAST, created_at DESC
+      `, [connectionIds, dupe.contact_phone]);
+
+      const target = convs.rows[0];
+      const others = convs.rows.slice(1);
+
+      for (const other of others) {
+        const updateMsgs = await query(
+          `UPDATE chat_messages SET conversation_id = $1 WHERE conversation_id = $2`,
+          [target.id, other.id]
+        );
+        mergedCount += updateMsgs.rowCount;
+
+        await query(
+          `UPDATE conversation_notes SET conversation_id = $1 WHERE conversation_id = $2`,
+          [target.id, other.id]
+        ).catch(() => {});
+
+        await query(
+          `INSERT INTO conversation_tag_links (conversation_id, tag_id)
+           SELECT $1, tag_id FROM conversation_tag_links WHERE conversation_id = $2
+           ON CONFLICT DO NOTHING`,
+          [target.id, other.id]
+        );
+
+        await query(`DELETE FROM conversation_tag_links WHERE conversation_id = $1`, [other.id]);
+        await query(`DELETE FROM conversations WHERE id = $1`, [other.id]);
+        deletedCount++;
+      }
+    }
+
+    res.json({ 
+      success: true, 
+      message: `Reparo concluído: ${deletedCount} conversas duplicadas removidas e ${mergedCount} mensagens mescladas.`,
+      stats: { deleted: deletedCount, merged: mergedCount }
+    });
+  } catch (err) {
+    console.error('[migration/repair-duplicates] error', err);
+    res.status(500).json({ error: 'Falha ao reparar duplicatas', detail: err.message });
+  }
+});
+
+// ============================================================================
 // MIGRATE-ALL: consolidate every other connection in the org into a single
 // destination. Useful when conversations got fragmented across multiple
 // connections and you want everything visible under the active one.

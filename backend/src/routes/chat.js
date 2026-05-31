@@ -1407,22 +1407,24 @@ router.post('/conversations/cleanup-duplicates', authenticate, async (req, res) 
     let merged = 0;
     let migrated = 0;
 
-    // 1. Handle cross-connection duplicates (same JID in different connections of same org)
+    // 1. Handle cross-connection duplicates (same JID or same phone in different connections of same org)
     const orgResult = await query(`SELECT organization_id FROM organization_members WHERE user_id = $1 LIMIT 1`, [req.userId]);
     const orgId = orgResult.rows[0]?.organization_id;
 
     if (orgId) {
       const crossDuplicates = await query(`
-        SELECT cv.remote_jid, cv.id as current_id, old.id as old_id, old.connection_id as old_conn_id
+        SELECT cv.id as current_id, old.id as old_id, old.connection_id as old_conn_id, cv.connection_id as current_conn_id
         FROM conversations cv
         JOIN connections cn ON cn.id = cv.connection_id
-        JOIN conversations old ON old.remote_jid = cv.remote_jid AND old.id != cv.id
+        JOIN conversations old ON 
+          (old.remote_jid = cv.remote_jid OR (old.contact_phone = cv.contact_phone AND cv.contact_phone IS NOT NULL AND cv.contact_phone != ''))
+          AND old.id != cv.id
         JOIN connections old_cn ON old_cn.id = old.connection_id
         WHERE cn.organization_id = $1 
           AND old_cn.organization_id = $1
           AND cv.connection_id = ANY($2)
           AND old.connection_id != cv.connection_id
-        ORDER BY cv.last_message_at DESC
+        ORDER BY cv.last_message_at DESC NULLS LAST, old.last_message_at DESC NULLS LAST
       `, [orgId, connectionIds]);
 
       const handledIds = new Set();
@@ -1431,12 +1433,19 @@ router.post('/conversations/cleanup-duplicates', authenticate, async (req, res) 
         
         // Merge messages from old connection to current one
         const updateMsgs = await query(`UPDATE chat_messages SET conversation_id = $1 WHERE conversation_id = $2`, [row.current_id, row.old_id]);
-        if (updateMsgs.rowCount > 0) merged++;
+        if (updateMsgs.rowCount > 0) merged += updateMsgs.rowCount;
 
-        // Delete old conversation metadata
-        await query(`DELETE FROM conversation_notes WHERE conversation_id = $1`, [row.old_id]);
+        // Move metadata
+        await query(`UPDATE conversation_notes SET conversation_id = $1 WHERE conversation_id = $2`, [row.current_id, row.old_id]).catch(() => {});
+        await query(
+          `INSERT INTO conversation_tag_links (conversation_id, tag_id)
+           SELECT $1, tag_id FROM conversation_tag_links WHERE conversation_id = $2
+           ON CONFLICT DO NOTHING`,
+          [row.current_id, row.old_id]
+        );
+
+        // Delete old conversation
         await query(`DELETE FROM conversation_tag_links WHERE conversation_id = $1`, [row.old_id]);
-        await query(`DELETE FROM chat_messages WHERE conversation_id = $1`, [row.old_id]);
         await query(`DELETE FROM conversations WHERE id = $1`, [row.old_id]);
         migrated++;
         handledIds.add(row.old_id);

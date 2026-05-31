@@ -69,16 +69,31 @@ router.get('/', async (req, res) => {
          ORDER BY c.created_at DESC`
       );
     } else if (isSuperadmin) {
-      // Superadmin seeing their own by default
-      result = await query(
-        `SELECT c.*, u.name as created_by_name,
-         ${providerExpr} as provider
-         FROM connections c
-         LEFT JOIN users u ON c.user_id = u.id
-         WHERE c.user_id = $1 OR c.organization_id IN (SELECT organization_id FROM organization_members WHERE user_id = $1)
-         ORDER BY c.created_at DESC`,
-        [req.userId]
-      );
+      // Superadmin seeing their current organization's connections by default
+      const userOrgId = userInfo.organization_id;
+      
+      if (userOrgId) {
+        result = await query(
+          `SELECT c.*, u.name as created_by_name,
+           ${providerExpr} as provider
+           FROM connections c
+           LEFT JOIN users u ON c.user_id = u.id
+           WHERE c.organization_id = $1
+           ORDER BY c.created_at DESC`,
+          [userOrgId]
+        );
+      } else {
+        // Fallback for superadmin not in any organization
+        result = await query(
+          `SELECT c.*, u.name as created_by_name,
+           ${providerExpr} as provider
+           FROM connections c
+           LEFT JOIN users u ON c.user_id = u.id
+           WHERE c.user_id = $1
+           ORDER BY c.created_at DESC`,
+          [req.userId]
+        );
+      }
     } else {
       // Regular users only see assigned connections via connection_members
       const specificResult = await query(
