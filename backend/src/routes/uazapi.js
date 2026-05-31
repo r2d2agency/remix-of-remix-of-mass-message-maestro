@@ -479,39 +479,46 @@ async function saveUazapiMessage(connection, payload, req = null) {
   const senderLid = msg.data?.sender_lid || msg.data?.chatlid;
   let conversationId = null;
 
-  // 1. Try exact remoteJid
-  let conv = await query(`SELECT id FROM conversations WHERE connection_id = $1 AND remote_jid = $2 LIMIT 1`, [connection.id, remoteJid]);
+  // 1. Try exact remoteJid on CURRENT connection
+  let conv = await query(`SELECT id, attendance_status FROM conversations WHERE connection_id = $1 AND remote_jid = $2 LIMIT 1`, [connection.id, remoteJid]);
   conversationId = conv.rows[0]?.id;
+  let currentStatus = conv.rows[0]?.attendance_status;
 
-  // 2. Try LID fallback
+  // 2. Try LID fallback on CURRENT connection
   if (!conversationId && senderLid) {
     const lidJid = `${senderLid}@lid`;
-    conv = await query(`SELECT id FROM conversations WHERE connection_id = $1 AND remote_jid = $2 LIMIT 1`, [connection.id, lidJid]);
+    conv = await query(`SELECT id, attendance_status FROM conversations WHERE connection_id = $1 AND remote_jid = $2 LIMIT 1`, [connection.id, lidJid]);
     conversationId = conv.rows[0]?.id;
+    currentStatus = conv.rows[0]?.attendance_status;
   }
 
-  // 3. Try Phone fallback
+  // 3. Try Phone fallback on CURRENT connection
   if (!conversationId && cleanPhone) {
     conv = await query(
-      `SELECT id FROM conversations WHERE connection_id = $1 AND contact_phone = $2 AND COALESCE(is_group, false) = false ORDER BY last_message_at DESC LIMIT 1`,
+      `SELECT id, attendance_status FROM conversations WHERE connection_id = $1 AND contact_phone = $2 AND COALESCE(is_group, false) = false ORDER BY last_message_at DESC LIMIT 1`,
       [connection.id, cleanPhone]
     );
     conversationId = conv.rows[0]?.id;
+    currentStatus = conv.rows[0]?.attendance_status;
   }
 
-  // 4. Try legacy/migrated conversation search (without connection_id filter)
-  if (!conversationId) {
+  // 4. Try global organization search for migrated/existing conversation
+  // This is CRITICAL when connections are deleted and re-added.
+  if (!conversationId && connection.organization_id) {
     const migrated = await query(
-      `SELECT id FROM conversations 
-       WHERE (remote_jid = $1 OR (contact_phone = $2 AND contact_phone IS NOT NULL)) 
-       AND is_group = $3 
-       ORDER BY last_message_at DESC LIMIT 1`,
-      [remoteJid, cleanPhone, msg.isGroup]
+      `SELECT conv.id, conv.attendance_status FROM conversations conv
+       JOIN connections conn ON conn.id = conv.connection_id
+       WHERE (conv.remote_jid = $1 OR conv.remote_jid = $2 OR (conv.contact_phone = $3 AND conv.contact_phone IS NOT NULL)) 
+       AND conv.is_group = $4
+       AND conn.organization_id = $5
+       ORDER BY conv.last_message_at DESC LIMIT 1`,
+      [remoteJid, senderLid ? `${senderLid}@lid` : remoteJid, cleanPhone, msg.isGroup, connection.organization_id]
     );
     
     if (migrated.rows[0]) {
       conversationId = migrated.rows[0].id;
-      console.log(`[UAZAPI] Linked message to migrated conversation ${conversationId}`);
+      currentStatus = migrated.rows[0].attendance_status;
+      console.log(`[UAZAPI] Linked message to migrated conversation ${conversationId} from same organization`);
     }
   }
 
@@ -524,8 +531,15 @@ async function saveUazapiMessage(connection, payload, req = null) {
     );
     conversationId = inserted.rows[0].id;
   } else {
-    // Re-check and update to ensure correctly pointed to current connection if it was migrated
-    // Use a transaction or careful update to prevent losing the conversation if connection_id changes
+    // Determine new status: preserve 'attending' or 'finished' if it was already set, 
+    // unless it's a new incoming message on a finished conversation.
+    let newStatus = currentStatus || 'waiting';
+    if (!msg.fromMe && newStatus === 'finished') {
+      newStatus = 'waiting';
+    } else if (msg.fromMe && (newStatus === 'waiting' || !newStatus)) {
+      newStatus = 'attending';
+    }
+
     await query(
       `UPDATE conversations
        SET last_message_at = NOW(),
@@ -537,23 +551,21 @@ async function saveUazapiMessage(connection, payload, req = null) {
            END,
            remote_jid = $4,
            connection_id = $5,
-           attendance_status = CASE WHEN NOT $2 AND attendance_status = 'finished' THEN 'waiting' ELSE attendance_status END,
-           accepted_at = CASE WHEN NOT $2 AND attendance_status = 'finished' THEN NULL ELSE accepted_at END,
-           accepted_by = CASE WHEN NOT $2 AND attendance_status = 'finished' THEN NULL ELSE accepted_by END,
+           attendance_status = $6,
+           accepted_at = CASE WHEN $6 = 'waiting' AND attendance_status = 'finished' THEN NULL ELSE accepted_at END,
+           accepted_by = CASE WHEN $6 = 'waiting' AND attendance_status = 'finished' THEN NULL ELSE accepted_by END,
            updated_at = NOW()
        WHERE id = $1`,
-      [conversationId, msg.fromMe, contactName, remoteJid, connection.id]
+      [conversationId, msg.fromMe, contactName, remoteJid, connection.id, newStatus]
     );
 
     // Se o contato foi migrado de outra conexão, precisamos garantir que ele esteja vinculado à conexão atual
-    // para que apareça na lista de chats.
     if (connection.id) {
       await query(
         `UPDATE conversations SET connection_id = $1 WHERE id = $2 AND (connection_id IS NULL OR connection_id != $1)`,
         [connection.id, conversationId]
       ).catch(e => console.warn('[UAZAPI] Legacy connection fix failed:', e.message));
     }
-
   }
 
   // Ensure any existing messages for this conversation are also correctly associated with the connection 

@@ -1,14 +1,20 @@
-The user is experiencing an issue where incoming WhatsApp messages via the new UAZAPI connection are being received by the UAZAPI server but are not appearing in the chat screen. This likely stems from a mismatch in how the system identifies the connection or the conversation when a webhook arrives, or a mismatch in the JID format (e.g., `@c.us` vs `@s.whatsapp.net`).
+O problema central é que, ao apagar e recriar as conexões, os IDs internos mudaram e o sistema não está conseguindo vincular as novas mensagens recebidas aos registros antigos (que podem ter sido apagados via CASCADE ou estão órfãos). Além disso, o UAZAPI usa frequentemente IDs internos (@lid) que não batem exatamente com os IDs do WhatsApp padrão (@s.whatsapp.net), criando conversas duplicadas ou "escondidas" na aba de "Aguardando".
 
-I will:
-1.  **Improve JID Normalization**: Update `normalizeJid` to consistently handle both `@c.us` (used by some UAZAPI versions) and `@s.whatsapp.net` (standard used in our DB), ensuring conversations are correctly matched across providers.
-2.  **Enhance Connection Discovery**: Update `findUazapiConnection` to be more robust, searching for the connection by token, instance name, or phone number in a more comprehensive way.
-3.  **Add Webhook Diagnostics**: Add detailed logging for incoming UAZAPI webhooks to help identify if a connection is not being found or if processing is failing for a specific reason.
-4.  **Ensure organization_id in Sockets**: Ensure that when a message is received, it is emitted to the correct organization room even if the connection's `organization_id` was previously missing or NULL.
+1. **Ajustar o processamento de webhooks do UAZAPI**:
+   - Refinar a busca por conversas existentes para procurar em TODAS as conexões da mesma organização, não apenas na conexão atual. Isso evita que mensagens de um contato conhecido criem uma nova conversa se já existir uma (mesmo que em uma conexão antiga/migrada).
+   - Impedir que o status de atendimento seja resetado para 'Aguardando' se a conversa já estiver 'Em atendimento', mesmo que ela seja "re-vinculada" a uma nova conexão.
+   - Melhorar a normalização de JIDs para tratar melhor a diferença entre @lid e @s.whatsapp.net.
 
-**Technical Details:**
-- Edit `backend/src/routes/uazapi.js`:
-    - Refactor `normalizeJid` to strip `@c.us` and `@s.whatsapp.net` before re-applying the standard suffix.
-    - Update `findUazapiConnection` to check more fields from the UAZAPI payload.
-    - Add `logInfo` calls in the `/webhook` route to trace the incoming data and connection matching.
-    - Ensure `organization_id` is fetched if not present in the cached connection object during socket emission.
+2. **Melhorar a ferramenta de limpeza de duplicatas**:
+   - Atualizar a rota `/api/chat/conversations/cleanup-duplicates` para identificar e mesclar conversas duplicadas entre diferentes conexões da mesma organização (necessário após migrações manuais ou re-adição de conexões).
+
+3. **Correção de visibilidade para Superadmin**:
+   - Garantir que o Superadmin veja apenas as conexões pertinentes ao contexto atual (organização selecionada) para evitar confusão entre diferentes inquilinos (tenants).
+
+4. **Scripts de diagnóstico**:
+   - Vou disponibilizar uma rota de diagnóstico mais detalhada para que possamos ver exatamente o que aconteceu com os dados "bagunçados".
+
+Resumo técnico:
+- Modificar `backend/src/routes/uazapi.js` para busca global de conversas na organização.
+- Modificar `backend/src/routes/chat.js` para aprimorar a mesclagem de duplicatas.
+- Ajustar `backend/src/routes/connections.js` para melhorar a filtragem do superadmin.
